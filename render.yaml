@@ -1,0 +1,25 @@
+# Blueprint Render.com — déploiement du backend ORION en un clic.
+# Sur https://render.com : New → Blueprint → connecter ce dépôt.
+services:
+  - type: web
+    name: orion-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health/ready
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: GEO_BACKEND
+        value: memory
+      - key: SIMULATE_RIDES
+        value: "true"
+      # ⚠️ En production, restreindre CORS au domaine du front (ex: https://orion.vercel.app)
+      - key: CORS_ORIGIN
+        value: "*"
+      # Clé Google Maps (optionnelle) — à définir dans le tableau de bord Render (secret).
+      # - key: GOOGLE_MAPS_API_KEY
+      #   sync: false
