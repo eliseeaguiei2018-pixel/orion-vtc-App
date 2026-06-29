@@ -7,6 +7,32 @@ puis (plus tard) une **app installable** sur téléphone.
 
 ---
 
+## ⭐ Le plus simple : un lien démo à partager (sans backend)
+
+L'app fonctionne en **mode démo** (données simulées) : il suffit de publier le **frontend**
+pour obtenir un **lien cliquable** que tes connaissances peuvent ouvrir sur leur téléphone.
+
+### Option 1 — GitHub Pages (gratuit, sur ton propre dépôt, automatique)
+J'ai déjà ajouté le workflow `.github/workflows/deploy-pages.yml`. Une seule action de ta part :
+1. Sur GitHub, va dans **Settings → Pages**.
+2. **Build and deployment → Source** : choisis **« GitHub Actions »**.
+3. (Si besoin) onglet **Actions** → ouvre « Deploy demo to GitHub Pages » → **Run workflow**.
+4. Après ~2 min, ton lien est prêt :
+   **`https://eliseeaguiei2018-pixel.github.io/orion-vtc-App/`** ← partage-le ! 🎉
+
+> Le workflow se relance à chaque mise à jour. Si le déploiement est bloqué car la branche
+> n'est pas `main`, fusionne la PR dans `main` (ou dis-le-moi, je t'explique).
+
+### Option 2 — Vercel (gratuit, ~5 clics, lien le plus rapide)
+1. Va sur **https://vercel.com** → **Continue with GitHub**.
+2. **Add New → Project** → choisis `orion-vtc-App` → **Import**.
+3. **Root Directory** : choisis **`frontend`**.
+4. **Deploy**. Au bout d'une minute tu obtiens un lien `https://orion-xxx.vercel.app` à partager.
+
+> Aucune des deux options ne nécessite le backend : la démo tourne toute seule.
+
+---
+
 ## Niveau 2 — Lien web partageable
 
 ### Étape A · Mettre le backend en ligne (Render — gratuit pour tester)
