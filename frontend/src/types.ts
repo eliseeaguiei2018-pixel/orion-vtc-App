@@ -72,6 +72,8 @@ export type WeddingDuration = 'halfday' | 'fullday' | 'weekend';
 export type Screen =
   | 'splash'
   | 'onboarding'
+  | 'auth'
+  | 'otp'
   | 'home'
   | 'destination'
   | 'estimate'

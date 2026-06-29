@@ -58,6 +58,9 @@ const fr: Dict = {
   wed_total: 'Total', wed_reserve: 'Réserver', toast_reserved: 'Réservation mariage confirmée 💍',
   tier_bronze: 'Bronze', tier_argent: 'Argent', tier_or: 'Or', tier_diamant: 'Diamant',
   seats: 'places', included: 'inclus',
+  reg_title: 'Créer votre compte', reg_subtitle: 'Entrez votre numéro pour commencer',
+  reg_name: 'Votre nom', reg_phone: 'Numéro de téléphone', reg_send: 'Recevoir le code',
+  otp_title: 'Vérification', otp_subtitle: 'Code envoyé au {phone}', otp_verify: 'Vérifier', otp_resend: 'Renvoyer le code',
 };
 
 const en: Dict = {
@@ -97,6 +100,9 @@ const en: Dict = {
   wed_total: 'Total', wed_reserve: 'Reserve', toast_reserved: 'Wedding booking confirmed 💍',
   tier_bronze: 'Bronze', tier_argent: 'Silver', tier_or: 'Gold', tier_diamant: 'Diamond',
   seats: 'seats', included: 'included',
+  reg_title: 'Create your account', reg_subtitle: 'Enter your number to get started',
+  reg_name: 'Your name', reg_phone: 'Phone number', reg_send: 'Get the code',
+  otp_title: 'Verification', otp_subtitle: 'Code sent to {phone}', otp_verify: 'Verify', otp_resend: 'Resend code',
 };
 
 const es: Dict = {
@@ -136,6 +142,9 @@ const es: Dict = {
   wed_total: 'Total', wed_reserve: 'Reservar', toast_reserved: 'Reserva de boda confirmada 💍',
   tier_bronze: 'Bronce', tier_argent: 'Plata', tier_or: 'Oro', tier_diamant: 'Diamante',
   seats: 'plazas', included: 'incluido',
+  reg_title: 'Crea tu cuenta', reg_subtitle: 'Introduce tu número para empezar',
+  reg_name: 'Tu nombre', reg_phone: 'Número de teléfono', reg_send: 'Recibir el código',
+  otp_title: 'Verificación', otp_subtitle: 'Código enviado al {phone}', otp_verify: 'Verificar', otp_resend: 'Reenviar código',
 };
 
 const it: Dict = {
@@ -175,6 +184,9 @@ const it: Dict = {
   wed_total: 'Totale', wed_reserve: 'Prenota', toast_reserved: 'Prenotazione matrimonio confermata 💍',
   tier_bronze: 'Bronzo', tier_argent: 'Argento', tier_or: 'Oro', tier_diamant: 'Diamante',
   seats: 'posti', included: 'incluso',
+  reg_title: 'Crea il tuo account', reg_subtitle: 'Inserisci il numero per iniziare',
+  reg_name: 'Il tuo nome', reg_phone: 'Numero di telefono', reg_send: 'Ricevi il codice',
+  otp_title: 'Verifica', otp_subtitle: 'Codice inviato al {phone}', otp_verify: 'Verifica', otp_resend: 'Invia di nuovo',
 };
 
 const de: Dict = {
@@ -214,6 +226,9 @@ const de: Dict = {
   wed_total: 'Gesamt', wed_reserve: 'Reservieren', toast_reserved: 'Hochzeitsbuchung bestätigt 💍',
   tier_bronze: 'Bronze', tier_argent: 'Silber', tier_or: 'Gold', tier_diamant: 'Diamant',
   seats: 'Sitze', included: 'inklusive',
+  reg_title: 'Konto erstellen', reg_subtitle: 'Nummer eingeben, um zu starten',
+  reg_name: 'Ihr Name', reg_phone: 'Telefonnummer', reg_send: 'Code erhalten',
+  otp_title: 'Verifizierung', otp_subtitle: 'Code gesendet an {phone}', otp_verify: 'Bestätigen', otp_resend: 'Code erneut senden',
 };
 
 const ar: Dict = {
@@ -253,6 +268,9 @@ const ar: Dict = {
   wed_total: 'الإجمالي', wed_reserve: 'حجز', toast_reserved: 'تم تأكيد حجز الزفاف 💍',
   tier_bronze: 'برونزي', tier_argent: 'فضّي', tier_or: 'ذهبي', tier_diamant: 'ماسي',
   seats: 'مقاعد', included: 'مشمول',
+  reg_title: 'أنشئ حسابك', reg_subtitle: 'أدخل رقمك للبدء',
+  reg_name: 'اسمك', reg_phone: 'رقم الهاتف', reg_send: 'استلام الرمز',
+  otp_title: 'التحقق', otp_subtitle: 'تم إرسال الرمز إلى {phone}', otp_verify: 'تحقّق', otp_resend: 'إعادة إرسال الرمز',
 };
 
 const zh: Dict = {
@@ -292,6 +310,9 @@ const zh: Dict = {
   wed_total: '合计', wed_reserve: '预订', toast_reserved: '婚礼预订已确认 💍',
   tier_bronze: '青铜', tier_argent: '白银', tier_or: '黄金', tier_diamant: '钻石',
   seats: '座', included: '已含',
+  reg_title: '创建账户', reg_subtitle: '输入号码即可开始',
+  reg_name: '你的名字', reg_phone: '手机号码', reg_send: '获取验证码',
+  otp_title: '验证', otp_subtitle: '验证码已发送至 {phone}', otp_verify: '验证', otp_resend: '重新发送',
 };
 
 const ru: Dict = {
@@ -331,6 +352,9 @@ const ru: Dict = {
   wed_total: 'Итого', wed_reserve: 'Забронировать', toast_reserved: 'Бронь на свадьбу подтверждена 💍',
   tier_bronze: 'Бронза', tier_argent: 'Серебро', tier_or: 'Золото', tier_diamant: 'Бриллиант',
   seats: 'мест', included: 'включено',
+  reg_title: 'Создайте аккаунт', reg_subtitle: 'Введите номер, чтобы начать',
+  reg_name: 'Ваше имя', reg_phone: 'Номер телефона', reg_send: 'Получить код',
+  otp_title: 'Подтверждение', otp_subtitle: 'Код отправлен на {phone}', otp_verify: 'Подтвердить', otp_resend: 'Отправить код снова',
 };
 
 export const TRANSLATIONS: Record<Lang, Dict> = { fr, en, es, it, ar, zh, de, ru };

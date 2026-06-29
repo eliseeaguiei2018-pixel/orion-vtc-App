@@ -61,6 +61,7 @@ export function App() {
   const [live, setLive] = useState(false);
   const [rating, setRating] = useState(0);
   const [currentPlan, setCurrentPlan] = useState<string | null>(null);
+  const [phone, setPhone] = useState('');
   const [toast, setToast] = useState<{ message: string; danger?: boolean } | null>(null);
 
   const showToast = (message: string, danger?: boolean) => {
@@ -131,7 +132,9 @@ export function App() {
         {toast && <Toast message={toast.message} danger={toast.danger} />}
 
         {screen === 'splash' && <Splash onDone={() => setScreen('onboarding')} />}
-        {screen === 'onboarding' && <Onboarding onStart={() => setScreen('home')} onLang={() => setScreen('settings')} />}
+        {screen === 'onboarding' && <Onboarding onStart={() => setScreen('auth')} onLang={() => setScreen('settings')} />}
+        {screen === 'auth' && <AuthScreen phone={phone} setPhone={setPhone} onBack={() => setScreen('onboarding')} onNext={() => setScreen('otp')} />}
+        {screen === 'otp' && <OtpScreen phone={phone} onBack={() => setScreen('auth')} onVerified={() => setScreen('home')} />}
 
         {screen === 'home' && (
           <HomeScreen origin={origin} onPick={() => setScreen('destination')} onQuick={chooseDestination} onNav={setScreen} />
@@ -217,6 +220,70 @@ function Onboarding({ onStart, onLang }: { onStart: () => void; onLang: () => vo
         </button>
         {!isLiveBackend() && <p className="faint" style={{ textAlign: 'center', fontSize: 12 }}>{t('demoMode')}</p>}
       </div>
+    </div>
+  );
+}
+
+/* --------------------------- Inscription ----------------------------- */
+function AuthScreen({ phone, setPhone, onBack, onNext }: {
+  phone: string; setPhone: (v: string) => void; onBack: () => void; onNext: () => void;
+}) {
+  const { t } = useI18n();
+  const [name, setName] = useState('');
+  const valid = phone.replace(/\D/g, '').length >= 8;
+  return (
+    <div className="screen page">
+      <OrionMap origin={DEFAULT_ORIGIN.location} />
+      <TopBar onBack={onBack} />
+      <div style={{ flex: 1 }} />
+      <Sheet>
+        <div className="logo-mark" style={{ width: 56, height: 56, marginBottom: 12 }}><IconLeaf size={28} /></div>
+        <h2 className="h-title">{t('reg_title')}</h2>
+        <p className="h-sub" style={{ marginBottom: 16 }}>{t('reg_subtitle')}</p>
+        <div className="field" style={{ marginBottom: 10 }}>
+          <input placeholder={t('reg_name')} value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div className="field" style={{ marginBottom: 16 }}>
+          <span className="dialcode">🇨🇮 +225</span>
+          <input inputMode="tel" placeholder={t('reg_phone')} value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </div>
+        <button className="btn btn-primary" disabled={!valid} onClick={onNext}>{t('reg_send')} <IconChevron size={18} /></button>
+      </Sheet>
+    </div>
+  );
+}
+
+function OtpScreen({ phone, onBack, onVerified }: { phone: string; onBack: () => void; onVerified: () => void }) {
+  const { t } = useI18n();
+  const [code, setCode] = useState(['', '', '', '']);
+  const refs = useRef<Array<HTMLInputElement | null>>([]);
+  const filled = code.every((c) => c !== '');
+
+  const setDigit = (i: number, v: string) => {
+    const d = v.replace(/\D/g, '').slice(-1);
+    setCode((prev) => { const n = [...prev]; n[i] = d; return n; });
+    if (d && i < 3) refs.current[i + 1]?.focus();
+  };
+
+  return (
+    <div className="screen page">
+      <OrionMap origin={DEFAULT_ORIGIN.location} />
+      <TopBar onBack={onBack} title={t('otp_title')} />
+      <div style={{ flex: 1 }} />
+      <Sheet>
+        <h2 className="h-title">{t('otp_title')}</h2>
+        <p className="h-sub" style={{ marginBottom: 18 }}>{t('otp_subtitle', { phone: `+225 ${phone}` })}</p>
+        <div className="otp-row">
+          {code.map((c, i) => (
+            <input key={i} ref={(el) => { refs.current[i] = el; }} className="otp-box" inputMode="numeric" maxLength={1}
+              value={c} autoFocus={i === 0} onChange={(e) => setDigit(i, e.target.value)} />
+          ))}
+        </div>
+        <button className="btn btn-primary" style={{ marginTop: 20 }} disabled={!filled} onClick={onVerified}>
+          <IconCheck size={18} /> {t('otp_verify')}
+        </button>
+        <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={() => setCode(['', '', '', ''])}>{t('otp_resend')}</button>
+      </Sheet>
     </div>
   );
 }
