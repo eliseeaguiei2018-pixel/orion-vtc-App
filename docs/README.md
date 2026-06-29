@@ -10,10 +10,14 @@ Documentation fonctionnelle et technique de la plateforme de mobilité verte ORI
 | 04 | [Stratégie d'extension des services](./04-strategie-extension-services.md) | Architecture multi-services (VTC, livraison, micro-mobilité) |
 | 05 | [Architecture & scalabilité](./05-architecture-scalabilite.md) | Robustesse et passage à l'échelle |
 | 06 | [Modèle de données](./06-modele-de-donnees.md) | Entités et choix structurants |
+| 07 | [Côte d'Ivoire, sécurité & temps réel](./07-cote-divoire-securite-temps-reel.md) | Plan directeur CI, mobile money, détection d'accident + SAMU, WebSocket, Google Maps |
 
 > Les diagrammes sont en **Mermaid** et se rendent automatiquement sur GitHub.
 
 ## Lien avec le code
-La fondation technique décrite ici est implémentée dans [`../backend`](../backend) :
-moteur multi-service, tarification verrouillée, matching géolocalisé, conformité KYC,
-et patterns de robustesse (idempotence, rate limiting, health checks, graceful shutdown).
+- **Backend** [`../backend`](../backend) : moteur multi-service, tarification FCFA verrouillée,
+  matching géolocalisé, conformité KYC, plan directeur CI, mobile money, sécurité/SAMU,
+  temps réel WebSocket, Google Maps, et robustesse (idempotence, rate limiting, health
+  checks, graceful shutdown).
+- **App Client** [`../frontend`](../frontend) : application premium mobile-first (Abidjan),
+  livrée en premier. L'app chauffeur est un projet séparé, à venir.

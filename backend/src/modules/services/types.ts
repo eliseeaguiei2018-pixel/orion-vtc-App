@@ -29,6 +29,8 @@ export interface Quote {
   category: string;
   amount: number;
   currency: string;
+  origin: LatLng;
+  destination: LatLng;
   distanceMeters: number;
   etaSeconds: number;
   breakdown: QuoteBreakdown;

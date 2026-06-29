@@ -3,6 +3,7 @@ import { config } from '../../../config/index.js';
 import { badRequest } from '../../../core/errors.js';
 import type { EstimateRequest, Quote, ServiceModule } from '../types.js';
 import { estimatePrice, type PricingContext } from './pricing.js';
+import { isWithinCotedIvoire } from '../../geo-ci/zones.js';
 
 /** Fournit le contexte de tarification dynamique (surge, promo) pour une demande. */
 export type PricingContextProvider = (req: EstimateRequest) => PricingContext;
@@ -20,6 +21,12 @@ export class RideServiceModule implements ServiceModule {
     if (!isFinite(req.origin?.lat) || !isFinite(req.destination?.lat)) {
       throw badRequest('Coordonnées origine/destination requises');
     }
+    // Zone de service : ORION opère en Côte d'Ivoire.
+    if (!isWithinCotedIvoire(req.origin) || !isWithinCotedIvoire(req.destination)) {
+      throw badRequest('Trajet hors zone de service (Côte d\'Ivoire)', {
+        code: 'OUT_OF_SERVICE_AREA',
+      });
+    }
     const price = estimatePrice(req, this.contextProvider(req));
     const now = Date.now();
     return {
@@ -28,6 +35,8 @@ export class RideServiceModule implements ServiceModule {
       category: price.category,
       amount: price.amount,
       currency: price.currency,
+      origin: req.origin,
+      destination: req.destination,
       distanceMeters: price.distanceMeters,
       etaSeconds: price.etaSeconds,
       breakdown: price.breakdown,

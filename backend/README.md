@@ -48,6 +48,17 @@ ce qui le rend immédiatement exécutable et testable.
 | POST | `/rides/:id/rate` | Notation du chauffeur |
 | GET | `/compliance/rules/:jurisdiction` | Règles KYC par juridiction |
 | POST | `/compliance/evaluate` | Éligibilité d'un dossier chauffeur |
+| GET | `/geo/zones` · POST `/geo/resolve` | Plan directeur CI (zones) + rattachement |
+| GET | `/payments/methods` | Moyens de paiement (mobile money en tête) |
+| POST | `/rides/:id/pay` | Paiement (FCFA, idempotent) |
+| POST | `/safety/sos` · `/safety/sensor` | SOS manuel · détection d'accident (capteurs) |
+| GET | `/safety/alerts` · `/safety/emergency-numbers` | Alertes · numéros d'urgence CI (SAMU 185) |
+| POST | `/maps/route` · GET `/maps/autocomplete` | Itinéraires / lieux (Google Maps si clé) |
+| WS | `/ws/rides/:id` · `/ws/emergency` | Suivi temps réel · supervision urgences |
+
+> 🇨🇮 **Localisation** : devise **XOF (FCFA)**, tarifs Abidjan, surge par zone & heure de
+> pointe, zone de service limitée à la Côte d'Ivoire. Voir
+> [`../docs/07-cote-divoire-securite-temps-reel.md`](../docs/07-cote-divoire-securite-temps-reel.md).
 
 ### Exemple : estimation puis course
 

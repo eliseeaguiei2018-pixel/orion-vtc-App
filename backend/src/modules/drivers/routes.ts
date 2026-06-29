@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { latLng, parse } from '../../core/validate.js';
 import { notFound } from '../../core/errors.js';
+import { driverRoom, rideRoom } from '../realtime/hub.js';
 
 const registerSchema = z.object({
   name: z.string().min(1),
@@ -59,6 +60,16 @@ export async function driverRoutes(app: FastifyInstance, container: Container): 
     if (!container.drivers.get(id)) throw notFound('Chauffeur introuvable');
     const body = parse(locationSchema, req.body);
     await container.drivers.updateLocation(id, body.position);
+
+    // Diffusion temps réel : suivi précis côté client (room de la course active).
+    container.realtime.publish(driverRoom(id), 'driver.location', { driverId: id, position: body.position });
+    const activeRide = container.rides.findActiveByDriver(id);
+    if (activeRide) {
+      container.realtime.publish(rideRoom(activeRide.id), 'driver.location', {
+        driverId: id,
+        position: body.position,
+      });
+    }
     return { status: 'updated' };
   });
 }

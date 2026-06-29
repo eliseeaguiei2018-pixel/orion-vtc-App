@@ -17,14 +17,14 @@ test('parcours complet : estimation → course → matching → notation', async
   await app.inject({
     method: 'POST',
     url: `/drivers/${driverId}/online`,
-    payload: { position: { lat: 0.001, lng: 0.001 } },
+    payload: { position: { lat: 5.324, lng: -4.021 } }, // Plateau, Abidjan
   });
 
-  // 2) Le client demande une estimation (prix verrouillé).
+  // 2) Le client demande une estimation (prix verrouillé). Plateau → Cocody.
   const est = await app.inject({
     method: 'POST',
     url: '/pricing/estimate',
-    payload: { origin: { lat: 0, lng: 0 }, destination: { lat: 0.05, lng: 0.05 }, category: 'green' },
+    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9876 }, category: 'green' },
   });
   assert.equal(est.statusCode, 200);
   const quote = est.json().quote;
@@ -51,11 +51,21 @@ test('parcours complet : estimation → course → matching → notation', async
   });
   assert.equal(replay.json().ride.id, rideId);
 
-  // 5) Progression des états jusqu'au paiement.
-  for (const to of ['driver_en_route', 'arrived', 'in_progress', 'completed', 'paid']) {
+  // 5) Progression des états jusqu'à la fin de course.
+  for (const to of ['driver_en_route', 'arrived', 'in_progress', 'completed']) {
     const r = await app.inject({ method: 'POST', url: `/rides/${rideId}/transition`, payload: { to } });
     assert.equal(r.statusCode, 200, `transition vers ${to}`);
   }
+
+  // 5b) Paiement en espèces (passe la course à "paid").
+  const pay = await app.inject({
+    method: 'POST',
+    url: `/rides/${rideId}/pay`,
+    headers: { 'idempotency-key': 'pay-1' },
+    payload: { method: 'cash' },
+  });
+  assert.equal(pay.statusCode, 200);
+  assert.equal(pay.json().rideStatus, 'paid');
 
   // 6) Notation du chauffeur.
   const rate = await app.inject({ method: 'POST', url: `/rides/${rideId}/rate`, payload: { stars: 5 } });
@@ -81,7 +91,7 @@ test('transition illégale refusée', async (t) => {
   const est = await app.inject({
     method: 'POST',
     url: '/pricing/estimate',
-    payload: { origin: { lat: 0, lng: 0 }, destination: { lat: 0.05, lng: 0.05 } },
+    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9876 } },
   });
   const ride = await app.inject({
     method: 'POST',

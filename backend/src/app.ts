@@ -10,6 +10,11 @@ import { pricingRoutes } from './modules/pricing/routes.js';
 import { driverRoutes } from './modules/drivers/routes.js';
 import { rideRoutes } from './modules/rides/routes.js';
 import { complianceRoutes } from './modules/compliance/routes.js';
+import { geoCiRoutes } from './modules/geo-ci/routes.js';
+import { paymentRoutes } from './modules/payments/routes.js';
+import { safetyRoutes } from './modules/safety/routes.js';
+import { mapsRoutes } from './modules/maps/routes.js';
+import { realtimeRoutes } from './modules/realtime/routes.js';
 
 export interface BuiltApp {
   app: FastifyInstance;
@@ -54,18 +59,28 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
     reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Route introuvable', requestId: req.id } });
   });
 
-  // Enregistrement des modules.
+  // Passerelle temps réel (WebSocket) — enregistrée avant les routes HTTP.
+  await realtimeRoutes(app, container);
+
+  // Enregistrement des modules HTTP.
   await healthRoutes(app, container);
   await pricingRoutes(app, container);
   await driverRoutes(app, container);
   await rideRoutes(app, container);
   await complianceRoutes(app, container);
+  await geoCiRoutes(app, container);
+  await paymentRoutes(app, container);
+  await safetyRoutes(app, container);
+  await mapsRoutes(app, container);
 
   app.get('/', async () => ({
     name: 'ORION VTC API',
-    version: '0.1.0',
+    version: '0.2.0',
+    country: 'CI',
+    currency: 'XOF',
     docs: '/docs (voir le dossier docs/ du dépôt)',
     services: container.registry.list(),
+    features: ['geo-ci', 'mobile-money', 'safety-samu', 'realtime-ws', 'google-maps-ready'],
   }));
 
   return { app, container };

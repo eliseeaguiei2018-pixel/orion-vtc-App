@@ -29,6 +29,10 @@ const schema = z.object({
 
   // En prod : 'redis'. En local/test : 'memory' (aucune infra requise).
   GEO_BACKEND: z.enum(['memory', 'redis']).default('memory'),
+
+  // Partenariat Google Maps (Directions / Distance Matrix / Places).
+  // Optionnel : sans clé, on bascule sur un calcul interne (haversine) — l'app fonctionne.
+  GOOGLE_MAPS_API_KEY: z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);

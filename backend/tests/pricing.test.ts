@@ -2,8 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { estimatePrice } from '../src/modules/services/ride/pricing.js';
 
-const origin = { lat: 48.8566, lng: 2.3522 }; // Paris
-const destination = { lat: 48.8606, lng: 2.3376 }; // Louvre
+// Abidjan : Plateau → Cocody
+const origin = { lat: 5.3236, lng: -4.0217 };
+const destination = { lat: 5.3599, lng: -3.9876 };
 
 test('estimation déterministe (même entrée → même prix)', () => {
   const a = estimatePrice({ origin, destination, category: 'green' });
@@ -12,9 +13,15 @@ test('estimation déterministe (même entrée → même prix)', () => {
   assert.ok(a.amount > 0);
 });
 
+test('devise XOF et arrondi au multiple de 50', () => {
+  const r = estimatePrice({ origin, destination, category: 'green' });
+  assert.equal(r.currency, 'XOF');
+  assert.equal(r.amount % 50, 0);
+});
+
 test('le prix respecte le tarif minimum', () => {
   const r = estimatePrice({ origin, destination: origin, category: 'green' });
-  assert.equal(r.amount, 5); // minFare green
+  assert.equal(r.amount, 1200); // minFare green (FCFA)
 });
 
 test('le surge augmente le prix, la remise le diminue', () => {
@@ -25,10 +32,10 @@ test('le surge augmente le prix, la remise le diminue', () => {
   assert.ok(discounted.amount < base.amount);
 });
 
-test('catégorie van plus chère que green', () => {
-  const green = estimatePrice({ origin, destination, category: 'green' });
+test('catégorie van plus chère que eco', () => {
+  const eco = estimatePrice({ origin, destination, category: 'eco' });
   const van = estimatePrice({ origin, destination, category: 'van' });
-  assert.ok(van.amount > green.amount);
+  assert.ok(van.amount > eco.amount);
 });
 
 test('le breakdown est fourni (transparence)', () => {

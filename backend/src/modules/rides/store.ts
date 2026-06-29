@@ -53,6 +53,12 @@ export class RideStore {
     return this.rides.get(id);
   }
 
+  /** Course active (non terminale) d'un chauffeur, pour router sa position vers la room. */
+  findActiveByDriver(driverId: string): Ride | undefined {
+    const active = new Set(['accepted', 'driver_en_route', 'arrived', 'in_progress']);
+    return [...this.rides.values()].find((r) => r.driverId === driverId && active.has(r.status));
+  }
+
   listByClient(clientId: string): Ride[] {
     return [...this.rides.values()]
       .filter((r) => r.clientId === clientId)

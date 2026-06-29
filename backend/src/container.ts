@@ -5,6 +5,11 @@ import { RideServiceModule } from './modules/services/ride/rideModule.js';
 import { DriverStore } from './modules/drivers/store.js';
 import { RideStore } from './modules/rides/store.js';
 import { MatchingEngine } from './modules/rides/matching.js';
+import { zoneSurge } from './modules/geo-ci/zones.js';
+import { PaymentRegistry } from './modules/payments/providers.js';
+import { SafetyService } from './modules/safety/service.js';
+import { RealtimeHub } from './modules/realtime/hub.js';
+import { createMapsProvider, type MapsProvider } from './modules/maps/service.js';
 
 /**
  * Conteneur d'injection de dépendances. Centralise le câblage et facilite les tests
@@ -18,6 +23,10 @@ export interface Container {
   drivers: DriverStore;
   rides: RideStore;
   matching: MatchingEngine;
+  payments: PaymentRegistry;
+  safety: SafetyService;
+  realtime: RealtimeHub;
+  maps: MapsProvider;
 }
 
 export function createContainer(): Container {
@@ -26,8 +35,14 @@ export function createContainer(): Container {
   const rides = new RideStore();
   const matching = new MatchingEngine(geo, drivers);
 
-  const registry = new ServiceRegistry().register(new RideServiceModule());
+  // Tarification dynamique branchée sur le plan directeur ivoirien (surge par zone + heure).
+  const registry = new ServiceRegistry().register(
+    new RideServiceModule((req) => ({ surgeMultiplier: zoneSurge(req.origin, req.destination) })),
+  );
   // Extension : registry.register(new DeliveryServiceModule()) ... (cf. docs/04)
+
+  const realtime = new RealtimeHub();
+  const safety = new SafetyService(realtime);
 
   return {
     geo,
@@ -36,5 +51,9 @@ export function createContainer(): Container {
     drivers,
     rides,
     matching,
+    payments: new PaymentRegistry(),
+    safety,
+    realtime,
+    maps: createMapsProvider(),
   };
 }

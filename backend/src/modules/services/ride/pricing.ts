@@ -17,10 +17,15 @@ export interface CategoryTariff {
   avgSpeedKmh: number;
 }
 
+/**
+ * Tarifs en FCFA (XOF) calibrés pour le marché ivoirien (Abidjan).
+ * Vitesse moyenne abaissée (22 km/h) pour refléter le trafic abidjanais.
+ */
 export const DEFAULT_TARIFFS: Record<string, CategoryTariff> = {
-  green: { category: 'green', currency: 'EUR', baseFare: 2.0, perKm: 1.1, perMinute: 0.3, minFare: 5, avgSpeedKmh: 28 },
-  comfort: { category: 'comfort', currency: 'EUR', baseFare: 3.0, perKm: 1.5, perMinute: 0.4, minFare: 7, avgSpeedKmh: 28 },
-  van: { category: 'van', currency: 'EUR', baseFare: 5.0, perKm: 2.0, perMinute: 0.5, minFare: 10, avgSpeedKmh: 26 },
+  eco: { category: 'eco', currency: 'XOF', baseFare: 500, perKm: 250, perMinute: 35, minFare: 1000, avgSpeedKmh: 22 },
+  green: { category: 'green', currency: 'XOF', baseFare: 600, perKm: 280, perMinute: 40, minFare: 1200, avgSpeedKmh: 22 },
+  comfort: { category: 'comfort', currency: 'XOF', baseFare: 900, perKm: 380, perMinute: 55, minFare: 1800, avgSpeedKmh: 22 },
+  van: { category: 'van', currency: 'XOF', baseFare: 1300, perKm: 520, perMinute: 75, minFare: 3000, avgSpeedKmh: 20 },
 };
 
 export interface PriceResult {
@@ -33,6 +38,8 @@ export interface PriceResult {
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+/** Le FCFA n'a pas de centimes : on arrondit au multiple de 50 le plus proche. */
+const roundFcfa = (n: number) => Math.round(n / 50) * 50;
 
 export interface PricingContext {
   /** Coefficient multiplicateur de demande (1 = normal). Fourni par la tarification dynamique. */
@@ -61,7 +68,7 @@ export function estimatePrice(
   const subtotal = (base + distanceCost + timeCost) * surge;
   const beforeDiscount = Math.max(subtotal, tariff.minFare);
   const discount = beforeDiscount * discountRate;
-  const amount = round2(beforeDiscount - discount);
+  const amount = roundFcfa(beforeDiscount - discount);
 
   return {
     category,
@@ -70,11 +77,11 @@ export function estimatePrice(
     distanceMeters: Math.round(distanceMeters),
     etaSeconds,
     breakdown: {
-      base: round2(base),
-      distance: round2(distanceCost),
-      time: round2(timeCost),
+      base: Math.round(base),
+      distance: Math.round(distanceCost),
+      time: Math.round(timeCost),
       surge: round2(surge),
-      discount: round2(discount),
+      discount: Math.round(discount),
     },
   };
 }

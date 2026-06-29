@@ -5,6 +5,7 @@ import type { Container } from '../../container.js';
 import { parse } from '../../core/validate.js';
 import { badRequest, conflict, notFound } from '../../core/errors.js';
 import { rideStateMachine, type RideStatus } from '../services/ride/stateMachine.js';
+import { rideRoom } from '../realtime/hub.js';
 import type { Ride } from './store.js';
 
 const createSchema = z.object({
@@ -41,8 +42,8 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
         clientId: body.clientId,
         serviceType: quote.serviceType,
         status: rideStateMachine.initial,
-        origin: { lat: 0, lng: 0 }, // dérivé du devis dans une version complète
-        destination: { lat: 0, lng: 0 },
+        origin: quote.origin,
+        destination: quote.destination,
         quote,
         events: [],
         createdAt: new Date().toISOString(),
@@ -92,6 +93,7 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     rideStateMachine.assertTransition(ride.status, body.to);
     ride.status = body.to;
     appendEvent(ride, body.to);
+    container.realtime.publish(rideRoom(ride.id), 'ride.status', { rideId: ride.id, status: ride.status });
 
     // Libère le chauffeur sur les états terminaux.
     if (ride.driverId && (body.to === 'rated' || body.to === 'cancelled')) {
