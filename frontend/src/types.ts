@@ -11,14 +11,18 @@ export interface Place {
   kind?: 'home' | 'work' | 'recent' | 'hub';
 }
 
-export interface Vehicle {
-  id: string;
-  label: string;
-  tagline: string;
+export type TierId = 'bronze' | 'argent' | 'or' | 'diamant';
+
+export interface TierOption {
+  id: TierId;
+  /** Clé i18n du libellé (tier_bronze, …). */
+  key: string;
   multiplier: number;
   capacity: number;
   eta: number; // minutes
-  icon: 'eco' | 'green' | 'comfort' | 'van';
+  cars: string[];
+  accent: string;
+  weddingDayPrice: number;
 }
 
 export interface PaymentMethod {
@@ -45,7 +49,28 @@ export interface Driver {
   color: string;
 }
 
+export interface SubPlan {
+  id: 'bronze' | 'argent' | 'gold';
+  key: string;
+  ridesPerDay: number;
+  monthlyPrice: number;
+  benefits: string[];
+  accent: string;
+}
+
+export interface Country {
+  code: string;
+  name: string;
+  flag: string;
+  currency: string;
+  dialCode: string;
+  status: 'active' | 'coming_soon';
+}
+
+export type WeddingDuration = 'halfday' | 'fullday' | 'weekend';
+
 export type Screen =
+  | 'splash'
   | 'onboarding'
   | 'home'
   | 'destination'
@@ -53,4 +78,7 @@ export type Screen =
   | 'confirm'
   | 'searching'
   | 'tracking'
-  | 'rating';
+  | 'rating'
+  | 'settings'
+  | 'subscription'
+  | 'wedding';

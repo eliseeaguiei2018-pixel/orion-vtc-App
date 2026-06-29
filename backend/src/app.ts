@@ -17,6 +17,10 @@ import { safetyRoutes } from './modules/safety/routes.js';
 import { mapsRoutes } from './modules/maps/routes.js';
 import { realtimeRoutes } from './modules/realtime/routes.js';
 import { walletRoutes } from './modules/wallet/routes.js';
+import { fleetRoutes } from './modules/fleet/routes.js';
+import { countryRoutes } from './modules/countries/routes.js';
+import { subscriptionRoutes } from './modules/subscriptions/routes.js';
+import { weddingRoutes } from './modules/wedding/routes.js';
 
 export interface BuiltApp {
   app: FastifyInstance;
@@ -80,6 +84,10 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
   await safetyRoutes(app, container);
   await mapsRoutes(app, container);
   await walletRoutes(app, container);
+  await fleetRoutes(app, container);
+  await countryRoutes(app, container);
+  await subscriptionRoutes(app, container);
+  await weddingRoutes(app, container);
 
   // Arrêt en douceur : couper les timers de simulation.
   app.addHook('onClose', async () => container.simulator.stopAll());
@@ -91,7 +99,8 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
     currency: 'XOF',
     docs: '/docs (voir le dossier docs/ du dépôt)',
     services: container.registry.list(),
-    features: ['geo-ci', 'mobile-money', 'safety-samu', 'realtime-ws', 'live-tracking', 'wallet-commissions', 'google-maps-ready'],
+    tiers: ['bronze', 'argent', 'or', 'diamant'],
+    features: ['geo-ci', 'mobile-money', 'safety-samu', 'realtime-ws', 'live-tracking', 'wallet-commissions', 'subscriptions', 'wedding-rental', 'multi-country', 'google-maps-ready'],
   }));
 
   return { app, container };

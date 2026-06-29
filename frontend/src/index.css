@@ -290,3 +290,82 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
 .fare-line { display: flex; justify-content: space-between; font-size: 14px; padding: 5px 0; color: var(--text-dim); }
 .fare-total { display: flex; justify-content: space-between; align-items: baseline; padding-top: 8px; }
 .fare-total .amt { font-family: var(--font-display); font-weight: 800; font-size: 26px; color: var(--text); }
+
+/* ---- Splash (ouverture animée) ---- */
+.splash {
+  position: absolute; inset: 0; z-index: 80; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px; cursor: pointer;
+  background: radial-gradient(80% 60% at 50% 42%, #0e3826 0%, var(--bg-0) 70%);
+  overflow: hidden;
+}
+.splash-rings { position: absolute; width: 320px; height: 320px; display: grid; place-items: center; }
+.splash-rings span { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid rgba(0,224,138,0.35); animation: splash-ring 2.4s ease-out infinite; }
+.splash-rings span:nth-child(2) { animation-delay: 0.5s; }
+.splash-rings span:nth-child(3) { animation-delay: 1s; }
+@keyframes splash-ring { 0% { transform: scale(0.2); opacity: 0.8; } 100% { transform: scale(1.1); opacity: 0; } }
+.splash-logo {
+  width: 92px; height: 92px; border-radius: 26px; display: grid; place-items: center; color: #04140d;
+  background: linear-gradient(135deg, var(--green-bright), var(--green-deep)); box-shadow: var(--glow);
+  animation: splash-pop 0.8s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes splash-pop { 0% { transform: scale(0.3) rotate(-12deg); opacity: 0; } 60% { transform: scale(1.08); } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+.splash-word {
+  font-family: var(--font-display); font-weight: 800; font-size: 40px; letter-spacing: 0.32em;
+  margin-top: 18px; padding-left: 0.32em; color: var(--text);
+  background: linear-gradient(120deg, #fff, var(--green-bright), #fff); background-size: 200% auto;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  animation: splash-word 1.1s ease both 0.25s, shine 2.5s linear infinite 0.9s; opacity: 0;
+}
+@keyframes splash-word { from { letter-spacing: 0.6em; opacity: 0; } to { letter-spacing: 0.32em; opacity: 1; } }
+@keyframes shine { to { background-position: 200% center; } }
+.splash-tag { font-size: 13px; color: var(--green); opacity: 0; animation: fade-in 0.8s ease both 0.9s; letter-spacing: 0.04em; }
+
+/* ---- Floating language button ---- */
+.lang-fab { position: absolute; top: max(18px, env(safe-area-inset-top)); inset-inline-end: 20px; z-index: 40; }
+
+/* ---- Feature cards (Home) ---- */
+.feature-card {
+  flex: 1; display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
+  padding: 16px; border-radius: 18px; cursor: pointer; color: var(--text);
+  border: 1px solid var(--stroke); background: var(--surface); font-weight: 600; font-size: 14px;
+  transition: transform 0.12s, border-color 0.2s, background 0.2s;
+}
+.feature-card:active { transform: scale(0.98); }
+.feature-card svg { color: var(--green); }
+
+/* ---- List buttons (reset native button) ---- */
+.list-btn { width: 100%; background: none; border: none; cursor: pointer; color: var(--text); }
+
+/* ---- Full pages (settings / subscription / wedding) ---- */
+.page { background: linear-gradient(180deg, var(--bg-1), var(--bg-0)); }
+.page-body {
+  flex: 1; overflow-y: auto; padding: 92px 20px calc(28px + env(safe-area-inset-bottom));
+  scrollbar-width: none;
+}
+.page-body::-webkit-scrollbar { display: none; }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.opt {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 14px; border-radius: 14px; cursor: pointer; color: var(--text); font-size: 15px; font-weight: 500;
+  border: 1px solid var(--stroke); background: var(--surface); transition: all 0.18s;
+}
+.opt.active { border-color: var(--green); background: rgba(0,224,138,0.08); }
+.opt.muted-opt { opacity: 0.6; }
+
+.plan-card { border: 1px solid var(--stroke); background: var(--surface); border-radius: 22px; padding: 18px; transition: all 0.2s; }
+
+/* ---- Toggle ---- */
+.toggle { width: 50px; height: 30px; border-radius: 999px; border: 1px solid var(--stroke); background: var(--surface-2); position: relative; cursor: pointer; transition: background 0.2s; }
+.toggle span { position: absolute; top: 3px; inset-inline-start: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--text-faint); transition: all 0.2s; }
+.toggle.on { background: linear-gradient(135deg, var(--green-bright), var(--green-deep)); border-color: transparent; }
+.toggle.on span { inset-inline-start: 23px; background: #04140d; }
+
+/* ---- Stepper ---- */
+.step { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--stroke); background: var(--surface-2); color: var(--text); display: grid; place-items: center; cursor: pointer; }
+.step:active { transform: scale(0.92); }
+
+/* ---- RTL ---- */
+[dir='rtl'] .h-hero, [dir='rtl'] .h-title, [dir='rtl'] .h-sub, [dir='rtl'] .eyebrow { text-align: right; }
+[dir='rtl'] .chips { flex-direction: row-reverse; }

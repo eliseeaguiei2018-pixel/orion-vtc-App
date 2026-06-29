@@ -1,10 +1,12 @@
 import type { EstimateRequest, QuoteBreakdown } from '../types.js';
 import { haversineMeters } from '../../../core/geo.js';
+import { FLEET, isTier, type Tier } from '../../fleet/catalog.js';
 
 /**
  * Stratégie de tarification (pattern Strategy) : chaque service injecte la sienne.
- * Pour le VTC : base + distance + temps, modulé par un coefficient de surge (zone/heure),
- * puis remise éventuelle. Le détail (breakdown) est renvoyé pour la TRANSPARENCE des prix.
+ * Pour le VTC : base + distance + temps, modulé par le NIVEAU choisi (Bronze→Diamant),
+ * un coefficient de surge (zone/heure), puis remise éventuelle. Le détail (breakdown) est
+ * renvoyé pour la TRANSPARENCE des prix.
  */
 export interface CategoryTariff {
   category: string;
@@ -17,16 +19,24 @@ export interface CategoryTariff {
   avgSpeedKmh: number;
 }
 
-/**
- * Tarifs en FCFA (XOF) calibrés pour le marché ivoirien (Abidjan).
- * Vitesse moyenne abaissée (22 km/h) pour refléter le trafic abidjanais.
- */
-export const DEFAULT_TARIFFS: Record<string, CategoryTariff> = {
-  eco: { category: 'eco', currency: 'XOF', baseFare: 500, perKm: 250, perMinute: 35, minFare: 1000, avgSpeedKmh: 22 },
-  green: { category: 'green', currency: 'XOF', baseFare: 600, perKm: 280, perMinute: 40, minFare: 1200, avgSpeedKmh: 22 },
-  comfort: { category: 'comfort', currency: 'XOF', baseFare: 900, perKm: 380, perMinute: 55, minFare: 1800, avgSpeedKmh: 22 },
-  van: { category: 'van', currency: 'XOF', baseFare: 1300, perKm: 520, perMinute: 75, minFare: 3000, avgSpeedKmh: 20 },
-};
+/** Tarif de base FCFA (Abidjan), modulé ensuite par le multiplicateur du niveau. */
+const BASE_TARIFF = { baseFare: 500, perKm: 250, perMinute: 35, minFare: 1000, avgSpeedKmh: 22 };
+
+export const DEFAULT_TIER: Tier = 'bronze';
+
+/** Construit le tarif d'un niveau à partir du tarif de base × multiplicateur. */
+export function tariffForTier(tier: Tier): CategoryTariff {
+  const m = FLEET[tier].multiplier;
+  return {
+    category: tier,
+    currency: 'XOF',
+    baseFare: BASE_TARIFF.baseFare * m,
+    perKm: BASE_TARIFF.perKm * m,
+    perMinute: BASE_TARIFF.perMinute * m,
+    minFare: BASE_TARIFF.minFare * m,
+    avgSpeedKmh: BASE_TARIFF.avgSpeedKmh,
+  };
+}
 
 export interface PriceResult {
   category: string;
@@ -52,8 +62,8 @@ export function estimatePrice(
   req: EstimateRequest,
   ctx: PricingContext = {},
 ): PriceResult {
-  const category = req.category ?? 'green';
-  const tariff = DEFAULT_TARIFFS[category] ?? DEFAULT_TARIFFS.green!;
+  const category = req.category && isTier(req.category) ? req.category : DEFAULT_TIER;
+  const tariff = tariffForTier(category);
   const surge = Math.max(1, ctx.surgeMultiplier ?? 1);
   const discountRate = Math.min(1, Math.max(0, ctx.discountRate ?? 0));
 

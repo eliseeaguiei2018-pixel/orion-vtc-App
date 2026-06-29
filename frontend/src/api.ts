@@ -1,4 +1,4 @@
-import type { LatLng, Quote, Vehicle } from './types';
+import type { LatLng, Quote, TierOption } from './types';
 
 /**
  * Client API ORION. Si VITE_API_URL est défini et joignable, on utilise le backend réel.
@@ -38,15 +38,15 @@ function haversine(a: LatLng, b: LatLng): number {
 const round50 = (n: number) => Math.round(n / 50) * 50;
 
 /** Estimation locale (miroir simplifié du backend, en FCFA). */
-function localEstimate(origin: LatLng, destination: LatLng, vehicle: Vehicle): Quote {
+function localEstimate(origin: LatLng, destination: LatLng, tier: TierOption): Quote {
   const distanceMeters = haversine(origin, destination) * 1.3;
   const km = distanceMeters / 1000;
   const etaSeconds = Math.round((km / 22) * 3600);
-  const base = 600 * vehicle.multiplier;
-  const distance = km * 280 * vehicle.multiplier;
-  const time = (etaSeconds / 60) * 40 * vehicle.multiplier;
+  const base = 500 * tier.multiplier;
+  const distance = km * 250 * tier.multiplier;
+  const time = (etaSeconds / 60) * 35 * tier.multiplier;
   const surge = 1.1;
-  const amount = round50(Math.max((base + distance + time) * surge, 1200 * vehicle.multiplier));
+  const amount = round50(Math.max((base + distance + time) * surge, 1000 * tier.multiplier));
   return {
     lockId: `local-${Date.now()}`,
     amount,
@@ -57,21 +57,18 @@ function localEstimate(origin: LatLng, destination: LatLng, vehicle: Vehicle): Q
   };
 }
 
-/** Aperçu synchrone du prix (pour afficher la liste des véhicules sans latence). */
-export function previewQuote(origin: LatLng, destination: LatLng, vehicle: Vehicle): Quote {
-  return localEstimate(origin, destination, vehicle);
+/** Aperçu synchrone du prix (pour afficher la liste des niveaux sans latence). */
+export function previewQuote(origin: LatLng, destination: LatLng, tier: TierOption): Quote {
+  return localEstimate(origin, destination, tier);
 }
 
-export async function estimate(origin: LatLng, destination: LatLng, vehicle: Vehicle): Promise<Quote> {
+export async function estimate(origin: LatLng, destination: LatLng, tier: TierOption): Promise<Quote> {
   const remote = await tryFetch<{ quote: Quote }>('/pricing/estimate', {
     method: 'POST',
-    body: JSON.stringify({ origin, destination, category: vehicle.id === 'eco' ? 'eco' : vehicle.id }),
+    body: JSON.stringify({ origin, destination, category: tier.id }),
   });
-  if (remote?.quote) {
-    // Le backend tarifie 'green' par défaut ; on applique le multiplicateur véhicule pour la démo.
-    return remote.quote;
-  }
-  return localEstimate(origin, destination, vehicle);
+  if (remote?.quote) return remote.quote;
+  return localEstimate(origin, destination, tier);
 }
 
 export async function sos(userId: string, location: LatLng, rideId?: string) {

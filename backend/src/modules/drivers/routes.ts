@@ -8,7 +8,7 @@ import { driverRoom, rideRoom } from '../realtime/hub.js';
 
 const registerSchema = z.object({
   name: z.string().min(1),
-  category: z.string().default('green'),
+  category: z.string().default('bronze'),
 });
 
 const onlineSchema = z.object({ position: latLng });

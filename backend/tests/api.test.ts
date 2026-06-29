@@ -10,7 +10,7 @@ test('parcours complet : estimation → course → matching → notation', async
   const drvRes = await app.inject({
     method: 'POST',
     url: '/drivers',
-    payload: { name: 'Awa', category: 'green' },
+    payload: { name: 'Awa', category: 'bronze' },
   });
   assert.equal(drvRes.statusCode, 201);
   const driverId = drvRes.json().driver.id as string;
@@ -24,7 +24,7 @@ test('parcours complet : estimation → course → matching → notation', async
   const est = await app.inject({
     method: 'POST',
     url: '/pricing/estimate',
-    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9876 }, category: 'green' },
+    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9876 }, category: 'bronze' },
   });
   assert.equal(est.statusCode, 200);
   const quote = est.json().quote;

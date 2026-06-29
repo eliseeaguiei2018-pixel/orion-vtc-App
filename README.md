@@ -22,6 +22,17 @@ transparence des prix (FCFA) · qualité de service · extensibilité multi-serv
 - **Sécurité** : bouton SOS + **détection automatique d'accident** → alerte **SAMU (185)**.
 - **Suivi temps réel** (WebSocket) et **partenariat Google Maps** prêt (itinéraires/places).
 
+## ✨ Expérience client
+- **4 niveaux de course** : **Bronze · Argent · Or · Diamant** (du plus accessible au plus
+  haut de gamme), chacun avec sa flotte 100% électrique (Geely, Deepal, AVATR, Xiaomi YU7,
+  XPENG, Huawei Stelato, NIO, Zeekr…).
+- **Abonnements mensuels** : Pack Bronze (2 courses/j), Argent (3/j), Gold (4/j) + avantages.
+- **Location mariage** : réservez une voiture selon le niveau, prix variable + options
+  (décoration, cortège, durée).
+- **8 langues** : Français, English, Español, Italiano, العربية (RTL), 中文, Deutsch, Русский.
+- **Expansion sous-régionale** prête dans les paramètres : Ghana, Sénégal, Togo, Bénin, Nigeria.
+- **Ouverture animée** premium + design vert épuré, fluide et soigné.
+
 ## 🧭 Les trois interfaces
 - **Client** : compte, géoloc, départ/destination, estimation avant validation, choix de
   véhicule, suivi temps réel, paiement, historique, notation, SOS.

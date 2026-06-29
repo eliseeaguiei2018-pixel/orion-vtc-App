@@ -55,7 +55,15 @@ ce qui le rend immédiatement exécutable et testable.
 | GET | `/safety/alerts` · `/safety/emergency-numbers` | Alertes · numéros d'urgence CI (SAMU 185) |
 | POST | `/maps/route` · GET `/maps/autocomplete` | Itinéraires / lieux (Google Maps si clé) |
 | GET | `/drivers/:id/wallet` · POST `/drivers/:id/payout` | Wallet chauffeur (solde, ledger) · retrait |
+| GET | `/fleet` | Niveaux Bronze→Diamant + flotte de marques |
+| GET | `/subscriptions/plans` · POST `/subscriptions` | Abonnements (Bronze/Argent/Gold) |
+| POST | `/wedding/quote` · `/wedding/reserve` | Location mariage (prix par niveau + options) |
+| GET | `/countries` | Pays (CI actif + expansion sous-régionale) |
 | WS | `/ws/rides/:id` · `/ws/emergency` | Suivi temps réel · supervision urgences |
+
+> 🏷️ **Niveaux** : Bronze / Argent / Or / Diamant, du plus accessible au plus haut de gamme,
+> chacun avec sa flotte 100% électrique (Geely, Deepal, AVATR, Xiaomi, XPENG, Huawei Stelato,
+> NIO, Zeekr…) et un multiplicateur tarifaire. 🌍 **Multi-pays** prêt (CI actif).
 
 > 🛰️ **Tracking live** : à la création d'une course, le serveur émet en continu la position
 > du chauffeur (`driver.location`) et les transitions (`ride.status`) sur la room WebSocket.
