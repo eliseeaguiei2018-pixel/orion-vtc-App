@@ -85,3 +85,31 @@ export async function sos(userId: string, location: LatLng, rideId?: string) {
 export function isLiveBackend(): boolean {
   return Boolean(API);
 }
+
+export interface RideCreated {
+  id: string;
+  status: string;
+  driverId?: string;
+}
+
+/** Crée une course côté backend (idempotent). Renvoie null si backend indisponible. */
+export async function createRide(lockId: string, clientId: string): Promise<RideCreated | null> {
+  const res = await tryFetch<{ ride: RideCreated }>('/rides', {
+    method: 'POST',
+    headers: { 'idempotency-key': `${clientId}-${lockId}` },
+    body: JSON.stringify({ clientId, lockId }),
+  });
+  return res?.ride ?? null;
+}
+
+/** URL WebSocket de suivi d'une course (null si pas de backend configuré). */
+export function rideSocketUrl(rideId: string): string | null {
+  if (!API) return null;
+  try {
+    const u = new URL(API);
+    const proto = u.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${proto}//${u.host}/ws/rides/${rideId}`;
+  } catch {
+    return null;
+  }
+}

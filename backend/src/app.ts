@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import rateLimit from '@fastify/rate-limit';
+import cors from '@fastify/cors';
 import { randomUUID } from 'node:crypto';
 import { config } from './config/index.js';
 import { loggerOptions } from './core/logger.js';
@@ -15,6 +16,7 @@ import { paymentRoutes } from './modules/payments/routes.js';
 import { safetyRoutes } from './modules/safety/routes.js';
 import { mapsRoutes } from './modules/maps/routes.js';
 import { realtimeRoutes } from './modules/realtime/routes.js';
+import { walletRoutes } from './modules/wallet/routes.js';
 
 export interface BuiltApp {
   app: FastifyInstance;
@@ -31,6 +33,11 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
     // Corrélation des logs/traces : chaque requête a un id propagé (observabilité).
     genReqId: (req) => (req.headers['x-request-id'] as string) ?? randomUUID(),
     disableRequestLogging: config.NODE_ENV === 'test',
+  });
+
+  // CORS : autorise l'app cliente (autre origine) à appeler l'API.
+  await app.register(cors, {
+    origin: config.CORS_ORIGIN === '*' ? true : config.CORS_ORIGIN.split(',').map((s) => s.trim()),
   });
 
   // Back-pressure : protège contre la surcharge (renvoie 429 plutôt que de s'effondrer).
@@ -72,6 +79,10 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
   await paymentRoutes(app, container);
   await safetyRoutes(app, container);
   await mapsRoutes(app, container);
+  await walletRoutes(app, container);
+
+  // Arrêt en douceur : couper les timers de simulation.
+  app.addHook('onClose', async () => container.simulator.stopAll());
 
   app.get('/', async () => ({
     name: 'ORION VTC API',
@@ -80,7 +91,7 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
     currency: 'XOF',
     docs: '/docs (voir le dossier docs/ du dépôt)',
     services: container.registry.list(),
-    features: ['geo-ci', 'mobile-money', 'safety-samu', 'realtime-ws', 'google-maps-ready'],
+    features: ['geo-ci', 'mobile-money', 'safety-samu', 'realtime-ws', 'live-tracking', 'wallet-commissions', 'google-maps-ready'],
   }));
 
   return { app, container };

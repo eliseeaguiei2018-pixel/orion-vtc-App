@@ -70,6 +70,21 @@ Module : [`../backend/src/modules/realtime`](../backend/src/modules/realtime)
 - `GET /ws/emergency` : flux du poste de supervision (alertes SOS / accidents → SAMU).
 - Hub pub/sub par **room**, heartbeat ping/pong, nettoyage à la déconnexion.
 - Multi-instances : le hub s'adosse à **Redis Pub/Sub** (cf. [05](./05-architecture-scalabilite.md) §4).
+- **Tracking live de bout en bout** : à la création d'une course, le serveur émet
+  `driver.location` (position interpolée) et `ride.status` (transitions). L'**app cliente**
+  s'abonne à `/ws/rides/:id` et déplace le marqueur véhicule en direct.
+- En attendant l'app chauffeur, un **simulateur** (`SIMULATE_RIDES`) produit ces événements
+  et des **chauffeurs de démonstration** sont mis en ligne au démarrage. En production, on
+  coupe le simulateur : les vraies positions viennent de l'app chauffeur, sans autre changement.
+
+## 4 bis. Wallet chauffeur & commissions
+
+Module : [`../backend/src/modules/wallet`](../backend/src/modules/wallet)
+
+- Au **paiement** d'une course, le **gain net** (montant − commission plateforme) crédite le
+  wallet du chauffeur ; la **commission** (`PLATFORM_COMMISSION_RATE`, défaut 18 %) est journalisée.
+- **Retrait** (payout) vers mobile money, refusé si solde insuffisant.
+- Ledger consultable : `GET /drivers/:id/wallet` · retrait : `POST /drivers/:id/payout`.
 
 ## 5. Partenariat Google Maps
 

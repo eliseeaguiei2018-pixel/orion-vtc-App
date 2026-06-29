@@ -54,7 +54,15 @@ ce qui le rend immédiatement exécutable et testable.
 | POST | `/safety/sos` · `/safety/sensor` | SOS manuel · détection d'accident (capteurs) |
 | GET | `/safety/alerts` · `/safety/emergency-numbers` | Alertes · numéros d'urgence CI (SAMU 185) |
 | POST | `/maps/route` · GET `/maps/autocomplete` | Itinéraires / lieux (Google Maps si clé) |
+| GET | `/drivers/:id/wallet` · POST `/drivers/:id/payout` | Wallet chauffeur (solde, ledger) · retrait |
 | WS | `/ws/rides/:id` · `/ws/emergency` | Suivi temps réel · supervision urgences |
+
+> 🛰️ **Tracking live** : à la création d'une course, le serveur émet en continu la position
+> du chauffeur (`driver.location`) et les transitions (`ride.status`) sur la room WebSocket.
+> En dev, un **simulateur** (`SIMULATE_RIDES=true`) joue le rôle de l'app chauffeur (encore
+> à venir) et des **chauffeurs de démonstration** sont mis en ligne au démarrage.
+> 💰 **Wallet & commissions** : au paiement, le gain net (montant − commission) crédite le
+> wallet du chauffeur ; la commission plateforme est journalisée.
 
 > 🇨🇮 **Localisation** : devise **XOF (FCFA)**, tarifs Abidjan, surge par zone & heure de
 > pointe, zone de service limitée à la Côte d'Ivoire. Voir

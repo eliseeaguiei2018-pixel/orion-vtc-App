@@ -6,7 +6,7 @@ import {
   IconPhone, IconPin, IconPlane, IconSearch, IconShare, IconShield, IconStar, IconUsers, IconWallet,
 } from './icons';
 import { ABIDJAN_PLACES, DEFAULT_ORIGIN, DRIVERS, VEHICLES, formatXOF } from './data';
-import { estimate, isLiveBackend, previewQuote, sos } from './api';
+import { createRide, estimate, isLiveBackend, previewQuote, rideSocketUrl, sos } from './api';
 import type { Driver, LatLng, Place, Quote, Screen, Vehicle } from './types';
 
 const PAYMENTS = [
@@ -49,6 +49,8 @@ export function App() {
   const [driver, setDriver] = useState<Driver | null>(null);
   const [carPos, setCarPos] = useState<LatLng | null>(null);
   const [tripPhase, setTripPhase] = useState<TripPhase>('enroute');
+  const [rideId, setRideId] = useState<string | null>(null);
+  const [live, setLive] = useState(false);
   const [rating, setRating] = useState(0);
   const [toast, setToast] = useState<{ message: string; danger?: boolean } | null>(null);
 
@@ -69,10 +71,28 @@ export function App() {
     setScreen('estimate');
   };
 
-  const confirmRide = () => {
+  const pickDriver = () => DRIVERS[Math.floor(Math.random() * DRIVERS.length)] ?? DRIVERS[0]!;
+
+  const confirmRide = async () => {
     setScreen('searching');
+    // Parcours réel : crée la course côté backend et bascule en suivi temps réel (WebSocket).
+    if (isLiveBackend() && quote) {
+      const ride = await createRide(quote.lockId, 'client-demo');
+      if (ride?.driverId) {
+        setRideId(ride.id);
+        setLive(true);
+        setDriver(pickDriver());
+        setCarPos(null);
+        setTripPhase('enroute');
+        setScreen('tracking');
+        return;
+      }
+    }
+    // Repli mode démo : simulation locale du trajet.
     window.setTimeout(() => {
-      setDriver(DRIVERS[Math.floor(Math.random() * DRIVERS.length)] ?? DRIVERS[0]!);
+      setRideId(null);
+      setLive(false);
+      setDriver(pickDriver());
       setTripPhase('enroute');
       setScreen('tracking');
     }, 2600);
@@ -88,6 +108,8 @@ export function App() {
     setQuote(null);
     setDriver(null);
     setCarPos(null);
+    setRideId(null);
+    setLive(false);
     setRating(0);
     setVehicle(VEHICLES[1]!);
     setScreen('home');
@@ -150,6 +172,8 @@ export function App() {
             carPos={carPos}
             setCarPos={setCarPos}
             setPhase={setTripPhase}
+            live={live}
+            rideId={rideId}
             onSos={triggerSos}
             onShare={() => showToast('Lien de suivi partagé avec vos proches')}
             onArrived={() => setScreen('rating')}
@@ -374,16 +398,44 @@ function SearchingScreen({ origin, destination, onCancel }: { origin: Place; des
 }
 
 /* ----------------------------- Tracking ------------------------------ */
-function TrackingScreen({ origin, destination, driver, vehicle, phase, carPos, setCarPos, setPhase, onSos, onShare, onArrived }: {
+function TrackingScreen({ origin, destination, driver, vehicle, phase, carPos, setCarPos, setPhase, live, rideId, onSos, onShare, onArrived }: {
   origin: Place; destination: Place; driver: Driver; vehicle: Vehicle; phase: TripPhase;
   carPos: LatLng | null; setCarPos: (p: LatLng) => void; setPhase: (p: TripPhase) => void;
+  live: boolean; rideId: string | null;
   onSos: () => void; onShare: () => void; onArrived: () => void;
 }) {
   const progressRef = useRef(0);
   // Point de départ du chauffeur (légèrement décalé de l'usager).
   const driverStart = useMemo<LatLng>(() => ({ lat: origin.location.lat - 0.018, lng: origin.location.lng - 0.012 }), [origin.location]);
 
+  // Mode LIVE : la position et les états viennent du serveur via WebSocket.
   useEffect(() => {
+    if (!live || !rideId) return;
+    const url = rideSocketUrl(rideId);
+    if (!url) return;
+    const ws = new WebSocket(url);
+    ws.onmessage = (ev) => {
+      try {
+        const m = JSON.parse(ev.data as string) as { type: string; data: { position?: LatLng; status?: string } };
+        if (m.type === 'driver.location' && m.data.position) setCarPos(m.data.position);
+        if (m.type === 'ride.status') {
+          const s = m.data.status;
+          if (s === 'driver_en_route') setPhase('enroute');
+          else if (s === 'arrived') setPhase('arrived');
+          else if (s === 'in_progress') setPhase('inprogress');
+          else if (s === 'completed') { setPhase('completed'); onArrived(); }
+        }
+      } catch {
+        /* message ignoré */
+      }
+    };
+    return () => ws.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live, rideId]);
+
+  // Mode DÉMO : simulation locale du déplacement (pas de backend).
+  useEffect(() => {
+    if (live) return;
     progressRef.current = 0;
     const durations: Record<TripPhase, number> = { enroute: 6000, arrived: 1800, inprogress: 9000, completed: 0 };
     const from = phase === 'inprogress' ? origin.location : driverStart;

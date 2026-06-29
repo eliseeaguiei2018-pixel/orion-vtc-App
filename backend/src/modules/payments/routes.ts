@@ -44,10 +44,15 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
     );
 
     // Le paiement passe la course à l'état "paid" lorsqu'il est capturé/autorisé.
+    let commission;
     if (result.status === 'authorized' || result.status === 'captured') {
       ride.status = 'paid';
       ride.events.push({ type: 'paid', at: new Date().toISOString(), payload: { method: result.method, amount: result.amount } });
+      // Crédite le gain net du chauffeur et journalise la commission plateforme.
+      if (ride.driverId) {
+        commission = container.wallet.creditRide(ride.driverId, ride.id, ride.quote.amount);
+      }
     }
-    return { payment: result, rideStatus: ride.status };
+    return { payment: result, rideStatus: ride.status, commission };
   });
 }

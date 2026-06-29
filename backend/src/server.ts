@@ -1,6 +1,7 @@
 import { config } from './config/index.js';
 import { logger } from './core/logger.js';
 import { buildApp } from './app.js';
+import { seedDemoDrivers } from './container.js';
 
 /**
  * Point d'entrée du serveur. Gère un arrêt en douceur (graceful shutdown) : à la réception
@@ -8,7 +9,13 @@ import { buildApp } from './app.js';
  * cours avant de quitter — indispensable pour des déploiements sans interruption (rolling).
  */
 async function main(): Promise<void> {
-  const { app } = await buildApp();
+  const { app, container } = await buildApp();
+
+  // Aide de développement : chauffeurs en ligne pour démontrer le suivi temps réel.
+  if (config.SIMULATE_RIDES) {
+    await seedDemoDrivers(container);
+    logger.info('Chauffeurs de démonstration en ligne (SIMULATE_RIDES=true)');
+  }
 
   await app.listen({ host: config.HOST, port: config.PORT });
   logger.info(`ORION VTC API à l'écoute sur http://${config.HOST}:${config.PORT}`);

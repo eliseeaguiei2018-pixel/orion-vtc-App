@@ -65,10 +65,13 @@ shutdown**, **logs structurés**, matching géo via **index spatial à TTL**, te
 adossable à **Redis Pub/Sub**. Voir [docs/05](docs/05-architecture-scalabilite.md).
 
 ## 🗺️ Suite logique (roadmap)
+- [x] **Tracking temps réel** : app client branchée sur le WebSocket serveur (position live).
+- [x] **Wallet chauffeur + commissions** (crédit au paiement, payout mobile money).
+- [x] **Google Maps** : couche prête (activer via clé API).
 1. Persistance PostgreSQL/PostGIS + Redis (implémenter les variantes des interfaces).
-2. Brancher l'app client sur le WebSocket serveur + activer Google Maps (clé API).
-3. Wallet chauffeur + commissions + payouts mobile money.
-4. **Application chauffeur** (projet séparé) + dashboard admin / supervision des urgences.
+2. Activer une vraie clé Google Maps (itinéraires/carte réels) côté front & back.
+3. **Application chauffeur** (projet séparé) — remplacera le simulateur par les vraies positions.
+4. Dashboard admin / supervision des urgences (consommer `/ws/emergency`).
 5. Extension : livraison de colis, puis micro-mobilité (cf. docs/04).
 
 ## 📄 Licence

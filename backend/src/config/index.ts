@@ -33,6 +33,21 @@ const schema = z.object({
   // Partenariat Google Maps (Directions / Distance Matrix / Places).
   // Optionnel : sans clé, on bascule sur un calcul interne (haversine) — l'app fonctionne.
   GOOGLE_MAPS_API_KEY: z.string().optional(),
+
+  // Simulation de course : en l'absence d'app chauffeur, le serveur simule le
+  // déplacement du chauffeur et émet les événements temps réel (tracking live).
+  // À désactiver en production quand l'app chauffeur fournit les vraies positions.
+  // NB : z.coerce.boolean() transforme "false" en true — on parse explicitement.
+  SIMULATE_RIDES: z.string().default('true').transform((v) => v.toLowerCase() === 'true'),
+  SIM_TICK_MS: z.coerce.number().int().positive().default(700),
+  SIM_ENROUTE_MS: z.coerce.number().int().positive().default(8000),
+  SIM_TRIP_MS: z.coerce.number().int().positive().default(12000),
+
+  // Commission plateforme prélevée sur chaque course (0..1).
+  PLATFORM_COMMISSION_RATE: z.coerce.number().min(0).max(1).default(0.18),
+
+  // CORS : origine(s) autorisée(s) pour l'app cliente. '*' en dev ; liste en prod.
+  CORS_ORIGIN: z.string().default('*'),
 });
 
 const parsed = schema.safeParse(process.env);
