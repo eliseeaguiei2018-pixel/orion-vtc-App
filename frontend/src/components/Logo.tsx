@@ -80,7 +80,7 @@ export function LogoIcon({ size = 96, radius = 0.24 }: { size?: number; radius?:
  * `size` = hauteur en px.
  */
 export function LogoWordmark({ size = 40, color = 'currentColor' }: { size?: number; color?: string }) {
-  const VB_W = 372;
+  const VB_W = 409;
   const VB_H = 132;
   // « O » dessiné comme l'anneau ouvert
   const O = { cx: 52, cy: 82, r: 34, w: 15 };
