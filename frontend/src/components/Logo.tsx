@@ -73,21 +73,59 @@ export function LogoIcon({ size = 96, radius = 0.24 }: { size?: number; radius?:
   );
 }
 
+/**
+ * Logotype complet « ORION » : le premier O est l'anneau-glyphe, les 3 étoiles de la
+ * ceinture d'Orion forment une traînée au-dessus du mot, puis « RION ». Tout-en-un (SVG),
+ * hérite de `color` via currentColor → blanc sur fond sombre, vert/encre sur fond clair.
+ * `size` = hauteur en px.
+ */
 export function LogoWordmark({ size = 40, color = 'currentColor' }: { size?: number; color?: string }) {
+  const VB_W = 372;
+  const VB_H = 132;
+  // « O » dessiné comme l'anneau ouvert
+  const O = { cx: 52, cy: 82, r: 34, w: 15 };
+  const circ = 2 * Math.PI * O.r;
+  const dash = `${(circ - 24).toFixed(1)} 24`;
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: size * 0.18, color }}>
-      <LogoGlyph size={size * 1.15} />
-      <span
-        style={{
-          fontWeight: 800,
-          fontSize: size,
-          letterSpacing: size * 0.06,
-          lineHeight: 1,
-          fontFamily: 'inherit',
-        }}
+    <svg
+      height={size}
+      width={(size * VB_W) / VB_H}
+      viewBox={`0 0 ${VB_W} ${VB_H}`}
+      fill="none"
+      style={{ color }}
+      role="img"
+      aria-label="ORION"
+    >
+      {/* Étoiles (ceinture d'Orion) en traînée au-dessus du mot */}
+      <g fill="currentColor">
+        <path d={starPath(96, 26, 12)} />
+        <path d={starPath(120, 16, 7.5)} />
+        <path d={starPath(138, 9, 5)} />
+      </g>
+      {/* Le O */}
+      <circle
+        cx={O.cx}
+        cy={O.cy}
+        r={O.r}
+        stroke="currentColor"
+        strokeWidth={O.w}
+        strokeLinecap="round"
+        strokeDasharray={dash}
+        transform={`rotate(-18 ${O.cx} ${O.cy})`}
+      />
+      <circle cx={79.8} cy={62.5} r={4.5} fill="currentColor" />
+      {/* RION */}
+      <text
+        x={100}
+        y={118}
+        fill="currentColor"
+        fontFamily="'Sora', system-ui, sans-serif"
+        fontWeight={800}
+        fontSize={104}
+        letterSpacing={1}
       >
         RION
-      </span>
-    </span>
+      </text>
+    </svg>
   );
 }
