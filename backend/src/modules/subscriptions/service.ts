@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { badRequest, notFound } from '../../core/errors.js';
+import type { Repository } from '../../core/db/repository.js';
 
 /**
  * Abonnements mensuels ORION. Chaque pack offre un nombre de courses incluses par jour
@@ -70,6 +71,10 @@ const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86400000);
 export class SubscriptionService {
   private readonly subs = new Map<string, Subscription>(); // par userId
 
+  constructor(private readonly repo?: Repository<Subscription>) {
+    for (const s of repo?.all() ?? []) this.subs.set(s.userId, s);
+  }
+
   subscribe(userId: string, plan: string): Subscription {
     if (!isPlan(plan)) throw badRequest('Forfait inconnu');
     const p = PLANS[plan];
@@ -86,6 +91,7 @@ export class SubscriptionService {
       active: true,
     };
     this.subs.set(userId, sub);
+    this.repo?.put(sub);
     return sub;
   }
 
@@ -104,6 +110,7 @@ export class SubscriptionService {
     if (!s || !s.active) return { covered: false, remaining: 0 };
     if (s.usedToday >= s.ridesPerDay) return { covered: false, remaining: 0 };
     s.usedToday += 1;
+    this.repo?.put(s);
     return { covered: true, remaining: s.ridesPerDay - s.usedToday };
   }
 
@@ -111,6 +118,7 @@ export class SubscriptionService {
     const s = this.subs.get(userId);
     if (!s) throw notFound('Aucun abonnement');
     s.active = false;
+    this.repo?.put(s);
     return s;
   }
 }

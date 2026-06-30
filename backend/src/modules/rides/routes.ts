@@ -97,6 +97,7 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     rideStateMachine.assertTransition(ride.status, body.to);
     ride.status = body.to;
     appendEvent(ride, body.to);
+    container.rides.persist(ride);
     container.realtime.publish(rideRoom(ride.id), 'ride.status', { rideId: ride.id, status: ride.status });
 
     // Libère le chauffeur sur les états terminaux.
@@ -119,6 +120,7 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     rideStateMachine.assertTransition(ride.status, 'rated');
     ride.status = 'rated';
     appendEvent(ride, 'rated', { stars: body.stars });
+    container.rides.persist(ride);
 
     const driver = ride.driverId ? container.drivers.get(ride.driverId) : undefined;
     if (driver) {

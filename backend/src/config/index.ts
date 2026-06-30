@@ -48,6 +48,11 @@ const schema = z.object({
 
   // CORS : origine(s) autorisée(s) pour l'app cliente. '*' en dev ; liste en prod.
   CORS_ORIGIN: z.string().default('*'),
+
+  // Persistance : 'memory' (volatile, défaut/tests) ou 'sqlite' (durable, fichier local).
+  // En production : 'postgres' via la même interface Repository (cf. docs).
+  PERSISTENCE: z.enum(['memory', 'sqlite']).default('memory'),
+  DB_PATH: z.string().default('./data/orion.db'),
 });
 
 const parsed = schema.safeParse(process.env);

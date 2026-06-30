@@ -1,6 +1,7 @@
 import type { Quote } from '../services/types.js';
 import type { LatLng } from '../../core/geo.js';
 import type { RideStatus } from '../services/ride/stateMachine.js';
+import type { Repository } from '../../core/db/repository.js';
 
 export interface Ride {
   id: string;
@@ -28,7 +29,17 @@ export interface RideEvent {
  */
 export class RideStore {
   private readonly rides = new Map<string, Ride>();
+  // Les devis sont transitoires (TTL) → mémoire uniquement.
   private readonly quotes = new Map<string, Quote>();
+
+  constructor(private readonly repo: Repository<Ride>) {
+    for (const r of repo.all()) this.rides.set(r.id, r);
+  }
+
+  /** Persiste l'état courant d'une course (write-through après mutation en place). */
+  persist(ride: Ride): void {
+    this.repo.put(ride);
+  }
 
   saveQuote(quote: Quote): void {
     this.quotes.set(quote.lockId, quote);
@@ -46,6 +57,7 @@ export class RideStore {
 
   save(ride: Ride): Ride {
     this.rides.set(ride.id, ride);
+    this.repo.put(ride);
     return ride;
   }
 

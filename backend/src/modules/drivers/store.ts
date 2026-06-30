@@ -1,4 +1,5 @@
 import type { GeoIndex, LatLng } from '../../core/geo.js';
+import type { Repository } from '../../core/db/repository.js';
 
 export type Availability = 'offline' | 'online' | 'on_trip' | 'paused';
 export type KycStatus = 'draft' | 'docs_submitted' | 'manual_review' | 'approved' | 'active' | 'suspended';
@@ -21,10 +22,23 @@ export interface Driver {
 export class DriverStore {
   private readonly drivers = new Map<string, Driver>();
 
-  constructor(private readonly geo: GeoIndex) {}
+  constructor(
+    private readonly geo: GeoIndex,
+    private readonly repo: Repository<Driver>,
+  ) {
+    // Réhydratation : recharge les chauffeurs persistés au démarrage.
+    for (const d of repo.all()) this.drivers.set(d.id, d);
+  }
+
+  /** Persiste l'état courant d'un chauffeur (write-through). */
+  persist(id: string): void {
+    const d = this.drivers.get(id);
+    if (d) this.repo.put(d);
+  }
 
   upsert(driver: Driver): Driver {
     this.drivers.set(driver.id, driver);
+    this.repo.put(driver);
     return driver;
   }
 
@@ -37,12 +51,16 @@ export class DriverStore {
     const d = this.drivers.get(id);
     if (!d) return;
     d.availability = 'online';
+    this.repo.put(d);
     await this.geo.upsert({ id, lat: pos.lat, lng: pos.lng, meta: { category: d.category } });
   }
 
   async goOffline(id: string): Promise<void> {
     const d = this.drivers.get(id);
-    if (d) d.availability = 'offline';
+    if (d) {
+      d.availability = 'offline';
+      this.repo.put(d);
+    }
     await this.geo.remove(id);
   }
 
@@ -55,6 +73,9 @@ export class DriverStore {
 
   setAvailability(id: string, availability: Availability): void {
     const d = this.drivers.get(id);
-    if (d) d.availability = availability;
+    if (d) {
+      d.availability = availability;
+      this.repo.put(d);
+    }
   }
 }

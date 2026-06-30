@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { config } from '../../config/index.js';
 import { badRequest } from '../../core/errors.js';
+import type { Repository } from '../../core/db/repository.js';
 
 /**
  * Wallet chauffeur & commissions.
@@ -41,11 +42,21 @@ export function computeCommission(gross: number, rate = config.PLATFORM_COMMISSI
 export class WalletService {
   private readonly ledger = new Map<string, LedgerEntry[]>();
 
+  constructor(private readonly repo?: Repository<LedgerEntry>) {
+    // Réhydratation : regroupe les écritures persistées par chauffeur.
+    for (const e of repo?.all() ?? []) {
+      const list = this.ledger.get(e.driverId) ?? [];
+      list.push(e);
+      this.ledger.set(e.driverId, list);
+    }
+  }
+
   private push(entry: Omit<LedgerEntry, 'id' | 'at' | 'currency'>): LedgerEntry {
     const full: LedgerEntry = { id: randomUUID(), at: new Date().toISOString(), currency: 'XOF', ...entry };
     const list = this.ledger.get(entry.driverId) ?? [];
     list.push(full);
     this.ledger.set(entry.driverId, list);
+    this.repo?.put(full);
     return full;
   }
 

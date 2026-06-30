@@ -116,7 +116,14 @@ src/
 tests/           tests unitaires & d'intégration
 ```
 
+## Persistance
+- `PERSISTENCE=memory` (défaut, volatile) ou `PERSISTENCE=sqlite` (durable, fichier `DB_PATH`).
+- Pattern **Repository** (mémoire / SQLite via `node:sqlite` / PostgreSQL-ready) avec
+  **write-through + réhydratation** : les données survivent aux redémarrages.
+- Tests : `npm test` (mémoire) · `npm run test:persist` (SQLite). Détails :
+  [`../docs/08-persistance.md`](../docs/08-persistance.md).
+
 ## Production
 - Construire l'image : `docker build -t orion-api ./backend` (ou `docker compose up`).
-- Brancher Redis (`GEO_BACKEND=redis`) et PostgreSQL : implémenter les variantes des
-  interfaces `GeoIndex` / stores — **sans changer les modules métier**.
+- Brancher Redis (`GEO_BACKEND=redis`) et **PostgreSQL** (`Repository` Postgres) :
+  implémenter les variantes des interfaces — **sans changer les modules métier**.

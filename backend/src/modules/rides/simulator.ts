@@ -95,6 +95,7 @@ export class RideSimulator {
     if (!current || !rideStateMachine.canTransition(current.status, to)) return;
     current.status = to;
     current.events.push({ type: to, at: new Date().toISOString() });
+    this.rides.persist(current);
     this.realtime.publish(rideRoom(ride.id), 'ride.status', { rideId: ride.id, status: to });
   }
 

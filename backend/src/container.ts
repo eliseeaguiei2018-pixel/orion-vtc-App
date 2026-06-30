@@ -15,6 +15,12 @@ import { PaymentRegistry } from './modules/payments/providers.js';
 import { SafetyService } from './modules/safety/service.js';
 import { RealtimeHub } from './modules/realtime/hub.js';
 import { createMapsProvider, type MapsProvider } from './modules/maps/service.js';
+import { createRepository } from './core/db/repository.js';
+import type { Driver } from './modules/drivers/store.js';
+import type { Ride } from './modules/rides/store.js';
+import type { LedgerEntry } from './modules/wallet/service.js';
+import type { Subscription } from './modules/subscriptions/service.js';
+import type { WeddingReservation } from './modules/wedding/service.js';
 
 /**
  * Conteneur d'injection de dépendances. Centralise le câblage et facilite les tests
@@ -40,8 +46,9 @@ export interface Container {
 
 export function createContainer(): Container {
   const geo = createGeoIndex();
-  const drivers = new DriverStore(geo);
-  const rides = new RideStore();
+  // Repositories durables (mémoire par défaut, SQLite si PERSISTENCE=sqlite).
+  const drivers = new DriverStore(geo, createRepository<Driver>('drivers'));
+  const rides = new RideStore(createRepository<Ride>('rides'));
   const matching = new MatchingEngine(geo, drivers);
 
   // Tarification dynamique : surge par zone/heure + détection de trafic (embouteillages).
@@ -72,9 +79,9 @@ export function createContainer(): Container {
     realtime,
     maps: createMapsProvider(),
     simulator: new RideSimulator(rides, realtime),
-    wallet: new WalletService(),
-    subscriptions: new SubscriptionService(),
-    wedding: new WeddingService(),
+    wallet: new WalletService(createRepository<LedgerEntry>('wallet_ledger')),
+    subscriptions: new SubscriptionService(createRepository<Subscription>('subscriptions')),
+    wedding: new WeddingService(createRepository<WeddingReservation>('wedding')),
   };
 }
 

@@ -11,6 +11,7 @@ Documentation fonctionnelle et technique de la plateforme de mobilité verte ORI
 | 05 | [Architecture & scalabilité](./05-architecture-scalabilite.md) | Robustesse et passage à l'échelle |
 | 06 | [Modèle de données](./06-modele-de-donnees.md) | Entités et choix structurants |
 | 07 | [Côte d'Ivoire, sécurité & temps réel](./07-cote-divoire-securite-temps-reel.md) | Plan directeur CI, mobile money, détection d'accident + SAMU, WebSocket, Google Maps |
+| 08 | [Persistance des données](./08-persistance.md) | Repository (mémoire / SQLite / PostgreSQL), write-through + réhydratation |
 
 > Les diagrammes sont en **Mermaid** et se rendent automatiquement sur GitHub.
 

@@ -79,7 +79,8 @@ adossable à **Redis Pub/Sub**. Voir [docs/05](docs/05-architecture-scalabilite.
 - [x] **Tracking temps réel** : app client branchée sur le WebSocket serveur (position live).
 - [x] **Wallet chauffeur + commissions** (crédit au paiement, payout mobile money).
 - [x] **Google Maps** : couche prête (activer via clé API).
-1. Persistance PostgreSQL/PostGIS + Redis (implémenter les variantes des interfaces).
+- [x] **Persistance** : Repository mémoire / **SQLite durable** (PostgreSQL-ready), données conservées au redémarrage.
+1. Brancher PostgreSQL (impl `Repository` Postgres) + Redis pour la prod.
 2. Activer une vraie clé Google Maps (itinéraires/carte réels) côté front & back.
 3. **Application chauffeur** (projet séparé) — remplacera le simulateur par les vraies positions.
 4. Dashboard admin / supervision des urgences (consommer `/ws/emergency`).

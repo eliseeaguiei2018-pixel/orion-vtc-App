@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { RideSimulator } from '../src/modules/rides/simulator.js';
 import { RideStore, type Ride } from '../src/modules/rides/store.js';
+import { createRepository } from '../src/core/db/repository.js';
 import { RealtimeHub, rideRoom } from '../src/modules/realtime/hub.js';
 import type { Quote } from '../src/modules/services/types.js';
 
@@ -21,7 +22,7 @@ function makeRide(): Ride {
 }
 
 test('le simulateur émet des positions et atteint l’état completed', async () => {
-  const rides = new RideStore();
+  const rides = new RideStore(createRepository("rides"));
   const hub = new RealtimeHub();
   const ride = makeRide();
   rides.save(ride);
@@ -47,7 +48,7 @@ test('le simulateur émet des positions et atteint l’état completed', async (
 });
 
 test('simulateur désactivé n’émet rien', async () => {
-  const rides = new RideStore();
+  const rides = new RideStore(createRepository("rides"));
   const hub = new RealtimeHub();
   const ride = makeRide();
   rides.save(ride);

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { badRequest } from '../../core/errors.js';
 import { FLEET, isTier, type Tier } from '../fleet/catalog.js';
+import type { Repository } from '../../core/db/repository.js';
 
 /**
  * Location de voiture pour mariage. Le prix dépend du NIVEAU (qualité du véhicule), de la
@@ -74,6 +75,10 @@ export function quoteWedding(input: {
 export class WeddingService {
   private readonly reservations = new Map<string, WeddingReservation>();
 
+  constructor(private readonly repo?: Repository<WeddingReservation>) {
+    for (const r of repo?.all() ?? []) this.reservations.set(r.id, r);
+  }
+
   reserve(userId: string, q: WeddingQuote): WeddingReservation {
     const res: WeddingReservation = {
       ...q,
@@ -83,6 +88,7 @@ export class WeddingService {
       createdAt: new Date().toISOString(),
     };
     this.reservations.set(res.id, res);
+    this.repo?.put(res);
     return res;
   }
 

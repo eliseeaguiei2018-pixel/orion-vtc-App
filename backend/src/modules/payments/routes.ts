@@ -48,6 +48,7 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
     if (result.status === 'authorized' || result.status === 'captured') {
       ride.status = 'paid';
       ride.events.push({ type: 'paid', at: new Date().toISOString(), payload: { method: result.method, amount: result.amount } });
+      container.rides.persist(ride);
       // Crédite le gain net du chauffeur et journalise la commission plateforme.
       if (ride.driverId) {
         commission = container.wallet.creditRide(ride.driverId, ride.id, ride.quote.amount);
