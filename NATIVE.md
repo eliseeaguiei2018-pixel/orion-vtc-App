@@ -68,6 +68,17 @@ accès avant la demande système — recommandé par Apple et Google (meilleur t
 - Géré côté app (`ThemeProvider`) : `light` / `dark` / `system` (suit le téléphone en temps réel).
 - Natif : `@capacitor/status-bar` aligne la barre d'état ; `colorScheme` synchronisé.
 
-## 8. Détection de choc / SOS
+## 8. Appel chauffeur ↔ client via internet (VoIP)
+
+Le client peut **appeler le chauffeur sans unités** (data uniquement) via **WebRTC** :
+- L'app établit un appel audio peer-to-peer chiffré (DTLS-SRTP).
+- **Signaling** : via le WebSocket existant (`/ws/rides/:id`) — échange offre/réponse/ICE.
+- **TURN/STUN** : serveur TURN requis pour traverser les NAT (ex. coturn) ; l'app récupère
+  les credentials ICE via un endpoint backend `/calls/ice` (à brancher, court-lived).
+- Numéros masqués : ni le client ni le chauffeur ne voient le vrai numéro de l'autre.
+- Repli : appel cellulaire classique si l'utilisateur le préfère.
+- L'écran d'appel in-app (minuteur, muet, haut-parleur) est déjà présent (`CallOverlay`).
+
+## 9. Détection de choc / SOS
 - Accéléromètre (`DeviceMotion`) → endpoint `/safety/sensor` (déjà codé) → alerte SAMU (185).
 - Notifications **critiques** iOS (entitlement Apple requis) pour percer le mode silencieux.

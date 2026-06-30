@@ -3,11 +3,12 @@ import { OrionMap } from './components/OrionMap';
 import { Sheet, TopBar, Toast } from './components/ui';
 import {
   IconBell, IconBriefcase, IconCalendar, IconCamera, IconCheck, IconChevron, IconClock, IconCrown,
-  IconGem, IconGlobe, IconHome, IconImage, IconLeaf, IconMic, IconMinus, IconPhone, IconPin,
-  IconPlane, IconPlus, IconRing, IconSearch, IconSettings, IconShare, IconShield, IconStar,
-  IconTraffic, IconWallet,
+  IconGem, IconGlobe, IconHome, IconImage, IconLeaf, IconMic, IconMinus, IconPhone, IconPhoneOff, IconPin,
+  IconPlane, IconPlus, IconRing, IconSearch, IconSettings, IconShare, IconShield, IconShieldCheck,
+  IconStar, IconTraffic, IconVolume, IconWallet,
 } from './icons';
 import { useTheme, type ThemeMode } from './theme';
+import { LogoGlyph } from './components/Logo';
 import {
   ABIDJAN_PLACES, COUNTRIES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
@@ -209,7 +210,7 @@ function Splash({ onDone }: { onDone: () => void }) {
   return (
     <div className="splash" onClick={onDone}>
       <div className="splash-rings"><span /><span /><span /></div>
-      <div className="splash-logo"><IconLeaf size={48} /></div>
+      <div className="splash-logo" style={{ color: '#fff' }}><LogoGlyph size={56} /></div>
       <div className="splash-word">ORION</div>
       <div className="splash-tag">{t('tagline')}</div>
     </div>
@@ -224,7 +225,7 @@ function Onboarding({ onStart, onLang }: { onStart: () => void; onLang: () => vo
       <OrionMap origin={DEFAULT_ORIGIN.location} />
       <button className="avatar lang-fab" onClick={onLang} aria-label="Language"><IconGlobe size={20} /></button>
       <div style={{ position: 'relative', zIndex: 2 }} className="stack">
-        <div className="logo-mark rise"><IconLeaf size={40} /></div>
+        <div className="logo-mark rise" style={{ color: '#fff' }}><LogoGlyph size={46} /></div>
         <div className="eyebrow rise rise-2">{t('onb_eyebrow')}</div>
         <h1 className="h-hero rise rise-2">{t('onb_title')}</h1>
         <p className="h-sub rise rise-3">{t('onb_subtitle')}</p>
@@ -254,7 +255,7 @@ function AuthScreen({ phone, setPhone, onBack, onNext, onWhatsApp }: {
       <TopBar onBack={onBack} />
       <div style={{ flex: 1 }} />
       <Sheet>
-        <div className="logo-mark" style={{ width: 56, height: 56, marginBottom: 12 }}><IconLeaf size={28} /></div>
+        <div className="logo-mark" style={{ width: 56, height: 56, marginBottom: 12, color: '#fff' }}><LogoGlyph size={32} /></div>
         <h2 className="h-title">{t('reg_title')}</h2>
         <p className="h-sub" style={{ marginBottom: 16 }}>{t('reg_subtitle')}</p>
         <div className="field" style={{ marginBottom: 10 }}>
@@ -589,6 +590,7 @@ function TrackingScreen({ origin, destination, driver, tier, phase, carPos, setC
   live: boolean; rideId: string | null; stops: Place[]; onSos: () => void; onShare: () => void; onArrived: () => void; onCancel: () => void;
 }) {
   const { t } = useI18n();
+  const [calling, setCalling] = useState(false);
   const progressRef = useRef(0);
   const driverStart = useMemo<LatLng>(() => ({ lat: origin.location.lat - 0.018, lng: origin.location.lng - 0.012 }), [origin.location]);
 
@@ -651,31 +653,95 @@ function TrackingScreen({ origin, destination, driver, tier, phase, carPos, setC
           <span className="badge green"><IconShield size={13} /> {banner}</span>
           <span className="faint" style={{ fontSize: 12 }}>{eta}</span>
         </div>
-        <div className="row" style={{ marginBottom: 14 }}>
-          <span className="driver-photo" style={{ color: tier.accent }}>{driver.name.charAt(0)}</span>
-          <span className="col grow">
-            <strong style={{ fontSize: 16 }}>{driver.name}</strong>
-            <span className="row gap-sm" style={{ fontSize: 13 }}><IconStar size={14} color="#f5c451" /> {driver.rating} · {driver.trips.toLocaleString('fr-FR')}</span>
-          </span>
-          <span className="col" style={{ alignItems: 'flex-end', gap: 6 }}>
-            <span className="plate">{driver.plate}</span>
-            <span className="faint" style={{ fontSize: 12 }}>{driver.car}</span>
-          </span>
+        {/* Fiche chauffeur : photo, nom & prénom, note, matricule ORION */}
+        <div className="card" style={{ padding: 14, marginBottom: 12 }}>
+          <div className="row">
+            <span className="driver-photo" style={{ color: tier.accent }}>{driver.name.charAt(0)}</span>
+            <span className="col grow">
+              <strong style={{ fontSize: 16 }}>{driver.name}</strong>
+              <span className="row gap-sm" style={{ fontSize: 13 }}><IconStar size={14} color="#f5c451" /> {driver.rating} · {driver.trips.toLocaleString('fr-FR')}</span>
+            </span>
+            <span className="col" style={{ alignItems: 'flex-end', gap: 6 }}>
+              <span className="plate">{driver.plate}</span>
+              <span className="faint" style={{ fontSize: 12 }}>{driver.car || tier.cars[0]}</span>
+            </span>
+          </div>
+          <div className="divider" style={{ margin: '12px 0' }} />
+          <div className="row between">
+            <span className="row gap-sm" style={{ fontSize: 13 }}>
+              <span className="list-ico" style={{ width: 30, height: 30, color: 'var(--green)' }}><IconShieldCheck size={16} /></span>
+              <span className="col">
+                <span className="faint" style={{ fontSize: 11 }}>{t('drv_matricule')}</span>
+                <strong style={{ fontSize: 13, letterSpacing: '0.04em' }}>{driver.matricule}</strong>
+              </span>
+            </span>
+            <span className="badge green" style={{ fontSize: 11 }}>ORION</span>
+          </div>
         </div>
+
         <div className="row gap-sm">
           <button className="btn btn-ghost" onClick={onShare}><IconShare size={18} /> {t('track_share')}</button>
-          <button className="btn btn-ghost"><IconPhone size={18} /> {t('track_call')}</button>
+          <button className="btn btn-primary" onClick={() => setCalling(true)}><IconPhone size={18} /> {t('track_call')}</button>
         </div>
+        <p className="faint" style={{ fontSize: 11, textAlign: 'center', marginTop: 6 }}>📶 {t('call_nounits')}</p>
+
         {(phase === 'enroute' || phase === 'arrived') && (
           <button className="btn btn-danger" style={{ marginTop: 10 }} onClick={onCancel}>{t('act_cancel')}</button>
         )}
         <div className="card" style={{ padding: 12, marginTop: 12 }}>
           <div className="row gap-sm" style={{ fontSize: 13 }}>
             <span className="list-ico" style={{ color: 'var(--green)', width: 32, height: 32 }}><IconShield size={16} /></span>
-            <span className="muted">{t('track_safety')}</span>
+            <span className="muted">{t('drv_supervised')}</span>
           </div>
         </div>
       </Sheet>
+
+      {calling && <CallOverlay driver={driver} tier={tier} onClose={() => setCalling(false)} />}
+    </div>
+  );
+}
+
+/* --------------------------- Appel internet -------------------------- */
+function CallOverlay({ driver, tier, onClose }: { driver: Driver; tier: TierOption; onClose: () => void }) {
+  const { t } = useI18n();
+  const [seconds, setSeconds] = useState(0);
+  const [connected, setConnected] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const [speaker, setSpeaker] = useState(true);
+
+  useEffect(() => {
+    const c = window.setTimeout(() => setConnected(true), 1600);
+    return () => window.clearTimeout(c);
+  }, []);
+  useEffect(() => {
+    if (!connected) return;
+    const id = window.setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [connected]);
+
+  const mmss = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+
+  return (
+    <div className="call-overlay">
+      <div className="call-top">
+        <span className="badge green"><IconShield size={12} /> {t('call_internet')}</span>
+        <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>{t('call_nounits')}</p>
+      </div>
+      <div className="call-center">
+        <span className="call-avatar" style={{ color: tier.accent }}>{driver.name.charAt(0)}</span>
+        <h2 className="h-title" style={{ marginTop: 16 }}>{driver.name}</h2>
+        <p className="faint" style={{ fontSize: 13 }}>{driver.matricule}</p>
+        <p className="muted" style={{ marginTop: 8, fontSize: 14 }}>{connected ? mmss : t('call_connecting')}</p>
+      </div>
+      <div className="call-actions">
+        <button className={`call-btn${muted ? ' on' : ''}`} onClick={() => setMuted((m) => !m)}>
+          <IconMic size={22} /><span>{t('call_mute')}</span>
+        </button>
+        <button className="call-btn end" onClick={onClose}><IconPhoneOff size={24} /><span>{t('call_end')}</span></button>
+        <button className={`call-btn${speaker ? ' on' : ''}`} onClick={() => setSpeaker((s) => !s)}>
+          <IconVolume size={22} /><span>{t('call_speaker')}</span>
+        </button>
+      </div>
     </div>
   );
 }

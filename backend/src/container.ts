@@ -16,7 +16,7 @@ import { SafetyService } from './modules/safety/service.js';
 import { RealtimeHub } from './modules/realtime/hub.js';
 import { createMapsProvider, type MapsProvider } from './modules/maps/service.js';
 import { createRepository } from './core/db/repository.js';
-import type { Driver } from './modules/drivers/store.js';
+import { genMatricule, type Driver } from './modules/drivers/store.js';
 import type { Ride } from './modules/rides/store.js';
 import type { LedgerEntry } from './modules/wallet/service.js';
 import type { Subscription } from './modules/subscriptions/service.js';
@@ -107,6 +107,7 @@ export async function seedDemoDrivers(c: Container): Promise<void> {
     const d = c.drivers.upsert({
       id: randomUUID(),
       name: s.name,
+      matricule: genMatricule(),
       category: s.category,
       kycStatus: 'active',
       availability: 'offline',

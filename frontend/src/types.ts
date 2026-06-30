@@ -48,6 +48,7 @@ export interface Quote {
 
 export interface Driver {
   name: string;
+  matricule: string;
   rating: number;
   trips: number;
   plate: string;

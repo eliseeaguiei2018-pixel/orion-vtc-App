@@ -5,6 +5,7 @@ import type { Container } from '../../container.js';
 import { latLng, parse } from '../../core/validate.js';
 import { notFound } from '../../core/errors.js';
 import { driverRoom, rideRoom } from '../realtime/hub.js';
+import { genMatricule } from './store.js';
 
 const registerSchema = z.object({
   name: z.string().min(1),
@@ -20,6 +21,7 @@ export async function driverRoutes(app: FastifyInstance, container: Container): 
     const driver = container.drivers.upsert({
       id: randomUUID(),
       name: body.name,
+      matricule: genMatricule(),
       category: body.category,
       kycStatus: 'draft',
       availability: 'offline',

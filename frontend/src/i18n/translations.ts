@@ -76,6 +76,9 @@ const fr: Dict = {
   perm_cam: 'Caméra', perm_cam_d: 'Photo de profil et documents',
   perm_storage: 'Stockage', perm_storage_d: 'Reçus et mode hors-ligne',
   perm_allow: 'Tout autoriser', perm_skip: 'Plus tard', wa_otp: 'Recevoir le code via WhatsApp',
+  drv_matricule: 'Matricule ORION', drv_supervised: 'Course suivie par ORION · intervention possible',
+  call_internet: 'Appel internet', call_nounits: 'Sans unités · via internet', call_connecting: 'Connexion sécurisée…',
+  call_inprogress: 'En communication', call_mute: 'Muet', call_speaker: 'Haut-parleur', call_end: 'Raccrocher',
 };
 
 const en: Dict = {
@@ -133,6 +136,9 @@ const en: Dict = {
   perm_cam: 'Camera', perm_cam_d: 'Profile photo and documents',
   perm_storage: 'Storage', perm_storage_d: 'Receipts and offline mode',
   perm_allow: 'Allow all', perm_skip: 'Later', wa_otp: 'Get the code via WhatsApp',
+  drv_matricule: 'ORION ID', drv_supervised: 'Ride monitored by ORION · support available',
+  call_internet: 'Internet call', call_nounits: 'No credit · over the internet', call_connecting: 'Secure connection…',
+  call_inprogress: 'In call', call_mute: 'Mute', call_speaker: 'Speaker', call_end: 'Hang up',
 };
 
 const es: Dict = {

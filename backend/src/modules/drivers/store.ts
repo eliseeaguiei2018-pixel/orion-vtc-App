@@ -7,11 +7,18 @@ export type KycStatus = 'draft' | 'docs_submitted' | 'manual_review' | 'approved
 export interface Driver {
   id: string;
   name: string;
+  /** Matricule ORION (identifiant lisible) — permet à ORION d'intervenir/identifier le chauffeur. */
+  matricule: string;
   kycStatus: KycStatus;
   availability: Availability;
   category: string;
   ratingAvg: number;
   ratingCount: number;
+}
+
+/** Génère un matricule ORION lisible, ex. ORION-CI-4821. */
+export function genMatricule(): string {
+  return `ORION-CI-${Math.floor(1000 + Math.random() * 9000)}`;
 }
 
 /**

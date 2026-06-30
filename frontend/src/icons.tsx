@@ -109,3 +109,12 @@ export const IconImage = ({ size, strokeWidth }: P) => (
 export const IconTraffic = ({ size, strokeWidth }: P) => (
   <svg {...base(size, strokeWidth)}><rect x="8" y="2" width="8" height="20" rx="3" /><circle cx="12" cy="7" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="12" cy="17" r="1.4" /></svg>
 );
+export const IconPhoneOff = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M5 4h3l2 5-2 1a11 11 0 0 0 5 5l1-2 5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z" /><path d="m2 2 20 20" /></svg>
+);
+export const IconVolume = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M4 9v6h4l5 4V5L8 9H4Z" /><path d="M16 8a5 5 0 0 1 0 8" /></svg>
+);
+export const IconShieldCheck = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M12 3 5 6v5c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Z" /><path d="m9 12 2 2 4-4" /></svg>
+);
