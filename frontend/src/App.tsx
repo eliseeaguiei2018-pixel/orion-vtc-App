@@ -3,12 +3,14 @@ import { OrionMap } from './components/OrionMap';
 import { Sheet, TopBar, Toast } from './components/ui';
 import {
   IconBell, IconBriefcase, IconCalendar, IconCamera, IconCheck, IconChevron, IconClock, IconCrown,
-  IconGem, IconGlobe, IconHome, IconImage, IconLeaf, IconMic, IconMinus, IconPhone, IconPhoneOff, IconPin,
-  IconPlane, IconPlus, IconRing, IconSearch, IconSettings, IconShare, IconShield, IconShieldCheck,
-  IconStar, IconTraffic, IconVolume, IconWallet,
+  IconFingerprint, IconGem, IconGlobe, IconHome, IconImage, IconLeaf, IconLock, IconMic, IconMinus,
+  IconPhone, IconPhoneOff, IconPin, IconPlane, IconPlus, IconRing, IconSearch, IconSettings, IconShare,
+  IconShield, IconShieldCheck, IconStar, IconTraffic, IconVolume, IconWallet,
 } from './icons';
 import { useTheme, type ThemeMode } from './theme';
 import { LogoGlyph } from './components/Logo';
+import { authenticateBiometric, isBiometricEnabled, setBiometricEnabled } from './security';
+import type { TrustedContact } from './api';
 import {
   ABIDJAN_PLACES, COUNTRIES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
@@ -61,8 +63,14 @@ export function App() {
   const [bodyType, setBodyType] = useState<'suv' | 'berline'>('berline');
   const [stops, setStops] = useState<Place[]>([]);
   const [scheduled, setScheduled] = useState(false);
+  const [insurance, setInsurance] = useState(false);
   const [payment, setPayment] = useState<string>('orange_money');
   const [quote, setQuote] = useState<Quote | null>(null);
+  const [locked, setLocked] = useState(isBiometricEnabled());
+  const [trusted, setTrusted] = useState<TrustedContact | null>(() => {
+    try { return JSON.parse(localStorage.getItem('orion.trusted') || 'null'); } catch { return null; }
+  });
+  const [shareRides, setShareRides] = useState(() => localStorage.getItem('orion.share') === '1');
   const [driver, setDriver] = useState<Driver | null>(null);
   const [carPos, setCarPos] = useState<LatLng | null>(null);
   const [tripPhase, setTripPhase] = useState<TripPhase>('enroute');
@@ -80,9 +88,9 @@ export function App() {
 
   useEffect(() => {
     if (screen === 'confirm' && destination) {
-      estimate(origin.location, destination.location, tier, { bodyType, stops: stops.map((s) => s.location) }).then(setQuote);
+      estimate(origin.location, destination.location, tier, { bodyType, stops: stops.map((s) => s.location), insurance }).then(setQuote);
     }
-  }, [screen, destination, tier, bodyType, stops, origin.location]);
+  }, [screen, destination, tier, bodyType, stops, insurance, origin.location]);
 
   const chooseDestination = (place: Place) => {
     setDestination(place);
@@ -97,8 +105,9 @@ export function App() {
 
   const confirmRide = async () => {
     setScreen('searching');
+    if (shareRides && trusted) showToast(t('toast_shared', { name: trusted.name }));
     if (isLiveBackend() && quote) {
-      const ride = await createRide(quote.lockId, 'client-demo');
+      const ride = await createRide(quote.lockId, 'client-demo', shareRides && trusted ? trusted : undefined);
       if (ride?.driverId) {
         setRideId(ride.id);
         setLive(true);
@@ -135,6 +144,7 @@ export function App() {
     setBodyType('berline');
     setStops([]);
     setScheduled(false);
+    setInsurance(false);
     setScreen('home');
   };
 
@@ -142,6 +152,7 @@ export function App() {
     <div className="app-shell">
       <div className="phone">
         {toast && <Toast message={toast.message} danger={toast.danger} />}
+        {locked && <LockScreen onUnlock={() => setLocked(false)} />}
 
         {screen === 'splash' && <Splash onDone={() => setScreen('onboarding')} />}
         {screen === 'onboarding' && <Onboarding onStart={() => setScreen('auth')} onLang={() => setScreen('settings')} />}
@@ -166,7 +177,7 @@ export function App() {
         {screen === 'confirm' && destination && (
           <ConfirmScreen origin={origin} destination={destination} tier={tier} quote={quote} payment={payment}
             stops={stops} onAddStop={() => setStops((s) => (s.length < 3 ? [...s, EXTRA_STOPS[s.length]!] : s))}
-            scheduled={scheduled} onSchedule={setScheduled}
+            scheduled={scheduled} onSchedule={setScheduled} insurance={insurance} onInsurance={setInsurance}
             onPayment={setPayment} onBack={() => setScreen('estimate')}
             onConfirm={() => { if (scheduled) { showToast(t('toast_scheduled')); reset(); } else confirmRide(); }} />
         )}
@@ -178,8 +189,13 @@ export function App() {
         {screen === 'tracking' && destination && driver && (
           <TrackingScreen origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase}
             carPos={carPos} setCarPos={setCarPos} setPhase={setTripPhase} live={live} rideId={rideId} stops={stops}
-            onSos={triggerSos} onShare={() => showToast(t('toast_share'))} onArrived={() => setScreen('rating')}
+            onSos={triggerSos} onShare={() => showToast(t('toast_share'))} onArrived={() => setScreen('payment')}
             onCancel={() => { showToast(t('toast_cancelled')); reset(); }} />
+        )}
+
+        {screen === 'payment' && destination && driver && (
+          <PaymentScreen quote={quote} payment={payment} driver={driver} rideId={rideId}
+            onPaid={() => setScreen('rating')} />
         )}
 
         {screen === 'rating' && destination && driver && (
@@ -187,7 +203,12 @@ export function App() {
             setRating={setRating} onDone={() => { showToast(t('toast_done')); reset(); }} />
         )}
 
-        {screen === 'settings' && <SettingsScreen onBack={() => setScreen('home')} />}
+        {screen === 'settings' && (
+          <SettingsScreen onBack={() => setScreen('home')} onWallet={() => setScreen('wallet')}
+            trusted={trusted} setTrusted={(c) => { setTrusted(c); localStorage.setItem('orion.trusted', JSON.stringify(c)); }}
+            shareRides={shareRides} setShareRides={(v) => { setShareRides(v); localStorage.setItem('orion.share', v ? '1' : '0'); }} />
+        )}
+        {screen === 'wallet' && <WalletScreen onBack={() => setScreen('home')} onToast={showToast} />}
         {screen === 'subscription' && (
           <SubscriptionScreen currentPlan={currentPlan} onBack={() => setScreen('home')}
             onSubscribe={(p) => { setCurrentPlan(p); showToast(t('toast_subscribed')); }} />
@@ -213,6 +234,33 @@ function Splash({ onDone }: { onDone: () => void }) {
       <div className="splash-logo" style={{ color: '#fff' }}><LogoGlyph size={56} /></div>
       <div className="splash-word">ORION</div>
       <div className="splash-tag">{t('tagline')}</div>
+    </div>
+  );
+}
+
+/* --------------------------- Verrou biométrique ---------------------- */
+function LockScreen({ onUnlock }: { onUnlock: () => void }) {
+  const { t } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const unlock = async () => {
+    setBusy(true);
+    const ok = await authenticateBiometric();
+    setBusy(false);
+    if (ok) onUnlock();
+  };
+  useEffect(() => { void unlock(); /* tente automatiquement à l'ouverture */ // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div className="lock-screen">
+      <div className="logo-mark" style={{ width: 64, height: 64, color: '#fff' }}><LogoGlyph size={36} /></div>
+      <div className="lock-fp" onClick={unlock} role="button">
+        <IconFingerprint size={56} />
+      </div>
+      <h2 className="h-title">{t('lock_title')}</h2>
+      <p className="h-sub" style={{ textAlign: 'center' }}>{t('lock_hint')}</p>
+      <button className="btn btn-primary" style={{ maxWidth: 240, marginTop: 18 }} disabled={busy} onClick={unlock}>
+        <IconLock size={18} /> {t('lock_unlock')}
+      </button>
     </div>
   );
 }
@@ -488,13 +536,15 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
 }
 
 /* ------------------------------ Confirm ------------------------------ */
-function ConfirmScreen({ origin, destination, tier, quote, payment, stops, onAddStop, scheduled, onSchedule, onPayment, onBack, onConfirm }: {
+function ConfirmScreen({ origin, destination, tier, quote, payment, stops, onAddStop, scheduled, onSchedule, insurance, onInsurance, onPayment, onBack, onConfirm }: {
   origin: Place; destination: Place; tier: TierOption; quote: Quote | null; payment: string;
   stops: Place[]; onAddStop: () => void; scheduled: boolean; onSchedule: (v: boolean) => void;
+  insurance: boolean; onInsurance: (v: boolean) => void;
   onPayment: (m: string) => void; onBack: () => void; onConfirm: () => void;
 }) {
   const { t } = useI18n();
   const [showWhy, setShowWhy] = useState(false);
+  const [showIns, setShowIns] = useState(false);
   return (
     <div className="screen">
       <OrionMap origin={origin.location} destination={destination.location} stops={stops.map((s) => s.location)} />
@@ -528,6 +578,16 @@ function ConfirmScreen({ origin, destination, tier, quote, payment, stops, onAdd
         </div>
         {scheduled && <p className="faint" style={{ fontSize: 12, marginBottom: 12 }}>⏰ {t('sched_note')}</p>}
 
+        {/* ORION Assurance (optionnelle, +2%) */}
+        <div className="opt" style={{ marginBottom: 14, ...(insurance ? { borderColor: 'var(--green)', background: 'rgba(0,168,101,0.06)' } : {}) }}>
+          <span className="list-ico" style={{ color: 'var(--green)' }}><IconShieldCheck size={18} /></span>
+          <span className="col grow" style={{ textAlign: 'start' }}>
+            <strong style={{ fontSize: 14 }}>{t('ins_toggle')}</strong>
+            <button className="faint list-btn" style={{ fontSize: 12, textDecoration: 'underline', padding: 0, textAlign: 'start' }} onClick={() => setShowIns(true)}>{t('ins_why')}</button>
+          </span>
+          <button className={`toggle${insurance ? ' on' : ''}`} onClick={() => onInsurance(!insurance)}><span /></button>
+        </div>
+
         <span className="eyebrow">{t('conf_payment')}</span>
         <div className="chips" style={{ margin: '10px 0 14px' }}>
           {PAYMENTS.map((p) => (
@@ -552,6 +612,7 @@ function ConfirmScreen({ origin, destination, tier, quote, payment, stops, onAdd
                 <div className="fare-line"><span>{t('p_subtotal')}</span><span>{formatXOF(quote.breakdown.subtotal)}</span></div>
                 <div className="fare-line"><span>{t('p_tva')}</span><span>{formatXOF(quote.breakdown.tva)}</span></div>
                 <div className="fare-line"><span>{t('p_fee')}</span><span>{formatXOF(quote.breakdown.fee)}</span></div>
+                {quote.breakdown.insurance > 0 && <div className="fare-line"><span>{t('ins_line')}</span><span>{formatXOF(quote.breakdown.insurance)}</span></div>}
               </div>
             )}
             <div className="divider" style={{ margin: '8px 0' }} />
@@ -561,6 +622,18 @@ function ConfirmScreen({ origin, destination, tier, quote, payment, stops, onAdd
         <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={onConfirm}>{scheduled ? t('sched_set') : t('conf_confirm')}</button>
         <p className="faint" style={{ textAlign: 'center', fontSize: 12, marginTop: 8 }}>{t('conf_locked')}</p>
       </Sheet>
+
+      {showIns && (
+        <div className="modal-backdrop" onClick={() => setShowIns(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="logo-mark" style={{ width: 52, height: 52, color: '#fff', marginBottom: 12 }}><IconShieldCheck size={26} /></div>
+            <h2 className="h-title">{t('ins_toggle')}</h2>
+            <p className="h-sub" style={{ marginTop: 8 }}>{t('ins_desc')}</p>
+            <button className="btn btn-primary" style={{ marginTop: 18 }} onClick={() => { onInsurance(true); setShowIns(false); }}>{t('ins_toggle')} (+2%)</button>
+            <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={() => setShowIns(false)}>{t('ins_got')}</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -786,16 +859,60 @@ function RatingScreen({ driver, quote, payment, destination, rating, setRating, 
 }
 
 /* ------------------------------ Settings ----------------------------- */
-function SettingsScreen({ onBack }: { onBack: () => void }) {
+function SettingsScreen({ onBack, onWallet, trusted, setTrusted, shareRides, setShareRides }: {
+  onBack: () => void; onWallet: () => void;
+  trusted: TrustedContact | null; setTrusted: (c: TrustedContact) => void;
+  shareRides: boolean; setShareRides: (v: boolean) => void;
+}) {
   const { t, lang, setLang } = useI18n();
   const { mode, setMode } = useTheme();
+  const [bio, setBio] = useState(isBiometricEnabled());
+  const [name, setName] = useState(trusted?.name ?? '');
+  const [phone, setPhone] = useState(trusted?.phone ?? '');
   const themeOpts: Array<{ m: ThemeMode; k: string }> = [
     { m: 'system', k: 'theme_auto' }, { m: 'light', k: 'theme_light' }, { m: 'dark', k: 'theme_dark' },
   ];
+  const saveContact = (nm: string, ph: string) => { if (nm && ph) setTrusted({ name: nm, phone: ph }); };
   return (
     <div className="screen page">
       <TopBar onBack={onBack} title={t('set_title')} />
       <div className="page-body">
+        {/* Sécurité & confidentialité */}
+        <span className="eyebrow"><IconShieldCheck size={13} /> {t('sec_title')}</span>
+        <div className="opt" style={{ margin: '10px 0 8px' }}>
+          <span className="list-ico" style={{ color: 'var(--green)' }}><IconFingerprint size={18} /></span>
+          <span className="col grow" style={{ textAlign: 'start' }}>
+            <strong style={{ fontSize: 14 }}>{t('sec_biometric')}</strong>
+            <span className="faint" style={{ fontSize: 12 }}>{t('sec_biometric_d')}</span>
+          </span>
+          <button className={`toggle${bio ? ' on' : ''}`} onClick={() => { const v = !bio; setBio(v); setBiometricEnabled(v); }}><span /></button>
+        </div>
+        <p className="faint" style={{ fontSize: 11, margin: '0 0 18px' }}>🔒 {t('sec_privacy')}</p>
+
+        {/* Contact de confiance */}
+        <span className="eyebrow"><IconShield size={13} /> {t('tc_title')}</span>
+        <div className="field" style={{ margin: '10px 0 8px' }}>
+          <input placeholder={t('tc_name')} value={name} onChange={(e) => { setName(e.target.value); saveContact(e.target.value, phone); }} />
+        </div>
+        <div className="field" style={{ marginBottom: 8 }}>
+          <span className="dialcode">🇨🇮 +225</span>
+          <input inputMode="tel" placeholder={t('tc_phone')} value={phone} onChange={(e) => { setPhone(e.target.value); saveContact(name, e.target.value); }} />
+        </div>
+        <div className="opt" style={{ marginBottom: 18 }}>
+          <span className="col grow" style={{ textAlign: 'start' }}>
+            <strong style={{ fontSize: 14 }}>{t('tc_share')}</strong>
+            <span className="faint" style={{ fontSize: 12 }}>{t('tc_share_d')}</span>
+          </span>
+          <button className={`toggle${shareRides ? ' on' : ''}`} onClick={() => setShareRides(!shareRides)}><span /></button>
+        </div>
+
+        {/* Portefeuille */}
+        <button className="opt list-btn" style={{ marginBottom: 22 }} onClick={onWallet}>
+          <span className="list-ico" style={{ color: 'var(--green)' }}><IconWallet size={18} /></span>
+          <span className="grow" style={{ textAlign: 'start', fontWeight: 600 }}>{t('wal_title')}</span>
+          <IconChevron size={18} color="#6f8a7e" />
+        </button>
+
         <span className="eyebrow">{t('set_theme')}</span>
         <div className="chips" style={{ margin: '10px 0 22px' }}>
           {themeOpts.map((o) => (
@@ -937,6 +1054,107 @@ function WeddingScreen({ onBack, onReserve }: { onBack: () => void; onReserve: (
 
         <div className="fare-total" style={{ marginBottom: 14 }}><span className="muted">{t('wed_total')}</span><span className="amt">{formatXOF(total)}</span></div>
         <button className="btn btn-primary" onClick={onReserve}><IconRing size={18} /> {t('wed_reserve')}</button>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------ Paiement ----------------------------- */
+function PaymentScreen({ quote, payment, driver, rideId, onPaid }: {
+  quote: Quote | null; payment: string; driver: Driver; rideId: string | null; onPaid: () => void;
+}) {
+  const { t } = useI18n();
+  const provider = PAYMENTS.find((p) => p.method === payment)?.label ?? payment;
+  const mobile = ['orange_money', 'wave', 'mtn_momo', 'moov_money'].includes(payment);
+  const [phase, setPhase] = useState<'idle' | 'redirect' | 'success'>('idle');
+
+  const pay = () => {
+    if (!mobile) { finalize(); return; }
+    setPhase('redirect');
+  };
+  const finalize = () => {
+    setPhase('success');
+    if (isLiveBackend() && rideId) {
+      void fetch(`${import.meta.env.VITE_API_URL}/rides/${rideId}/pay`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ method: payment }),
+      }).catch(() => {});
+    }
+    window.setTimeout(onPaid, 2200);
+  };
+
+  return (
+    <div className="screen page">
+      <OrionMap origin={DEFAULT_ORIGIN.location} />
+      <TopBar title={t('pay_title')} />
+      <div style={{ flex: 1 }} />
+      <Sheet>
+        {phase !== 'success' ? (
+          <>
+            <div className="row between" style={{ marginBottom: 14 }}>
+              <span className="col"><span className="faint" style={{ fontSize: 12 }}>{t('conf_total')}</span><span className="amt" style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 28 }}>{formatXOF(quote?.amount ?? 0)}</span></span>
+              <span className="driver-photo" style={{ width: 48, height: 48, fontSize: 18 }}>{driver.name.charAt(0)}</span>
+            </div>
+            <div className="chip active" style={{ width: '100%', justifyContent: 'flex-start', marginBottom: 14 }}><IconWallet size={16} /> {provider}</div>
+            <button className="btn btn-primary" onClick={pay}><IconWallet size={18} /> {t('conf_confirm')} · {formatXOF(quote?.amount ?? 0)}</button>
+            {mobile && <p className="faint" style={{ fontSize: 12, textAlign: 'center', marginTop: 8 }}>{t('pay_redirect', { p: provider })}</p>}
+          </>
+        ) : (
+          <div className="col" style={{ alignItems: 'center', textAlign: 'center', gap: 6 }}>
+            <span className="pay-ok"><IconCheck size={40} /></span>
+            <h2 className="h-title" style={{ marginTop: 8 }}>{t('pay_success')}</h2>
+            <p className="muted">{formatXOF(quote?.amount ?? 0)} · {provider}</p>
+            <p className="faint" style={{ fontSize: 13 }}>{t('pay_notif')}</p>
+            <p className="faint" style={{ fontSize: 13 }}>{t('pay_email')}</p>
+          </div>
+        )}
+      </Sheet>
+
+      {phase === 'redirect' && (
+        <div className="call-overlay" style={{ justifyContent: 'center', gap: 22 }}>
+          <div className="logo-mark" style={{ width: 64, height: 64, color: '#fff' }}><IconWallet size={32} /></div>
+          <h2 className="h-title">{t('pay_redirect', { p: provider })}</h2>
+          <p className="h-sub" style={{ textAlign: 'center' }}>{t('pay_confirm_in', { p: provider })}</p>
+          <div className="pay-spinner" />
+          <button className="btn btn-primary" style={{ maxWidth: 260 }} onClick={finalize}>{t('pay_open', { p: provider })}</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ----------------------------- Portefeuille -------------------------- */
+function WalletScreen({ onBack, onToast }: { onBack: () => void; onToast: (m: string) => void }) {
+  const { t } = useI18n();
+  // Données de démonstration (ou backend en production).
+  const [balance, setBalance] = useState(3250);
+  const insuranceYear = 1840;
+  const refund = Math.round(insuranceYear * 0.5);
+  return (
+    <div className="screen page">
+      <TopBar onBack={onBack} title={t('wal_title')} />
+      <div className="page-body">
+        <div className="card" style={{ padding: 20, marginBottom: 16, background: 'linear-gradient(135deg, var(--green-deep), var(--green-bright))', border: 'none', color: '#04140d' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.85 }}>{t('wal_balance')}</span>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 36 }}>{formatXOF(balance)}</div>
+        </div>
+
+        <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+          <div className="row gap-sm" style={{ marginBottom: 10 }}>
+            <span className="list-ico" style={{ color: 'var(--green)' }}><IconShieldCheck size={18} /></span>
+            <strong style={{ fontSize: 15 }}>ORION Assurance</strong>
+          </div>
+          <div className="fare-line"><span>{t('wal_ins_year')}</span><span>{formatXOF(insuranceYear)}</span></div>
+          <div className="fare-line"><span>{t('wal_refund')}</span><span style={{ color: 'var(--green)', fontWeight: 700 }}>{formatXOF(refund)}</span></div>
+        </div>
+
+        <span className="eyebrow">{t('wal_transfer')}</span>
+        <div className="chips" style={{ margin: '10px 0 16px' }}>
+          {['Wave', 'Orange Money', 'MTN MoMo', 'Moov Money'].map((m) => (
+            <button key={m} className="chip" onClick={() => { setBalance((b) => Math.max(0, b - 1000)); onToast(t('toast_transfer')); }}><IconWallet size={15} /> {m}</button>
+          ))}
+        </div>
+        <button className="btn btn-ghost"><IconCheck size={18} /> {t('wal_use')}</button>
       </div>
     </div>
   );

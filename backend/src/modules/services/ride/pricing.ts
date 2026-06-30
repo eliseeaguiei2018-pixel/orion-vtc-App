@@ -5,6 +5,7 @@ import { FLEET, isTier, type Tier } from '../../fleet/catalog.js';
 /** Taxes & frais appliqués à chaque course (transparence). */
 export const TVA_RATE = 0.05; // TVA État de Côte d'Ivoire
 export const APP_FEE_RATE = 0.1; // Frais de service ORION
+export const INSURANCE_RATE = 0.02; // ORION Assurance (optionnelle)
 /** Supplément carrosserie : un SUV coûte un peu plus qu'une berline. */
 export const BODY_SURCHARGE: Record<string, number> = { berline: 1.0, suv: 1.08 };
 
@@ -106,7 +107,8 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
   const subtotal = floored + trafficSurcharge - discount;
   const tva = subtotal * TVA_RATE;
   const fee = subtotal * APP_FEE_RATE;
-  const amount = roundFcfa(subtotal + tva + fee);
+  const insurance = req.insurance ? subtotal * INSURANCE_RATE : 0;
+  const amount = roundFcfa(subtotal + tva + fee + insurance);
 
   return {
     category,
@@ -125,6 +127,7 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
       subtotal: Math.round(subtotal),
       tva: Math.round(tva),
       fee: Math.round(fee),
+      insurance: Math.round(insurance),
     },
   };
 }

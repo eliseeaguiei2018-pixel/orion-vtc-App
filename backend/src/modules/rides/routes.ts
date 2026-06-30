@@ -11,6 +11,8 @@ import type { Ride } from './store.js';
 const createSchema = z.object({
   clientId: z.string().min(1),
   lockId: z.string().min(1), // devis verrouillé issu de /pricing/estimate
+  // Contact de confiance prévenu au départ (partage de course).
+  trustedContact: z.object({ name: z.string().min(1), phone: z.string().min(1) }).optional(),
 });
 
 const transitionSchema = z.object({ to: z.custom<RideStatus>() });
@@ -46,9 +48,12 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
         destination: quote.destination,
         quote,
         events: [],
+        shareToken: randomUUID().slice(0, 8),
+        trustedContact: body.trustedContact,
         createdAt: new Date().toISOString(),
       };
       appendEvent(created, 'created', { amount: quote.amount, currency: quote.currency });
+      if (body.trustedContact) appendEvent(created, 'shared', { contact: body.trustedContact.name });
 
       // Matching : recherche d'un chauffeur disponible à proximité.
       const match = await container.matching.findDriver(created.origin, quote.category);
@@ -72,7 +77,23 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     });
 
     reply.code(201);
-    return { ride };
+    return { ride, shareUrl: ride.shareToken ? `/share/${ride.shareToken}` : null };
+  });
+
+  // Vue publique d'une course (lien partagé à un contact de confiance) — lecture seule, infos sûres.
+  app.get('/share/:token', async (req) => {
+    const { token } = req.params as { token: string };
+    const ride = container.rides.findByShareToken(token);
+    if (!ride) throw notFound('Lien de partage invalide');
+    const driver = ride.driverId ? container.drivers.get(ride.driverId) : undefined;
+    return {
+      status: ride.status,
+      origin: ride.origin,
+      destination: ride.destination,
+      createdAt: ride.createdAt,
+      driver: driver ? { name: driver.name, matricule: driver.matricule } : null,
+      supervisedBy: 'ORION',
+    };
   });
 
   app.get('/rides/:id', async (req) => {

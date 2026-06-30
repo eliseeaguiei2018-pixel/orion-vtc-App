@@ -11,6 +11,7 @@ const estimateSchema = z.object({
   stops: z.array(latLng).max(5).optional(),
   category: z.string().optional(),
   bodyType: z.enum(['suv', 'berline']).optional(),
+  insurance: z.boolean().optional(),
   promoCode: z.string().optional(),
 });
 
@@ -28,6 +29,7 @@ export async function pricingRoutes(app: FastifyInstance, container: Container):
       stops: body.stops,
       category: body.category,
       bodyType: body.bodyType,
+      insurance: body.insurance,
       promoCode: body.promoCode,
     });
     container.rides.saveQuote(quote);

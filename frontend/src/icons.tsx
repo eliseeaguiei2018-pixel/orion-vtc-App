@@ -118,3 +118,9 @@ export const IconVolume = ({ size, strokeWidth }: P) => (
 export const IconShieldCheck = ({ size, strokeWidth }: P) => (
   <svg {...base(size, strokeWidth)}><path d="M12 3 5 6v5c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Z" /><path d="m9 12 2 2 4-4" /></svg>
 );
+export const IconFingerprint = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M12 11v3a8 8 0 0 1-1.5 4.5" /><path d="M8 11a4 4 0 0 1 8 0v2a12 12 0 0 1-.7 4" /><path d="M5.5 13.5V11a6.5 6.5 0 0 1 11-4.7" /><path d="M12 11v3.5a16 16 0 0 0 .6 4.5" /></svg>
+);
+export const IconLock = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><rect x="4.5" y="10" width="15" height="11" rx="2.5" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
+);

@@ -16,6 +16,8 @@ export interface EstimateRequest {
   category?: string;
   /** Carrosserie souhaitée : 'suv' | 'berline'. */
   bodyType?: string;
+  /** ORION Assurance activée (cotisation 2% de la course). */
+  insurance?: boolean;
   promoCode?: string;
 }
 
@@ -35,6 +37,8 @@ export interface QuoteBreakdown {
   tva: number;
   /** Frais de service ORION (10%). */
   fee: number;
+  /** Cotisation ORION Assurance (2%), 0 si non activée. */
+  insurance: number;
 }
 
 export type TrafficLevel = 'fluid' | 'dense' | 'jam';

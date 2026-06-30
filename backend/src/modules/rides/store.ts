@@ -3,6 +3,11 @@ import type { LatLng } from '../../core/geo.js';
 import type { RideStatus } from '../services/ride/stateMachine.js';
 import type { Repository } from '../../core/db/repository.js';
 
+export interface TrustedContact {
+  name: string;
+  phone: string;
+}
+
 export interface Ride {
   id: string;
   clientId: string;
@@ -13,6 +18,10 @@ export interface Ride {
   destination: LatLng;
   quote: Quote;
   events: RideEvent[];
+  /** Jeton public de partage de la course (contact de confiance). */
+  shareToken?: string;
+  /** Contact de confiance prévenu au départ — ORION peut le joindre en cas d'accident. */
+  trustedContact?: TrustedContact;
   createdAt: string;
 }
 
@@ -69,6 +78,10 @@ export class RideStore {
   findActiveByDriver(driverId: string): Ride | undefined {
     const active = new Set(['accepted', 'driver_en_route', 'arrived', 'in_progress']);
     return [...this.rides.values()].find((r) => r.driverId === driverId && active.has(r.status));
+  }
+
+  findByShareToken(token: string): Ride | undefined {
+    return [...this.rides.values()].find((r) => r.shareToken === token);
   }
 
   listByClient(clientId: string): Ride[] {

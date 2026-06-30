@@ -21,6 +21,7 @@ import { fleetRoutes } from './modules/fleet/routes.js';
 import { countryRoutes } from './modules/countries/routes.js';
 import { subscriptionRoutes } from './modules/subscriptions/routes.js';
 import { weddingRoutes } from './modules/wedding/routes.js';
+import { insuranceRoutes } from './modules/insurance/routes.js';
 
 export interface BuiltApp {
   app: FastifyInstance;
@@ -88,6 +89,7 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
   await countryRoutes(app, container);
   await subscriptionRoutes(app, container);
   await weddingRoutes(app, container);
+  await insuranceRoutes(app, container);
 
   // Arrêt en douceur : couper les timers de simulation.
   app.addHook('onClose', async () => container.simulator.stopAll());
@@ -100,7 +102,7 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
     docs: '/docs (voir le dossier docs/ du dépôt)',
     services: container.registry.list(),
     tiers: ['bronze', 'argent', 'or', 'diamant'],
-    features: ['geo-ci', 'mobile-money', 'safety-samu', 'realtime-ws', 'live-tracking', 'wallet-commissions', 'subscriptions', 'wedding-rental', 'multi-country', 'google-maps-ready'],
+    features: ['geo-ci', 'mobile-money', 'safety-samu', 'realtime-ws', 'live-tracking', 'wallet-commissions', 'subscriptions', 'wedding-rental', 'multi-country', 'insurance', 'trusted-contact-share', 'in-app-call', 'biometric-ready', 'google-maps-ready'],
   }));
 
   return { app, container };

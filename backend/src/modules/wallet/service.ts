@@ -12,7 +12,7 @@ import type { Repository } from '../../core/db/repository.js';
  * En production : ledger en base (PostgreSQL) avec écritures comptables en double entrée.
  * Ici : ledger en mémoire, même logique métier (testable et déterministe).
  */
-export type LedgerType = 'ride_earning' | 'commission' | 'payout' | 'adjustment';
+export type LedgerType = 'ride_earning' | 'commission' | 'payout' | 'adjustment' | 'insurance_refund';
 
 export interface LedgerEntry {
   id: string;
@@ -58,6 +58,11 @@ export class WalletService {
     this.ledger.set(entry.driverId, list);
     this.repo?.put(full);
     return full;
+  }
+
+  /** Crédit générique (utilisé aussi pour le portefeuille client : remboursement assurance…). */
+  credit(ownerId: string, amount: number, type: LedgerType, note: string, rideId?: string): LedgerEntry {
+    return this.push({ driverId: ownerId, type, amount, note, rideId });
   }
 
   /** Crédite le gain net d'une course et journalise la commission. */

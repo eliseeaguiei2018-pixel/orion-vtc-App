@@ -11,6 +11,7 @@ import { zoneSurge, trafficInfo } from './modules/geo-ci/zones.js';
 import { WalletService } from './modules/wallet/service.js';
 import { SubscriptionService } from './modules/subscriptions/service.js';
 import { WeddingService } from './modules/wedding/service.js';
+import { InsuranceService, type InsuranceContribution } from './modules/insurance/service.js';
 import { PaymentRegistry } from './modules/payments/providers.js';
 import { SafetyService } from './modules/safety/service.js';
 import { RealtimeHub } from './modules/realtime/hub.js';
@@ -40,6 +41,8 @@ export interface Container {
   maps: MapsProvider;
   simulator: RideSimulator;
   wallet: WalletService;
+  clientWallet: WalletService;
+  insurance: InsuranceService;
   subscriptions: SubscriptionService;
   wedding: WeddingService;
 }
@@ -66,6 +69,8 @@ export function createContainer(): Container {
 
   const realtime = new RealtimeHub();
   const safety = new SafetyService(realtime);
+  // Portefeuille client (séparé du wallet chauffeur) : remboursements ORION Assurance.
+  const clientWallet = new WalletService(createRepository<LedgerEntry>('client_wallet'));
 
   return {
     geo,
@@ -80,6 +85,8 @@ export function createContainer(): Container {
     maps: createMapsProvider(),
     simulator: new RideSimulator(rides, realtime),
     wallet: new WalletService(createRepository<LedgerEntry>('wallet_ledger')),
+    clientWallet,
+    insurance: new InsuranceService(createRepository<InsuranceContribution>('insurance'), clientWallet),
     subscriptions: new SubscriptionService(createRepository<Subscription>('subscriptions')),
     wedding: new WeddingService(createRepository<WeddingReservation>('wedding')),
   };

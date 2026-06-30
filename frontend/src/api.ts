@@ -40,6 +40,7 @@ const round50 = (n: number) => Math.round(n / 50) * 50;
 export interface EstimateOpts {
   bodyType?: 'suv' | 'berline';
   stops?: LatLng[];
+  insurance?: boolean;
 }
 
 const BODY = { berline: 1, suv: 1.08 } as const;
@@ -72,9 +73,10 @@ function localEstimate(origin: LatLng, destination: LatLng, tier: TierOption, op
   const subtotal = floored + trafficCost;
   const tva = subtotal * 0.05;
   const fee = subtotal * 0.1;
+  const insurance = opts.insurance ? subtotal * 0.02 : 0;
   return {
     lockId: `local-${Date.now()}`,
-    amount: round50(subtotal + tva + fee),
+    amount: round50(subtotal + tva + fee + insurance),
     currency: 'XOF',
     distanceMeters: Math.round(distanceMeters),
     etaSeconds,
@@ -82,7 +84,7 @@ function localEstimate(origin: LatLng, destination: LatLng, tier: TierOption, op
     breakdown: {
       base: Math.round(base), distance: Math.round(distance), time: Math.round(time), surge,
       traffic: Math.round(trafficCost), discount: 0, subtotal: Math.round(subtotal),
-      tva: Math.round(tva), fee: Math.round(fee),
+      tva: Math.round(tva), fee: Math.round(fee), insurance: Math.round(insurance),
     },
   };
 }
@@ -95,7 +97,7 @@ export function previewQuote(origin: LatLng, destination: LatLng, tier: TierOpti
 export async function estimate(origin: LatLng, destination: LatLng, tier: TierOption, opts: EstimateOpts = {}): Promise<Quote> {
   const remote = await tryFetch<{ quote: Quote }>('/pricing/estimate', {
     method: 'POST',
-    body: JSON.stringify({ origin, destination, category: tier.id, bodyType: opts.bodyType, stops: opts.stops }),
+    body: JSON.stringify({ origin, destination, category: tier.id, bodyType: opts.bodyType, stops: opts.stops, insurance: opts.insurance }),
   });
   if (remote?.quote) return remote.quote;
   return localEstimate(origin, destination, tier, opts);
@@ -119,12 +121,17 @@ export interface RideCreated {
   driverId?: string;
 }
 
+export interface TrustedContact {
+  name: string;
+  phone: string;
+}
+
 /** Crée une course côté backend (idempotent). Renvoie null si backend indisponible. */
-export async function createRide(lockId: string, clientId: string): Promise<RideCreated | null> {
+export async function createRide(lockId: string, clientId: string, trustedContact?: TrustedContact): Promise<RideCreated | null> {
   const res = await tryFetch<{ ride: RideCreated }>('/rides', {
     method: 'POST',
     headers: { 'idempotency-key': `${clientId}-${lockId}` },
-    body: JSON.stringify({ clientId, lockId }),
+    body: JSON.stringify({ clientId, lockId, trustedContact }),
   });
   return res?.ride ?? null;
 }

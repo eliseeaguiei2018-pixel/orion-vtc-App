@@ -79,6 +79,18 @@ const fr: Dict = {
   drv_matricule: 'Matricule ORION', drv_supervised: 'Course suivie par ORION · intervention possible',
   call_internet: 'Appel internet', call_nounits: 'Sans unités · via internet', call_connecting: 'Connexion sécurisée…',
   call_inprogress: 'En communication', call_mute: 'Muet', call_speaker: 'Haut-parleur', call_end: 'Raccrocher',
+  sec_title: 'Sécurité & confidentialité', sec_biometric: 'Déverrouillage biométrique', sec_biometric_d: 'Empreinte digitale / Face ID',
+  sec_privacy: 'Vos données personnelles sont chiffrées et protégées',
+  lock_title: 'ORION verrouillé', lock_hint: 'Empreinte digitale ou reconnaissance faciale', lock_unlock: 'Déverrouiller', lock_face: 'Face ID',
+  ins_toggle: 'ORION Assurance', ins_sub: 'Assistance accident · +2%', ins_why: 'Pourquoi activer ?',
+  ins_desc: "En cas d'accident, ORION vous assiste et prend en charge vos frais médicaux selon les conditions. Cotisation : 2% de la course. 50% remboursés en fin d'année sur votre portefeuille.",
+  ins_line: 'ORION Assurance (2%)', ins_got: 'J’ai compris',
+  tc_title: 'Contact de confiance', tc_add: 'Ajouter un contact', tc_name: 'Nom', tc_phone: 'Téléphone (+225)',
+  tc_share: 'Partager mes courses', tc_share_d: 'Votre contact reçoit le suivi à chaque course', toast_shared: 'Course partagée avec {name}',
+  wal_title: 'Mon portefeuille', wal_balance: 'Solde', wal_ins_year: 'Cotisations assurance (cette année)',
+  wal_refund: 'Remboursement estimé (50%)', wal_transfer: 'Transférer', wal_use: 'Payer une course', toast_transfer: 'Transfert effectué',
+  pay_title: 'Paiement', pay_redirect: 'Redirection vers {p}…', pay_confirm_in: 'Confirmez dans {p}', pay_success: 'Paiement reçu par ORION',
+  pay_email: 'Reçu envoyé par e-mail 📧', pay_notif: 'Chauffeur & client notifiés', pay_open: 'Ouvrir {p}',
 };
 
 const en: Dict = {
@@ -139,6 +151,18 @@ const en: Dict = {
   drv_matricule: 'ORION ID', drv_supervised: 'Ride monitored by ORION · support available',
   call_internet: 'Internet call', call_nounits: 'No credit · over the internet', call_connecting: 'Secure connection…',
   call_inprogress: 'In call', call_mute: 'Mute', call_speaker: 'Speaker', call_end: 'Hang up',
+  sec_title: 'Security & privacy', sec_biometric: 'Biometric unlock', sec_biometric_d: 'Fingerprint / Face ID',
+  sec_privacy: 'Your personal data is encrypted and protected',
+  lock_title: 'ORION locked', lock_hint: 'Fingerprint or face recognition', lock_unlock: 'Unlock', lock_face: 'Face ID',
+  ins_toggle: 'ORION Insurance', ins_sub: 'Accident support · +2%', ins_why: 'Why activate?',
+  ins_desc: 'In case of an accident, ORION assists you and covers your medical costs per the terms. Contribution: 2% of the ride. 50% refunded at year-end to your wallet.',
+  ins_line: 'ORION Insurance (2%)', ins_got: 'Got it',
+  tc_title: 'Trusted contact', tc_add: 'Add a contact', tc_name: 'Name', tc_phone: 'Phone (+225)',
+  tc_share: 'Share my rides', tc_share_d: 'Your contact gets live tracking for every ride', toast_shared: 'Ride shared with {name}',
+  wal_title: 'My wallet', wal_balance: 'Balance', wal_ins_year: 'Insurance contributions (this year)',
+  wal_refund: 'Estimated refund (50%)', wal_transfer: 'Transfer', wal_use: 'Pay a ride', toast_transfer: 'Transfer done',
+  pay_title: 'Payment', pay_redirect: 'Redirecting to {p}…', pay_confirm_in: 'Confirm in {p}', pay_success: 'Payment received by ORION',
+  pay_email: 'Receipt sent by email 📧', pay_notif: 'Driver & client notified', pay_open: 'Open {p}',
 };
 
 const es: Dict = {

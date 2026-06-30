@@ -42,7 +42,7 @@ export interface Quote {
   trafficLevel: TrafficLevel;
   breakdown: {
     base: number; distance: number; time: number; surge: number; traffic: number;
-    discount: number; subtotal: number; tva: number; fee: number;
+    discount: number; subtotal: number; tva: number; fee: number; insurance: number;
   };
 }
 
@@ -88,7 +88,9 @@ export type Screen =
   | 'confirm'
   | 'searching'
   | 'tracking'
+  | 'payment'
   | 'rating'
   | 'settings'
   | 'subscription'
-  | 'wedding';
+  | 'wedding'
+  | 'wallet';
