@@ -1,6 +1,12 @@
-import type { EstimateRequest, QuoteBreakdown } from '../types.js';
-import { haversineMeters } from '../../../core/geo.js';
+import type { EstimateRequest, QuoteBreakdown, TrafficLevel } from '../types.js';
+import { haversineMeters, type LatLng } from '../../../core/geo.js';
 import { FLEET, isTier, type Tier } from '../../fleet/catalog.js';
+
+/** Taxes & frais appliqués à chaque course (transparence). */
+export const TVA_RATE = 0.05; // TVA État de Côte d'Ivoire
+export const APP_FEE_RATE = 0.1; // Frais de service ORION
+/** Supplément carrosserie : un SUV coûte un peu plus qu'une berline. */
+export const BODY_SURCHARGE: Record<string, number> = { berline: 1.0, suv: 1.08 };
 
 /**
  * Stratégie de tarification (pattern Strategy) : chaque service injecte la sienne.
@@ -44,7 +50,16 @@ export interface PriceResult {
   amount: number;
   distanceMeters: number;
   etaSeconds: number;
+  trafficLevel: TrafficLevel;
   breakdown: QuoteBreakdown;
+}
+
+/** Distance totale d'un trajet origine → arrêts → destination (mètres). */
+function routeDistanceMeters(origin: LatLng, destination: LatLng, stops: LatLng[]): number {
+  const pts = [origin, ...stops, destination];
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) total += haversineMeters(pts[i - 1]!, pts[i]!);
+  return total;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -54,31 +69,44 @@ const roundFcfa = (n: number) => Math.round(n / 50) * 50;
 export interface PricingContext {
   /** Coefficient multiplicateur de demande (1 = normal). Fourni par la tarification dynamique. */
   surgeMultiplier?: number;
+  /** Facteur de trafic (≥ 1) issu de la détection d'embouteillages. */
+  trafficFactor?: number;
+  /** Niveau de trafic affiché (fluid/dense/jam). */
+  trafficLevel?: TrafficLevel;
   /** Remise relative issue d'un code promo (0..1). */
   discountRate?: number;
 }
 
-export function estimatePrice(
-  req: EstimateRequest,
-  ctx: PricingContext = {},
-): PriceResult {
+export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): PriceResult {
   const category = req.category && isTier(req.category) ? req.category : DEFAULT_TIER;
   const tariff = tariffForTier(category);
+  const bodyFactor = BODY_SURCHARGE[req.bodyType ?? 'berline'] ?? 1;
   const surge = Math.max(1, ctx.surgeMultiplier ?? 1);
+  const trafficFactor = Math.max(1, ctx.trafficFactor ?? 1);
   const discountRate = Math.min(1, Math.max(0, ctx.discountRate ?? 0));
 
-  const distanceMeters = haversineMeters(req.origin, req.destination);
+  const stops = req.stops ?? [];
+  const distanceMeters = routeDistanceMeters(req.origin, req.destination, stops);
   const distanceKm = distanceMeters / 1000;
-  const etaSeconds = Math.round((distanceKm / tariff.avgSpeedKmh) * 3600);
-  const minutes = etaSeconds / 60;
+  // Le trafic allonge le temps de trajet → ETA majoré.
+  const etaSeconds = Math.round((distanceKm / tariff.avgSpeedKmh) * 3600 * trafficFactor);
+  const minutes = (distanceKm / tariff.avgSpeedKmh) * 60;
 
-  const base = tariff.baseFare;
-  const distanceCost = distanceKm * tariff.perKm;
-  const timeCost = minutes * tariff.perMinute;
-  const subtotal = (base + distanceCost + timeCost) * surge;
-  const beforeDiscount = Math.max(subtotal, tariff.minFare);
-  const discount = beforeDiscount * discountRate;
-  const amount = roundFcfa(beforeDiscount - discount);
+  const base = tariff.baseFare * bodyFactor;
+  const distanceCost = distanceKm * tariff.perKm * bodyFactor;
+  const timeCost = minutes * tariff.perMinute * bodyFactor;
+  // Chaque arrêt intermédiaire ajoute un forfait d'attente.
+  const stopsCost = stops.length * 300 * FLEET[category].multiplier;
+
+  const afterSurge = (base + distanceCost + timeCost + stopsCost) * surge;
+  const floored = Math.max(afterSurge, tariff.minFare);
+  const trafficSurcharge = floored * (trafficFactor - 1);
+  const discount = (floored + trafficSurcharge) * discountRate;
+
+  const subtotal = floored + trafficSurcharge - discount;
+  const tva = subtotal * TVA_RATE;
+  const fee = subtotal * APP_FEE_RATE;
+  const amount = roundFcfa(subtotal + tva + fee);
 
   return {
     category,
@@ -86,12 +114,17 @@ export function estimatePrice(
     amount,
     distanceMeters: Math.round(distanceMeters),
     etaSeconds,
+    trafficLevel: ctx.trafficLevel ?? 'fluid',
     breakdown: {
-      base: Math.round(base),
+      base: Math.round(base + stopsCost),
       distance: Math.round(distanceCost),
       time: Math.round(timeCost),
       surge: round2(surge),
+      traffic: Math.round(trafficSurcharge),
       discount: Math.round(discount),
+      subtotal: Math.round(subtotal),
+      tva: Math.round(tva),
+      fee: Math.round(fee),
     },
   };
 }

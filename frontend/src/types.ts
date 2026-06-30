@@ -31,13 +31,19 @@ export interface PaymentMethod {
   kind: 'cash' | 'mobile_money' | 'card';
 }
 
+export type TrafficLevel = 'fluid' | 'dense' | 'jam';
+
 export interface Quote {
   lockId: string;
   amount: number;
   currency: string;
   distanceMeters: number;
   etaSeconds: number;
-  breakdown: { base: number; distance: number; time: number; surge: number; discount: number };
+  trafficLevel: TrafficLevel;
+  breakdown: {
+    base: number; distance: number; time: number; surge: number; traffic: number;
+    discount: number; subtotal: number; tva: number; fee: number;
+  };
 }
 
 export interface Driver {
@@ -74,6 +80,7 @@ export type Screen =
   | 'onboarding'
   | 'auth'
   | 'otp'
+  | 'permissions'
   | 'home'
   | 'destination'
   | 'estimate'

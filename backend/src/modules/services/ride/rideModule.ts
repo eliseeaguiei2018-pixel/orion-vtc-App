@@ -37,8 +37,10 @@ export class RideServiceModule implements ServiceModule {
       currency: price.currency,
       origin: req.origin,
       destination: req.destination,
+      stops: req.stops,
       distanceMeters: price.distanceMeters,
       etaSeconds: price.etaSeconds,
+      trafficLevel: price.trafficLevel,
       breakdown: price.breakdown,
       expiresAt: new Date(now + config.QUOTE_TTL_SECONDS * 1000).toISOString(),
     };

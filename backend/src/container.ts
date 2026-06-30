@@ -7,7 +7,7 @@ import { DriverStore } from './modules/drivers/store.js';
 import { RideStore } from './modules/rides/store.js';
 import { MatchingEngine } from './modules/rides/matching.js';
 import { RideSimulator } from './modules/rides/simulator.js';
-import { zoneSurge } from './modules/geo-ci/zones.js';
+import { zoneSurge, trafficInfo } from './modules/geo-ci/zones.js';
 import { WalletService } from './modules/wallet/service.js';
 import { SubscriptionService } from './modules/subscriptions/service.js';
 import { WeddingService } from './modules/wedding/service.js';
@@ -44,9 +44,16 @@ export function createContainer(): Container {
   const rides = new RideStore();
   const matching = new MatchingEngine(geo, drivers);
 
-  // Tarification dynamique branchée sur le plan directeur ivoirien (surge par zone + heure).
+  // Tarification dynamique : surge par zone/heure + détection de trafic (embouteillages).
   const registry = new ServiceRegistry().register(
-    new RideServiceModule((req) => ({ surgeMultiplier: zoneSurge(req.origin, req.destination) })),
+    new RideServiceModule((req) => {
+      const traffic = trafficInfo(req.origin, req.destination);
+      return {
+        surgeMultiplier: zoneSurge(req.origin, req.destination),
+        trafficFactor: traffic.factor,
+        trafficLevel: traffic.level,
+      };
+    }),
   );
   // Extension : registry.register(new DeliveryServiceModule()) ... (cf. docs/04)
 

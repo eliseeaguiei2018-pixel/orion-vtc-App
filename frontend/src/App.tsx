@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { OrionMap } from './components/OrionMap';
 import { Sheet, TopBar, Toast } from './components/ui';
 import {
-  IconBriefcase, IconCalendar, IconCheck, IconChevron, IconClock, IconCrown, IconGem, IconGlobe,
-  IconHome, IconLeaf, IconMinus, IconPhone, IconPin, IconPlane, IconPlus, IconRing, IconSearch,
-  IconSettings, IconShare, IconShield, IconStar, IconWallet,
+  IconBell, IconBriefcase, IconCalendar, IconCamera, IconCheck, IconChevron, IconClock, IconCrown,
+  IconGem, IconGlobe, IconHome, IconImage, IconLeaf, IconMic, IconMinus, IconPhone, IconPin,
+  IconPlane, IconPlus, IconRing, IconSearch, IconSettings, IconShare, IconShield, IconStar,
+  IconTraffic, IconWallet,
 } from './icons';
+import { useTheme, type ThemeMode } from './theme';
 import {
   ABIDJAN_PLACES, COUNTRIES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
@@ -22,6 +24,9 @@ const PAYMENTS = [
   { method: 'cash', label: 'Espèces' },
   { method: 'card', label: 'Carte' },
 ];
+
+// Arrêts d'exemple proposés lors de l'ajout d'un arrêt (multi-arrêts).
+const EXTRA_STOPS: Place[] = ABIDJAN_PLACES.filter((p) => ['pisam', 'sococe', 'gare'].includes(p.id));
 
 const lerp = (a: LatLng, b: LatLng, t: number): LatLng => ({
   lat: a.lat + (b.lat - a.lat) * t,
@@ -52,6 +57,9 @@ export function App() {
   const origin = DEFAULT_ORIGIN;
   const [destination, setDestination] = useState<Place | null>(null);
   const [tier, setTier] = useState<TierOption>(TIERS[0]!);
+  const [bodyType, setBodyType] = useState<'suv' | 'berline'>('berline');
+  const [stops, setStops] = useState<Place[]>([]);
+  const [scheduled, setScheduled] = useState(false);
   const [payment, setPayment] = useState<string>('orange_money');
   const [quote, setQuote] = useState<Quote | null>(null);
   const [driver, setDriver] = useState<Driver | null>(null);
@@ -71,9 +79,9 @@ export function App() {
 
   useEffect(() => {
     if (screen === 'confirm' && destination) {
-      estimate(origin.location, destination.location, tier).then(setQuote);
+      estimate(origin.location, destination.location, tier, { bodyType, stops: stops.map((s) => s.location) }).then(setQuote);
     }
-  }, [screen, destination, tier, origin.location]);
+  }, [screen, destination, tier, bodyType, stops, origin.location]);
 
   const chooseDestination = (place: Place) => {
     setDestination(place);
@@ -123,6 +131,9 @@ export function App() {
     setLive(false);
     setRating(0);
     setTier(TIERS[0]!);
+    setBodyType('berline');
+    setStops([]);
+    setScheduled(false);
     setScreen('home');
   };
 
@@ -133,8 +144,9 @@ export function App() {
 
         {screen === 'splash' && <Splash onDone={() => setScreen('onboarding')} />}
         {screen === 'onboarding' && <Onboarding onStart={() => setScreen('auth')} onLang={() => setScreen('settings')} />}
-        {screen === 'auth' && <AuthScreen phone={phone} setPhone={setPhone} onBack={() => setScreen('onboarding')} onNext={() => setScreen('otp')} />}
-        {screen === 'otp' && <OtpScreen phone={phone} onBack={() => setScreen('auth')} onVerified={() => setScreen('home')} />}
+        {screen === 'auth' && <AuthScreen phone={phone} setPhone={setPhone} onBack={() => setScreen('onboarding')} onNext={() => setScreen('otp')} onWhatsApp={(msg) => { showToast(msg); setScreen('otp'); }} />}
+        {screen === 'otp' && <OtpScreen phone={phone} onBack={() => setScreen('auth')} onVerified={() => setScreen('permissions')} />}
+        {screen === 'permissions' && <PermissionsScreen onDone={() => setScreen('home')} />}
 
         {screen === 'home' && (
           <HomeScreen origin={origin} onPick={() => setScreen('destination')} onQuick={chooseDestination} onNav={setScreen} />
@@ -146,12 +158,16 @@ export function App() {
 
         {screen === 'estimate' && destination && (
           <EstimateScreen origin={origin} destination={destination} tier={tier} onTier={setTier}
+            bodyType={bodyType} onBody={setBodyType} stops={stops}
             onBack={() => setScreen('home')} onNext={() => setScreen('confirm')} />
         )}
 
         {screen === 'confirm' && destination && (
           <ConfirmScreen origin={origin} destination={destination} tier={tier} quote={quote} payment={payment}
-            onPayment={setPayment} onBack={() => setScreen('estimate')} onConfirm={confirmRide} />
+            stops={stops} onAddStop={() => setStops((s) => (s.length < 3 ? [...s, EXTRA_STOPS[s.length]!] : s))}
+            scheduled={scheduled} onSchedule={setScheduled}
+            onPayment={setPayment} onBack={() => setScreen('estimate')}
+            onConfirm={() => { if (scheduled) { showToast(t('toast_scheduled')); reset(); } else confirmRide(); }} />
         )}
 
         {screen === 'searching' && destination && (
@@ -160,8 +176,9 @@ export function App() {
 
         {screen === 'tracking' && destination && driver && (
           <TrackingScreen origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase}
-            carPos={carPos} setCarPos={setCarPos} setPhase={setTripPhase} live={live} rideId={rideId}
-            onSos={triggerSos} onShare={() => showToast(t('toast_share'))} onArrived={() => setScreen('rating')} />
+            carPos={carPos} setCarPos={setCarPos} setPhase={setTripPhase} live={live} rideId={rideId} stops={stops}
+            onSos={triggerSos} onShare={() => showToast(t('toast_share'))} onArrived={() => setScreen('rating')}
+            onCancel={() => { showToast(t('toast_cancelled')); reset(); }} />
         )}
 
         {screen === 'rating' && destination && driver && (
@@ -225,8 +242,8 @@ function Onboarding({ onStart, onLang }: { onStart: () => void; onLang: () => vo
 }
 
 /* --------------------------- Inscription ----------------------------- */
-function AuthScreen({ phone, setPhone, onBack, onNext }: {
-  phone: string; setPhone: (v: string) => void; onBack: () => void; onNext: () => void;
+function AuthScreen({ phone, setPhone, onBack, onNext, onWhatsApp }: {
+  phone: string; setPhone: (v: string) => void; onBack: () => void; onNext: () => void; onWhatsApp: (msg: string) => void;
 }) {
   const { t } = useI18n();
   const [name, setName] = useState('');
@@ -248,6 +265,49 @@ function AuthScreen({ phone, setPhone, onBack, onNext }: {
           <input inputMode="tel" placeholder={t('reg_phone')} value={phone} onChange={(e) => setPhone(e.target.value)} />
         </div>
         <button className="btn btn-primary" disabled={!valid} onClick={onNext}>{t('reg_send')} <IconChevron size={18} /></button>
+        <button className="btn btn-ghost" style={{ marginTop: 10, color: '#25D366' }} disabled={!valid} onClick={() => onWhatsApp(t('wa_otp'))}>
+          <IconPhone size={18} /> {t('wa_otp')}
+        </button>
+      </Sheet>
+    </div>
+  );
+}
+
+function PermissionsScreen({ onDone }: { onDone: () => void }) {
+  const { t } = useI18n();
+  const items = [
+    { icon: <IconPin size={20} />, k: 'loc' },
+    { icon: <IconBell size={20} />, k: 'notif' },
+    { icon: <IconMic size={20} />, k: 'mic' },
+    { icon: <IconCamera size={20} />, k: 'cam' },
+    { icon: <IconImage size={20} />, k: 'storage' },
+  ];
+  const [granted, setGranted] = useState<Record<string, boolean>>({});
+  return (
+    <div className="screen page">
+      <OrionMap origin={DEFAULT_ORIGIN.location} />
+      <TopBar title={t('perm_title')} />
+      <div style={{ flex: 1 }} />
+      <Sheet>
+        <div className="logo-mark" style={{ width: 52, height: 52, marginBottom: 12 }}><IconShield size={26} /></div>
+        <h2 className="h-title">{t('perm_title')}</h2>
+        <p className="h-sub" style={{ marginBottom: 14 }}>{t('perm_sub')}</p>
+        <div className="stack">
+          {items.map((it) => (
+            <div key={it.k} className="opt" style={granted[it.k] ? { borderColor: 'var(--green)' } : undefined}>
+              <span className="list-ico" style={{ color: 'var(--green)' }}>{it.icon}</span>
+              <span className="col grow" style={{ textAlign: 'start' }}>
+                <strong style={{ fontSize: 14.5 }}>{t(`perm_${it.k}`)}</strong>
+                <span className="faint" style={{ fontSize: 12 }}>{t(`perm_${it.k}_d`)}</span>
+              </span>
+              <button className={`toggle${granted[it.k] ? ' on' : ''}`} onClick={() => setGranted((g) => ({ ...g, [it.k]: !g[it.k] }))}><span /></button>
+            </div>
+          ))}
+        </div>
+        <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => { setGranted({ loc: true, notif: true, mic: true, cam: true, storage: true }); onDone(); }}>
+          <IconCheck size={18} /> {t('perm_allow')}
+        </button>
+        <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={onDone}>{t('perm_skip')}</button>
       </Sheet>
     </div>
   );
@@ -370,24 +430,42 @@ function DestinationScreen({ origin, onBack, onChoose }: { origin: Place; onBack
 }
 
 /* ----------------------------- Estimate ------------------------------ */
-function EstimateScreen({ origin, destination, tier, onTier, onBack, onNext }: {
-  origin: Place; destination: Place; tier: TierOption; onTier: (v: TierOption) => void; onBack: () => void; onNext: () => void;
+function TrafficBadge({ level }: { level: 'fluid' | 'dense' | 'jam' }) {
+  const { t } = useI18n();
+  const color = level === 'jam' ? '#ff4d5e' : level === 'dense' ? '#f5c451' : '#22c55e';
+  const label = level === 'jam' ? t('traffic_jam') : level === 'dense' ? t('traffic_dense') : t('traffic_fluid');
+  return <span className="badge" style={{ color, borderColor: `${color}66` }}><IconTraffic size={12} /> {label}</span>;
+}
+
+function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, stops, onBack, onNext }: {
+  origin: Place; destination: Place; tier: TierOption; onTier: (v: TierOption) => void;
+  bodyType: 'suv' | 'berline'; onBody: (b: 'suv' | 'berline') => void; stops: Place[]; onBack: () => void; onNext: () => void;
 }) {
   const { t } = useI18n();
+  const stopLocs = stops.map((s) => s.location);
   const prices = useMemo(
-    () => Object.fromEntries(TIERS.map((v) => [v.id, previewQuote(origin.location, destination.location, v).amount])),
-    [origin.location, destination.location],
+    () => Object.fromEntries(TIERS.map((v) => [v.id, previewQuote(origin.location, destination.location, v, { bodyType, stops: stopLocs }).amount])),
+    [origin.location, destination.location, bodyType, stops],
   );
+  const traffic = previewQuote(origin.location, destination.location, tier).trafficLevel;
   return (
     <div className="screen">
-      <OrionMap origin={origin.location} destination={destination.location} />
+      <OrionMap origin={origin.location} destination={destination.location} stops={stopLocs} />
       <TopBar onBack={onBack} title={destination.name} />
       <div style={{ flex: 1 }} />
       <Sheet>
         <div className="row between" style={{ marginBottom: 10 }}>
           <span className="eyebrow">{t('est_choose')}</span>
-          <span className="badge green"><IconClock size={12} /> {tier.eta} {t('est_min')}</span>
+          <span className="row gap-sm"><TrafficBadge level={traffic} /><span className="badge green"><IconClock size={12} /> {tier.eta} {t('est_min')}</span></span>
         </div>
+
+        {/* Carrosserie : SUV ou Berline */}
+        <div className="chips" style={{ marginBottom: 12 }}>
+          {(['berline', 'suv'] as const).map((b) => (
+            <button key={b} className={`chip${b === bodyType ? ' active' : ''}`} onClick={() => onBody(b)}>{t(`body_${b}`)}</button>
+          ))}
+        </div>
+
         <div className="stack">
           {TIERS.map((v) => (
             <button key={v.id} className={`veh${v.id === tier.id ? ' active' : ''}`} style={{ width: '100%', ...(v.id === tier.id ? { borderColor: v.accent, boxShadow: `0 0 22px ${v.accent}44` } : {}) }} onClick={() => onTier(v)}>
@@ -401,7 +479,7 @@ function EstimateScreen({ origin, destination, tier, onTier, onBack, onNext }: {
           ))}
         </div>
         <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={onNext}>
-          {t('est_cta')} {t(tier.key)} <IconChevron size={18} />
+          {t('est_cta')} {t(tier.key)} · {t(`body_${bodyType}`)} <IconChevron size={18} />
         </button>
       </Sheet>
     </div>
@@ -409,29 +487,45 @@ function EstimateScreen({ origin, destination, tier, onTier, onBack, onNext }: {
 }
 
 /* ------------------------------ Confirm ------------------------------ */
-function ConfirmScreen({ origin, destination, tier, quote, payment, onPayment, onBack, onConfirm }: {
+function ConfirmScreen({ origin, destination, tier, quote, payment, stops, onAddStop, scheduled, onSchedule, onPayment, onBack, onConfirm }: {
   origin: Place; destination: Place; tier: TierOption; quote: Quote | null; payment: string;
+  stops: Place[]; onAddStop: () => void; scheduled: boolean; onSchedule: (v: boolean) => void;
   onPayment: (m: string) => void; onBack: () => void; onConfirm: () => void;
 }) {
   const { t } = useI18n();
+  const [showWhy, setShowWhy] = useState(false);
   return (
     <div className="screen">
-      <OrionMap origin={origin.location} destination={destination.location} />
+      <OrionMap origin={origin.location} destination={destination.location} stops={stops.map((s) => s.location)} />
       <TopBar onBack={onBack} title={t('conf_title')} />
       <div style={{ flex: 1 }} />
       <Sheet>
-        <div className="card" style={{ padding: 14, marginBottom: 14 }}>
+        <div className="card" style={{ padding: 14, marginBottom: 12 }}>
           <div className="list-row" style={{ padding: '6px 0' }}>
             <span className="list-ico" style={{ color: 'var(--green)' }}><IconPin size={18} /></span>
             <span className="col grow"><strong style={{ fontSize: 14 }}>{origin.area}</strong><span className="faint" style={{ fontSize: 12 }}>{t('conf_departure')}</span></span>
             <TierBadge accent={tier.accent} size={36} />
           </div>
+          {stops.map((s, i) => (
+            <div key={i}><div className="divider" /><div className="list-row" style={{ padding: '6px 0' }}>
+              <span className="list-ico" style={{ color: 'var(--green)', fontSize: 12, fontWeight: 700 }}>{i + 1}</span>
+              <span className="col grow"><strong style={{ fontSize: 14 }}>{s.name}</strong><span className="faint" style={{ fontSize: 12 }}>{t('p_stops')}</span></span>
+            </div></div>
+          ))}
           <div className="divider" />
           <div className="list-row" style={{ padding: '6px 0' }}>
             <span className="list-ico" style={{ color: 'var(--gold)' }}>{placeIcon(destination.kind)}</span>
             <span className="col grow"><strong style={{ fontSize: 14 }}>{destination.name}</strong><span className="faint" style={{ fontSize: 12 }}>{destination.area}</span></span>
           </div>
         </div>
+
+        <div className="row gap-sm" style={{ marginBottom: 12 }}>
+          <button className="btn btn-ghost" style={{ padding: 12, fontSize: 14 }} onClick={onAddStop}><IconPlus size={16} /> {t('act_addstop')}</button>
+          <button className={`btn btn-ghost${scheduled ? '' : ''}`} style={{ padding: 12, fontSize: 14, ...(scheduled ? { borderColor: 'var(--green)', color: 'var(--green)' } : {}) }} onClick={() => onSchedule(!scheduled)}>
+            <IconCalendar size={16} /> {t('sched_later')}
+          </button>
+        </div>
+        {scheduled && <p className="faint" style={{ fontSize: 12, marginBottom: 12 }}>⏰ {t('sched_note')}</p>}
 
         <span className="eyebrow">{t('conf_payment')}</span>
         <div className="chips" style={{ margin: '10px 0 14px' }}>
@@ -444,14 +538,26 @@ function ConfirmScreen({ origin, destination, tier, quote, payment, onPayment, o
 
         {quote && (
           <>
-            <div className="fare-line"><span>{t(tier.key)} · {tier.cars[0]}</span><span>{formatXOF(quote.breakdown.base)}</span></div>
-            <div className="fare-line"><span>{(quote.distanceMeters / 1000).toFixed(1)} km</span><span>{formatXOF(quote.breakdown.distance)}</span></div>
-            <div className="fare-line"><span>~{Math.round(quote.etaSeconds / 60)} {t('est_min')}</span><span>{formatXOF(quote.breakdown.time)}</span></div>
+            <button className="row between list-btn" style={{ width: '100%' }} onClick={() => setShowWhy((v) => !v)}>
+              <span className="row gap-sm"><TrafficBadge level={quote.trafficLevel} /><span className="faint" style={{ fontSize: 12, textDecoration: 'underline' }}>{t('why_price')}</span></span>
+              <IconChevron size={16} color="#6f8a7e" />
+            </button>
+            {showWhy && (
+              <div style={{ marginTop: 8 }}>
+                <div className="fare-line"><span>{t('p_base')}</span><span>{formatXOF(quote.breakdown.base)}</span></div>
+                <div className="fare-line"><span>{t('p_distance')} · {(quote.distanceMeters / 1000).toFixed(1)} km</span><span>{formatXOF(quote.breakdown.distance)}</span></div>
+                <div className="fare-line"><span>{t('p_time')} · ~{Math.round(quote.etaSeconds / 60)} {t('est_min')}</span><span>{formatXOF(quote.breakdown.time)}</span></div>
+                {quote.breakdown.traffic > 0 && <div className="fare-line"><span>{t('p_traffic')}</span><span>+{formatXOF(quote.breakdown.traffic)}</span></div>}
+                <div className="fare-line"><span>{t('p_subtotal')}</span><span>{formatXOF(quote.breakdown.subtotal)}</span></div>
+                <div className="fare-line"><span>{t('p_tva')}</span><span>{formatXOF(quote.breakdown.tva)}</span></div>
+                <div className="fare-line"><span>{t('p_fee')}</span><span>{formatXOF(quote.breakdown.fee)}</span></div>
+              </div>
+            )}
             <div className="divider" style={{ margin: '8px 0' }} />
             <div className="fare-total"><span className="muted">{t('conf_total')}</span><span className="amt">{formatXOF(quote.amount)}</span></div>
           </>
         )}
-        <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={onConfirm}>{t('conf_confirm')}</button>
+        <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={onConfirm}>{scheduled ? t('sched_set') : t('conf_confirm')}</button>
         <p className="faint" style={{ textAlign: 'center', fontSize: 12, marginTop: 8 }}>{t('conf_locked')}</p>
       </Sheet>
     </div>
@@ -477,10 +583,10 @@ function SearchingScreen({ origin, destination, onCancel }: { origin: Place; des
 }
 
 /* ----------------------------- Tracking ------------------------------ */
-function TrackingScreen({ origin, destination, driver, tier, phase, carPos, setCarPos, setPhase, live, rideId, onSos, onShare, onArrived }: {
+function TrackingScreen({ origin, destination, driver, tier, phase, carPos, setCarPos, setPhase, live, rideId, stops, onSos, onShare, onArrived, onCancel }: {
   origin: Place; destination: Place; driver: Driver; tier: TierOption; phase: TripPhase;
   carPos: LatLng | null; setCarPos: (p: LatLng) => void; setPhase: (p: TripPhase) => void;
-  live: boolean; rideId: string | null; onSos: () => void; onShare: () => void; onArrived: () => void;
+  live: boolean; rideId: string | null; stops: Place[]; onSos: () => void; onShare: () => void; onArrived: () => void; onCancel: () => void;
 }) {
   const { t } = useI18n();
   const progressRef = useRef(0);
@@ -536,7 +642,7 @@ function TrackingScreen({ origin, destination, driver, tier, phase, carPos, setC
 
   return (
     <div className="screen">
-      <OrionMap origin={origin.location} destination={destination.location} car={carPos} />
+      <OrionMap origin={origin.location} destination={destination.location} stops={stops.map((s) => s.location)} car={carPos} />
       <TopBar title={t('track_title')} />
       <button className="sos" onClick={onSos} aria-label="SOS">SOS</button>
       <div style={{ flex: 1 }} />
@@ -560,6 +666,9 @@ function TrackingScreen({ origin, destination, driver, tier, phase, carPos, setC
           <button className="btn btn-ghost" onClick={onShare}><IconShare size={18} /> {t('track_share')}</button>
           <button className="btn btn-ghost"><IconPhone size={18} /> {t('track_call')}</button>
         </div>
+        {(phase === 'enroute' || phase === 'arrived') && (
+          <button className="btn btn-danger" style={{ marginTop: 10 }} onClick={onCancel}>{t('act_cancel')}</button>
+        )}
         <div className="card" style={{ padding: 12, marginTop: 12 }}>
           <div className="row gap-sm" style={{ fontSize: 13 }}>
             <span className="list-ico" style={{ color: 'var(--green)', width: 32, height: 32 }}><IconShield size={16} /></span>
@@ -613,10 +722,21 @@ function RatingScreen({ driver, quote, payment, destination, rating, setRating, 
 /* ------------------------------ Settings ----------------------------- */
 function SettingsScreen({ onBack }: { onBack: () => void }) {
   const { t, lang, setLang } = useI18n();
+  const { mode, setMode } = useTheme();
+  const themeOpts: Array<{ m: ThemeMode; k: string }> = [
+    { m: 'system', k: 'theme_auto' }, { m: 'light', k: 'theme_light' }, { m: 'dark', k: 'theme_dark' },
+  ];
   return (
     <div className="screen page">
       <TopBar onBack={onBack} title={t('set_title')} />
       <div className="page-body">
+        <span className="eyebrow">{t('set_theme')}</span>
+        <div className="chips" style={{ margin: '10px 0 22px' }}>
+          {themeOpts.map((o) => (
+            <button key={o.m} className={`chip${mode === o.m ? ' active' : ''}`} onClick={() => setMode(o.m)}>{t(o.k)}</button>
+          ))}
+        </div>
+
         <span className="eyebrow"><IconGlobe size={13} /> {t('set_language')}</span>
         <div className="grid2" style={{ margin: '10px 0 22px' }}>
           {LANGUAGES.map((l) => (

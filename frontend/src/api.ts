@@ -37,38 +37,68 @@ function haversine(a: LatLng, b: LatLng): number {
 
 const round50 = (n: number) => Math.round(n / 50) * 50;
 
-/** Estimation locale (miroir simplifié du backend, en FCFA). */
-function localEstimate(origin: LatLng, destination: LatLng, tier: TierOption): Quote {
-  const distanceMeters = haversine(origin, destination) * 1.3;
+export interface EstimateOpts {
+  bodyType?: 'suv' | 'berline';
+  stops?: LatLng[];
+}
+
+const BODY = { berline: 1, suv: 1.08 } as const;
+
+/** Détection de trafic locale (miroir du backend) selon l'heure. */
+function localTraffic(): { level: 'fluid' | 'dense' | 'jam'; factor: number } {
+  const h = new Date().getHours();
+  if ((h >= 6 && h < 9) || (h >= 17 && h < 20)) return { level: 'jam', factor: 1.35 };
+  if (h >= 9 && h < 17) return { level: 'dense', factor: 1.15 };
+  return { level: 'fluid', factor: 1 };
+}
+
+/** Estimation locale (miroir simplifié du backend, en FCFA, avec TVA 5% + frais 10%). */
+function localEstimate(origin: LatLng, destination: LatLng, tier: TierOption, opts: EstimateOpts = {}): Quote {
+  const stops = opts.stops ?? [];
+  const pts = [origin, ...stops, destination];
+  let raw = 0;
+  for (let i = 1; i < pts.length; i++) raw += haversine(pts[i - 1]!, pts[i]!);
+  const distanceMeters = raw * 1.3;
   const km = distanceMeters / 1000;
-  const etaSeconds = Math.round((km / 22) * 3600);
-  const base = 500 * tier.multiplier;
-  const distance = km * 250 * tier.multiplier;
-  const time = (etaSeconds / 60) * 35 * tier.multiplier;
+  const bodyF = BODY[opts.bodyType ?? 'berline'];
+  const traffic = localTraffic();
+  const etaSeconds = Math.round((km / 22) * 3600 * traffic.factor);
+  const base = 500 * tier.multiplier * bodyF + stops.length * 300 * tier.multiplier;
+  const distance = km * 250 * tier.multiplier * bodyF;
+  const time = (km / 22) * 60 * 35 * tier.multiplier * bodyF;
   const surge = 1.1;
-  const amount = round50(Math.max((base + distance + time) * surge, 1000 * tier.multiplier));
+  const floored = Math.max((base + distance + time) * surge, 1000 * tier.multiplier);
+  const trafficCost = floored * (traffic.factor - 1);
+  const subtotal = floored + trafficCost;
+  const tva = subtotal * 0.05;
+  const fee = subtotal * 0.1;
   return {
     lockId: `local-${Date.now()}`,
-    amount,
+    amount: round50(subtotal + tva + fee),
     currency: 'XOF',
     distanceMeters: Math.round(distanceMeters),
     etaSeconds,
-    breakdown: { base: Math.round(base), distance: Math.round(distance), time: Math.round(time), surge, discount: 0 },
+    trafficLevel: traffic.level,
+    breakdown: {
+      base: Math.round(base), distance: Math.round(distance), time: Math.round(time), surge,
+      traffic: Math.round(trafficCost), discount: 0, subtotal: Math.round(subtotal),
+      tva: Math.round(tva), fee: Math.round(fee),
+    },
   };
 }
 
 /** Aperçu synchrone du prix (pour afficher la liste des niveaux sans latence). */
-export function previewQuote(origin: LatLng, destination: LatLng, tier: TierOption): Quote {
-  return localEstimate(origin, destination, tier);
+export function previewQuote(origin: LatLng, destination: LatLng, tier: TierOption, opts: EstimateOpts = {}): Quote {
+  return localEstimate(origin, destination, tier, opts);
 }
 
-export async function estimate(origin: LatLng, destination: LatLng, tier: TierOption): Promise<Quote> {
+export async function estimate(origin: LatLng, destination: LatLng, tier: TierOption, opts: EstimateOpts = {}): Promise<Quote> {
   const remote = await tryFetch<{ quote: Quote }>('/pricing/estimate', {
     method: 'POST',
-    body: JSON.stringify({ origin, destination, category: tier.id }),
+    body: JSON.stringify({ origin, destination, category: tier.id, bodyType: opts.bodyType, stops: opts.stops }),
   });
   if (remote?.quote) return remote.quote;
-  return localEstimate(origin, destination, tier);
+  return localEstimate(origin, destination, tier, opts);
 }
 
 export async function sos(userId: string, location: LatLng, rideId?: string) {

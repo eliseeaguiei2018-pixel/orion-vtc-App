@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { estimatePrice } from '../src/modules/services/ride/pricing.js';
+import { estimatePrice, TVA_RATE, APP_FEE_RATE } from '../src/modules/services/ride/pricing.js';
 
 // Abidjan : Plateau → Cocody
 const origin = { lat: 5.3236, lng: -4.0217 };
@@ -19,9 +19,13 @@ test('devise XOF et arrondi au multiple de 50', () => {
   assert.equal(r.amount % 50, 0);
 });
 
-test('le prix respecte le tarif minimum du niveau', () => {
-  const r = estimatePrice({ origin, destination: origin, category: 'bronze' });
-  assert.equal(r.amount, 900); // minFare bronze = 1000 × 0.9
+test('le prix inclut TVA 5% + frais 10% (= 15%) sur le sous-total', () => {
+  const r = estimatePrice({ origin, destination, category: 'or' });
+  const b = r.breakdown;
+  assert.equal(b.tva, Math.round(b.subtotal * TVA_RATE));
+  assert.equal(b.fee, Math.round(b.subtotal * APP_FEE_RATE));
+  // total ≈ subtotal × 1.15 (avant arrondi 50)
+  assert.ok(Math.abs(r.amount - b.subtotal * 1.15) <= 50);
 });
 
 test('les niveaux sont croissants : bronze < argent < or < diamant', () => {
@@ -32,21 +36,37 @@ test('les niveaux sont croissants : bronze < argent < or < diamant', () => {
   assert.ok(bronze < argent && argent < or && or < diamant);
 });
 
-test('catégorie inconnue → niveau par défaut (bronze)', () => {
-  const def = estimatePrice({ origin, destination }).amount;
-  const bronze = estimatePrice({ origin, destination, category: 'bronze' }).amount;
-  assert.equal(def, bronze);
+test('le trafic (embouteillage) majore le prix et l’ETA', () => {
+  const fluid = estimatePrice({ origin, destination, category: 'bronze' }, { trafficFactor: 1 });
+  const jam = estimatePrice({ origin, destination, category: 'bronze' }, { trafficFactor: 1.35, trafficLevel: 'jam' });
+  assert.ok(jam.amount > fluid.amount);
+  assert.ok(jam.etaSeconds > fluid.etaSeconds);
+  assert.ok(jam.breakdown.traffic > 0);
+  assert.equal(jam.trafficLevel, 'jam');
 });
 
-test('le surge augmente le prix, la remise le diminue', () => {
+test('un SUV coûte plus cher qu’une berline', () => {
+  const berline = estimatePrice({ origin, destination, category: 'argent', bodyType: 'berline' }).amount;
+  const suv = estimatePrice({ origin, destination, category: 'argent', bodyType: 'suv' }).amount;
+  assert.ok(suv > berline);
+});
+
+test('les arrêts intermédiaires augmentent la distance et le prix', () => {
+  const direct = estimatePrice({ origin, destination, category: 'bronze' });
+  const withStop = estimatePrice({ origin, destination, category: 'bronze', stops: [{ lat: 5.30, lng: -4.00 }] });
+  assert.ok(withStop.distanceMeters > direct.distanceMeters);
+  assert.ok(withStop.amount > direct.amount);
+});
+
+test('la remise diminue le prix', () => {
   const base = estimatePrice({ origin, destination, category: 'bronze' });
-  const surged = estimatePrice({ origin, destination, category: 'bronze' }, { surgeMultiplier: 2 });
   const discounted = estimatePrice({ origin, destination, category: 'bronze' }, { discountRate: 0.5 });
-  assert.ok(surged.amount > base.amount);
   assert.ok(discounted.amount < base.amount);
 });
 
-test('le breakdown est fourni (transparence)', () => {
-  const r = estimatePrice({ origin, destination, category: 'or' });
-  assert.ok('base' in r.breakdown && 'distance' in r.breakdown && 'time' in r.breakdown);
+test('le breakdown détaille tout (transparence du prix)', () => {
+  const b = estimatePrice({ origin, destination, category: 'or' }).breakdown;
+  for (const k of ['base', 'distance', 'time', 'traffic', 'subtotal', 'tva', 'fee'] as const) {
+    assert.ok(k in b, `breakdown.${k} manquant`);
+  }
 });

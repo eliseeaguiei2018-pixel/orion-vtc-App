@@ -9,8 +9,8 @@ function makeRide(): Ride {
   const quote: Quote = {
     lockId: 'l', serviceType: 'ride', category: 'green', amount: 3000, currency: 'XOF',
     origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9876 },
-    distanceMeters: 5000, etaSeconds: 600,
-    breakdown: { base: 600, distance: 1500, time: 600, surge: 1, discount: 0 },
+    distanceMeters: 5000, etaSeconds: 600, trafficLevel: 'fluid',
+    breakdown: { base: 600, distance: 1500, time: 600, surge: 1, traffic: 0, discount: 0, subtotal: 2700, tva: 135, fee: 270 },
     expiresAt: new Date(Date.now() + 60000).toISOString(),
   };
   return {

@@ -61,6 +61,21 @@ const fr: Dict = {
   reg_title: 'Créer votre compte', reg_subtitle: 'Entrez votre numéro pour commencer',
   reg_name: 'Votre nom', reg_phone: 'Numéro de téléphone', reg_send: 'Recevoir le code',
   otp_title: 'Vérification', otp_subtitle: 'Code envoyé au {phone}', otp_verify: 'Vérifier', otp_resend: 'Renvoyer le code',
+  set_theme: 'Thème', theme_auto: 'Auto', theme_light: 'Clair', theme_dark: 'Sombre',
+  body_type: 'Carrosserie', body_suv: 'SUV', body_berline: 'Berline',
+  traffic_label: 'Trafic', traffic_fluid: 'Fluide', traffic_dense: 'Dense', traffic_jam: 'Embouteillage',
+  why_price: 'Pourquoi ce prix ?', p_base: 'Prise en charge', p_distance: 'Distance', p_time: 'Temps',
+  p_traffic: 'Supplément trafic', p_stops: 'Arrêts', p_subtotal: 'Sous-total', p_tva: 'TVA Côte d’Ivoire (5%)', p_fee: 'Frais ORION (10%)',
+  act_addstop: 'Ajouter un arrêt', act_cancel: 'Annuler la course', act_modify: 'Modifier la course',
+  sched_when: 'Quand partez-vous ?', sched_now: 'Maintenant', sched_later: 'Programmer', sched_set: 'Programmer la course',
+  sched_note: 'Rappel en alarme 5 min avant le départ', toast_scheduled: 'Course programmée ⏰', toast_cancelled: 'Course annulée',
+  perm_title: 'Autorisations', perm_sub: 'Pour une expérience fluide et sûre, ORION a besoin de :',
+  perm_loc: 'Localisation', perm_loc_d: 'Trouver les chauffeurs et suivre le trajet',
+  perm_notif: 'Notifications', perm_notif_d: 'Chauffeur trouvé, arrivée, alertes',
+  perm_mic: 'Microphone', perm_mic_d: 'Appels et assistance vocale',
+  perm_cam: 'Caméra', perm_cam_d: 'Photo de profil et documents',
+  perm_storage: 'Stockage', perm_storage_d: 'Reçus et mode hors-ligne',
+  perm_allow: 'Tout autoriser', perm_skip: 'Plus tard', wa_otp: 'Recevoir le code via WhatsApp',
 };
 
 const en: Dict = {
@@ -103,6 +118,21 @@ const en: Dict = {
   reg_title: 'Create your account', reg_subtitle: 'Enter your number to get started',
   reg_name: 'Your name', reg_phone: 'Phone number', reg_send: 'Get the code',
   otp_title: 'Verification', otp_subtitle: 'Code sent to {phone}', otp_verify: 'Verify', otp_resend: 'Resend code',
+  set_theme: 'Theme', theme_auto: 'Auto', theme_light: 'Light', theme_dark: 'Dark',
+  body_type: 'Body type', body_suv: 'SUV', body_berline: 'Sedan',
+  traffic_label: 'Traffic', traffic_fluid: 'Light', traffic_dense: 'Heavy', traffic_jam: 'Jam',
+  why_price: 'Why this price?', p_base: 'Base fare', p_distance: 'Distance', p_time: 'Time',
+  p_traffic: 'Traffic surcharge', p_stops: 'Stops', p_subtotal: 'Subtotal', p_tva: 'VAT Côte d’Ivoire (5%)', p_fee: 'ORION fee (10%)',
+  act_addstop: 'Add a stop', act_cancel: 'Cancel ride', act_modify: 'Modify ride',
+  sched_when: 'When do you leave?', sched_now: 'Now', sched_later: 'Schedule', sched_set: 'Schedule ride',
+  sched_note: 'Alarm reminder 5 min before pickup', toast_scheduled: 'Ride scheduled ⏰', toast_cancelled: 'Ride cancelled',
+  perm_title: 'Permissions', perm_sub: 'For a smooth and safe experience, ORION needs:',
+  perm_loc: 'Location', perm_loc_d: 'Find drivers and track the trip',
+  perm_notif: 'Notifications', perm_notif_d: 'Driver found, arrival, alerts',
+  perm_mic: 'Microphone', perm_mic_d: 'Calls and voice assistance',
+  perm_cam: 'Camera', perm_cam_d: 'Profile photo and documents',
+  perm_storage: 'Storage', perm_storage_d: 'Receipts and offline mode',
+  perm_allow: 'Allow all', perm_skip: 'Later', wa_otp: 'Get the code via WhatsApp',
 };
 
 const es: Dict = {
@@ -145,6 +175,7 @@ const es: Dict = {
   reg_title: 'Crea tu cuenta', reg_subtitle: 'Introduce tu número para empezar',
   reg_name: 'Tu nombre', reg_phone: 'Número de teléfono', reg_send: 'Recibir el código',
   otp_title: 'Verificación', otp_subtitle: 'Código enviado al {phone}', otp_verify: 'Verificar', otp_resend: 'Reenviar código',
+  set_theme: 'Tema', theme_auto: 'Auto', theme_light: 'Claro', theme_dark: 'Oscuro',
 };
 
 const it: Dict = {
@@ -187,6 +218,7 @@ const it: Dict = {
   reg_title: 'Crea il tuo account', reg_subtitle: 'Inserisci il numero per iniziare',
   reg_name: 'Il tuo nome', reg_phone: 'Numero di telefono', reg_send: 'Ricevi il codice',
   otp_title: 'Verifica', otp_subtitle: 'Codice inviato al {phone}', otp_verify: 'Verifica', otp_resend: 'Invia di nuovo',
+  set_theme: 'Tema', theme_auto: 'Auto', theme_light: 'Chiaro', theme_dark: 'Scuro',
 };
 
 const de: Dict = {
@@ -229,6 +261,7 @@ const de: Dict = {
   reg_title: 'Konto erstellen', reg_subtitle: 'Nummer eingeben, um zu starten',
   reg_name: 'Ihr Name', reg_phone: 'Telefonnummer', reg_send: 'Code erhalten',
   otp_title: 'Verifizierung', otp_subtitle: 'Code gesendet an {phone}', otp_verify: 'Bestätigen', otp_resend: 'Code erneut senden',
+  set_theme: 'Design', theme_auto: 'Auto', theme_light: 'Hell', theme_dark: 'Dunkel',
 };
 
 const ar: Dict = {
@@ -271,6 +304,7 @@ const ar: Dict = {
   reg_title: 'أنشئ حسابك', reg_subtitle: 'أدخل رقمك للبدء',
   reg_name: 'اسمك', reg_phone: 'رقم الهاتف', reg_send: 'استلام الرمز',
   otp_title: 'التحقق', otp_subtitle: 'تم إرسال الرمز إلى {phone}', otp_verify: 'تحقّق', otp_resend: 'إعادة إرسال الرمز',
+  set_theme: 'السمة', theme_auto: 'تلقائي', theme_light: 'فاتح', theme_dark: 'داكن',
 };
 
 const zh: Dict = {
@@ -313,6 +347,7 @@ const zh: Dict = {
   reg_title: '创建账户', reg_subtitle: '输入号码即可开始',
   reg_name: '你的名字', reg_phone: '手机号码', reg_send: '获取验证码',
   otp_title: '验证', otp_subtitle: '验证码已发送至 {phone}', otp_verify: '验证', otp_resend: '重新发送',
+  set_theme: '主题', theme_auto: '自动', theme_light: '浅色', theme_dark: '深色',
 };
 
 const ru: Dict = {
@@ -355,6 +390,7 @@ const ru: Dict = {
   reg_title: 'Создайте аккаунт', reg_subtitle: 'Введите номер, чтобы начать',
   reg_name: 'Ваше имя', reg_phone: 'Номер телефона', reg_send: 'Получить код',
   otp_title: 'Подтверждение', otp_subtitle: 'Код отправлен на {phone}', otp_verify: 'Подтвердить', otp_resend: 'Отправить код снова',
+  set_theme: 'Тема', theme_auto: 'Авто', theme_light: 'Светлая', theme_dark: 'Тёмная',
 };
 
 export const TRANSLATIONS: Record<Lang, Dict> = { fr, en, es, it, ar, zh, de, ru };

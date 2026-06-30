@@ -1,0 +1,42 @@
+<!--
+  ORION Android — permissions à fusionner dans android/app/src/main/AndroidManifest.xml.
+  Android 13+ : permissions runtime (POST_NOTIFICATIONS, NEARBY...) demandées à l'exécution.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!-- Localisation (chauffeurs proches, suivi, sécurité) -->
+  <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+  <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+  <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+  <!-- Notifications (Android 13+ : runtime) + badges / poinçons sur l'icône -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+  <!-- Caméra & micro -->
+  <uses-permission android:name="android.permission.CAMERA" />
+  <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+  <!-- Stockage (reçus, médias) — Android 13+ utilise READ_MEDIA_* -->
+  <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+      android:maxSdkVersion="29" />
+
+  <!-- Superposition sur d'autres applications (bulle de suivi) -->
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+  <!-- Synchronisation en arrière-plan + service de suivi de course (foreground service) -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+  <!-- Alarme exacte : rappel d'une course programmée 5 min avant -->
+  <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+  <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
+  <!-- Vibration (alertes SOS / rappel) -->
+  <uses-permission android:name="android.permission.VIBRATE" />
+
+  <!-- Détection de choc : capteurs (accéléromètre) — pas de permission requise, déclaré pour info -->
+  <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="false" />
+</manifest>

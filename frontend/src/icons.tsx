@@ -94,3 +94,18 @@ export const IconMinus = ({ size, strokeWidth }: P) => (
 export const IconGem = ({ size, strokeWidth }: P) => (
   <svg {...base(size, strokeWidth)}><path d="M6 3h12l3 6-9 12L3 9l3-6Z" /><path d="M3 9h18M9 3 7.5 9 12 21 16.5 9 15 3" /></svg>
 );
+export const IconBell = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg>
+);
+export const IconMic = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
+);
+export const IconCamera = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L19 6h0a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /><circle cx="12" cy="13" r="3.5" /></svg>
+);
+export const IconImage = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><rect x="3" y="4" width="18" height="16" rx="2.5" /><circle cx="9" cy="10" r="2" /><path d="m4 18 5-5 4 4 3-3 4 4" /></svg>
+);
+export const IconTraffic = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><rect x="8" y="2" width="8" height="20" rx="3" /><circle cx="12" cy="7" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="12" cy="17" r="1.4" /></svg>
+);

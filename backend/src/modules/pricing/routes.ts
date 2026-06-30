@@ -8,7 +8,9 @@ const estimateSchema = z.object({
   serviceType: z.enum(['ride', 'delivery', 'micromobility']).default('ride'),
   origin: latLng,
   destination: latLng,
+  stops: z.array(latLng).max(5).optional(),
   category: z.string().optional(),
+  bodyType: z.enum(['suv', 'berline']).optional(),
   promoCode: z.string().optional(),
 });
 
@@ -23,7 +25,9 @@ export async function pricingRoutes(app: FastifyInstance, container: Container):
     const quote = await service.estimate({
       origin: body.origin,
       destination: body.destination,
+      stops: body.stops,
       category: body.category,
+      bodyType: body.bodyType,
       promoCode: body.promoCode,
     });
     container.rides.saveQuote(quote);

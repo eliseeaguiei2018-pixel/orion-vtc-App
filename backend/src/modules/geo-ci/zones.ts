@@ -106,3 +106,35 @@ export function zoneSurge(origin: LatLng, destination: LatLng, at = new Date()):
   // Borné pour rester transparent et acceptable pour l'usager.
   return Math.min(2, Math.round(base * peakFactor * 100) / 100);
 }
+
+/**
+ * Détection de trafic / embouteillages.
+ *
+ * Estime le niveau de congestion à partir de l'heure (heures de pointe d'Abidjan) et de la
+ * densité des zones traversées (carrefours chargés : Plateau, Adjamé, aéroport…). En
+ * production, on enrichit avec Google Maps (trafic temps réel) ; l'interface ne change pas.
+ * Le facteur sert à majorer l'ETA et à appliquer un supplément trafic transparent.
+ */
+export function trafficInfo(
+  origin: LatLng,
+  destination: LatLng,
+  at = new Date(),
+): { level: 'fluid' | 'dense' | 'jam'; factor: number } {
+  const hour = at.getHours();
+  const peak = (hour >= 6 && hour < 9) || (hour >= 17 && hour < 20);
+  const day = hour >= 9 && hour < 17;
+  const density = Math.max(
+    nearestZone(origin)?.zone.demandFactor ?? 1,
+    nearestZone(destination)?.zone.demandFactor ?? 1,
+  );
+
+  let score = 0;
+  if (peak) score += 2;
+  else if (day) score += 1;
+  if (density >= 1.3) score += 2;
+  else if (density >= 1.1) score += 1;
+
+  if (score >= 4) return { level: 'jam', factor: 1.35 };
+  if (score >= 2) return { level: 'dense', factor: 1.15 };
+  return { level: 'fluid', factor: 1.0 };
+}

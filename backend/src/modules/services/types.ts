@@ -11,17 +11,33 @@ export type SupplyKind = 'driver' | 'courier' | 'asset';
 export interface EstimateRequest {
   origin: LatLng;
   destination: LatLng;
+  /** Arrêts intermédiaires (courses multi-arrêts). */
+  stops?: LatLng[];
   category?: string;
+  /** Carrosserie souhaitée : 'suv' | 'berline'. */
+  bodyType?: string;
   promoCode?: string;
 }
 
+/** Détail transparent du prix (le client sait pourquoi sa course coûte ce montant). */
 export interface QuoteBreakdown {
   base: number;
   distance: number;
   time: number;
+  /** Coefficient de demande (zone/heure). */
   surge: number;
+  /** Supplément trafic (embouteillages) en FCFA. */
+  traffic: number;
   discount: number;
+  /** Sous-total course avant taxes. */
+  subtotal: number;
+  /** TVA État de Côte d'Ivoire (5%). */
+  tva: number;
+  /** Frais de service ORION (10%). */
+  fee: number;
 }
+
+export type TrafficLevel = 'fluid' | 'dense' | 'jam';
 
 export interface Quote {
   lockId: string;
@@ -31,8 +47,10 @@ export interface Quote {
   currency: string;
   origin: LatLng;
   destination: LatLng;
+  stops?: LatLng[];
   distanceMeters: number;
   etaSeconds: number;
+  trafficLevel: TrafficLevel;
   breakdown: QuoteBreakdown;
   expiresAt: string;
 }
