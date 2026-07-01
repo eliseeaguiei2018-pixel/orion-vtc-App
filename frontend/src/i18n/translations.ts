@@ -98,6 +98,14 @@ const fr: Dict = {
   help_q1: 'Comment annuler une course ?', help_a1: 'Pendant la recherche ou avant l’arrivée du chauffeur, appuyez sur « Annuler la course ». Aucun frais avant la prise en charge.',
   help_q2: 'Comment fonctionne le paiement ?', help_a2: 'Choisissez votre opérateur (Wave, Orange Money, MTN, Moov). Vous confirmez dans l’app opérateur, ORION reçoit le paiement et vous envoie un reçu par e-mail.',
   help_q3: 'Que se passe-t-il en cas d’accident ?', help_a3: 'Le bouton SOS et la détection de choc alertent le SAMU (185) et la supervision ORION. Votre contact de confiance est prévenu si le partage est activé.',
+  home_recent: 'Récents', soon_badge: 'Bientôt', soon_toast: '{name} — bientôt disponible à Abidjan 🚀',
+  svc_course: 'Course', svc_course_d: 'Voiture · à partir de 4 min', svc_delivery: 'Livraison', svc_delivery_d: 'Coursier moto · rapide',
+  svc_food: 'Food', svc_shop: 'Achat & Vente', svc_market: 'Supermarché', svc_colis: 'Colis',
+  del_title: 'Livraison moto', del_pickup: 'Point de retrait', del_dropoff: 'Où livrer ?', del_change: 'Modifier',
+  del_size: 'Taille du colis', del_petit: 'Petit', del_moyen: 'Moyen', del_grand: 'Grand',
+  del_cta: 'Commander la livraison', del_note: 'Un coursier ORION récupère et livre votre colis.',
+  del_searching: 'Recherche d’un coursier…', del_searching_sub: 'Nous contactons les coursiers moto les plus proches.',
+  del_picked: 'Colis récupéré', del_enroute: 'Colis en route vers la destination', del_meeting: 'Retrait du colis',
 };
 
 const en: Dict = {
@@ -175,6 +183,14 @@ const en: Dict = {
   help_q1: 'How do I cancel a ride?', help_a1: 'While searching or before the driver arrives, tap “Cancel ride”. No fee before pickup.',
   help_q2: 'How does payment work?', help_a2: 'Pick your operator (Wave, Orange Money, MTN, Moov). You confirm in the operator app, ORION receives the payment and emails you a receipt.',
   help_q3: 'What happens in an accident?', help_a3: 'The SOS button and crash detection alert SAMU (185) and ORION supervision. Your trusted contact is notified if sharing is on.',
+  home_recent: 'Recent', soon_badge: 'Soon', soon_toast: '{name} — coming soon to Abidjan 🚀',
+  svc_course: 'Ride', svc_course_d: 'Car · from 4 min', svc_delivery: 'Delivery', svc_delivery_d: 'Moto courier · fast',
+  svc_food: 'Food', svc_shop: 'Buy & Sell', svc_market: 'Groceries', svc_colis: 'Parcel',
+  del_title: 'Moto delivery', del_pickup: 'Pickup point', del_dropoff: 'Where to deliver?', del_change: 'Change',
+  del_size: 'Parcel size', del_petit: 'Small', del_moyen: 'Medium', del_grand: 'Large',
+  del_cta: 'Order delivery', del_note: 'An ORION courier picks up and delivers your parcel.',
+  del_searching: 'Finding a courier…', del_searching_sub: 'Reaching the nearest moto couriers.',
+  del_picked: 'Parcel picked up', del_enroute: 'Parcel on the way', del_meeting: 'Parcel pickup',
   pay_title: 'Payment', pay_redirect: 'Redirecting to {p}…', pay_confirm_in: 'Confirm in {p}', pay_success: 'Payment received by ORION',
   pay_email: 'Receipt sent by email 📧', pay_notif: 'Driver & client notified', pay_open: 'Open {p}',
 };

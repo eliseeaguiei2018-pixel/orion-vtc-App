@@ -2,20 +2,21 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { OrionMap } from './components/OrionMap';
 import { Sheet, TopBar, Toast } from './components/ui';
 import {
-  IconBell, IconBriefcase, IconCalendar, IconCamera, IconCheck, IconChevron, IconClock, IconCrown,
+  IconBell, IconBolt, IconBriefcase, IconCalendar, IconCamera, IconCheck, IconChevron, IconClock, IconCrown,
   IconFingerprint, IconGem, IconGlobe, IconHome, IconImage, IconLeaf, IconLock, IconMic, IconMinus,
   IconPhone, IconPhoneOff, IconPin, IconPlane, IconPlus, IconRing, IconSearch, IconSettings, IconShare,
   IconShield, IconShieldCheck, IconStar, IconTraffic, IconVolume, IconWallet,
 } from './icons';
 import { useTheme, type ThemeMode } from './theme';
 import { LogoGlyph } from './components/Logo';
+import { IllusCar, IllusMoto, IllusFood, IllusShop, IllusMarket, IllusColis } from './components/Illustrations';
 import { authenticateBiometric, isBiometricEnabled, setBiometricEnabled } from './security';
 import type { TrustedContact } from './api';
 import {
   ABIDJAN_PLACES, COUNTRIES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { cancelRide, clientId, createRide, estimate, isLiveBackend, listMyRides, previewQuote, rateRide, rideSocketUrl, sos, type RideHistoryItem, type SafeDriver } from './api';
+import { cancelRide, clientId, createRide, estimate, isLiveBackend, listMyRides, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, type PkgSize, type RideHistoryItem, type SafeDriver } from './api';
 import { LANGUAGES, useI18n, type Lang } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubPlan, TierOption, WeddingDuration } from './types';
 
@@ -68,6 +69,8 @@ export function App() {
   const [screen, setScreen] = useState<Screen>('splash');
   const origin = DEFAULT_ORIGIN;
   const [destination, setDestination] = useState<Place | null>(null);
+  const [mode, setMode] = useState<'ride' | 'delivery'>('ride');
+  const [pkgSize, setPkgSize] = useState<'petit' | 'moyen' | 'grand'>('moyen');
   const [tier, setTier] = useState<TierOption>(TIERS[0]!);
   const [bodyType, setBodyType] = useState<'suv' | 'berline'>('berline');
   const [stops, setStops] = useState<Place[]>([]);
@@ -158,6 +161,24 @@ export function App() {
     reset();
   };
 
+  /** Coursier moto (livraison) — démo. */
+  const pickCourier = (): Driver => {
+    const base = DRIVERS[Math.floor(Math.random() * DRIVERS.length)] ?? DRIVERS[0]!;
+    return { ...base, car: 'Moto ORION · 100% électrique', plate: `CI-${(base.matricule.match(/\d+/)?.[0] ?? '0000')} M` };
+  };
+
+  /** Lance une livraison moto (retrait → dépôt), tarif coursier, suivi moto. */
+  const startDelivery = (dropoff: Place, size: PkgSize) => {
+    setMode('delivery');
+    setPkgSize(size);
+    setDestination(dropoff);
+    setQuote(previewDelivery(origin.location, dropoff.location, size));
+    setLive(false);
+    setRideId(null);
+    setScreen('searching');
+    window.setTimeout(() => { setDriver(pickCourier()); setTripPhase('enroute'); setScreen('tracking'); }, 2200);
+  };
+
   const reset = () => {
     setDestination(null);
     setQuote(null);
@@ -171,6 +192,7 @@ export function App() {
     setStops([]);
     setScheduled(false);
     setInsurance(false);
+    setMode('ride');
     setScreen('home');
   };
 
@@ -187,11 +209,21 @@ export function App() {
         {screen === 'permissions' && <PermissionsScreen onDone={() => setScreen('home')} />}
 
         {screen === 'home' && (
-          <HomeScreen origin={origin} onPick={() => setScreen('destination')} onQuick={chooseDestination} onNav={setScreen} />
+          <HomeScreen
+            onSearch={() => { setMode('ride'); setScreen('destination'); }}
+            onCourse={() => { setMode('ride'); setScreen('destination'); }}
+            onDelivery={() => { setMode('delivery'); setScreen('delivery'); }}
+            onQuick={(p) => { setMode('ride'); chooseDestination(p); }}
+            onNav={setScreen}
+            onSoon={(name) => showToast(t('soon_toast', { name }))} />
         )}
 
         {screen === 'destination' && (
           <DestinationScreen origin={origin} onBack={() => setScreen('home')} onChoose={chooseDestination} />
+        )}
+
+        {screen === 'delivery' && (
+          <DeliveryScreen origin={origin} pkgSize={pkgSize} onBack={() => setScreen('home')} onConfirm={startDelivery} />
         )}
 
         {screen === 'estimate' && destination && (
@@ -209,11 +241,11 @@ export function App() {
         )}
 
         {screen === 'searching' && destination && (
-          <SearchingScreen origin={origin} destination={destination} onCancel={reset} />
+          <SearchingScreen origin={origin} destination={destination} mode={mode} onCancel={reset} />
         )}
 
         {screen === 'tracking' && destination && driver && (
-          <TrackingScreen origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase}
+          <TrackingScreen origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase} mode={mode}
             carPos={carPos} setCarPos={setCarPos} setPhase={setTripPhase} live={live} rideId={rideId} stops={stops}
             onSos={triggerSos} onShare={() => showToast(t('toast_share'))} onArrived={() => setScreen('payment')}
             onCancel={cancelCurrentRide} />
@@ -426,42 +458,67 @@ function OtpScreen({ phone, onBack, onVerified }: { phone: string; onBack: () =>
 }
 
 /* ------------------------------- Home -------------------------------- */
-function HomeScreen({ origin, onPick, onQuick, onNav }: {
-  origin: Place; onPick: () => void; onQuick: (p: Place) => void; onNav: (s: Screen) => void;
+function MiniSvc({ illus, label, onClick }: { illus: React.ReactNode; label: string; onClick: () => void }) {
+  const { t } = useI18n();
+  return (
+    <button className="svc-mini list-btn" onClick={onClick}>
+      <span className="svc-mini-illus">{illus}</span>
+      <span className="svc-mini-label">{label}</span>
+      <span className="svc-soon">{t('soon_badge')}</span>
+    </button>
+  );
+}
+
+function HomeScreen({ onSearch, onCourse, onDelivery, onQuick, onNav, onSoon }: {
+  onSearch: () => void; onCourse: () => void; onDelivery: () => void;
+  onQuick: (p: Place) => void; onNav: (s: Screen) => void; onSoon: (name: string) => void;
 }) {
   const { t } = useI18n();
   const quick = ABIDJAN_PLACES.filter((p) => p.kind === 'home' || p.kind === 'work' || p.kind === 'hub');
   return (
-    <div className="screen">
-      <OrionMap origin={origin.location} />
-      <TopBar right={<button className="avatar" onClick={() => onNav('settings')} aria-label="Settings"><IconSettings size={20} /></button>} />
-      <div style={{ flex: 1 }} />
-      <Sheet>
-        <h2 className="h-title rise">{t('home_greeting')}</h2>
-        <p className="h-sub rise rise-2" style={{ marginBottom: 14 }}>{t('home_whereTo')}</p>
-        <button className="field rise rise-2" style={{ width: '100%' }} onClick={onPick}>
-          <IconSearch size={20} color="#6f8a7e" />
-          <span className="faint" style={{ fontSize: 16 }}>{t('home_search')}</span>
+    <div className="screen page hub">
+      <div className="hub-hero">
+        <div className="hub-top">
+          <span className="hub-brand"><span className="hub-logo"><LogoGlyph size={20} /></span> ORION</span>
+          <button className="avatar hub-avatar" onClick={() => onNav('settings')} aria-label="Settings"><IconSettings size={20} /></button>
+        </div>
+        <h2 className="hub-greet rise">{t('home_greeting')}</h2>
+        <button className="hub-search rise rise-2" onClick={onSearch}>
+          <IconSearch size={20} /> <span>{t('home_search')}</span>
         </button>
+      </div>
 
-        <div className="row gap-sm rise rise-3" style={{ marginTop: 14 }}>
-          <button className="feature-card" onClick={() => onNav('subscription')}>
-            <IconCrown size={22} /> <span>{t('menu_subscription')}</span>
+      <div className="page-body hub-body">
+        {/* Services principaux : Course & Livraison */}
+        <div className="svc-grid rise rise-2">
+          <button className="svc-card course" onClick={onCourse}>
+            <span className="svc-illus"><IllusCar size={92} /></span>
+            <span className="svc-meta"><strong>{t('svc_course')}</strong><span>{t('svc_course_d')}</span></span>
           </button>
-          <button className="feature-card" onClick={() => onNav('wedding')}>
-            <IconRing size={22} /> <span>{t('menu_wedding')}</span>
-          </button>
-        </div>
-        <div className="row gap-sm rise rise-3" style={{ marginTop: 10 }}>
-          <button className="feature-card" onClick={() => onNav('history')}>
-            <IconClock size={22} /> <span>{t('menu_history')}</span>
-          </button>
-          <button className="feature-card" onClick={() => onNav('help')}>
-            <IconShield size={22} /> <span>{t('menu_help')}</span>
+          <button className="svc-card deliver" onClick={onDelivery}>
+            <span className="svc-illus"><IllusMoto size={92} /></span>
+            <span className="svc-meta"><strong>{t('svc_delivery')}</strong><span>{t('svc_delivery_d')}</span></span>
           </button>
         </div>
 
-        <div className="stack rise rise-3" style={{ marginTop: 14 }}>
+        {/* Autres services (bientôt) */}
+        <div className="svc-mini-grid rise rise-3">
+          <MiniSvc illus={<IllusFood size={46} />} label={t('svc_food')} onClick={() => onSoon(t('svc_food'))} />
+          <MiniSvc illus={<IllusShop size={46} />} label={t('svc_shop')} onClick={() => onSoon(t('svc_shop'))} />
+          <MiniSvc illus={<IllusMarket size={46} />} label={t('svc_market')} onClick={() => onSoon(t('svc_market'))} />
+          <MiniSvc illus={<IllusColis size={46} />} label={t('svc_colis')} onClick={() => onSoon(t('svc_colis'))} />
+        </div>
+
+        {/* Raccourcis ORION */}
+        <div className="hub-quick rise rise-3">
+          <button className="feature-card" onClick={() => onNav('subscription')}><IconCrown size={20} /> <span>{t('menu_subscription')}</span></button>
+          <button className="feature-card" onClick={() => onNav('wedding')}><IconRing size={20} /> <span>{t('menu_wedding')}</span></button>
+          <button className="feature-card" onClick={() => onNav('history')}><IconClock size={20} /> <span>{t('menu_history')}</span></button>
+          <button className="feature-card" onClick={() => onNav('help')}><IconShield size={20} /> <span>{t('menu_help')}</span></button>
+        </div>
+
+        <span className="eyebrow" style={{ marginTop: 4 }}><IconPin size={13} /> {t('home_recent')}</span>
+        <div className="stack" style={{ marginTop: 10 }}>
           {quick.map((p) => (
             <button key={p.id} className="list-row list-btn" onClick={() => onQuick(p)}>
               <span className="list-ico" style={{ color: 'var(--green)' }}>{placeIcon(p.kind)}</span>
@@ -473,6 +530,90 @@ function HomeScreen({ origin, onPick, onQuick, onNav }: {
             </button>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ----------------------------- Livraison ----------------------------- */
+function DeliveryScreen({ origin, pkgSize, onBack, onConfirm }: {
+  origin: Place; pkgSize: PkgSize; onBack: () => void; onConfirm: (dropoff: Place, size: PkgSize) => void;
+}) {
+  const { t } = useI18n();
+  const [dropoff, setDropoff] = useState<Place | null>(null);
+  const [size, setSize] = useState<PkgSize>(pkgSize);
+  const [q, setQ] = useState('');
+  const results = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return (s ? ABIDJAN_PLACES.filter((p) => (p.name + ' ' + p.area).toLowerCase().includes(s)) : ABIDJAN_PLACES).slice(0, 6);
+  }, [q]);
+  const quote = useMemo(() => (dropoff ? previewDelivery(origin.location, dropoff.location, size) : null), [dropoff, size, origin.location]);
+  const sizes: PkgSize[] = ['petit', 'moyen', 'grand'];
+
+  return (
+    <div className="screen">
+      <OrionMap origin={origin.location} destination={dropoff?.location ?? null} vehicle="moto" />
+      <TopBar onBack={onBack} title={t('del_title')} />
+      <div style={{ flex: 1 }} />
+      <Sheet>
+        <div className="del-head">
+          <span className="svc-illus small"><IllusMoto size={54} /></span>
+          <div className="col grow" style={{ textAlign: 'start' }}>
+            <strong style={{ fontSize: 17 }}>{t('del_title')}</strong>
+            <span className="faint" style={{ fontSize: 12.5 }}>{t('svc_delivery_d')}</span>
+          </div>
+        </div>
+
+        {/* Retrait */}
+        <div className="list-row" style={{ padding: '8px 0' }}>
+          <span className="list-ico" style={{ color: 'var(--green)' }}><IconPin size={18} /></span>
+          <span className="col grow"><strong style={{ fontSize: 14 }}>{origin.area}</strong><span className="faint" style={{ fontSize: 12 }}>{t('del_pickup')}</span></span>
+        </div>
+
+        {/* Dépôt */}
+        {dropoff ? (
+          <button className="list-row list-btn" style={{ width: '100%', padding: '8px 0' }} onClick={() => setDropoff(null)}>
+            <span className="list-ico" style={{ color: 'var(--gold)' }}><IconPin size={18} /></span>
+            <span className="col grow" style={{ textAlign: 'start' }}><strong style={{ fontSize: 14 }}>{dropoff.name}</strong><span className="faint" style={{ fontSize: 12 }}>{dropoff.area}</span></span>
+            <span className="faint" style={{ fontSize: 12, textDecoration: 'underline' }}>{t('del_change')}</span>
+          </button>
+        ) : (
+          <>
+            <div className="field" style={{ margin: '8px 0' }}>
+              <IconSearch size={20} color="#6f8a7e" />
+              <input autoFocus placeholder={t('del_dropoff')} value={q} onChange={(e) => setQ(e.target.value)} />
+            </div>
+            <div style={{ maxHeight: 168, overflowY: 'auto' }}>
+              {results.map((p) => (
+                <button key={p.id} className="list-row list-btn" onClick={() => setDropoff(p)}>
+                  <span className="list-ico" style={{ color: 'var(--green)' }}>{placeIcon(p.kind)}</span>
+                  <span className="col grow" style={{ textAlign: 'start' }}><strong style={{ fontSize: 15 }}>{p.name}</strong><span className="faint" style={{ fontSize: 13 }}>{p.area}</span></span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {dropoff && (
+          <>
+            <span className="eyebrow" style={{ marginTop: 8 }}>{t('del_size')}</span>
+            <div className="chips" style={{ margin: '10px 0 12px' }}>
+              {sizes.map((s) => (
+                <button key={s} className={`chip${s === size ? ' active' : ''}`} onClick={() => setSize(s)}>{t(`del_${s}`)}</button>
+              ))}
+            </div>
+            {quote && (
+              <div className="fare-total" style={{ marginBottom: 12 }}>
+                <span className="row gap-sm"><TrafficBadge level={quote.trafficLevel} /><span className="muted">{t('conf_total')}</span></span>
+                <span className="amt">{formatXOF(quote.amount)}</span>
+              </div>
+            )}
+            <button className="btn btn-primary" onClick={() => onConfirm(dropoff, size)}>
+              <IconBolt size={18} /> {t('del_cta')}
+            </button>
+            <p className="faint" style={{ textAlign: 'center', fontSize: 12, marginTop: 8 }}>{t('del_note')}</p>
+          </>
+        )}
       </Sheet>
     </div>
   );
@@ -675,17 +816,18 @@ function ConfirmScreen({ origin, destination, tier, quote, payment, stops, onAdd
 }
 
 /* ----------------------------- Searching ----------------------------- */
-function SearchingScreen({ origin, destination, onCancel }: { origin: Place; destination: Place; onCancel: () => void }) {
+function SearchingScreen({ origin, destination, mode = 'ride', onCancel }: { origin: Place; destination: Place; mode?: 'ride' | 'delivery'; onCancel: () => void }) {
   const { t } = useI18n();
+  const del = mode === 'delivery';
   return (
     <div className="screen">
-      <OrionMap origin={origin.location} destination={destination.location} />
+      <OrionMap origin={origin.location} destination={destination.location} vehicle={del ? 'moto' : 'car'} />
       <TopBar />
       <div style={{ flex: 1 }} />
       <Sheet>
-        <div className="radar"><span className="ring" /><span className="ring" /><span className="ring" /><span className="core"><IconLeaf size={28} /></span></div>
-        <h2 className="h-title" style={{ textAlign: 'center' }}>{t('search_title')}</h2>
-        <p className="h-sub" style={{ textAlign: 'center', marginTop: 6 }}>{t('search_sub')}</p>
+        <div className="radar"><span className="ring" /><span className="ring" /><span className="ring" /><span className="core">{del ? <IconBolt size={26} /> : <IconLeaf size={28} />}</span></div>
+        <h2 className="h-title" style={{ textAlign: 'center' }}>{del ? t('del_searching') : t('search_title')}</h2>
+        <p className="h-sub" style={{ textAlign: 'center', marginTop: 6 }}>{del ? t('del_searching_sub') : t('search_sub')}</p>
         <button className="btn btn-ghost" style={{ marginTop: 18 }} onClick={onCancel}>{t('search_cancel')}</button>
       </Sheet>
     </div>
@@ -693,12 +835,13 @@ function SearchingScreen({ origin, destination, onCancel }: { origin: Place; des
 }
 
 /* ----------------------------- Tracking ------------------------------ */
-function TrackingScreen({ origin, destination, driver, tier, phase, carPos, setCarPos, setPhase, live, rideId, stops, onSos, onShare, onArrived, onCancel }: {
-  origin: Place; destination: Place; driver: Driver; tier: TierOption; phase: TripPhase;
+function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, onSos, onShare, onArrived, onCancel }: {
+  origin: Place; destination: Place; driver: Driver; tier: TierOption; phase: TripPhase; mode?: 'ride' | 'delivery';
   carPos: LatLng | null; setCarPos: (p: LatLng) => void; setPhase: (p: TripPhase) => void;
   live: boolean; rideId: string | null; stops: Place[]; onSos: () => void; onShare: () => void; onArrived: () => void; onCancel: () => void;
 }) {
   const { t } = useI18n();
+  const del = mode === 'delivery';
   const [calling, setCalling] = useState(false);
   const progressRef = useRef(0);
   const driverStart = useMemo<LatLng>(() => ({ lat: origin.location.lat - 0.018, lng: origin.location.lng - 0.012 }), [origin.location]);
@@ -748,12 +891,13 @@ function TrackingScreen({ origin, destination, driver, tier, phase, carPos, setC
   }, [phase, live]);
 
   const banner = phase === 'enroute' ? `${driver.name} ${t('track_arrives')} · ${tier.eta} ${t('est_min')}`
-    : phase === 'arrived' ? t('track_arrived') : t('track_enroute');
-  const eta = phase === 'inprogress' ? `${t('track_dest')} · ${destination.name}` : t('track_meeting');
+    : phase === 'arrived' ? (del ? t('del_picked') : t('track_arrived'))
+    : (del ? t('del_enroute') : t('track_enroute'));
+  const eta = phase === 'inprogress' ? `${t('track_dest')} · ${destination.name}` : (del ? t('del_meeting') : t('track_meeting'));
 
   return (
     <div className="screen">
-      <OrionMap origin={origin.location} destination={destination.location} stops={stops.map((s) => s.location)} car={carPos} />
+      <OrionMap origin={origin.location} destination={destination.location} stops={stops.map((s) => s.location)} car={carPos} vehicle={del ? 'moto' : 'car'} />
       <TopBar title={t('track_title')} />
       <button className="sos" onClick={onSos} aria-label="SOS">SOS</button>
       <div style={{ flex: 1 }} />

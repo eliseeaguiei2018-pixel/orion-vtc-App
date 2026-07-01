@@ -57,11 +57,13 @@ interface Props {
   destination?: LatLng | null;
   stops?: LatLng[];
   car?: LatLng | null;
+  /** Type de véhicule suivi (course = voiture, livraison = moto). */
+  vehicle?: 'car' | 'moto';
   /** Affiche les marqueurs de trafic (carrefours/feux/embouteillages). */
   traffic?: boolean;
 }
 
-export function OrionMap({ origin, destination, stops = [], car, traffic = true }: Props) {
+export function OrionMap({ origin, destination, stops = [], car, vehicle = 'car', traffic = true }: Props) {
   const { resolved } = useTheme();
   const P = resolved === 'light' ? LIGHT : DARK;
 
@@ -201,8 +203,8 @@ export function OrionMap({ origin, destination, stops = [], car, traffic = true 
 
         {d && <Pin x={d.x} y={d.y} kind="dest" P={P} />}
 
-        {/* VOITURE — repère de suivi de l'itinéraire. */}
-        {c && <CarMarker x={c.x} y={c.y} P={P} />}
+        {/* VÉHICULE — repère de suivi (voiture pour une course, moto pour une livraison). */}
+        {c && (vehicle === 'moto' ? <MotoMarker x={c.x} y={c.y} P={P} /> : <CarMarker x={c.x} y={c.y} P={P} />)}
 
         <Pin x={o.x} y={o.y} kind="origin" P={P} />
       </svg>
@@ -220,6 +222,20 @@ function CarMarker({ x, y, P }: { x: number; y: number; P: Palette }) {
         <path d="M2 13l1.4-4.2A2 2 0 0 1 5.3 7.5h9.4a2 2 0 0 1 1.9 1.3L18 13" />
         <rect x="1.5" y="13" width="17" height="4.5" rx="1.6" />
         <circle cx="6" cy="17.5" r="1.2" /><circle cx="14" cy="17.5" r="1.2" />
+      </g>
+    </g>
+  );
+}
+
+function MotoMarker({ x, y, P }: { x: number; y: number; P: Palette }) {
+  return (
+    <g className="car-marker" transform={`translate(${x} ${y})`}>
+      <circle r="15" fill={P.car} opacity="0.18" />
+      <circle r="12.5" fill={P.land2} stroke={P.car} strokeWidth="2" />
+      <g transform="translate(-7.5 -7) scale(0.62)" fill="none" stroke={P.car} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="5" cy="17" r="3.2" /><circle cx="19" cy="17" r="3.2" />
+        <path d="M5 17 L 11 11 L 16 11 L 19 17" /><path d="M11 11 L 8 17" />
+        <rect x="2" y="6" width="6.5" height="6" rx="1.2" />
       </g>
     </g>
   );

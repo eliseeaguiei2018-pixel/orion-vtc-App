@@ -84,6 +84,7 @@ export type Screen =
   | 'permissions'
   | 'home'
   | 'destination'
+  | 'delivery'
   | 'estimate'
   | 'confirm'
   | 'searching'

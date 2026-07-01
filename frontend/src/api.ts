@@ -94,6 +94,43 @@ export function previewQuote(origin: LatLng, destination: LatLng, tier: TierOpti
   return localEstimate(origin, destination, tier, opts);
 }
 
+/** Tailles de colis (livraison moto) et leur facteur de prix. */
+export const PKG_FACTOR = { petit: 1, moyen: 1.15, grand: 1.35 } as const;
+export type PkgSize = keyof typeof PKG_FACTOR;
+
+/**
+ * Estimation d'une LIVRAISON à moto (coursier). Base plus faible qu'une course,
+ * tarif au km + facteur taille de colis, TVA 5% + frais 10%.
+ */
+export function previewDelivery(origin: LatLng, destination: LatLng, size: PkgSize): Quote {
+  const distanceMeters = haversine(origin, destination) * 1.3;
+  const km = distanceMeters / 1000;
+  const traffic = localTraffic();
+  const f = PKG_FACTOR[size];
+  const etaSeconds = Math.round((km / 26) * 3600 * traffic.factor); // moto plus rapide
+  const base = 600 * f;
+  const distance = km * 170 * f;
+  const time = (km / 26) * 60 * 22 * f;
+  const floored = Math.max(base + distance + time, 700);
+  const trafficCost = floored * (traffic.factor - 1);
+  const subtotal = floored + trafficCost;
+  const tva = subtotal * 0.05;
+  const fee = subtotal * 0.1;
+  return {
+    lockId: `delivery-${Date.now()}`,
+    amount: round50(subtotal + tva + fee),
+    currency: 'XOF',
+    distanceMeters: Math.round(distanceMeters),
+    etaSeconds,
+    trafficLevel: traffic.level,
+    breakdown: {
+      base: Math.round(base), distance: Math.round(distance), time: Math.round(time), surge: 1,
+      traffic: Math.round(trafficCost), discount: 0, subtotal: Math.round(subtotal),
+      tva: Math.round(tva), fee: Math.round(fee), insurance: 0,
+    },
+  };
+}
+
 export async function estimate(origin: LatLng, destination: LatLng, tier: TierOption, opts: EstimateOpts = {}): Promise<Quote> {
   const remote = await tryFetch<{ quote: Quote }>('/pricing/estimate', {
     method: 'POST',
