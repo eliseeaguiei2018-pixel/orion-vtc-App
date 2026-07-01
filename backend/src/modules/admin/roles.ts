@@ -34,6 +34,7 @@ export type Permission =
   | 'support:read' | 'support:write'
   | 'finance:read'
   | 'treasury:read' | 'treasury:request' | 'treasury:approve'
+  | 'sessions:read' | 'sessions:write'
   | 'search:read'
   | 'notify:read' | 'notify:write'
   | 'audit:read'
@@ -43,7 +44,8 @@ const ALL: Permission[] = [
   'overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write',
   'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'pricing:read', 'pricing:write',
   'promos:read', 'promos:write', 'services:read', 'services:write', 'support:read', 'support:write',
-  'finance:read', 'treasury:read', 'treasury:request', 'treasury:approve', 'search:read',
+  'finance:read', 'treasury:read', 'treasury:request', 'treasury:approve',
+  'sessions:read', 'sessions:write', 'search:read',
   'notify:read', 'notify:write', 'audit:read', 'roles:read',
 ];
 

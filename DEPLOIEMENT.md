@@ -100,6 +100,11 @@ Le dashboard d'administration est une **page séparée** de l'app cliente :
   - **Trésorerie (double validation)** : le CFO soumet une demande de virement ; seul un
     dirigeant peut l'approuver (exécution) ou la rejeter — jamais sa propre demande.
   - **Anti-brute-force** : 5 échecs de connexion → compte verrouillé 15 minutes.
+  - **2FA direction (TOTP)** : générer un secret avec `npm run totp-secret -- <username>`,
+    l'ajouter au champ `totp` du compte dans `ADMIN_USERS`, scanner l'URL `otpauth://` dans
+    Google/Microsoft Authenticator. `ADMIN_REQUIRE_2FA=true` pour l'imposer à toute la direction.
+  - **Sessions actives** : la direction voit qui est connecté (IP, appareil, activité) et
+    peut **révoquer** une session — déconnexion immédiate de l'employé.
   - **Automatisation / intégrations** : l'en-tête `x-admin-token` (variable `ADMIN_TOKEN`)
     reste accepté pour les scripts serveur-à-serveur, en complément du login JWT humain.
   - Sections de la console : Vue d'ensemble, Supervision SAMU, Courses, Chauffeurs,

@@ -48,6 +48,14 @@ Audit interne — points identifiés, à traiter avant lancement public :
   virements** (`treasury:approve`). Le **CFO** demande (`treasury:request`) mais ne peut
   jamais exécuter seul : double validation imposée **côté serveur**, séparation des tâches
   (interdiction d'approuver sa propre demande), chaque étape auditée.
+- **2FA (TOTP, RFC 6238)** : un compte avec secret `totp` (base32, `npm run totp-secret`)
+  doit fournir un code à 6 chiffres à la connexion (fenêtre ±30 s, comparaison temps
+  constant). `ADMIN_REQUIRE_2FA=true` rend la 2FA OBLIGATOIRE pour la direction (connexion
+  refusée si non configurée). Événements audités : `login.success_2fa`, `login.2fa_failed`,
+  `login.2fa_missing`.
+- **Sessions actives** : chaque connexion JWT est tracée (jti, IP, appareil, dernière
+  activité) et visible par la direction (`/admin/sessions`). **Révocation immédiate** d'une
+  session (`session.revoke` audité) : le jeton est refusé dès la requête suivante.
 - **Lien de partage** : token de 8 caractères (lecture seule, sans données perso). Pour un
   besoin élevé, allonger le token et ajouter une expiration.
 - **Rate-limiting global** en place ; ajouter des quotas par utilisateur/route sensible

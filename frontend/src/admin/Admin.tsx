@@ -46,6 +46,10 @@ export interface SearchResults {
   clients: { id: string; name: string | null; phone: string | null; status: string; rides: number }[];
   rides: { id: string; clientId: string; status: string; amount: number; createdAt: string }[];
 }
+export interface ActiveSession {
+  id: string; username: string; name: string; role: string; ip?: string; userAgent?: string;
+  createdAt: string; lastSeenAt: string; expiresAt: string; revoked?: boolean;
+}
 export interface PageMeta { total: number; page: number; pages: number }
 const PAGE_SIZE = 25;
 /** Pagination locale (mode démo) — même contrat que le serveur. */
@@ -134,21 +138,26 @@ export function Admin() {
 function Login({ onDone }: { onDone: () => void }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
+  const [mfa, setMfa] = useState(false); // étape 2 : code TOTP demandé par le serveur
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password) { setErr('Saisis ton identifiant et ton mot de passe.'); return; }
+    if (mfa && !code.trim()) { setErr('Saisis le code à 6 chiffres de ton application d\'authentification.'); return; }
     setBusy(true); setErr('');
     // Mode démo (sans backend) : session locale, données simulées.
     if (!API) { localStorage.setItem(jwtKey, 'demo'); localStorage.setItem(expKey, String(Date.now() + 12 * 3600e3)); onDone(); return; }
     try {
       const res = await fetch(`${API}/admin/login`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ username: username.trim(), password }),
+        body: JSON.stringify({ username: username.trim(), password, ...(mfa && code.trim() ? { code: code.trim() } : {}) }),
       });
-      if (!res.ok) { setErr('Identifiants refusés. Accès réservé au personnel ORION.'); setBusy(false); return; }
-      const data = (await res.json()) as LoginResponse;
+      if (res.status === 429) { setErr('Compte temporairement verrouillé (trop de tentatives). Réessaie plus tard.'); setBusy(false); return; }
+      if (!res.ok) { setErr(mfa ? 'Code 2FA invalide.' : 'Identifiants refusés. Accès réservé au personnel ORION.'); setBusy(false); return; }
+      const data = (await res.json()) as LoginResponse & { mfaRequired?: boolean };
+      if (data.mfaRequired) { setMfa(true); setBusy(false); return; } // mot de passe OK → code demandé
       localStorage.setItem(jwtKey, data.token);
       localStorage.setItem(expKey, String(Date.parse(data.expiresAt) || Date.now() + 12 * 3600e3));
       onDone();
@@ -164,12 +173,24 @@ function Login({ onDone }: { onDone: () => void }) {
         </span>
         <h1>ORION Admin</h1>
         <p className="adm-login-sub">Centre de contrôle — accès réservé au personnel ORION.</p>
-        <label className="adm-login-label">Identifiant</label>
-        <input className="adm-login-input" type="text" autoComplete="username" placeholder="prenom.nom" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
-        <label className="adm-login-label" style={{ marginTop: 10 }}>Mot de passe</label>
-        <input className="adm-login-input" type="password" autoComplete="current-password" placeholder="••••••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+        {!mfa && (
+          <>
+            <label className="adm-login-label">Identifiant</label>
+            <input className="adm-login-input" type="text" autoComplete="username" placeholder="prenom.nom" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
+            <label className="adm-login-label" style={{ marginTop: 10 }}>Mot de passe</label>
+            <input className="adm-login-input" type="password" autoComplete="current-password" placeholder="••••••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </>
+        )}
+        {mfa && (
+          <>
+            <p className="adm-login-sub" style={{ marginTop: 0 }}>🛡️ Double authentification — compte de direction.</p>
+            <label className="adm-login-label">Code à 6 chiffres (application d'authentification)</label>
+            <input className="adm-login-input" type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="123 456" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} autoFocus />
+          </>
+        )}
         {err && <div className="adm-login-err">{err}</div>}
-        <button className="adm-btn solid big" type="submit" disabled={busy}>{busy ? 'Connexion…' : 'Se connecter'}</button>
+        <button className="adm-btn solid big" type="submit" disabled={busy}>{busy ? 'Connexion…' : mfa ? 'Vérifier le code' : 'Se connecter'}</button>
+        {mfa && <button className="adm-btn ghost" type="button" style={{ marginTop: 8 }} onClick={() => { setMfa(false); setCode(''); setErr(''); }}>← Retour</button>}
         {!API && <p className="adm-login-demo">Mode démo — n'importe quels identifiants ouvrent la console (données simulées).</p>}
       </form>
     </div>
@@ -177,7 +198,7 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'services' | 'audit' | 'roles';
+type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'services' | 'audit' | 'sessions' | 'roles';
 const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'overview', label: 'Vue d’ensemble', perm: 'overview:read', icon: '📊' },
   { id: 'alerts', label: 'Supervision SAMU', perm: 'alerts:read', icon: '🚨' },
@@ -193,6 +214,7 @@ const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'promos', label: 'Codes promo', perm: 'promos:read', icon: '🎟️' },
   { id: 'services', label: 'Services & ville', perm: 'services:read', icon: '🧩' },
   { id: 'audit', label: 'Journal', perm: 'audit:read', icon: '📜' },
+  { id: 'sessions', label: 'Sessions actives', perm: 'sessions:read', icon: '🖥️' },
   { id: 'roles', label: 'Rôles & accès', perm: 'roles:read', icon: '🛡️' },
 ];
 
@@ -221,6 +243,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [driverSel, setDriverSel] = useState<DriverDetail | null>(null);
   const [clientSel, setClientSel] = useState<ClientDetail | null>(null);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const [sessions, setSessions] = useState<ActiveSession[]>([]);
+  const [selfSession, setSelfSession] = useState<string | null>(null);
   const [muted, setMuted] = useState(() => localStorage.getItem('orion.admin.muted') === '1');
   const [ridesPage, setRidesPage] = useState(1);
   const [driversPage, setDriversPage] = useState(1);
@@ -239,7 +263,9 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setPromos(DEMO.promos as Promo[]); setServices(DEMO.services);
     setSupport(DEMO.support as Conversation[]); setAudit(DEMO.audit as AuditEntry[]);
     setFinance(DEMO.finance); setBroadcasts(DEMO.broadcasts as Announcement[]);
-    setTransfers(DEMO.treasury as Transfer[]); setLive(false);
+    setTransfers(DEMO.treasury as Transfer[]);
+    setSessions(DEMO.sessions as ActiveSession[]); setSelfSession(DEMO.sessions[0]?.id ?? null);
+    setLive(false);
   }, [statsDays, ridesPage, driversPage, clientsPage]);
 
   const refresh = useCallback(async () => {
@@ -269,6 +295,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
       if (has('support:read')) setSupport((await adminGet<{ conversations: Conversation[] }>('/admin/support')).conversations);
       if (has('finance:read')) setFinance(await adminGet<Finance>('/admin/finance'));
       if (has('treasury:read')) setTransfers((await adminGet<{ transfers: Transfer[] }>('/admin/treasury')).transfers);
+      if (has('sessions:read')) { const s = await adminGet<{ sessions: ActiveSession[]; self: string | null }>('/admin/sessions'); setSessions(s.sessions); setSelfSession(s.self); }
       if (has('notify:read')) setBroadcasts((await adminGet<{ announcements: Announcement[] }>('/admin/broadcasts')).announcements);
       if (has('audit:read')) setAudit((await adminGet<{ entries: AuditEntry[] }>('/admin/audit')).entries);
     } catch { loadDemo(); }
@@ -451,6 +478,13 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setMuted((m) => { localStorage.setItem('orion.admin.muted', m ? '0' : '1'); return !m; });
   };
 
+  // Révoque une session (l'employé est déconnecté immédiatement).
+  const revokeSess = async (id: string) => {
+    if (API) { try { await adminPost(`/admin/sessions/${id}/revoke`); } catch { /* */ } }
+    setSessions((xs) => xs.map((s) => (s.id === id ? { ...s, revoked: true } : s)));
+    if (id === selfSession) { clearSession(); window.location.reload(); } // on s'est déconnecté soi-même
+  };
+
   if (!me || !ov) return <div className="adm-loading">Chargement de la console…</div>;
 
   const can = (p: string) => me.permissions.includes(p);
@@ -516,6 +550,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'promos' && <PromosSection promos={promos} canWrite={can('promos:write')} onSave={savePromo} onToggle={togglePromo} onDelete={deletePromo} />}
         {section === 'services' && services && <ServicesSection config={services} canWrite={can('services:write')} onSave={saveServices} />}
         {section === 'audit' && <AuditSection entries={audit} />}
+        {section === 'sessions' && <SessionsSection sessions={sessions} self={selfSession} canWrite={can('sessions:write')} onRevoke={revokeSess} />}
         {section === 'roles' && <RolesSection me={me} />}
       </main>
 
@@ -1181,6 +1216,55 @@ function TreasurySection({ transfers, meName, canRequest, canApprove, onRequest,
                     )}
                     {t.status === 'pending' && t.requestedBy === meName && <span className="adm-muted" style={{ fontSize: 12 }}>Votre demande — aval d'un autre dirigeant requis</span>}
                   </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+/* ------------------------- Sessions actives -------------------------- */
+const ago = (iso: string) => {
+  const s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
+  if (s < 60) return `il y a ${s} s`;
+  if (s < 3600) return `il y a ${Math.round(s / 60)} min`;
+  return `il y a ${Math.round(s / 3600)} h`;
+};
+
+function SessionsSection({ sessions, self, canWrite, onRevoke }: { sessions: ActiveSession[]; self: string | null; canWrite: boolean; onRevoke: (id: string) => void }) {
+  const active = sessions.filter((s) => !s.revoked);
+  return (
+    <>
+      <div className="adm-card">
+        <p className="adm-muted" style={{ margin: 0 }}>
+          Qui est connecté à la console, depuis où, et depuis quand. La <strong>révocation</strong> déconnecte
+          l'employé immédiatement (son jeton de session est refusé par le serveur). Visible uniquement par la direction.
+        </p>
+      </div>
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Sessions</h3><span className="adm-muted">{active.length} active(s)</span></div>
+        {sessions.length === 0 && <p className="adm-empty">Aucune session JWT active. (Les jetons statiques d'automatisation n'apparaissent pas ici.)</p>}
+        <table className="adm-table">
+          <thead><tr><th>Employé</th><th>Rôle</th><th>IP</th><th>Appareil</th><th>Connecté</th><th>Dernière activité</th><th>Statut</th>{canWrite && <th>Actions</th>}</tr></thead>
+          <tbody>
+            {sessions.map((s) => (
+              <tr key={s.id}>
+                <td>{s.name}<div className="mono adm-muted" style={{ fontSize: 11 }}>{s.username}{s.id === self ? ' · cette session' : ''}</div></td>
+                <td className="cap">{s.role}</td>
+                <td className="mono">{s.ip ?? '—'}</td>
+                <td className="adm-muted" style={{ fontSize: 12, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.userAgent ?? '—'}</td>
+                <td>{ago(s.createdAt)}</td>
+                <td>{ago(s.lastSeenAt)}</td>
+                <td><span className={`adm-pill ${s.revoked ? 'tr-rejected' : 'av-online'}`}>{s.revoked ? 'Révoquée' : 'Active'}</span></td>
+                {canWrite && (
+                  <td>{!s.revoked && (
+                    <button className="adm-btn xs" onClick={() => onRevoke(s.id)}>
+                      {s.id === self ? 'Se déconnecter' : 'Révoquer'}
+                    </button>
+                  )}</td>
                 )}
               </tr>
             ))}

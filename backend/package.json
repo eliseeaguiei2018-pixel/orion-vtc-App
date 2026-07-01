@@ -12,6 +12,7 @@
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "hash-password": "tsx scripts/hash-password.ts",
+    "totp-secret": "tsx scripts/totp-secret.ts",
     "test": "NODE_ENV=test SIMULATE_RIDES=false tsx --test tests/**/*.test.ts",
     "test:persist": "NODE_ENV=test SIMULATE_RIDES=false PERSISTENCE=sqlite DB_PATH=./.tmp/test.db tsx --test tests/persistence.test.ts"
   },

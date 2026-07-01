@@ -5,7 +5,15 @@ import { parse } from '../../core/validate.js';
 import { notFound, unauthorized, forbidden } from '../../core/errors.js';
 import { AdminService, paginate } from './service.js';
 import { can, resolveAccount, ROLE_PERMISSIONS, ROLE_LABEL, type AdminAccount, type Permission } from './roles.js';
-import { login, issueToken, verifyToken, bearerToken, lockedFor, recordLoginFailure, clearLoginFailures } from './auth.js';
+import {
+  authenticate, issueToken, verifyToken, bearerToken,
+  lockedFor, recordLoginFailure, clearLoginFailures,
+  verifyTotp, registerSession, touchSession, revokeSession, listSessions,
+} from './auth.js';
+import { config } from '../../config/index.js';
+
+/** Rôles de direction : accès complet, 2FA exigible via ADMIN_REQUIRE_2FA. */
+const EXEC_ROLES = new Set(['ceo', 'dg', 'daa', 'coo', 'super_admin']);
 
 /**
  * Console Admin — centre de contrôle ORION (boîte noire).
@@ -13,26 +21,56 @@ import { login, issueToken, verifyToken, bearerToken, lockedFor, recordLoginFail
  * (résolu depuis x-admin-token) détermine ce qui est autorisé. Couches d'accès selon le poste.
  */
 export async function adminRoutes(app: FastifyInstance, container: Container): Promise<void> {
-  // Connexion (public) : login + mot de passe → session JWT signée.
+  // Connexion (public) : login + mot de passe [+ code 2FA] → session JWT signée.
   // Anti-brute-force : 5 échecs → compte verrouillé 15 minutes (journalisé).
   app.post('/admin/login', async (req, reply) => {
-    const body = parse(z.object({ username: z.string().min(1).max(80), password: z.string().min(1).max(200) }), req.body);
+    const body = parse(z.object({
+      username: z.string().min(1).max(80),
+      password: z.string().min(1).max(200),
+      code: z.string().max(12).optional(), // code TOTP (2FA)
+    }), req.body);
     const lock = lockedFor(body.username);
     if (lock > 0) {
       container.audit.log({ actor: body.username, role: 'viewer', action: 'login.locked' });
       reply.code(429);
       return { error: `Compte temporairement verrouillé (${Math.ceil(lock / 60)} min). Contacte un administrateur.` };
     }
-    const account = login(body.username, body.password);
-    if (!account) {
+    const user = authenticate(body.username, body.password);
+    if (!user) {
       recordLoginFailure(body.username);
       container.audit.log({ actor: body.username, role: 'viewer', action: 'login.failed' });
       reply.code(401);
       return { error: 'Identifiants invalides' };
     }
+
+    // 2FA : exigée si le compte a un secret TOTP, ou si la politique l'impose à la direction.
+    const needs2fa = Boolean(user.totp) || (config.ADMIN_REQUIRE_2FA && EXEC_ROLES.has(user.role));
+    if (needs2fa) {
+      if (!user.totp) {
+        container.audit.log({ actor: user.name, role: user.role, action: 'login.2fa_missing' });
+        reply.code(403);
+        return { error: '2FA obligatoire pour la direction : configure un secret TOTP (npm run totp-secret).' };
+      }
+      if (!body.code) {
+        return { mfaRequired: true }; // le mot de passe est bon → demander le code
+      }
+      if (!verifyTotp(user.totp, body.code)) {
+        recordLoginFailure(body.username);
+        container.audit.log({ actor: user.name, role: user.role, action: 'login.2fa_failed' });
+        reply.code(401);
+        return { error: 'Code 2FA invalide' };
+      }
+    }
+
     clearLoginFailures(body.username);
-    const { token, expiresAt } = issueToken(account);
-    container.audit.log({ actor: account.name, role: account.role, action: 'login.success' });
+    const account = { name: user.name, role: user.role, username: user.username };
+    const { token, expiresAt, jti } = issueToken(account);
+    registerSession({
+      id: jti, username: user.username, name: user.name, role: user.role,
+      ip: req.ip, userAgent: (req.headers['user-agent'] as string | undefined)?.slice(0, 120),
+      createdAt: new Date().toISOString(), expiresAt,
+    });
+    container.audit.log({ actor: account.name, role: account.role, action: needs2fa ? 'login.success_2fa' : 'login.success' });
     return {
       token, expiresAt,
       account: { name: account.name, role: account.role, roleLabel: ROLE_LABEL[account.role], permissions: ROLE_PERMISSIONS[account.role] },
@@ -46,8 +84,10 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     // (x-admin-token, compatibilité/automatisation). 401 si aucun n'est valide.
     scoped.addHook('preHandler', async (req) => {
       const jwt = bearerToken(req.headers['authorization'] as string | undefined);
-      const account = verifyToken(jwt) ?? resolveAccount(req.headers['x-admin-token'] as string | undefined);
+      const verified = verifyToken(jwt);
+      const account = verified ?? resolveAccount(req.headers['x-admin-token'] as string | undefined);
       if (!account) throw unauthorized('Session invalide ou expirée');
+      if (verified?.jti) touchSession(verified.jti, req.ip); // trace d'activité (sessions actives)
       (req as FastifyRequest & { admin: AdminAccount }).admin = account;
     });
 
@@ -254,6 +294,21 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       require(req, 'pricing:write');
       audit(req, 'zone.reset');
       return { zones: container.settings.resetZones() };
+    });
+
+    // --- Sessions actives (qui est connecté à la console) ---
+    scoped.get('/admin/sessions', async (req) => {
+      require(req, 'sessions:read');
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount & { jti?: string } };
+      return { sessions: listSessions(), self: account.jti ?? null };
+    });
+
+    scoped.post('/admin/sessions/:id/revoke', async (req) => {
+      require(req, 'sessions:write');
+      const { id } = req.params as { id: string };
+      if (!revokeSession(id)) throw notFound('Session introuvable ou expirée');
+      audit(req, 'session.revoke', id);
+      return { ok: true };
     });
 
     // --- Gestion chauffeurs (actions) ---

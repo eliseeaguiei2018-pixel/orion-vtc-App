@@ -64,9 +64,13 @@ const schema = z.object({
   // Compte super_admin par défaut (dev). En prod : définir ADMIN_USERS (mots de passe hachés).
   ADMIN_USERNAME: z.string().default('admin'),
   ADMIN_PASSWORD: z.string().default('orion-admin-dev'),
-  // Comptes avec mot de passe HACHÉ (scrypt), JSON : [{"username","name","role","salt","hash"}].
-  // Généré via `npm run hash-password`. Si défini, remplace le compte par défaut.
+  // Comptes avec mot de passe HACHÉ (scrypt), JSON :
+  // [{"username","name","role","salt","hash","totp"?}]. Généré via `npm run hash-password`
+  // (+ `npm run totp-secret` pour le secret 2FA). Si défini, remplace le compte par défaut.
   ADMIN_USERS: z.string().optional(),
+  // Si "true" : la 2FA (TOTP) devient OBLIGATOIRE pour les comptes de direction
+  // (ceo, dg, daa, coo, super_admin) — connexion refusée si le compte n'a pas de secret.
+  ADMIN_REQUIRE_2FA: z.string().default('false').transform((v) => v.toLowerCase() === 'true'),
 
   // Persistance : 'memory' (volatile, défaut/tests) ou 'sqlite' (durable, fichier local).
   // En production : 'postgres' via la même interface Repository (cf. docs).

@@ -86,8 +86,16 @@ const me = {
   name: 'PDG ORION',
   role: 'ceo',
   roleLabel: 'CEO — Président Directeur Général',
-  permissions: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'services:write', 'support:read', 'support:write', 'finance:read', 'treasury:read', 'treasury:request', 'treasury:approve', 'search:read', 'notify:read', 'notify:write', 'audit:read', 'roles:read'],
+  permissions: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'services:write', 'support:read', 'support:write', 'finance:read', 'treasury:read', 'treasury:request', 'treasury:approve', 'sessions:read', 'sessions:write', 'search:read', 'notify:read', 'notify:write', 'audit:read', 'roles:read'],
 };
+
+/** Sessions actives de démonstration (qui est connecté à la console). */
+const sessions = [
+  { id: 'sess-ceo-1', username: 'pdg', name: 'PDG ORION', role: 'ceo', ip: '102.64.18.4', userAgent: 'Chrome 138 · MacBook Pro', createdAt: iso(95), lastSeenAt: iso(0), expiresAt: iso(-600) },
+  { id: 'sess-cfo-1', username: 'cfo', name: 'Directeur Financier', role: 'cfo', ip: '102.64.18.11', userAgent: 'Edge 138 · Windows 11', createdAt: iso(220), lastSeenAt: iso(3), expiresAt: iso(-500) },
+  { id: 'sess-ops-1', username: 'awa.ops', name: 'Awa (Dispatch)', role: 'ops', ip: '154.12.9.87', userAgent: 'Chrome 138 · Windows 10', createdAt: iso(410), lastSeenAt: iso(1), expiresAt: iso(-300) },
+  { id: 'sess-sup-1', username: 'jean.support', name: 'Jean (Support)', role: 'support', ip: '154.12.9.90', userAgent: 'Firefox 141 · Ubuntu', createdAt: iso(75), lastSeenAt: iso(12), expiresAt: iso(-640) },
+];
 
 const clients = [
   { id: 'client-8842', name: 'Awa Koffi', phone: '+225 07 08 09 10 11', status: 'active', rides: 34, createdAt: iso(60 * 24 * 40), lastSeenAt: iso(120) },
@@ -239,4 +247,4 @@ function clientDetail(id: string, rows: Client[]): ClientDetail {
   };
 }
 
-export const DEMO = { overview, stats, alerts, fleet, rides, drivers, pricing, zones, me, clients, promos, services, support, audit, finance, broadcasts, treasury, search, driverDetail, clientDetail };
+export const DEMO = { overview, stats, alerts, fleet, rides, drivers, pricing, zones, me, clients, promos, services, support, audit, finance, broadcasts, treasury, sessions, search, driverDetail, clientDetail };
