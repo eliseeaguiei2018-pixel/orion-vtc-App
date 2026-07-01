@@ -15,7 +15,7 @@ import {
   ABIDJAN_PLACES, COUNTRIES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { createRide, estimate, isLiveBackend, previewQuote, rideSocketUrl, sos } from './api';
+import { cancelRide, clientId, createRide, estimate, isLiveBackend, listMyRides, previewQuote, rateRide, rideSocketUrl, sos, type RideHistoryItem, type SafeDriver } from './api';
 import { LANGUAGES, useI18n, type Lang } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubPlan, TierOption, WeddingDuration } from './types';
 
@@ -42,6 +42,15 @@ const placeIcon = (kind?: Place['kind']) => {
   if (kind === 'hub') return <IconPlane size={20} />;
   return <IconPin size={20} />;
 };
+
+/** Plaque d'immatriculation stable dérivée du matricule ORION (cohérente entre affichages). */
+function plateFromMatricule(m: string): string {
+  const n = (m.match(/\d+/)?.[0] ?? '0000').padStart(4, '0');
+  const L = 'ABCDEFGHJKLMNPRSTUVWXYZ';
+  const a = L[Number(n[0]) % L.length]!;
+  const b = L[Number(n[1]) % L.length]!;
+  return `CI-${n} ${a}${b}`;
+}
 
 /** Médaille de niveau (couleur d'accent). */
 function TierBadge({ accent, size = 50 }: { accent: string; size?: number }) {
@@ -103,15 +112,26 @@ export function App() {
     return { ...base, car };
   };
 
+  /** Construit la fiche chauffeur à partir du VRAI chauffeur matché par le backend. */
+  const driverFromSafe = (s: SafeDriver): Driver => ({
+    name: s.name,
+    matricule: s.matricule,
+    rating: s.ratingAvg,
+    trips: s.ratingCount,
+    plate: plateFromMatricule(s.matricule),
+    car: tier.cars[Math.floor(Math.random() * tier.cars.length)] ?? tier.cars[0]!,
+    color: '',
+  });
+
   const confirmRide = async () => {
     setScreen('searching');
     if (shareRides && trusted) showToast(t('toast_shared', { name: trusted.name }));
     if (isLiveBackend() && quote) {
-      const ride = await createRide(quote.lockId, 'client-demo', shareRides && trusted ? trusted : undefined);
-      if (ride?.driverId) {
-        setRideId(ride.id);
+      const res = await createRide(quote.lockId, clientId(), shareRides && trusted ? trusted : undefined);
+      if (res?.ride?.driverId) {
+        setRideId(res.ride.id);
         setLive(true);
-        setDriver(pickDriver());
+        setDriver(res.driver ? driverFromSafe(res.driver) : pickDriver());
         setCarPos(null);
         setTripPhase('enroute');
         setScreen('tracking');
@@ -128,8 +148,14 @@ export function App() {
   };
 
   const triggerSos = () => {
-    sos('client-demo', carPos ?? origin.location, rideId ?? undefined);
+    void sos(clientId(), carPos ?? origin.location, rideId ?? undefined);
     showToast(t('toast_sos'), true);
+  };
+
+  const cancelCurrentRide = () => {
+    if (live && rideId) void cancelRide(rideId);
+    showToast(t('toast_cancelled'));
+    reset();
   };
 
   const reset = () => {
@@ -190,7 +216,7 @@ export function App() {
           <TrackingScreen origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase}
             carPos={carPos} setCarPos={setCarPos} setPhase={setTripPhase} live={live} rideId={rideId} stops={stops}
             onSos={triggerSos} onShare={() => showToast(t('toast_share'))} onArrived={() => setScreen('payment')}
-            onCancel={() => { showToast(t('toast_cancelled')); reset(); }} />
+            onCancel={cancelCurrentRide} />
         )}
 
         {screen === 'payment' && destination && driver && (
@@ -200,7 +226,7 @@ export function App() {
 
         {screen === 'rating' && destination && driver && (
           <RatingScreen driver={driver} quote={quote} payment={payment} destination={destination} rating={rating}
-            setRating={setRating} onDone={() => { showToast(t('toast_done')); reset(); }} />
+            setRating={setRating} onDone={() => { if (live && rideId && rating) void rateRide(rideId, rating); showToast(t('toast_done')); reset(); }} />
         )}
 
         {screen === 'settings' && (
@@ -209,6 +235,8 @@ export function App() {
             shareRides={shareRides} setShareRides={(v) => { setShareRides(v); localStorage.setItem('orion.share', v ? '1' : '0'); }} />
         )}
         {screen === 'wallet' && <WalletScreen onBack={() => setScreen('home')} onToast={showToast} />}
+        {screen === 'history' && <HistoryScreen onBack={() => setScreen('home')} />}
+        {screen === 'help' && <HelpScreen onBack={() => setScreen('home')} />}
         {screen === 'subscription' && (
           <SubscriptionScreen currentPlan={currentPlan} onBack={() => setScreen('home')}
             onSubscribe={(p) => { setCurrentPlan(p); showToast(t('toast_subscribed')); }} />
@@ -422,6 +450,14 @@ function HomeScreen({ origin, onPick, onQuick, onNav }: {
           </button>
           <button className="feature-card" onClick={() => onNav('wedding')}>
             <IconRing size={22} /> <span>{t('menu_wedding')}</span>
+          </button>
+        </div>
+        <div className="row gap-sm rise rise-3" style={{ marginTop: 10 }}>
+          <button className="feature-card" onClick={() => onNav('history')}>
+            <IconClock size={22} /> <span>{t('menu_history')}</span>
+          </button>
+          <button className="feature-card" onClick={() => onNav('help')}>
+            <IconShield size={22} /> <span>{t('menu_help')}</span>
           </button>
         </div>
 
@@ -1059,6 +1095,150 @@ function WeddingScreen({ onBack, onReserve }: { onBack: () => void; onReserve: (
   );
 }
 
+/* ------------------------------ Historique --------------------------- */
+const RIDE_STATUS_FR: Record<string, string> = {
+  searching: 'Recherche', accepted: 'Acceptée', driver_en_route: 'En approche', arrived: 'Arrivé',
+  in_progress: 'En course', completed: 'Terminée', paid: 'Payée', rated: 'Notée', cancelled: 'Annulée', no_driver: 'Sans chauffeur',
+};
+
+function demoHistory(): RideHistoryItem[] {
+  const P = ABIDJAN_PLACES;
+  const mk = (from: Place, to: Place, tierId: string, daysAgo: number, status: string): RideHistoryItem => {
+    const tier = tierById(tierId);
+    const q = previewQuote(from.location, to.location, tier);
+    return { id: `demo-${from.id}-${to.id}-${daysAgo}`, status, origin: from.location, destination: to.location, quote: q, createdAt: new Date(Date.now() - daysAgo * 86400000).toISOString() };
+  };
+  const byId = (id: string) => P.find((p) => p.id === id) ?? P[0]!;
+  return [
+    mk(byId('home'), byId('work'), 'or', 1, 'rated'),
+    mk(byId('work'), byId('home'), 'argent', 2, 'paid'),
+    mk(byId('home'), byId('fhb'), 'diamant', 5, 'rated'),
+    mk(byId('univ'), byId('home'), 'bronze', 8, 'cancelled'),
+  ];
+}
+
+function HistoryScreen({ onBack }: { onBack: () => void }) {
+  const { t } = useI18n();
+  const [items, setItems] = useState<RideHistoryItem[] | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const remote = await listMyRides(clientId());
+      setItems(remote && remote.length ? remote : demoHistory());
+    })();
+  }, []);
+
+  const nameFor = (loc: LatLng) => {
+    let best = ABIDJAN_PLACES[0]!; let bd = Infinity;
+    for (const p of ABIDJAN_PLACES) {
+      const d = Math.hypot(p.location.lat - loc.lat, p.location.lng - loc.lng);
+      if (d < bd) { bd = d; best = p; }
+    }
+    return best.name;
+  };
+
+  return (
+    <div className="screen page">
+      <TopBar onBack={onBack} title={t('hist_title')} />
+      <div className="page-body">
+        {items === null && <p className="faint">…</p>}
+        {items?.length === 0 && <p className="faint" style={{ textAlign: 'center', padding: 24 }}>{t('hist_empty')}</p>}
+        <div className="stack">
+          {items?.map((r) => {
+            const open = openId === r.id;
+            const b = r.quote.breakdown;
+            return (
+              <div key={r.id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <button className="list-btn" style={{ width: '100%', padding: 14, display: 'flex', gap: 12, alignItems: 'center' }} onClick={() => setOpenId(open ? null : r.id)}>
+                  <span className="list-ico" style={{ color: 'var(--green)' }}><IconClock size={18} /></span>
+                  <span className="col grow" style={{ textAlign: 'start' }}>
+                    <strong style={{ fontSize: 14 }}>{nameFor(r.origin)} → {nameFor(r.destination)}</strong>
+                    <span className="faint" style={{ fontSize: 12 }}>{new Date(r.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · {RIDE_STATUS_FR[r.status] ?? r.status}</span>
+                  </span>
+                  <span className="price" style={{ fontSize: 15 }}>{formatXOF(r.quote.amount)}</span>
+                </button>
+                {open && (
+                  <div style={{ padding: '0 14px 14px' }}>
+                    <div className="divider" style={{ margin: '4px 0 10px' }} />
+                    <span className="eyebrow">{t('hist_receipt')}</span>
+                    <div style={{ marginTop: 8 }}>
+                      <div className="fare-line"><span>{t('p_base')}</span><span>{formatXOF(b.base)}</span></div>
+                      <div className="fare-line"><span>{t('p_distance')} · {(r.quote.distanceMeters / 1000).toFixed(1)} km</span><span>{formatXOF(b.distance)}</span></div>
+                      <div className="fare-line"><span>{t('p_time')}</span><span>{formatXOF(b.time)}</span></div>
+                      {b.traffic > 0 && <div className="fare-line"><span>{t('p_traffic')}</span><span>+{formatXOF(b.traffic)}</span></div>}
+                      <div className="fare-line"><span>{t('p_tva')}</span><span>{formatXOF(b.tva)}</span></div>
+                      <div className="fare-line"><span>{t('p_fee')}</span><span>{formatXOF(b.fee)}</span></div>
+                      {b.insurance > 0 && <div className="fare-line"><span>{t('ins_line')}</span><span>{formatXOF(b.insurance)}</span></div>}
+                      <div className="divider" style={{ margin: '8px 0' }} />
+                      <div className="fare-total"><span className="muted">{t('conf_total')}</span><span className="amt">{formatXOF(r.quote.amount)}</span></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------- Aide ------------------------------- */
+function HelpScreen({ onBack }: { onBack: () => void }) {
+  const { t } = useI18n();
+  const numbers = [
+    { label: 'SAMU', num: '185' },
+    { label: t('help_police'), num: '170' },
+    { label: t('help_fire'), num: '180' },
+  ];
+  const faq = [1, 2, 3].map((i) => ({ q: t(`help_q${i}`), a: t(`help_a${i}`) }));
+  const [open, setOpen] = useState<number | null>(0);
+  return (
+    <div className="screen page">
+      <TopBar onBack={onBack} title={t('help_title')} />
+      <div className="page-body">
+        <span className="eyebrow"><IconShield size={13} /> {t('help_emergency')}</span>
+        <div className="stack" style={{ margin: '10px 0 20px' }}>
+          {numbers.map((n) => (
+            <a key={n.num} className="opt list-btn" href={`tel:${n.num}`} style={{ textDecoration: 'none' }}>
+              <span className="list-ico" style={{ color: '#ff4d5e' }}><IconPhone size={18} /></span>
+              <span className="grow" style={{ textAlign: 'start', fontWeight: 600 }}>{n.label}</span>
+              <span className="plate">{n.num}</span>
+            </a>
+          ))}
+        </div>
+
+        <span className="eyebrow">{t('help_contact')}</span>
+        <div className="stack" style={{ margin: '10px 0 20px' }}>
+          <a className="opt list-btn" href="mailto:support@orion.ci" style={{ textDecoration: 'none' }}>
+            <span className="list-ico" style={{ color: 'var(--green)' }}><IconBell size={18} /></span>
+            <span className="grow" style={{ textAlign: 'start' }}>support@orion.ci</span>
+          </a>
+          <a className="opt list-btn" href="tel:+2252700000000" style={{ textDecoration: 'none' }}>
+            <span className="list-ico" style={{ color: 'var(--green)' }}><IconPhone size={18} /></span>
+            <span className="grow" style={{ textAlign: 'start' }}>+225 27 00 00 00 00</span>
+          </a>
+        </div>
+
+        <span className="eyebrow">{t('help_faq')}</span>
+        <div className="stack" style={{ margin: '10px 0 20px' }}>
+          {faq.map((f, i) => (
+            <div key={i} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              <button className="list-btn row between" style={{ width: '100%', padding: 14 }} onClick={() => setOpen(open === i ? null : i)}>
+                <strong style={{ fontSize: 14, textAlign: 'start' }}>{f.q}</strong>
+                <IconChevron size={16} color="#6f8a7e" />
+              </button>
+              {open === i && <p className="faint" style={{ fontSize: 13, padding: '0 14px 14px', margin: 0 }}>{f.a}</p>}
+            </div>
+          ))}
+        </div>
+        <p className="faint" style={{ textAlign: 'center', fontSize: 12 }}>ORION · v0.2.0 · Abidjan 🇨🇮</p>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------ Paiement ----------------------------- */
 function PaymentScreen({ quote, payment, driver, rideId, onPaid }: {
   quote: Quote | null; payment: string; driver: Driver; rideId: string | null; onPaid: () => void;
@@ -1076,7 +1256,8 @@ function PaymentScreen({ quote, payment, driver, rideId, onPaid }: {
     setPhase('success');
     if (isLiveBackend() && rideId) {
       void fetch(`${import.meta.env.VITE_API_URL}/rides/${rideId}/pay`, {
-        method: 'POST', headers: { 'content-type': 'application/json' },
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'idempotency-key': `pay-${rideId}` },
         body: JSON.stringify({ method: payment }),
       }).catch(() => {});
     }

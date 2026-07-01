@@ -121,19 +121,71 @@ export interface RideCreated {
   driverId?: string;
 }
 
+/** Chauffeur assigné renvoyé par le backend (sous-ensemble sûr, sans données perso). */
+export interface SafeDriver {
+  name: string;
+  matricule: string;
+  ratingAvg: number;
+  ratingCount: number;
+}
+
+export interface RideCreateResult {
+  ride: RideCreated;
+  driver: SafeDriver | null;
+}
+
 export interface TrustedContact {
   name: string;
   phone: string;
 }
 
+/**
+ * Identité client stable, mémorisée sur l'appareil (à remplacer par l'identité
+ * authentifiée — JWT — en production). Permet de rattacher les courses au bon client
+ * et d'afficher l'historique personnel.
+ */
+export function clientId(): string {
+  let id = localStorage.getItem('orion.clientId');
+  if (!id) {
+    id = 'client-' + Math.random().toString(36).slice(2, 10);
+    localStorage.setItem('orion.clientId', id);
+  }
+  return id;
+}
+
 /** Crée une course côté backend (idempotent). Renvoie null si backend indisponible. */
-export async function createRide(lockId: string, clientId: string, trustedContact?: TrustedContact): Promise<RideCreated | null> {
-  const res = await tryFetch<{ ride: RideCreated }>('/rides', {
+export async function createRide(lockId: string, cid: string, trustedContact?: TrustedContact): Promise<RideCreateResult | null> {
+  const res = await tryFetch<{ ride: RideCreated; driver: SafeDriver | null }>('/rides', {
     method: 'POST',
-    headers: { 'idempotency-key': `${clientId}-${lockId}` },
-    body: JSON.stringify({ clientId, lockId, trustedContact }),
+    headers: { 'idempotency-key': `${cid}-${lockId}` },
+    body: JSON.stringify({ clientId: cid, lockId, trustedContact }),
   });
-  return res?.ride ?? null;
+  return res ? { ride: res.ride, driver: res.driver ?? null } : null;
+}
+
+/** Annule une course côté serveur (libère le chauffeur). No-op en mode démo. */
+export async function cancelRide(rideId: string): Promise<void> {
+  await tryFetch(`/rides/${rideId}/transition`, { method: 'POST', body: JSON.stringify({ to: 'cancelled' }) });
+}
+
+/** Enregistre la note de la course côté serveur (met à jour la note du chauffeur). */
+export async function rateRide(rideId: string, stars: number): Promise<void> {
+  await tryFetch(`/rides/${rideId}/rate`, { method: 'POST', body: JSON.stringify({ stars }) });
+}
+
+export interface RideHistoryItem {
+  id: string;
+  status: string;
+  origin: LatLng;
+  destination: LatLng;
+  quote: Quote;
+  createdAt: string;
+}
+
+/** Historique des courses du client (null si backend indisponible → repli démo). */
+export async function listMyRides(cid: string): Promise<RideHistoryItem[] | null> {
+  const res = await tryFetch<{ rides: RideHistoryItem[] }>(`/clients/${cid}/rides`);
+  return res?.rides ?? null;
 }
 
 /** URL WebSocket de suivi d'une course (null si pas de backend configuré). */

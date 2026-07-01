@@ -76,8 +76,15 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       return created;
     });
 
+    // Chauffeur assigné (sous-ensemble sûr) : l'app cliente affiche le VRAI chauffeur
+    // matché — cohérent avec la page de partage (contact de confiance).
+    const drv = ride.driverId ? container.drivers.get(ride.driverId) : undefined;
     reply.code(201);
-    return { ride, shareUrl: ride.shareToken ? `/share/${ride.shareToken}` : null };
+    return {
+      ride,
+      driver: drv ? { name: drv.name, matricule: drv.matricule, ratingAvg: drv.ratingAvg, ratingCount: drv.ratingCount } : null,
+      shareUrl: ride.shareToken ? `/share/${ride.shareToken}` : null,
+    };
   });
 
   // Vue publique d'une course (lien partagé à un contact de confiance) — lecture seule, infos sûres.

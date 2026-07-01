@@ -30,6 +30,19 @@ Niveau de sécurité élevé pour protéger les données personnelles des client
 - Logs structurés sans données sensibles ; audit log immuable des actions admin.
 - Secrets hors du code (variables d'environnement / coffre).
 
-## 6. Signalement
+## 6. Limitations connues (à corriger avant mise en production)
+Audit interne — points identifiés, à traiter avant lancement public :
+- **Authentification client non appliquée côté API** : les endpoints acceptent un `clientId`/
+  `userId` fourni par l'appelant (pas encore de JWT). ⇒ Brancher une vraie auth
+  (OTP → JWT courts + refresh, `Authorization: Bearer`) et déduire l'identité du token,
+  jamais du corps de requête.
+- **Jeton admin simple** (`x-admin-token`) : suffisant pour la démo/pré-prod ; en production,
+  SSO/JWT + rôles + **audit log immuable** + liste d'IP.
+- **Lien de partage** : token de 8 caractères (lecture seule, sans données perso). Pour un
+  besoin élevé, allonger le token et ajouter une expiration.
+- **Rate-limiting global** en place ; ajouter des quotas par utilisateur/route sensible
+  (SOS, paiement) une fois l'auth branchée.
+
+## 7. Signalement
 Vulnérabilité ? Contact sécurité : `security@orion.ci` (à configurer). Ne pas divulguer
 publiquement avant correction.

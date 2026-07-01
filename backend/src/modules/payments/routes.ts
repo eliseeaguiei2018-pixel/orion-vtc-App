@@ -86,6 +86,10 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
         container.realtime.publish(driverRoom(ride.driverId), 'payment.received', {
           rideId: ride.id, amount: ride.quote.amount, method: result.method,
         });
+        // Fin de course : on libère le chauffeur (dispo pour une nouvelle course).
+        // La notation restant optionnelle, on ne bloque pas le chauffeur dessus.
+        container.matching.releaseLock(ride.driverId);
+        container.drivers.setAvailability(ride.driverId, 'online');
       }
       // ORION Assurance : enregistre la cotisation 2% si activée.
       const ins = ride.quote.breakdown.insurance;

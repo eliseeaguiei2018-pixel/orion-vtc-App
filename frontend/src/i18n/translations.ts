@@ -91,6 +91,13 @@ const fr: Dict = {
   wal_refund: 'Remboursement estimé (50%)', wal_transfer: 'Transférer', wal_use: 'Payer une course', toast_transfer: 'Transfert effectué',
   pay_title: 'Paiement', pay_redirect: 'Redirection vers {p}…', pay_confirm_in: 'Confirmez dans {p}', pay_success: 'Paiement reçu par ORION',
   pay_email: 'Reçu envoyé par e-mail 📧', pay_notif: 'Chauffeur & client notifiés', pay_open: 'Ouvrir {p}',
+  menu_history: 'Mes courses', menu_help: 'Aide',
+  hist_title: 'Mes courses', hist_empty: 'Aucune course pour le moment.', hist_receipt: 'Reçu détaillé',
+  help_title: 'Aide & assistance', help_emergency: 'Numéros d’urgence', help_contact: 'Contacter ORION', help_faq: 'Questions fréquentes',
+  help_police: 'Police secours', help_fire: 'Pompiers',
+  help_q1: 'Comment annuler une course ?', help_a1: 'Pendant la recherche ou avant l’arrivée du chauffeur, appuyez sur « Annuler la course ». Aucun frais avant la prise en charge.',
+  help_q2: 'Comment fonctionne le paiement ?', help_a2: 'Choisissez votre opérateur (Wave, Orange Money, MTN, Moov). Vous confirmez dans l’app opérateur, ORION reçoit le paiement et vous envoie un reçu par e-mail.',
+  help_q3: 'Que se passe-t-il en cas d’accident ?', help_a3: 'Le bouton SOS et la détection de choc alertent le SAMU (185) et la supervision ORION. Votre contact de confiance est prévenu si le partage est activé.',
 };
 
 const en: Dict = {
@@ -161,6 +168,13 @@ const en: Dict = {
   tc_share: 'Share my rides', tc_share_d: 'Your contact gets live tracking for every ride', toast_shared: 'Ride shared with {name}',
   wal_title: 'My wallet', wal_balance: 'Balance', wal_ins_year: 'Insurance contributions (this year)',
   wal_refund: 'Estimated refund (50%)', wal_transfer: 'Transfer', wal_use: 'Pay a ride', toast_transfer: 'Transfer done',
+  menu_history: 'My rides', menu_help: 'Help',
+  hist_title: 'My rides', hist_empty: 'No rides yet.', hist_receipt: 'Detailed receipt',
+  help_title: 'Help & support', help_emergency: 'Emergency numbers', help_contact: 'Contact ORION', help_faq: 'FAQ',
+  help_police: 'Police', help_fire: 'Fire brigade',
+  help_q1: 'How do I cancel a ride?', help_a1: 'While searching or before the driver arrives, tap “Cancel ride”. No fee before pickup.',
+  help_q2: 'How does payment work?', help_a2: 'Pick your operator (Wave, Orange Money, MTN, Moov). You confirm in the operator app, ORION receives the payment and emails you a receipt.',
+  help_q3: 'What happens in an accident?', help_a3: 'The SOS button and crash detection alert SAMU (185) and ORION supervision. Your trusted contact is notified if sharing is on.',
   pay_title: 'Payment', pay_redirect: 'Redirecting to {p}…', pay_confirm_in: 'Confirm in {p}', pay_success: 'Payment received by ORION',
   pay_email: 'Receipt sent by email 📧', pay_notif: 'Driver & client notified', pay_open: 'Open {p}',
 };

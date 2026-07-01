@@ -93,4 +93,6 @@ export type Screen =
   | 'settings'
   | 'subscription'
   | 'wedding'
-  | 'wallet';
+  | 'wallet'
+  | 'history'
+  | 'help';
