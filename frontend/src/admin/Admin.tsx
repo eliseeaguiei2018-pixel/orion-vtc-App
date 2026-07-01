@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, type ReactNode, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, useCallback, type ReactNode, type CSSProperties } from 'react';
 import { SupervisionMap } from './SupervisionMap';
 import { DEMO } from './demo';
 
@@ -36,6 +36,16 @@ export interface Finance { currency: string; gmv: number; revenue: number; commi
 export interface Announcement { id: string; audience: string; title: string; body: string; author: string; at: string }
 export interface StatsDay { date: string; rides: number; revenue: number; cancelled: number }
 export interface Stats { currency: string; days: number; series: StatsDay[]; totals: { rides: number; revenue: number; cancelled: number } }
+export interface Transfer {
+  id: string; amount: number; currency: string; destination: string; reason: string;
+  requestedBy: string; requestedRole: string; status: 'pending' | 'approved' | 'rejected';
+  decidedBy?: string; decisionNote?: string; createdAt: string; decidedAt?: string; executedAt?: string;
+}
+export interface SearchResults {
+  drivers: { id: string; name: string; matricule: string; category: string; availability: string }[];
+  clients: { id: string; name: string | null; phone: string | null; status: string; rides: number }[];
+  rides: { id: string; clientId: string; status: string; amount: number; createdAt: string }[];
+}
 export interface LedgerEntry { id?: string; type: string; amount: number; at?: string; createdAt?: string }
 export interface DetailRide { id: string; status: string; amount: number; createdAt: string }
 export interface DriverDetail {
@@ -72,6 +82,26 @@ async function adminPost<T>(p: string, b?: unknown): Promise<T> { const r = awai
 async function adminPut<T>(p: string, b: unknown): Promise<T> { const r = await fetch(API + p, { method: 'PUT', headers: H(), body: JSON.stringify(b) }); if (r.status === 401) onUnauthorized(); if (!r.ok) throw new Error(String(r.status)); return r.json() as Promise<T>; }
 async function adminDel(p: string): Promise<void> { const r = await fetch(API + p, { method: 'DELETE', headers: H() }); if (r.status === 401) onUnauthorized(); }
 const fcfa = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' F';
+
+/** Sirène d'alerte SAMU (deux tons), générée en WebAudio — aucun fichier audio requis. */
+function playSiren(): void {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine'; osc.connect(gain); gain.connect(ctx.destination);
+    const t = ctx.currentTime;
+    gain.gain.setValueAtTime(0.001, t);
+    gain.gain.exponentialRampToValueAtTime(0.2, t + 0.05);
+    osc.frequency.setValueAtTime(880, t);
+    osc.frequency.linearRampToValueAtTime(587, t + 0.35);
+    osc.frequency.linearRampToValueAtTime(880, t + 0.7);
+    osc.frequency.linearRampToValueAtTime(587, t + 1.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 1.35);
+    osc.start(t); osc.stop(t + 1.4);
+    osc.onended = () => { void ctx.close(); };
+  } catch { /* audio indisponible (autoplay bloqué) — la notification visuelle reste */ }
+}
 
 interface LoginResponse { token: string; expiresAt: string; account: Me }
 
@@ -139,7 +169,7 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'services' | 'audit' | 'roles';
+type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'services' | 'audit' | 'roles';
 const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'overview', label: 'Vue d’ensemble', perm: 'overview:read', icon: '📊' },
   { id: 'alerts', label: 'Supervision SAMU', perm: 'alerts:read', icon: '🚨' },
@@ -149,6 +179,7 @@ const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'drivers', label: 'Chauffeurs', perm: 'drivers:read', icon: '🧑‍✈️' },
   { id: 'clients', label: 'Clients', perm: 'clients:read', icon: '👥' },
   { id: 'finance', label: 'Finances', perm: 'finance:read', icon: '📈' },
+  { id: 'treasury', label: 'Trésorerie', perm: 'treasury:read', icon: '🏦' },
   { id: 'pricing', label: 'Tarification', perm: 'pricing:read', icon: '💰' },
   { id: 'zones', label: 'Zones & tarifs', perm: 'pricing:read', icon: '🗺️' },
   { id: 'promos', label: 'Codes promo', perm: 'promos:read', icon: '🎟️' },
@@ -181,13 +212,16 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [section, setSection] = useState<Section>('overview');
   const [driverSel, setDriverSel] = useState<DriverDetail | null>(null);
   const [clientSel, setClientSel] = useState<ClientDetail | null>(null);
+  const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const [muted, setMuted] = useState(() => localStorage.getItem('orion.admin.muted') === '1');
 
   const loadDemo = useCallback(() => {
     setMe(DEMO.me); setOv(DEMO.overview); setStats(DEMO.stats(statsDays)); setAlerts(DEMO.alerts); setFleet(DEMO.fleet);
     setRides(DEMO.rides); setDrivers(DEMO.drivers); setPricing(DEMO.pricing); setZones(DEMO.zones as Zone[]);
     setClients(DEMO.clients); setPromos(DEMO.promos as Promo[]); setServices(DEMO.services);
     setSupport(DEMO.support as Conversation[]); setAudit(DEMO.audit as AuditEntry[]);
-    setFinance(DEMO.finance); setBroadcasts(DEMO.broadcasts as Announcement[]); setLive(false);
+    setFinance(DEMO.finance); setBroadcasts(DEMO.broadcasts as Announcement[]);
+    setTransfers(DEMO.treasury as Transfer[]); setLive(false);
   }, [statsDays]);
 
   const refresh = useCallback(async () => {
@@ -206,6 +240,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
       if (has('services:read')) setServices((await adminGet<{ config: ServicesConfig }>('/admin/services')).config);
       if (has('support:read')) setSupport((await adminGet<{ conversations: Conversation[] }>('/admin/support')).conversations);
       if (has('finance:read')) setFinance(await adminGet<Finance>('/admin/finance'));
+      if (has('treasury:read')) setTransfers((await adminGet<{ transfers: Transfer[] }>('/admin/treasury')).transfers);
       if (has('notify:read')) setBroadcasts((await adminGet<{ announcements: Announcement[] }>('/admin/broadcasts')).announcements);
       if (has('audit:read')) setAudit((await adminGet<{ entries: AuditEntry[] }>('/admin/audit')).entries);
     } catch { loadDemo(); }
@@ -217,6 +252,29 @@ function Console({ onLogout }: { onLogout: () => void }) {
     const p = API ? setInterval(() => void refresh(), 6000) : undefined;
     return () => { clearInterval(t); if (p) clearInterval(p); };
   }, [refresh]);
+
+  // Alertes SAMU temps réel : sirène + notification navigateur à chaque NOUVELLE alerte.
+  const seenAlerts = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const open = alerts.filter((a) => a.status !== 'resolved' && a.status !== 'cancelled');
+    if (seenAlerts.current === null) { seenAlerts.current = new Set(open.map((a) => a.id)); return; }
+    const fresh = open.filter((a) => !seenAlerts.current!.has(a.id));
+    for (const a of fresh) seenAlerts.current!.add(a.id);
+    if (fresh.length === 0) return;
+    if (!muted) playSiren();
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const a = fresh[0]!;
+      new Notification('🚨 Alerte SAMU — ORION', {
+        body: `${a.kind === 'crash' ? 'Accident détecté' : 'SOS client'} · ${a.zoneName ?? 'Abidjan'} — ouvre la console.`,
+        tag: a.id,
+      });
+    }
+  }, [alerts, muted]);
+
+  // Autorisation de notification navigateur (demandée une seule fois).
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') void Notification.requestPermission();
+  }, []);
 
   const setAlertStatus = async (id: string, status: string) => {
     if (!API) { setAlerts((xs) => xs.map((a) => (a.id === id ? { ...a, status } : a))); return; }
@@ -314,6 +372,38 @@ function Console({ onLogout }: { onLogout: () => void }) {
     catch { setClientSel(DEMO.clientDetail(id, clients)); }
   };
 
+  // --- Trésorerie (double validation) ---
+  const requestTransfer = async (input: { amount: number; destination: string; reason: string }) => {
+    if (!API) {
+      const local: Transfer = { id: Math.random().toString(36).slice(2, 10), currency: 'XOF', status: 'pending', requestedBy: me?.name ?? 'CFO', requestedRole: me?.role ?? 'cfo', createdAt: new Date().toISOString(), ...input };
+      setTransfers((xs) => [local, ...xs]); return;
+    }
+    try { const { transfer } = await adminPost<{ transfer: Transfer }>('/admin/treasury/request', input); setTransfers((xs) => [transfer, ...xs]); } catch { /* */ }
+  };
+  const decideTransfer = async (id: string, action: 'approve' | 'reject', note?: string) => {
+    if (!API) {
+      setTransfers((xs) => xs.map((x) => (x.id === id && x.status === 'pending'
+        ? { ...x, status: action === 'approve' ? 'approved' : 'rejected', decidedBy: me?.name, decisionNote: note, decidedAt: new Date().toISOString(), executedAt: action === 'approve' ? new Date().toISOString() : undefined }
+        : x)));
+      return;
+    }
+    try {
+      const { transfer } = await adminPost<{ transfer: Transfer }>(`/admin/treasury/${id}/${action}`, note ? { note } : {});
+      setTransfers((xs) => xs.map((x) => (x.id === transfer.id ? transfer : x)));
+    } catch { /* séparation des tâches ou déjà décidé : on rafraîchit */ void refresh(); }
+  };
+
+  // --- Recherche globale ---
+  const runSearch = async (q: string): Promise<SearchResults> => {
+    if (!API) return DEMO.search(q);
+    try { return await adminGet<SearchResults>(`/admin/search?q=${encodeURIComponent(q)}`); }
+    catch { return { drivers: [], clients: [], rides: [] }; }
+  };
+
+  const toggleMute = () => {
+    setMuted((m) => { localStorage.setItem('orion.admin.muted', m ? '0' : '1'); return !m; });
+  };
+
   if (!me || !ov) return <div className="adm-loading">Chargement de la console…</div>;
 
   const can = (p: string) => me.permissions.includes(p);
@@ -347,7 +437,18 @@ function Console({ onLogout }: { onLogout: () => void }) {
       <main className="adm-main">
         <header className="adm-mhead">
           <h2>{NAV.find((n) => n.id === section)?.label}</h2>
+          {can('search:read') && (
+            <GlobalSearch
+              onSearch={runSearch}
+              onOpenDriver={(id) => void openDriver(id)}
+              onOpenClient={(id) => void openClient(id)}
+              onOpenRide={() => setSection('rides')}
+            />
+          )}
           <div className="adm-top-right">
+            <button className={`adm-btn ghost adm-mute${muted ? ' off' : ''}`} title={muted ? 'Réactiver la sirène SAMU' : 'Couper la sirène SAMU'} onClick={toggleMute}>
+              {muted ? '🔕' : '🔔'}
+            </button>
             <span className={`adm-live ${live ? 'on' : 'demo'}`}>{live ? '● EN DIRECT' : '● MODE DÉMO'}</span>
             <span className="adm-clock">{now.toLocaleTimeString('fr-FR')}</span>
             <button className="adm-btn ghost" onClick={() => void refresh()}>Rafraîchir</button>
@@ -362,6 +463,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} onOpen={openClient} />}
         {section === 'notify' && <NotifySection broadcasts={broadcasts} canWrite={can('notify:write')} onSend={sendBroadcast} />}
         {section === 'finance' && finance && <FinanceSection finance={finance} onExport={exportCsv} canExport={can('rides:read')} />}
+        {section === 'treasury' && <TreasurySection transfers={transfers} meName={me.name} canRequest={can('treasury:request')} canApprove={can('treasury:approve')} onRequest={requestTransfer} onDecide={decideTransfer} />}
         {section === 'pricing' && pricing && <PricingEditor pricing={pricing} canWrite={can('pricing:write')} onSave={savePricing} />}
         {section === 'zones' && <ZonesSection zones={zones} canWrite={can('pricing:write')} onSave={saveZone} onToggle={toggleZone} onDelete={deleteZone} onReset={resetZones} />}
         {section === 'promos' && <PromosSection promos={promos} canWrite={can('promos:write')} onSave={savePromo} onToggle={togglePromo} onDelete={deletePromo} />}
@@ -881,11 +983,167 @@ function PricingEditor({ pricing, canWrite, onSave }: { pricing: Pricing; canWri
 }
 
 /* ------------------------------ Rôles -------------------------------- */
-const ROLE_MATRIX: { role: string; label: string; desc: string }[] = [
-  { role: 'super_admin', label: 'Super Admin', desc: 'Accès total — tout le système ORION.' },
-  { role: 'ops', label: 'Opérations / Dispatch', desc: 'Courses, chauffeurs, supervision SAMU.' },
-  { role: 'finance', label: 'Finance', desc: 'Tarification (prix), revenus, courses.' },
-  { role: 'support', label: 'Support client', desc: 'Courses, clients, alertes (lecture).' },
+/* --------------------------- Recherche globale ----------------------- */
+function GlobalSearch({ onSearch, onOpenDriver, onOpenClient, onOpenRide }: {
+  onSearch: (q: string) => Promise<SearchResults>;
+  onOpenDriver: (id: string) => void; onOpenClient: (id: string) => void; onOpenRide: (id: string) => void;
+}) {
+  const [q, setQ] = useState('');
+  const [results, setResults] = useState<SearchResults | null>(null);
+  const [open, setOpen] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const change = (value: string) => {
+    setQ(value);
+    if (timer.current) clearTimeout(timer.current);
+    if (value.trim().length < 2) { setResults(null); setOpen(false); return; }
+    timer.current = setTimeout(async () => {
+      const r = await onSearch(value);
+      setResults(r); setOpen(true);
+    }, 220);
+  };
+  const close = () => { setOpen(false); setQ(''); setResults(null); };
+  const empty = results && results.drivers.length === 0 && results.clients.length === 0 && results.rides.length === 0;
+
+  return (
+    <div className="adm-search">
+      <input
+        className="adm-search-input" type="search" placeholder="🔎 Rechercher chauffeur, client, course…"
+        value={q} onChange={(e) => change(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Escape') close(); }}
+      />
+      {open && results && (
+        <div className="adm-search-pop">
+          {empty && <p className="adm-muted" style={{ margin: 8 }}>Aucun résultat pour « {q} ».</p>}
+          {results.drivers.length > 0 && (
+            <div className="adm-search-group">
+              <span className="adm-search-cat">Chauffeurs</span>
+              {results.drivers.map((d) => (
+                <button key={d.id} className="adm-search-item" onClick={() => { onOpenDriver(d.id); close(); }}>
+                  <span>🧑‍✈️ {d.name}</span><span className="mono adm-muted">{d.matricule}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {results.clients.length > 0 && (
+            <div className="adm-search-group">
+              <span className="adm-search-cat">Clients</span>
+              {results.clients.map((c) => (
+                <button key={c.id} className="adm-search-item" onClick={() => { onOpenClient(c.id); close(); }}>
+                  <span>👤 {c.name ?? c.id}</span><span className="mono adm-muted">{c.phone ?? c.id}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {results.rides.length > 0 && (
+            <div className="adm-search-group">
+              <span className="adm-search-cat">Courses</span>
+              {results.rides.map((r) => (
+                <button key={r.id} className="adm-search-item" onClick={() => { onOpenRide(r.id); close(); }}>
+                  <span>🚗 {r.id.slice(0, 12)}</span><span className="adm-muted">{rideStatusLabel(r.status)} · {fcfa(r.amount)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------- Trésorerie (double validation) ------------------- */
+const TR_STATUS: Record<string, { label: string; cls: string }> = {
+  pending: { label: 'En attente d’aval', cls: 'tr-pending' },
+  approved: { label: 'Approuvé & exécuté', cls: 'tr-approved' },
+  rejected: { label: 'Rejeté', cls: 'tr-rejected' },
+};
+
+function TreasurySection({ transfers, meName, canRequest, canApprove, onRequest, onDecide }: {
+  transfers: Transfer[]; meName: string; canRequest: boolean; canApprove: boolean;
+  onRequest: (i: { amount: number; destination: string; reason: string }) => void;
+  onDecide: (id: string, action: 'approve' | 'reject', note?: string) => void;
+}) {
+  const [amount, setAmount] = useState(1_000_000);
+  const [destination, setDestination] = useState('');
+  const [reason, setReason] = useState('');
+  const pending = transfers.filter((t) => t.status === 'pending');
+  const approvedTotal = transfers.filter((t) => t.status === 'approved').reduce((s, t) => s + t.amount, 0);
+  const submit = () => {
+    if (!destination.trim() || !reason.trim() || amount <= 0) return;
+    onRequest({ amount, destination: destination.trim(), reason: reason.trim() });
+    setDestination(''); setReason('');
+  };
+  return (
+    <>
+      <div className="adm-card">
+        <p className="adm-muted" style={{ margin: 0 }}>
+          <strong>Double validation obligatoire</strong> : le Directeur Financier <em>demande</em> un virement,
+          seul un membre de la direction (CEO, DG, DAA, COO) peut l'<em>approuver</em> ou le <em>rejeter</em>.
+          Personne ne peut approuver sa propre demande. Chaque décision est journalisée.
+        </p>
+      </div>
+      <section className="adm-kpis">
+        <Kpi label="Demandes en attente" value={String(pending.length)} sub="à valider par la direction" tone={pending.length ? 'danger' : 'muted'} />
+        <Kpi label="Virements exécutés" value={fcfa(approvedTotal)} sub={`${transfers.filter((t) => t.status === 'approved').length} virement(s)`} tone="mint" />
+        <Kpi label="Total demandes" value={String(transfers.length)} sub="historique complet" tone="teal" />
+        <Kpi label="Votre pouvoir" value={canApprove ? 'Approbation' : canRequest ? 'Demande' : 'Lecture'} sub={canApprove ? 'niveau direction' : canRequest ? 'aval requis' : 'consultation'} tone="green" />
+      </section>
+      {canRequest && (
+        <div className="adm-card">
+          <div className="adm-card-h"><h3>Demander un virement</h3><span className="adm-muted">soumis à l'aval de la direction</span></div>
+          <div className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <label className="price-field"><span>Montant (F CFA)</span><input type="number" min={1} step={50000} value={amount} onChange={(e) => setAmount(Number(e.target.value))} /></label>
+            <label className="price-field" style={{ minWidth: 260 }}><span>Destination (banque / compte)</span><input value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="SGCI — CI93 SG01 0002 4518" /></label>
+            <label className="price-field" style={{ minWidth: 220 }}><span>Motif</span><input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Salaires, fournisseur…" /></label>
+            <button className="adm-btn solid" onClick={submit}>Soumettre</button>
+          </div>
+        </div>
+      )}
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Virements</h3><span className="adm-muted">{transfers.length}</span></div>
+        {transfers.length === 0 && <p className="adm-empty">Aucun virement pour l'instant.</p>}
+        <table className="adm-table">
+          <thead><tr><th>Réf.</th><th className="r">Montant</th><th>Destination</th><th>Motif</th><th>Demandé par</th><th>Statut</th><th>Décision</th>{canApprove && <th>Actions</th>}</tr></thead>
+          <tbody>
+            {transfers.map((t) => (
+              <tr key={t.id}>
+                <td className="mono">{t.id}</td>
+                <td className="r"><strong>{fcfa(t.amount)}</strong></td>
+                <td>{t.destination}</td>
+                <td>{t.reason}</td>
+                <td>{t.requestedBy}</td>
+                <td><span className={`adm-pill ${TR_STATUS[t.status]?.cls ?? ''}`}>{TR_STATUS[t.status]?.label ?? t.status}</span></td>
+                <td className="adm-muted" style={{ fontSize: 12 }}>{t.decidedBy ? `${t.decidedBy}${t.decisionNote ? ` — ${t.decisionNote}` : ''}` : '—'}</td>
+                {canApprove && (
+                  <td>
+                    {t.status === 'pending' && t.requestedBy !== meName && (
+                      <div className="row" style={{ gap: 6 }}>
+                        <button className="adm-btn xs solid" onClick={() => onDecide(t.id, 'approve')}>Approuver</button>
+                        <button className="adm-btn xs" onClick={() => onDecide(t.id, 'reject', 'Refusé par la direction')}>Rejeter</button>
+                      </div>
+                    )}
+                    {t.status === 'pending' && t.requestedBy === meName && <span className="adm-muted" style={{ fontSize: 12 }}>Votre demande — aval d'un autre dirigeant requis</span>}
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+const ROLE_MATRIX: { role: string; label: string; desc: string; tier?: 'exec' }[] = [
+  { role: 'ceo', label: 'CEO — Président Directeur Général', desc: 'Accès TOTAL au système, y compris l’approbation des virements bancaires.', tier: 'exec' },
+  { role: 'dg', label: 'Directeur Général', desc: 'Accès total — direction générale, approbation des virements.', tier: 'exec' },
+  { role: 'daa', label: 'Dir. des Affaires Administratives', desc: 'Accès total — administration, approbation des virements.', tier: 'exec' },
+  { role: 'coo', label: 'Directeur des Opérations', desc: 'Accès total — opérations, approbation des virements.', tier: 'exec' },
+  { role: 'super_admin', label: 'Super Admin (technique)', desc: 'Accès technique complet (équipe plateforme).', tier: 'exec' },
+  { role: 'cfo', label: 'Directeur Financier (CFO)', desc: 'Finance complète + DEMANDE de virement — l’exécution exige l’aval d’un dirigeant (double validation).' },
+  { role: 'ops', label: 'Opérations / Dispatch', desc: 'Courses, chauffeurs, supervision SAMU, recherche.' },
+  { role: 'finance', label: 'Équipe Finance', desc: 'Revenus, promos, trésorerie en lecture seule.' },
+  { role: 'support', label: 'Support client', desc: 'Chat client, clients, courses, alertes (lecture).' },
   { role: 'viewer', label: 'Observateur', desc: 'Lecture seule sur l’ensemble.' },
 ];
 function RolesSection({ me }: { me: Me }) {
@@ -900,7 +1158,10 @@ function RolesSection({ me }: { me: Me }) {
           </div>
         ))}
       </div>
-      <p className="adm-muted" style={{ marginTop: 14, fontSize: 12 }}>Les comptes et rôles se configurent côté serveur (ADMIN_ACCOUNTS). En production : SSO/JWT + audit log immuable.</p>
+      <p className="adm-muted" style={{ marginTop: 14, fontSize: 12 }}>
+        Les comptes se configurent côté serveur (ADMIN_USERS, mots de passe hachés — <code>npm run hash-password</code>).
+        Seuls les rôles de direction (CEO, DG, DAA, COO) peuvent approuver un virement : la double validation est imposée par le serveur, pas seulement par l'interface.
+      </p>
     </div>
   );
 }

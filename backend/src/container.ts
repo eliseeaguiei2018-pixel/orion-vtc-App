@@ -24,6 +24,7 @@ import { PromoService, type Promo } from './modules/promos/service.js';
 import { SupportService } from './modules/support/service.js';
 import { NotificationService } from './modules/notifications/service.js';
 import { AuditService } from './modules/admin/audit.js';
+import { TreasuryService, type Transfer } from './modules/treasury/service.js';
 import type { Ride } from './modules/rides/store.js';
 import type { LedgerEntry } from './modules/wallet/service.js';
 import type { Subscription } from './modules/subscriptions/service.js';
@@ -57,6 +58,7 @@ export interface Container {
   support: SupportService;
   notifications: NotificationService;
   audit: AuditService;
+  treasury: TreasuryService;
 }
 
 export function createContainer(): Container {
@@ -111,6 +113,7 @@ export function createContainer(): Container {
     settings,
     promos,
     clients: new ClientStore(createRepository<Client>('clients')),
+    treasury: new TreasuryService(createRepository<Transfer>('treasury')),
     support: new SupportService(realtime),
     notifications: new NotificationService(realtime),
     audit: new AuditService(),

@@ -94,8 +94,12 @@ Le dashboard d'administration est une **page séparée** de l'app cliente :
   - **Couches d'accès par rôle** : définir les comptes via `ADMIN_USERS` (JSON, mots de
     passe **hachés** — jamais en clair), généré avec `npm run hash-password -- <user> <mdp> <role>`.
     Ex. `[{"username":"awa","name":"Awa (Finance)","role":"finance","salt":"…","hash":"…"}]`.
-    Rôles : `super_admin`, `ops`, `finance`, `support`, `viewer`. Chaque rôle ne voit/agit
-    que sur ses sections.
+    Rôles : **direction** `ceo`, `dg`, `daa`, `coo` (accès total + approbation des virements),
+    `super_admin` (technique), `cfo` (finance complète, virements **sur aval de la direction**),
+    puis `ops`, `finance`, `support`, `viewer`. Chaque rôle ne voit/agit que sur ses sections.
+  - **Trésorerie (double validation)** : le CFO soumet une demande de virement ; seul un
+    dirigeant peut l'approuver (exécution) ou la rejeter — jamais sa propre demande.
+  - **Anti-brute-force** : 5 échecs de connexion → compte verrouillé 15 minutes.
   - **Automatisation / intégrations** : l'en-tête `x-admin-token` (variable `ADMIN_TOKEN`)
     reste accepté pour les scripts serveur-à-serveur, en complément du login JWT humain.
   - Sections de la console : Vue d'ensemble, Supervision SAMU, Courses, Chauffeurs,

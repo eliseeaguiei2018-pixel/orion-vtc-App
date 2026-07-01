@@ -65,10 +65,10 @@ const zones = [
 ];
 
 const me = {
-  name: 'Super Admin',
-  role: 'super_admin',
-  roleLabel: 'Super Admin',
-  permissions: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'services:write', 'support:read', 'support:write', 'finance:read', 'notify:read', 'notify:write', 'audit:read', 'roles:read'],
+  name: 'PDG ORION',
+  role: 'ceo',
+  roleLabel: 'CEO — Président Directeur Général',
+  permissions: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'services:write', 'support:read', 'support:write', 'finance:read', 'treasury:read', 'treasury:request', 'treasury:approve', 'search:read', 'notify:read', 'notify:write', 'audit:read', 'roles:read'],
 };
 
 const clients = [
@@ -117,6 +117,28 @@ const broadcasts = [
   { id: 'b1', audience: 'clients', title: 'Wi-Fi gratuit à bord 🚀', body: 'Profitez du Wi-Fi illimité gratuit sur toutes vos courses ORION.', author: 'Support ORION', at: iso(120) },
   { id: 'b2', audience: 'all', title: 'Prix en baisse', body: 'ORION, toujours moins cher — profitez de nos nouveaux tarifs.', author: 'Awa (Finance)', at: iso(600) },
 ];
+
+/** Trésorerie de démonstration : virements en attente / approuvés / rejetés. */
+const treasury = [
+  { id: 'tr-88f2', amount: 4_500_000, currency: 'XOF', destination: 'SGCI — CI93 SG01 0002 4518', reason: 'Salaires juillet (siège Abidjan)', requestedBy: 'Directeur Financier', requestedRole: 'cfo', status: 'pending', createdAt: iso(45) },
+  { id: 'tr-51ab', amount: 1_200_000, currency: 'XOF', destination: 'NSIA Banque — CI042 0114 552', reason: 'Fournisseur flotte (pneus + entretien)', requestedBy: 'Directeur Financier', requestedRole: 'cfo', status: 'pending', createdAt: iso(180) },
+  { id: 'tr-3c77', amount: 2_800_000, currency: 'XOF', destination: 'SGCI — CI93 SG01 0002 4518', reason: 'Loyer T3 + charges bureaux', requestedBy: 'Directeur Financier', requestedRole: 'cfo', status: 'approved', decidedBy: 'PDG ORION', createdAt: iso(60 * 24 * 3), decidedAt: iso(60 * 24 * 3 - 90), executedAt: iso(60 * 24 * 3 - 90) },
+  { id: 'tr-9d10', amount: 9_000_000, currency: 'XOF', destination: 'Ecobank — CI059 8871 003', reason: 'Campagne marketing (à re-détailler)', requestedBy: 'Directeur Financier', requestedRole: 'cfo', status: 'rejected', decidedBy: 'PDG ORION', decisionNote: 'Budget à ventiler par canal avant aval', createdAt: iso(60 * 24 * 6), decidedAt: iso(60 * 24 * 6 - 200) },
+];
+
+/** Recherche globale de démonstration (filtre local sur les données simulées). */
+function search(q: string) {
+  const needle = q.trim().toLowerCase();
+  if (needle.length < 2) return { drivers: [], clients: [], rides: [] };
+  return {
+    drivers: drivers.filter((d) => d.name.toLowerCase().includes(needle) || d.matricule.toLowerCase().includes(needle) || d.id.includes(needle)).slice(0, 8)
+      .map((d) => ({ id: d.id, name: d.name, matricule: d.matricule, category: d.category, availability: d.availability })),
+    clients: clients.filter((c) => c.id.includes(needle) || (c.name ?? '').toLowerCase().includes(needle) || (c.phone ?? '').includes(needle)).slice(0, 8)
+      .map((c) => ({ id: c.id, name: c.name ?? null, phone: c.phone ?? null, status: c.status, rides: c.rides })),
+    rides: rides.filter((r) => r.id.toLowerCase().includes(needle) || r.clientId.toLowerCase().includes(needle)).slice(0, 8)
+      .map((r) => ({ id: r.id, clientId: r.clientId, status: r.status, amount: r.amount, createdAt: r.createdAt })),
+  };
+}
 
 /** Séries quotidiennes de démonstration (tendances) — variation pseudo-aléatoire stable. */
 function stats(days: number) {
@@ -183,4 +205,4 @@ function clientDetail(id: string, rows: Client[]): ClientDetail {
   };
 }
 
-export const DEMO = { overview, stats, alerts, fleet, rides, drivers, pricing, zones, me, clients, promos, services, support, audit, finance, broadcasts, driverDetail, clientDetail };
+export const DEMO = { overview, stats, alerts, fleet, rides, drivers, pricing, zones, me, clients, promos, services, support, audit, finance, broadcasts, treasury, search, driverDetail, clientDetail };

@@ -5,7 +5,7 @@ import { parse } from '../../core/validate.js';
 import { notFound, unauthorized, forbidden } from '../../core/errors.js';
 import { AdminService } from './service.js';
 import { can, resolveAccount, ROLE_PERMISSIONS, ROLE_LABEL, type AdminAccount, type Permission } from './roles.js';
-import { login, issueToken, verifyToken, bearerToken } from './auth.js';
+import { login, issueToken, verifyToken, bearerToken, lockedFor, recordLoginFailure, clearLoginFailures } from './auth.js';
 
 /**
  * Console Admin — centre de contrôle ORION (boîte noire).
@@ -14,14 +14,23 @@ import { login, issueToken, verifyToken, bearerToken } from './auth.js';
  */
 export async function adminRoutes(app: FastifyInstance, container: Container): Promise<void> {
   // Connexion (public) : login + mot de passe → session JWT signée.
+  // Anti-brute-force : 5 échecs → compte verrouillé 15 minutes (journalisé).
   app.post('/admin/login', async (req, reply) => {
     const body = parse(z.object({ username: z.string().min(1).max(80), password: z.string().min(1).max(200) }), req.body);
+    const lock = lockedFor(body.username);
+    if (lock > 0) {
+      container.audit.log({ actor: body.username, role: 'viewer', action: 'login.locked' });
+      reply.code(429);
+      return { error: `Compte temporairement verrouillé (${Math.ceil(lock / 60)} min). Contacte un administrateur.` };
+    }
     const account = login(body.username, body.password);
     if (!account) {
+      recordLoginFailure(body.username);
       container.audit.log({ actor: body.username, role: 'viewer', action: 'login.failed' });
       reply.code(401);
       return { error: 'Identifiants invalides' };
     }
+    clearLoginFailures(body.username);
     const { token, expiresAt } = issueToken(account);
     container.audit.log({ actor: account.name, role: account.role, action: 'login.success' });
     return {
@@ -70,6 +79,62 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       require(req, 'overview:read');
       const q = parse(z.object({ days: z.coerce.number().int().min(1).max(90).optional() }), req.query);
       return admin.stats(q.days ?? 7);
+    });
+
+    // --- Recherche globale (résultats limités aux permissions du rôle) ---
+    scoped.get('/admin/search', async (req) => {
+      require(req, 'search:read');
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const q = parse(z.object({ q: z.string().max(80).default('') }), req.query);
+      return admin.search(q.q, {
+        drivers: can(account.role, 'drivers:read'),
+        clients: can(account.role, 'clients:read'),
+        rides: can(account.role, 'rides:read'),
+      });
+    });
+
+    // --- Trésorerie : virements à DOUBLE VALIDATION (maker-checker) ---
+    scoped.get('/admin/treasury', async (req) => {
+      require(req, 'treasury:read');
+      return { transfers: container.treasury.list(), pending: container.treasury.pendingCount() };
+    });
+
+    scoped.post('/admin/treasury/request', async (req) => {
+      require(req, 'treasury:request');
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const body = parse(z.object({
+        amount: z.number().positive().max(1_000_000_000),
+        destination: z.string().min(3).max(120),
+        reason: z.string().min(3).max(300),
+      }), req.body);
+      const transfer = container.treasury.request({ ...body, requestedBy: account.name, requestedRole: account.role });
+      audit(req, 'treasury.request', transfer.id, { amount: transfer.amount, destination: transfer.destination });
+      return { transfer };
+    });
+
+    scoped.post('/admin/treasury/:id/approve', async (req, reply) => {
+      require(req, 'treasury:approve');
+      const { id } = req.params as { id: string };
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const result = container.treasury.approve(id, account.name);
+      if (result === 'self') {
+        reply.code(403);
+        return { error: 'Séparation des tâches : impossible d’approuver sa propre demande.' };
+      }
+      if (!result) throw notFound('Demande introuvable ou déjà décidée');
+      audit(req, 'treasury.approve', id, { amount: result.amount, destination: result.destination });
+      return { transfer: result };
+    });
+
+    scoped.post('/admin/treasury/:id/reject', async (req) => {
+      require(req, 'treasury:approve');
+      const { id } = req.params as { id: string };
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const body = parse(z.object({ note: z.string().max(300).optional() }), req.body ?? {});
+      const transfer = container.treasury.reject(id, account.name, body.note);
+      if (!transfer) throw notFound('Demande introuvable ou déjà décidée');
+      audit(req, 'treasury.reject', id, { note: body.note });
+      return { transfer };
     });
 
     scoped.get('/admin/rides', async (req) => {

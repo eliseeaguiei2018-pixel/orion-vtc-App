@@ -2,9 +2,25 @@ import { config } from '../../config/index.js';
 
 /**
  * Contrôle d'accès par rôle (RBAC) — couches d'accès selon le poste dans ORION.
- * MVP : un jeton = un compte = un rôle. En production : SSO/JWT + rôles + audit log.
+ *
+ * HIÉRARCHIE EXÉCUTIVE : seuls le CEO, le Directeur Général, le Directeur des
+ * Affaires Administratives et le Directeur des Opérations ont l'accès COMPLET,
+ * y compris l'APPROBATION des virements (treasury:approve). Le Directeur
+ * Financier (CFO) voit tout le volet financier et peut DEMANDER un virement
+ * (treasury:request) mais ne peut jamais l'exécuter seul : double validation
+ * (maker-checker) obligatoire par un dirigeant.
  */
-export type Role = 'super_admin' | 'ops' | 'finance' | 'support' | 'viewer';
+export type Role =
+  | 'super_admin' // accès technique complet (équivalent direction)
+  | 'ceo'         // Président Directeur Général — accès total
+  | 'dg'          // Directeur Général — accès total
+  | 'daa'         // Directeur des Affaires Administratives — accès total
+  | 'coo'         // Directeur des Opérations — accès total
+  | 'cfo'         // Directeur Financier — finance complète, virements sur approbation
+  | 'ops'         // Équipe opérations / dispatch
+  | 'finance'     // Équipe finance (lecture trésorerie, pas de demande)
+  | 'support'     // Support client
+  | 'viewer';     // Observateur (lecture seule)
 
 export type Permission =
   | 'overview:read'
@@ -17,6 +33,8 @@ export type Permission =
   | 'services:read' | 'services:write'
   | 'support:read' | 'support:write'
   | 'finance:read'
+  | 'treasury:read' | 'treasury:request' | 'treasury:approve'
+  | 'search:read'
   | 'notify:read' | 'notify:write'
   | 'audit:read'
   | 'roles:read';
@@ -25,21 +43,36 @@ const ALL: Permission[] = [
   'overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write',
   'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'pricing:read', 'pricing:write',
   'promos:read', 'promos:write', 'services:read', 'services:write', 'support:read', 'support:write',
-  'finance:read', 'notify:read', 'notify:write', 'audit:read', 'roles:read',
+  'finance:read', 'treasury:read', 'treasury:request', 'treasury:approve', 'search:read',
+  'notify:read', 'notify:write', 'audit:read', 'roles:read',
 ];
 
 /** Matrice rôle → permissions (couches d'accès selon le poste). */
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   super_admin: ALL,
-  ops: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'support:read', 'support:write', 'services:read', 'notify:read', 'notify:write'],
-  finance: ['overview:read', 'rides:read', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'finance:read', 'notify:read'],
-  support: ['overview:read', 'rides:read', 'clients:read', 'clients:write', 'alerts:read', 'support:read', 'support:write', 'promos:read', 'notify:read', 'notify:write'],
-  viewer: ['overview:read', 'rides:read', 'drivers:read', 'clients:read', 'alerts:read', 'pricing:read', 'promos:read', 'services:read', 'support:read', 'finance:read', 'notify:read'],
+  ceo: ALL,
+  dg: ALL,
+  daa: ALL,
+  coo: ALL,
+  // CFO : pilotage financier complet + DEMANDE de virement — jamais l'approbation.
+  cfo: ['overview:read', 'rides:read', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'finance:read', 'treasury:read', 'treasury:request', 'search:read', 'notify:read', 'audit:read', 'roles:read'],
+  ops: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'support:read', 'support:write', 'services:read', 'search:read', 'notify:read', 'notify:write'],
+  finance: ['overview:read', 'rides:read', 'pricing:read', 'promos:read', 'promos:write', 'services:read', 'finance:read', 'treasury:read', 'search:read', 'notify:read'],
+  support: ['overview:read', 'rides:read', 'clients:read', 'clients:write', 'alerts:read', 'support:read', 'support:write', 'promos:read', 'search:read', 'notify:read', 'notify:write'],
+  viewer: ['overview:read', 'rides:read', 'drivers:read', 'clients:read', 'alerts:read', 'pricing:read', 'promos:read', 'services:read', 'support:read', 'finance:read', 'search:read', 'notify:read'],
 };
 
 export const ROLE_LABEL: Record<Role, string> = {
-  super_admin: 'Super Admin', ops: 'Opérations / Dispatch', finance: 'Finance',
-  support: 'Support client', viewer: 'Observateur',
+  super_admin: 'Super Admin (technique)',
+  ceo: 'CEO — Président Directeur Général',
+  dg: 'Directeur Général',
+  daa: 'Dir. des Affaires Administratives',
+  coo: 'Directeur des Opérations',
+  cfo: 'Directeur Financier (CFO)',
+  ops: 'Opérations / Dispatch',
+  finance: 'Équipe Finance',
+  support: 'Support client',
+  viewer: 'Observateur',
 };
 
 export interface AdminAccount {

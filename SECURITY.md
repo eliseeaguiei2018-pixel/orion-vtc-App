@@ -38,10 +38,16 @@ Audit interne — points identifiés, à traiter avant lancement public :
   jamais du corps de requête.
 - **Console admin** : authentification par **login + mot de passe** (haché scrypt + sel) →
   **session JWT signée HS256** (expiration configurable, `Authorization: Bearer`). RBAC par
-  rôle + connexions (réussies/échouées) journalisées dans l'audit log. L'en-tête
+  rôle + connexions (réussies/échouées) journalisées dans l'audit log. **Anti-brute-force** :
+  5 échecs → compte verrouillé 15 minutes (`login.locked` journalisé). L'en-tête
   `x-admin-token` reste accepté pour l'automatisation serveur-à-serveur. Durcissements
   restants pour la production : rotation de `ADMIN_JWT_SECRET`, refresh tokens, audit log
   immuable, liste d'IP, éventuel SSO d'entreprise (OIDC).
+- **Hiérarchie exécutive & trésorerie (maker-checker)** : seuls les rôles de direction
+  (`ceo`, `dg`, `daa`, `coo`, `super_admin`) ont l'accès complet, dont **l'approbation des
+  virements** (`treasury:approve`). Le **CFO** demande (`treasury:request`) mais ne peut
+  jamais exécuter seul : double validation imposée **côté serveur**, séparation des tâches
+  (interdiction d'approuver sa propre demande), chaque étape auditée.
 - **Lien de partage** : token de 8 caractères (lecture seule, sans données perso). Pour un
   besoin élevé, allonger le token et ajouter une expiration.
 - **Rate-limiting global** en place ; ajouter des quotas par utilisateur/route sensible

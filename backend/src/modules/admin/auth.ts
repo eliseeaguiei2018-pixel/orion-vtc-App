@@ -80,6 +80,36 @@ export function login(username: string, password: string): AdminAccount | null {
   return { name: user.name, role: user.role, username: user.username };
 }
 
+/* --------------------- Anti-brute-force (verrouillage) --------------------- */
+const MAX_FAILS = 5;
+const LOCK_MS = 15 * 60_000; // 15 minutes
+
+const attempts = new Map<string, { fails: number; lockedUntil: number }>();
+
+/** Secondes restantes de verrouillage pour ce compte (0 = non verrouillé). */
+export function lockedFor(username: string): number {
+  const a = attempts.get(username);
+  if (!a) return 0;
+  const remaining = a.lockedUntil - Date.now();
+  return remaining > 0 ? Math.ceil(remaining / 1000) : 0;
+}
+
+/** Enregistre un échec ; verrouille le compte après MAX_FAILS tentatives. */
+export function recordLoginFailure(username: string): void {
+  const a = attempts.get(username) ?? { fails: 0, lockedUntil: 0 };
+  a.fails += 1;
+  if (a.fails >= MAX_FAILS) {
+    a.lockedUntil = Date.now() + LOCK_MS;
+    a.fails = 0; // le compteur repart après le verrou
+  }
+  attempts.set(username, a);
+}
+
+/** Réinitialise le compteur après une connexion réussie. */
+export function clearLoginFailures(username: string): void {
+  attempts.delete(username);
+}
+
 /* ----------------------------------- JWT ----------------------------------- */
 const b64url = (buf: Buffer | string): string =>
   Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');

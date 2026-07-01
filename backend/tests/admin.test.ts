@@ -185,3 +185,81 @@ test('admin : login JWT — succès, accès protégé, échec identifiants', asy
   const forged = await app.inject({ method: 'GET', url: '/admin/me', headers: { authorization: `Bearer ${token}x` } });
   assert.equal(forged.statusCode, 401);
 });
+
+test('admin : hiérarchie — seuls les dirigeants approuvent les virements', async () => {
+  const { ROLE_PERMISSIONS } = await import('../src/modules/admin/roles.js');
+  // Dirigeants : accès complet, y compris l'approbation.
+  for (const r of ['ceo', 'dg', 'daa', 'coo', 'super_admin'] as const) {
+    assert.ok(ROLE_PERMISSIONS[r].includes('treasury:approve'), `${r} doit approuver`);
+  }
+  // CFO : demande mais n'approuve JAMAIS (double validation).
+  assert.ok(ROLE_PERMISSIONS.cfo.includes('treasury:request'));
+  assert.ok(!ROLE_PERMISSIONS.cfo.includes('treasury:approve'));
+  // Équipe finance : lecture seule de la trésorerie.
+  assert.ok(ROLE_PERMISSIONS.finance.includes('treasury:read'));
+  assert.ok(!ROLE_PERMISSIONS.finance.includes('treasury:request'));
+});
+
+test('admin : trésorerie — demande, approbation, rejet (maker-checker)', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  // Demande de virement (super_admin a treasury:request).
+  const reqRes = await app.inject({
+    method: 'POST', url: '/admin/treasury/request', headers: AUTH,
+    payload: { amount: 2_500_000, destination: 'SGCI — CI93 SG01 0002 4518', reason: 'Salaires juillet' },
+  });
+  assert.equal(reqRes.statusCode, 200);
+  const t1 = reqRes.json().transfer;
+  assert.equal(t1.status, 'pending');
+
+  // Liste : 1 demande en attente.
+  const list1 = await app.inject({ method: 'GET', url: '/admin/treasury', headers: AUTH });
+  assert.equal(list1.json().pending, 1);
+
+  // Séparation des tâches : le demandeur ne peut pas approuver sa propre demande.
+  const self = await app.inject({ method: 'POST', url: `/admin/treasury/${t1.id}/approve`, headers: AUTH });
+  assert.equal(self.statusCode, 403);
+
+  // Rejet par un dirigeant (ici le même compte peut rejeter — pas d'exécution d'argent).
+  const rej = await app.inject({ method: 'POST', url: `/admin/treasury/${t1.id}/reject`, headers: AUTH, payload: { note: 'Montant à revalider' } });
+  assert.equal(rej.statusCode, 200);
+  assert.equal(rej.json().transfer.status, 'rejected');
+
+  // Une demande déjà décidée ne peut plus être approuvée.
+  const again = await app.inject({ method: 'POST', url: `/admin/treasury/${t1.id}/approve`, headers: AUTH });
+  assert.equal(again.statusCode, 404);
+});
+
+test('admin : recherche globale (chauffeur par nom, limites de permissions)', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Mariam Ouattara', category: 'or' } });
+
+  const res = await app.inject({ method: 'GET', url: '/admin/search?q=mariam', headers: AUTH });
+  assert.equal(res.statusCode, 200);
+  const body = res.json();
+  assert.equal(body.drivers.length, 1);
+  assert.equal(body.drivers[0].name, 'Mariam Ouattara');
+  assert.ok(Array.isArray(body.clients));
+  assert.ok(Array.isArray(body.rides));
+
+  // Requête trop courte → résultats vides (pas de scan complet).
+  const short = await app.inject({ method: 'GET', url: '/admin/search?q=m', headers: AUTH });
+  assert.equal(short.json().drivers.length, 0);
+});
+
+test('admin : anti-brute-force — verrouillage après 5 échecs', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  // 5 échecs sur un compte (inexistant : le verrou s'applique quand même).
+  for (let i = 0; i < 5; i++) {
+    const r = await app.inject({ method: 'POST', url: '/admin/login', payload: { username: 'ghost', password: 'x' } });
+    assert.equal(r.statusCode, 401);
+  }
+  // 6e tentative → verrouillé (429), même avec un mot de passe quelconque.
+  const locked = await app.inject({ method: 'POST', url: '/admin/login', payload: { username: 'ghost', password: 'x' } });
+  assert.equal(locked.statusCode, 429);
+});

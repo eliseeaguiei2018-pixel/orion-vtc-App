@@ -183,6 +183,41 @@ export class AdminService {
     };
   }
 
+  /**
+   * Recherche globale de la console : chauffeurs, clients, courses.
+   * `scope` limite chaque catégorie aux permissions du rôle appelant.
+   */
+  search(q: string, scope: { drivers: boolean; clients: boolean; rides: boolean }) {
+    const needle = q.trim().toLowerCase();
+    const LIMIT = 8;
+    const out: {
+      drivers: { id: string; name: string; matricule: string; category: string; availability: string }[];
+      clients: { id: string; name: string | null; phone: string | null; status: string; rides: number }[];
+      rides: { id: string; clientId: string; status: string; amount: number; createdAt: string }[];
+    } = { drivers: [], clients: [], rides: [] };
+    if (needle.length < 2) return out;
+
+    if (scope.drivers) {
+      out.drivers = this.c.drivers.list()
+        .filter((d) => d.name.toLowerCase().includes(needle) || d.matricule.toLowerCase().includes(needle) || d.id.toLowerCase().includes(needle))
+        .slice(0, LIMIT)
+        .map((d) => ({ id: d.id, name: d.name, matricule: d.matricule, category: d.category, availability: d.availability }));
+    }
+    if (scope.clients) {
+      out.clients = this.c.clients.list()
+        .filter((cl) => cl.id.toLowerCase().includes(needle) || (cl.name ?? '').toLowerCase().includes(needle) || (cl.phone ?? '').toLowerCase().includes(needle))
+        .slice(0, LIMIT)
+        .map((cl) => ({ id: cl.id, name: cl.name ?? null, phone: cl.phone ?? null, status: cl.status, rides: cl.rides }));
+    }
+    if (scope.rides) {
+      out.rides = this.c.rides.listAll()
+        .filter((r) => r.id.toLowerCase().includes(needle) || r.clientId.toLowerCase().includes(needle))
+        .slice(0, LIMIT)
+        .map((r) => ({ id: r.id, clientId: r.clientId, status: r.status, amount: r.quote.amount, createdAt: r.createdAt }));
+    }
+    return out;
+  }
+
   /** Positions vivantes de la flotte (carte de supervision). */
   async fleetLive() {
     const snap = await this.c.geo.snapshot();
