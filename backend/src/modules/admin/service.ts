@@ -90,6 +90,38 @@ export class AdminService {
     };
   }
 
+  /**
+   * Séries quotidiennes sur N jours (tendances) : courses, revenu, annulations.
+   * Calculé depuis les courses (par jour UTC). Alimente les graphes de la console.
+   */
+  stats(days = 7) {
+    const n = Math.min(90, Math.max(1, Math.round(days)));
+    const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+    const buckets = new Map<string, { date: string; rides: number; revenue: number; cancelled: number }>();
+    const today = new Date();
+    for (let i = n - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setUTCDate(today.getUTCDate() - i);
+      buckets.set(dayKey(d), { date: dayKey(d), rides: 0, revenue: 0, cancelled: 0 });
+    }
+    for (const r of this.c.rides.listAll()) {
+      const b = buckets.get(r.createdAt.slice(0, 10));
+      if (!b) continue;
+      b.rides += 1;
+      if (REVENUE.has(r.status)) b.revenue += r.quote.amount;
+      if (r.status === 'cancelled' || r.status === 'no_driver') b.cancelled += 1;
+    }
+    const series = [...buckets.values()].map((b) => ({ ...b, revenue: Math.round(b.revenue) }));
+    return {
+      currency: 'XOF', days: n, series,
+      totals: {
+        rides: series.reduce((s, b) => s + b.rides, 0),
+        revenue: series.reduce((s, b) => s + b.revenue, 0),
+        cancelled: series.reduce((s, b) => s + b.cancelled, 0),
+      },
+    };
+  }
+
   /** Export CSV des courses (comptabilité). */
   ridesCsv(): string {
     const head = 'id,clientId,driverName,matricule,status,amount,currency,trafficLevel,createdAt';

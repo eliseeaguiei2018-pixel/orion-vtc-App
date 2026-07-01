@@ -140,3 +140,18 @@ test('admin : zone factor modifie le prix fixe', async (t) => {
 
   assert.ok(withZone > base, `zone chère doit augmenter le prix (${withZone} > ${base})`);
 });
+
+test('admin : statistiques quotidiennes (tendances)', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  const res = await app.inject({ method: 'GET', url: '/admin/stats?days=7', headers: AUTH });
+  assert.equal(res.statusCode, 200);
+  const body = res.json();
+  assert.equal(body.days, 7);
+  assert.equal(body.series.length, 7);
+  assert.equal(typeof body.totals.rides, 'number');
+  assert.equal(typeof body.totals.revenue, 'number');
+  // Chaque jour a une date ISO (AAAA-MM-JJ) croissante.
+  for (const b of body.series) assert.match(b.date, /^\d{4}-\d{2}-\d{2}$/);
+});

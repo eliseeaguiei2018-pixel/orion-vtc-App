@@ -46,6 +46,12 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
 
     scoped.get('/admin/overview', async (req) => { require(req, 'overview:read'); return admin.overview(); });
 
+    scoped.get('/admin/stats', async (req) => {
+      require(req, 'overview:read');
+      const q = parse(z.object({ days: z.coerce.number().int().min(1).max(90).optional() }), req.query);
+      return admin.stats(q.days ?? 7);
+    });
+
     scoped.get('/admin/rides', async (req) => {
       require(req, 'rides:read');
       const q = parse(z.object({ status: z.string().optional(), limit: z.coerce.number().int().positive().max(500).optional() }), req.query);

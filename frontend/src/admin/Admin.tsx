@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, type ReactNode } from 'react';
+import { useEffect, useState, useCallback, type ReactNode, type CSSProperties } from 'react';
 import { SupervisionMap } from './SupervisionMap';
 import { DEMO } from './demo';
 
@@ -34,6 +34,8 @@ export interface Conversation { id: string; clientId: string; subject: string; s
 export interface AuditEntry { id: string; at: string; actor: string; role: string; action: string; target?: string; details?: Record<string, unknown> }
 export interface Finance { currency: string; gmv: number; revenue: number; commission: number; earnings: number; payouts: number; byTier: Record<string, { count: number; revenue: number }> }
 export interface Announcement { id: string; audience: string; title: string; body: string; author: string; at: string }
+export interface StatsDay { date: string; rides: number; revenue: number; cancelled: number }
+export interface Stats { currency: string; days: number; series: StatsDay[]; totals: { rides: number; revenue: number; cancelled: number } }
 export interface LedgerEntry { id?: string; type: string; amount: number; at?: string; createdAt?: string }
 export interface DetailRide { id: string; status: string; amount: number; createdAt: string }
 export interface DriverDetail {
@@ -130,6 +132,8 @@ const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
 function Console({ onLogout }: { onLogout: () => void }) {
   const [me, setMe] = useState<Me | null>(null);
   const [ov, setOv] = useState<Overview | null>(null);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [statsDays, setStatsDays] = useState(7);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [fleet, setFleet] = useState<FleetUnit[]>([]);
   const [rides, setRides] = useState<RideRow[]>([]);
@@ -150,12 +154,12 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [clientSel, setClientSel] = useState<ClientDetail | null>(null);
 
   const loadDemo = useCallback(() => {
-    setMe(DEMO.me); setOv(DEMO.overview); setAlerts(DEMO.alerts); setFleet(DEMO.fleet);
+    setMe(DEMO.me); setOv(DEMO.overview); setStats(DEMO.stats(statsDays)); setAlerts(DEMO.alerts); setFleet(DEMO.fleet);
     setRides(DEMO.rides); setDrivers(DEMO.drivers); setPricing(DEMO.pricing); setZones(DEMO.zones as Zone[]);
     setClients(DEMO.clients); setPromos(DEMO.promos as Promo[]); setServices(DEMO.services);
     setSupport(DEMO.support as Conversation[]); setAudit(DEMO.audit as AuditEntry[]);
     setFinance(DEMO.finance); setBroadcasts(DEMO.broadcasts as Announcement[]); setLive(false);
-  }, []);
+  }, [statsDays]);
 
   const refresh = useCallback(async () => {
     if (!API) { loadDemo(); return; }
@@ -163,7 +167,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
       const meRes = await adminGet<Me>('/admin/me');
       setMe(meRes); setLive(true);
       const has = (p: string) => meRes.permissions.includes(p);
-      if (has('overview:read')) setOv(await adminGet<Overview>('/admin/overview'));
+      if (has('overview:read')) { setOv(await adminGet<Overview>('/admin/overview')); setStats(await adminGet<Stats>(`/admin/stats?days=${statsDays}`)); }
       if (has('alerts:read')) setAlerts((await adminGet<{ alerts: Alert[] }>('/admin/alerts')).alerts);
       if (has('drivers:read')) { setFleet((await adminGet<{ fleet: FleetUnit[] }>('/admin/fleet/live')).fleet); setDrivers((await adminGet<{ drivers: DriverRow[] }>('/admin/drivers')).drivers); }
       if (has('rides:read')) setRides((await adminGet<{ rides: RideRow[] }>('/admin/rides?limit=12')).rides);
@@ -176,7 +180,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
       if (has('notify:read')) setBroadcasts((await adminGet<{ announcements: Announcement[] }>('/admin/broadcasts')).announcements);
       if (has('audit:read')) setAudit((await adminGet<{ entries: AuditEntry[] }>('/admin/audit')).entries);
     } catch { loadDemo(); }
-  }, [loadDemo]);
+  }, [loadDemo, statsDays]);
 
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
@@ -321,7 +325,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
           </div>
         </header>
 
-        {section === 'overview' && <OverviewSection ov={ov} fleet={fleet} openAlerts={openAlerts} />}
+        {section === 'overview' && <OverviewSection ov={ov} fleet={fleet} openAlerts={openAlerts} stats={stats} statsDays={statsDays} onStatsDays={setStatsDays} />}
         {section === 'alerts' && <AlertsSection alerts={alerts} fleet={fleet} openAlerts={openAlerts} canWrite={can('alerts:write')} onStatus={setAlertStatus} />}
         {section === 'support' && <SupportSection convs={support} canWrite={can('support:write')} onReply={supportReply} onStatus={supportSetStatus} />}
         {section === 'rides' && <RidesSection rides={rides} />}
@@ -344,7 +348,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
 }
 
 /* ------------------------------ Sections ----------------------------- */
-function OverviewSection({ ov, fleet, openAlerts }: { ov: Overview; fleet: FleetUnit[]; openAlerts: Alert[] }) {
+function OverviewSection({ ov, fleet, openAlerts, stats, statsDays, onStatsDays }: { ov: Overview; fleet: FleetUnit[]; openAlerts: Alert[]; stats: Stats | null; statsDays: number; onStatsDays: (d: number) => void }) {
   return (
     <>
       <section className="adm-kpis">
@@ -353,12 +357,51 @@ function OverviewSection({ ov, fleet, openAlerts }: { ov: Overview; fleet: Fleet
         <Kpi label="Revenu (courses)" value={fcfa(ov.finance.revenue)} sub={`Commission ${fcfa(ov.finance.commission)}`} tone="mint" />
         <Kpi label="Alertes ouvertes" value={String(openAlerts.length)} sub={`${ov.safety.total} au total`} tone={openAlerts.length ? 'danger' : 'muted'} />
       </section>
+      {stats && <TrendsChart stats={stats} statsDays={statsDays} onStatsDays={onStatsDays} />}
       <div className="adm-card">
         <div className="adm-card-h"><h3>Supervision de la flotte</h3><span className="adm-muted">{fleet.length} véhicules · temps réel</span></div>
         <SupervisionMap fleet={fleet} alerts={openAlerts} />
         <div className="adm-legend"><span><i className="dot green" /> Disponible</span><span><i className="dot amber" /> En course</span><span><i className="dot red pulse" /> Alerte SAMU</span></div>
       </div>
     </>
+  );
+}
+
+function TrendsChart({ stats, statsDays, onStatsDays }: { stats: Stats; statsDays: number; onStatsDays: (d: number) => void }) {
+  const maxRides = Math.max(1, ...stats.series.map((d) => d.rides));
+  const maxRev = Math.max(1, ...stats.series.map((d) => d.revenue));
+  const fmtDay = (iso: string) => { const d = new Date(iso + 'T00:00:00'); return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }); };
+  return (
+    <div className="adm-card">
+      <div className="adm-card-h">
+        <h3>Tendances · {statsDays} jours</h3>
+        <div className="adm-seg">
+          {[7, 14, 30].map((d) => (
+            <button key={d} className={`adm-seg-b${statsDays === d ? ' on' : ''}`} onClick={() => onStatsDays(d)}>{d} j</button>
+          ))}
+        </div>
+      </div>
+      <div className="adm-trend-kpis">
+        <div><span className="adm-muted">Courses</span><strong>{stats.totals.rides}</strong></div>
+        <div><span className="adm-muted">Revenu</span><strong>{fcfa(stats.totals.revenue)}</strong></div>
+        <div><span className="adm-muted">Annulations</span><strong>{stats.totals.cancelled}</strong></div>
+      </div>
+      <div className="adm-chart" style={{ '--cols': stats.series.length } as CSSProperties}>
+        {stats.series.map((d) => (
+          <div key={d.date} className="adm-chart-col" title={`${d.date} · ${d.rides} courses · ${fcfa(d.revenue)} · ${d.cancelled} annulées`}>
+            <div className="adm-chart-bars">
+              <span className="adm-bar rides" style={{ height: `${(d.rides / maxRides) * 100}%` }} />
+              <span className="adm-bar rev" style={{ height: `${(d.revenue / maxRev) * 100}%` }} />
+            </div>
+            <span className="adm-chart-x">{fmtDay(d.date)}</span>
+          </div>
+        ))}
+      </div>
+      <div className="adm-legend">
+        <span><i className="dot green" /> Courses / jour</span>
+        <span><i className="dot teal" /> Revenu / jour</span>
+      </div>
+    </div>
   );
 }
 

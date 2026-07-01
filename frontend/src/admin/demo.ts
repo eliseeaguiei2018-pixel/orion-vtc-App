@@ -118,6 +118,33 @@ const broadcasts = [
   { id: 'b2', audience: 'all', title: 'Prix en baisse', body: 'ORION, toujours moins cher — profitez de nos nouveaux tarifs.', author: 'Awa (Finance)', at: iso(600) },
 ];
 
+/** Séries quotidiennes de démonstration (tendances) — variation pseudo-aléatoire stable. */
+function stats(days: number) {
+  const n = Math.min(90, Math.max(1, Math.round(days)));
+  const today = new Date();
+  const series = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setUTCDate(today.getUTCDate() - i);
+    const date = d.toISOString().slice(0, 10);
+    const dow = d.getUTCDay();
+    const weekend = dow === 0 || dow === 6 ? 1.35 : 1; // week-end plus chargé
+    const wave = 1 + 0.25 * Math.sin(i / 2.3);
+    const rides = Math.round((120 + ((i * 37) % 60)) * weekend * wave);
+    const revenue = Math.round(rides * (3200 + ((i * 53) % 900)));
+    const cancelled = Math.round(rides * 0.05 + (i % 3));
+    series.push({ date, rides, revenue, cancelled });
+  }
+  return {
+    currency: 'XOF', days: n, series,
+    totals: {
+      rides: series.reduce((s, b) => s + b.rides, 0),
+      revenue: series.reduce((s, b) => s + b.revenue, 0),
+      cancelled: series.reduce((s, b) => s + b.cancelled, 0),
+    },
+  };
+}
+
 /** Fiche chauffeur de démonstration (dérivée de la ligne + données factices cohérentes). */
 function driverDetail(id: string, rows: DriverRow[]): DriverDetail {
   const d = rows.find((x) => x.id === id) ?? drivers[0]!;
@@ -156,4 +183,4 @@ function clientDetail(id: string, rows: Client[]): ClientDetail {
   };
 }
 
-export const DEMO = { overview, alerts, fleet, rides, drivers, pricing, zones, me, clients, promos, services, support, audit, finance, broadcasts, driverDetail, clientDetail };
+export const DEMO = { overview, stats, alerts, fleet, rides, drivers, pricing, zones, me, clients, promos, services, support, audit, finance, broadcasts, driverDetail, clientDetail };
