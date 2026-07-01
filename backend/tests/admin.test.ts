@@ -155,3 +155,33 @@ test('admin : statistiques quotidiennes (tendances)', async (t) => {
   // Chaque jour a une date ISO (AAAA-MM-JJ) croissante.
   for (const b of body.series) assert.match(b.date, /^\d{4}-\d{2}-\d{2}$/);
 });
+
+test('admin : login JWT — succès, accès protégé, échec identifiants', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  // Mauvais mot de passe → 401.
+  const bad = await app.inject({ method: 'POST', url: '/admin/login', payload: { username: 'admin', password: 'faux' } });
+  assert.equal(bad.statusCode, 401);
+
+  // Bon compte par défaut (dev) → jeton JWT.
+  const ok = await app.inject({ method: 'POST', url: '/admin/login', payload: { username: 'admin', password: 'orion-admin-dev' } });
+  assert.equal(ok.statusCode, 200);
+  const { token, account } = ok.json();
+  assert.ok(typeof token === 'string' && token.split('.').length === 3);
+  assert.equal(account.role, 'super_admin');
+  assert.ok(account.permissions.includes('pricing:write'));
+
+  // Le JWT ouvre les routes protégées (Authorization: Bearer).
+  const me = await app.inject({ method: 'GET', url: '/admin/me', headers: { authorization: `Bearer ${token}` } });
+  assert.equal(me.statusCode, 200);
+  assert.equal(me.json().role, 'super_admin');
+
+  // Sans jeton → 401.
+  const no = await app.inject({ method: 'GET', url: '/admin/me' });
+  assert.equal(no.statusCode, 401);
+
+  // JWT falsifié → 401.
+  const forged = await app.inject({ method: 'GET', url: '/admin/me', headers: { authorization: `Bearer ${token}x` } });
+  assert.equal(forged.statusCode, 401);
+});

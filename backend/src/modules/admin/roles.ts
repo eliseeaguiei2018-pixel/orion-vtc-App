@@ -43,9 +43,12 @@ export const ROLE_LABEL: Record<Role, string> = {
 };
 
 export interface AdminAccount {
-  token: string;
   name: string;
   role: Role;
+  /** Identifiant de connexion (comptes JWT) ; absent pour les jetons statiques. */
+  username?: string;
+  /** Jeton statique (compatibilité / automatisation) ; absent pour les comptes JWT. */
+  token?: string;
 }
 
 const isRole = (r: string): r is Role => r in ROLE_PERMISSIONS;

@@ -36,8 +36,12 @@ Audit interne — points identifiés, à traiter avant lancement public :
   `userId` fourni par l'appelant (pas encore de JWT). ⇒ Brancher une vraie auth
   (OTP → JWT courts + refresh, `Authorization: Bearer`) et déduire l'identité du token,
   jamais du corps de requête.
-- **Jeton admin simple** (`x-admin-token`) : suffisant pour la démo/pré-prod ; en production,
-  SSO/JWT + rôles + **audit log immuable** + liste d'IP.
+- **Console admin** : authentification par **login + mot de passe** (haché scrypt + sel) →
+  **session JWT signée HS256** (expiration configurable, `Authorization: Bearer`). RBAC par
+  rôle + connexions (réussies/échouées) journalisées dans l'audit log. L'en-tête
+  `x-admin-token` reste accepté pour l'automatisation serveur-à-serveur. Durcissements
+  restants pour la production : rotation de `ADMIN_JWT_SECRET`, refresh tokens, audit log
+  immuable, liste d'IP, éventuel SSO d'entreprise (OIDC).
 - **Lien de partage** : token de 8 caractères (lecture seule, sans données perso). Pour un
   besoin élevé, allonger le token et ajouter une expiration.
 - **Rate-limiting global** en place ; ajouter des quotas par utilisateur/route sensible

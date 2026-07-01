@@ -83,13 +83,21 @@ Le dashboard d'administration est une **page séparée** de l'app cliente :
 - Fonctionnalités : KPIs (courses actives, chauffeurs en ligne, revenu/commission, alertes),
   **carte de supervision de la flotte** (positions temps réel), **file SAMU** (SOS/accidents
   avec prise en charge / résolution), tables Courses et Chauffeurs (KYC, état, note).
-- **Écran de connexion** : à l'ouverture, la console demande le **jeton administrateur**
-  (champ masqué). Le jeton est vérifié auprès du backend puis mémorisé sur le poste ;
-  bouton **Déconnexion** dans l'en-tête.
-  - Backend : variable `ADMIN_TOKEN` (Render → Environment, mettre un vrai secret) = compte **super_admin**.
-  - **Couches d'accès par rôle** : ajouter des comptes via `ADMIN_ACCOUNTS` (JSON), ex.
-    `[{"token":"xxx","name":"Awa (Finance)","role":"finance"}]`. Rôles : `super_admin`,
-    `ops`, `finance`, `support`, `viewer`. Chaque rôle ne voit/agit que sur ses sections.
+- **Écran de connexion** : à l'ouverture, la console demande un **identifiant + mot de passe**.
+  Le backend vérifie les identifiants et renvoie une **session JWT signée** (expiration
+  12 h par défaut), mémorisée sur le poste ; bouton **Déconnexion** dans l'en-tête. Une
+  session expirée renvoie automatiquement à l'écran de connexion.
+  - **Compte par défaut (dev)** : `ADMIN_USERNAME` / `ADMIN_PASSWORD` (défaut `admin` /
+    `orion-admin-dev`) = compte **super_admin**. À changer impérativement en production.
+  - **Secret de signature** : définir `ADMIN_JWT_SECRET` (secret fort) et, au besoin,
+    `ADMIN_JWT_TTL_SECONDS` (durée de session).
+  - **Couches d'accès par rôle** : définir les comptes via `ADMIN_USERS` (JSON, mots de
+    passe **hachés** — jamais en clair), généré avec `npm run hash-password -- <user> <mdp> <role>`.
+    Ex. `[{"username":"awa","name":"Awa (Finance)","role":"finance","salt":"…","hash":"…"}]`.
+    Rôles : `super_admin`, `ops`, `finance`, `support`, `viewer`. Chaque rôle ne voit/agit
+    que sur ses sections.
+  - **Automatisation / intégrations** : l'en-tête `x-admin-token` (variable `ADMIN_TOKEN`)
+    reste accepté pour les scripts serveur-à-serveur, en complément du login JWT humain.
   - Sections de la console : Vue d'ensemble, Supervision SAMU, Courses, Chauffeurs,
     **Tarification** (augmenter/réduire les prix, effet immédiat), Rôles & accès.
 - Sans backend joignable, la console bascule en **mode démo** (données simulées) pour la présentation.

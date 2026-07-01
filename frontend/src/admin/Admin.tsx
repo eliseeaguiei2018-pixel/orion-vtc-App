@@ -49,14 +49,31 @@ export interface ClientDetail {
 
 /* ------------------------------- API --------------------------------- */
 const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
-const tokenKey = 'orion.admin.token';
-const getToken = () => localStorage.getItem(tokenKey) ?? 'orion-admin-dev';
-const H = () => ({ 'x-admin-token': getToken(), 'content-type': 'application/json' });
-async function adminGet<T>(p: string): Promise<T> { const r = await fetch(API + p, { headers: H() }); if (!r.ok) throw new Error(String(r.status)); return r.json() as Promise<T>; }
-async function adminPost<T>(p: string, b?: unknown): Promise<T> { const r = await fetch(API + p, { method: 'POST', headers: H(), body: JSON.stringify(b ?? {}) }); if (!r.ok) throw new Error(String(r.status)); return r.json() as Promise<T>; }
-async function adminPut<T>(p: string, b: unknown): Promise<T> { const r = await fetch(API + p, { method: 'PUT', headers: H(), body: JSON.stringify(b) }); if (!r.ok) throw new Error(String(r.status)); return r.json() as Promise<T>; }
-async function adminDel(p: string): Promise<void> { await fetch(API + p, { method: 'DELETE', headers: H() }); }
+const jwtKey = 'orion.admin.jwt';
+const expKey = 'orion.admin.exp';
+const getJwt = () => localStorage.getItem(jwtKey) ?? '';
+const clearSession = () => { localStorage.removeItem(jwtKey); localStorage.removeItem(expKey); };
+/** Session valide si un jeton existe et n'est pas expiré (garde locale, revérifiée serveur). */
+const sessionValid = () => {
+  if (!getJwt()) return false;
+  const exp = Number(localStorage.getItem(expKey) ?? 0);
+  return !exp || exp > Date.now();
+};
+const H = (): Record<string, string> => {
+  const h: Record<string, string> = { 'content-type': 'application/json' };
+  const jwt = getJwt();
+  if (jwt && jwt !== 'demo') h['authorization'] = `Bearer ${jwt}`;
+  return h;
+};
+/** 401 = session expirée/invalide → on purge et on renvoie à l'écran de connexion. */
+function onUnauthorized() { clearSession(); if (API) window.location.reload(); }
+async function adminGet<T>(p: string): Promise<T> { const r = await fetch(API + p, { headers: H() }); if (r.status === 401) onUnauthorized(); if (!r.ok) throw new Error(String(r.status)); return r.json() as Promise<T>; }
+async function adminPost<T>(p: string, b?: unknown): Promise<T> { const r = await fetch(API + p, { method: 'POST', headers: H(), body: JSON.stringify(b ?? {}) }); if (r.status === 401) onUnauthorized(); if (!r.ok) throw new Error(String(r.status)); return r.json() as Promise<T>; }
+async function adminPut<T>(p: string, b: unknown): Promise<T> { const r = await fetch(API + p, { method: 'PUT', headers: H(), body: JSON.stringify(b) }); if (r.status === 401) onUnauthorized(); if (!r.ok) throw new Error(String(r.status)); return r.json() as Promise<T>; }
+async function adminDel(p: string): Promise<void> { const r = await fetch(API + p, { method: 'DELETE', headers: H() }); if (r.status === 401) onUnauthorized(); }
 const fcfa = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' F';
+
+interface LoginResponse { token: string; expiresAt: string; account: Me }
 
 /* --------------------------- Porte d'entrée -------------------------- */
 export function Admin() {
@@ -64,32 +81,42 @@ export function Admin() {
   const [checking, setChecking] = useState(true);
   useEffect(() => {
     (async () => {
-      const t = localStorage.getItem(tokenKey);
-      if (!t) { setChecking(false); return; }
+      if (!sessionValid()) { clearSession(); setChecking(false); return; }
       if (!API) { setAuthed(true); setChecking(false); return; }
-      try { await adminGet('/admin/me'); setAuthed(true); } catch { localStorage.removeItem(tokenKey); }
+      try { await adminGet('/admin/me'); setAuthed(true); } catch { clearSession(); }
       setChecking(false);
     })();
   }, []);
   if (checking) return <div className="adm-loading">Vérification de l'accès…</div>;
   if (!authed) return <Login onDone={() => setAuthed(true)} />;
-  return <Console onLogout={() => { localStorage.removeItem(tokenKey); setAuthed(false); }} />;
+  return <Console onLogout={() => { clearSession(); setAuthed(false); }} />;
 }
 
 /* --------------------------- Écran de connexion --------------------- */
 function Login({ onDone }: { onDone: () => void }) {
-  const [value, setValue] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const token = value.trim();
-    if (!token) { setErr('Saisis ton jeton administrateur.'); return; }
+    if (!username.trim() || !password) { setErr('Saisis ton identifiant et ton mot de passe.'); return; }
     setBusy(true); setErr('');
-    localStorage.setItem(tokenKey, token);
-    if (!API) { onDone(); return; }
-    try { await adminGet('/admin/me'); onDone(); }
-    catch { localStorage.removeItem(tokenKey); setErr('Jeton refusé. Accès réservé au personnel ORION.'); setBusy(false); }
+    // Mode démo (sans backend) : session locale, données simulées.
+    if (!API) { localStorage.setItem(jwtKey, 'demo'); localStorage.setItem(expKey, String(Date.now() + 12 * 3600e3)); onDone(); return; }
+    try {
+      const res = await fetch(`${API}/admin/login`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username: username.trim(), password }),
+      });
+      if (!res.ok) { setErr('Identifiants refusés. Accès réservé au personnel ORION.'); setBusy(false); return; }
+      const data = (await res.json()) as LoginResponse;
+      localStorage.setItem(jwtKey, data.token);
+      localStorage.setItem(expKey, String(Date.parse(data.expiresAt) || Date.now() + 12 * 3600e3));
+      onDone();
+    } catch {
+      setErr('Serveur injoignable. Réessaie dans un instant.'); setBusy(false);
+    }
   };
   return (
     <div className="adm-login">
@@ -99,11 +126,13 @@ function Login({ onDone }: { onDone: () => void }) {
         </span>
         <h1>ORION Admin</h1>
         <p className="adm-login-sub">Centre de contrôle — accès réservé au personnel ORION.</p>
-        <label className="adm-login-label">Jeton administrateur</label>
-        <input className="adm-login-input" type="password" placeholder="••••••••••••" value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+        <label className="adm-login-label">Identifiant</label>
+        <input className="adm-login-input" type="text" autoComplete="username" placeholder="prenom.nom" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
+        <label className="adm-login-label" style={{ marginTop: 10 }}>Mot de passe</label>
+        <input className="adm-login-input" type="password" autoComplete="current-password" placeholder="••••••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
         {err && <div className="adm-login-err">{err}</div>}
         <button className="adm-btn solid big" type="submit" disabled={busy}>{busy ? 'Connexion…' : 'Se connecter'}</button>
-        {!API && <p className="adm-login-demo">Mode démo — n'importe quel jeton ouvre la console (données simulées).</p>}
+        {!API && <p className="adm-login-demo">Mode démo — n'importe quels identifiants ouvrent la console (données simulées).</p>}
       </form>
     </div>
   );

@@ -50,11 +50,23 @@ const schema = z.object({
   CORS_ORIGIN: z.string().default('*'),
 
   // Jeton d'accès au dashboard Admin / supervision SAMU (RBAC simple, en-tête x-admin-token).
-  // En production : remplacer par un vrai secret + auth forte (SSO/JWT + rôles).
+  // Conservé pour la compatibilité / automatisation ; l'accès humain passe par le login JWT.
   ADMIN_TOKEN: z.string().default('orion-admin-dev'),
   // Comptes admin supplémentaires (couches d'accès), JSON : [{"token","name","role"}].
   // Rôles : super_admin | ops | finance | support | viewer.
   ADMIN_ACCOUNTS: z.string().optional(),
+
+  // --- Authentification console (login + mot de passe → session JWT signée) ---
+  // Secret de signature des jetons de session (HS256). À DÉFINIR en production.
+  ADMIN_JWT_SECRET: z.string().default('orion-dev-jwt-secret-change-me'),
+  // Durée de validité d'une session (secondes). 12 h par défaut.
+  ADMIN_JWT_TTL_SECONDS: z.coerce.number().int().positive().default(43_200),
+  // Compte super_admin par défaut (dev). En prod : définir ADMIN_USERS (mots de passe hachés).
+  ADMIN_USERNAME: z.string().default('admin'),
+  ADMIN_PASSWORD: z.string().default('orion-admin-dev'),
+  // Comptes avec mot de passe HACHÉ (scrypt), JSON : [{"username","name","role","salt","hash"}].
+  // Généré via `npm run hash-password`. Si défini, remplace le compte par défaut.
+  ADMIN_USERS: z.string().optional(),
 
   // Persistance : 'memory' (volatile, défaut/tests) ou 'sqlite' (durable, fichier local).
   // En production : 'postgres' via la même interface Repository (cf. docs).

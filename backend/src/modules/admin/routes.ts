@@ -5,6 +5,7 @@ import { parse } from '../../core/validate.js';
 import { notFound, unauthorized, forbidden } from '../../core/errors.js';
 import { AdminService } from './service.js';
 import { can, resolveAccount, ROLE_PERMISSIONS, ROLE_LABEL, type AdminAccount, type Permission } from './roles.js';
+import { login, issueToken, verifyToken, bearerToken } from './auth.js';
 
 /**
  * Console Admin — centre de contrôle ORION (boîte noire).
@@ -12,13 +13,32 @@ import { can, resolveAccount, ROLE_PERMISSIONS, ROLE_LABEL, type AdminAccount, t
  * (résolu depuis x-admin-token) détermine ce qui est autorisé. Couches d'accès selon le poste.
  */
 export async function adminRoutes(app: FastifyInstance, container: Container): Promise<void> {
+  // Connexion (public) : login + mot de passe → session JWT signée.
+  app.post('/admin/login', async (req, reply) => {
+    const body = parse(z.object({ username: z.string().min(1).max(80), password: z.string().min(1).max(200) }), req.body);
+    const account = login(body.username, body.password);
+    if (!account) {
+      container.audit.log({ actor: body.username, role: 'viewer', action: 'login.failed' });
+      reply.code(401);
+      return { error: 'Identifiants invalides' };
+    }
+    const { token, expiresAt } = issueToken(account);
+    container.audit.log({ actor: account.name, role: account.role, action: 'login.success' });
+    return {
+      token, expiresAt,
+      account: { name: account.name, role: account.role, roleLabel: ROLE_LABEL[account.role], permissions: ROLE_PERMISSIONS[account.role] },
+    };
+  });
+
   await app.register(async (scoped) => {
     const admin = new AdminService(container);
 
-    // Résout le compte (rôle) à partir du jeton ; 401 si inconnu.
+    // Résout le compte : session JWT (Authorization: Bearer) OU jeton statique
+    // (x-admin-token, compatibilité/automatisation). 401 si aucun n'est valide.
     scoped.addHook('preHandler', async (req) => {
-      const account = resolveAccount(req.headers['x-admin-token'] as string | undefined);
-      if (!account) throw unauthorized('Jeton administrateur invalide');
+      const jwt = bearerToken(req.headers['authorization'] as string | undefined);
+      const account = verifyToken(jwt) ?? resolveAccount(req.headers['x-admin-token'] as string | undefined);
+      if (!account) throw unauthorized('Session invalide ou expirée');
       (req as FastifyRequest & { admin: AdminAccount }).admin = account;
     });
 
