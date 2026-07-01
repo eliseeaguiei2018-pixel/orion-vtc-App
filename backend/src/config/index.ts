@@ -52,6 +52,9 @@ const schema = z.object({
   // Jeton d'accès au dashboard Admin / supervision SAMU (RBAC simple, en-tête x-admin-token).
   // En production : remplacer par un vrai secret + auth forte (SSO/JWT + rôles).
   ADMIN_TOKEN: z.string().default('orion-admin-dev'),
+  // Comptes admin supplémentaires (couches d'accès), JSON : [{"token","name","role"}].
+  // Rôles : super_admin | ops | finance | support | viewer.
+  ADMIN_ACCOUNTS: z.string().optional(),
 
   // Persistance : 'memory' (volatile, défaut/tests) ou 'sqlite' (durable, fichier local).
   // En production : 'postgres' via la même interface Repository (cf. docs).

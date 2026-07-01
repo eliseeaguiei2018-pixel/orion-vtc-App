@@ -46,4 +46,18 @@ const overview: Overview = {
   generatedAt: new Date().toISOString(),
 };
 
-export const DEMO = { overview, alerts, fleet, rides, drivers };
+const pricing = {
+  baseFare: 300, perKm: 130, perMinute: 18, minFare: 600, avgSpeedKmh: 24,
+  tvaRate: 0.05, feeRate: 0.1, insuranceRate: 0.02, trafficWeight: 0.6, stopFee: 250,
+  multipliers: { bronze: 0.9, argent: 1.25, or: 1.7, diamant: 2.3 },
+  bodySurcharge: { berline: 1, suv: 1.08 },
+};
+
+const me = {
+  name: 'Super Admin',
+  role: 'super_admin',
+  roleLabel: 'Super Admin',
+  permissions: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'alerts:read', 'alerts:write', 'pricing:read', 'pricing:write', 'roles:read'],
+};
+
+export const DEMO = { overview, alerts, fleet, rides, drivers, pricing, me };

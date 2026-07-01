@@ -86,7 +86,12 @@ Le dashboard d'administration est une **page séparée** de l'app cliente :
 - **Écran de connexion** : à l'ouverture, la console demande le **jeton administrateur**
   (champ masqué). Le jeton est vérifié auprès du backend puis mémorisé sur le poste ;
   bouton **Déconnexion** dans l'en-tête.
-  - Backend : variable `ADMIN_TOKEN` (Render → Environment, mettre un vrai secret).
+  - Backend : variable `ADMIN_TOKEN` (Render → Environment, mettre un vrai secret) = compte **super_admin**.
+  - **Couches d'accès par rôle** : ajouter des comptes via `ADMIN_ACCOUNTS` (JSON), ex.
+    `[{"token":"xxx","name":"Awa (Finance)","role":"finance"}]`. Rôles : `super_admin`,
+    `ops`, `finance`, `support`, `viewer`. Chaque rôle ne voit/agit que sur ses sections.
+  - Sections de la console : Vue d'ensemble, Supervision SAMU, Courses, Chauffeurs,
+    **Tarification** (augmenter/réduire les prix, effet immédiat), Rôles & accès.
 - Sans backend joignable, la console bascule en **mode démo** (données simulées) pour la présentation.
 
 ### Mettre l'admin sur un sous-domaine dédié (recommandé)

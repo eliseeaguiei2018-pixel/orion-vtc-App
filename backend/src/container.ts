@@ -7,13 +7,14 @@ import { DriverStore } from './modules/drivers/store.js';
 import { RideStore } from './modules/rides/store.js';
 import { MatchingEngine } from './modules/rides/matching.js';
 import { RideSimulator } from './modules/rides/simulator.js';
-import { zoneSurge, trafficInfo } from './modules/geo-ci/zones.js';
+import { trafficInfo } from './modules/geo-ci/zones.js';
 import { WalletService } from './modules/wallet/service.js';
 import { SubscriptionService } from './modules/subscriptions/service.js';
 import { WeddingService } from './modules/wedding/service.js';
 import { InsuranceService, type InsuranceContribution } from './modules/insurance/service.js';
 import { PaymentRegistry } from './modules/payments/providers.js';
 import { SafetyService } from './modules/safety/service.js';
+import { SettingsService, type PricingRecord } from './modules/settings/service.js';
 import { RealtimeHub } from './modules/realtime/hub.js';
 import { createMapsProvider, type MapsProvider } from './modules/maps/service.js';
 import { createRepository } from './core/db/repository.js';
@@ -45,6 +46,7 @@ export interface Container {
   insurance: InsuranceService;
   subscriptions: SubscriptionService;
   wedding: WeddingService;
+  settings: SettingsService;
 }
 
 export function createContainer(): Container {
@@ -54,14 +56,17 @@ export function createContainer(): Container {
   const rides = new RideStore(createRepository<Ride>('rides'));
   const matching = new MatchingEngine(geo, drivers);
 
-  // Tarification dynamique : surge par zone/heure + détection de trafic (embouteillages).
+  // Paramètres pilotables (prix) — modifiables depuis la console Admin, persistés.
+  const settings = new SettingsService(createRepository<PricingRecord>('settings'));
+
+  // Tarification : paramètres pilotables (Admin) + détection de trafic (intégrée au prix fixe).
   const registry = new ServiceRegistry().register(
     new RideServiceModule((req) => {
       const traffic = trafficInfo(req.origin, req.destination);
       return {
-        surgeMultiplier: zoneSurge(req.origin, req.destination),
         trafficFactor: traffic.factor,
         trafficLevel: traffic.level,
+        settings: settings.getPricing(),
       };
     }),
   );
@@ -89,6 +94,7 @@ export function createContainer(): Container {
     insurance: new InsuranceService(createRepository<InsuranceContribution>('insurance'), clientWallet),
     subscriptions: new SubscriptionService(createRepository<Subscription>('subscriptions')),
     wedding: new WeddingService(createRepository<WeddingReservation>('wedding')),
+    settings,
   };
 }
 
