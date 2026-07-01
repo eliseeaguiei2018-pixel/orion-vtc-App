@@ -96,4 +96,5 @@ export type Screen =
   | 'wedding'
   | 'wallet'
   | 'history'
-  | 'help';
+  | 'help'
+  | 'support';

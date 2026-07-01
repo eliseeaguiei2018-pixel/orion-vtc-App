@@ -1,0 +1,57 @@
+import type { Repository } from '../../core/db/repository.js';
+
+export type ClientStatus = 'active' | 'blocked';
+
+/**
+ * Fiche client (minimale tant que l'auth réelle n'est pas branchée).
+ * Enregistrée automatiquement à la 1re course/SOS. Le support peut bloquer un client.
+ */
+export interface Client {
+  id: string;
+  name?: string;
+  phone?: string;
+  status: ClientStatus;
+  rides: number;
+  createdAt: string;
+  lastSeenAt: string;
+}
+
+export class ClientStore {
+  private readonly clients = new Map<string, Client>();
+
+  constructor(private readonly repo?: Repository<Client>) {
+    for (const c of repo?.all() ?? []) this.clients.set(c.id, c);
+  }
+
+  /** Enregistre / met à jour un client vu dans le système (idempotent). */
+  touch(id: string, info: { name?: string; phone?: string } = {}): Client {
+    const now = new Date().toISOString();
+    const existing = this.clients.get(id);
+    const c: Client = existing
+      ? { ...existing, name: info.name ?? existing.name, phone: info.phone ?? existing.phone, lastSeenAt: now }
+      : { id, name: info.name, phone: info.phone, status: 'active', rides: 0, createdAt: now, lastSeenAt: now };
+    this.clients.set(id, c);
+    this.repo?.put(c);
+    return c;
+  }
+
+  incrementRides(id: string): void {
+    const c = this.touch(id);
+    c.rides += 1;
+    this.repo?.put(c);
+  }
+
+  get(id: string): Client | undefined { return this.clients.get(id); }
+
+  setStatus(id: string, status: ClientStatus): Client | undefined {
+    const c = this.clients.get(id);
+    if (!c) return undefined;
+    c.status = status;
+    this.repo?.put(c);
+    return c;
+  }
+
+  list(): Client[] {
+    return [...this.clients.values()].sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt));
+  }
+}

@@ -229,6 +229,24 @@ export async function listMyRides(cid: string): Promise<RideHistoryItem[] | null
   return res?.rides ?? null;
 }
 
+/* ------------------------------ Support / chat ------------------------------ */
+export interface SupportMessage { id: string; from: 'client' | 'agent'; author?: string; text: string; at: string }
+export interface SupportConversation { id: string; clientId: string; subject: string; status: string; messages: SupportMessage[]; createdAt: string; updatedAt: string }
+
+/** Ouvre/poursuit une conversation support (le client écrit à ORION). */
+export async function openSupport(cid: string, text: string, subject?: string): Promise<SupportConversation | null> {
+  const res = await tryFetch<{ conversation: SupportConversation }>('/support/messages', {
+    method: 'POST', body: JSON.stringify({ clientId: cid, text, subject }),
+  });
+  return res?.conversation ?? null;
+}
+
+/** Récupère les conversations support du client. */
+export async function listSupport(cid: string): Promise<SupportConversation[] | null> {
+  const res = await tryFetch<{ conversations: SupportConversation[] }>(`/clients/${cid}/support`);
+  return res?.conversations ?? null;
+}
+
 /** URL WebSocket de suivi d'une course (null si pas de backend configuré). */
 export function rideSocketUrl(rideId: string): string | null {
   if (!API) return null;

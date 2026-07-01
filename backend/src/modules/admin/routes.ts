@@ -27,6 +27,12 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       if (!can(account.role, perm)) throw forbidden(`Accès refusé (permission ${perm} requise)`);
     };
 
+    // Journalise une action sensible (qui a fait quoi).
+    const audit = (req: FastifyRequest, action: string, target?: string, details?: Record<string, unknown>) => {
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      container.audit.log({ actor: account.name, role: account.role, action, target, details });
+    };
+
     // Identité + permissions du compte connecté (le front adapte l'affichage).
     scoped.get('/admin/me', async (req) => {
       const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
@@ -81,12 +87,129 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         }),
         req.body,
       );
+      audit(req, 'pricing.update', undefined, body);
       return { pricing: container.settings.updatePricing(body) };
     });
 
     scoped.post('/admin/pricing/reset', async (req) => {
       require(req, 'pricing:write');
+      audit(req, 'pricing.reset');
       return { pricing: container.settings.resetPricing() };
     });
+
+    // --- Gestion chauffeurs (actions) ---
+    scoped.post('/admin/drivers/:id/kyc', async (req) => {
+      require(req, 'drivers:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ status: z.enum(['draft', 'docs_submitted', 'manual_review', 'approved', 'active', 'suspended']) }), req.body);
+      const d = container.drivers.get(id);
+      if (!d) throw notFound('Chauffeur introuvable');
+      d.kycStatus = body.status;
+      if (body.status === 'suspended') void container.drivers.goOffline(id);
+      container.drivers.persist(id);
+      audit(req, 'driver.kyc', id, { status: body.status });
+      return { driver: { id: d.id, kycStatus: d.kycStatus, availability: d.availability } };
+    });
+
+    scoped.post('/admin/drivers/:id/availability', async (req) => {
+      require(req, 'drivers:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ availability: z.enum(['offline', 'online', 'on_trip', 'paused']) }), req.body);
+      if (!container.drivers.get(id)) throw notFound('Chauffeur introuvable');
+      container.drivers.setAvailability(id, body.availability);
+      audit(req, 'driver.availability', id, { availability: body.availability });
+      return { ok: true };
+    });
+
+    // --- Clients ---
+    scoped.get('/admin/clients', async (req) => { require(req, 'clients:read'); return { clients: container.clients.list() }; });
+
+    scoped.post('/admin/clients/:id/status', async (req) => {
+      require(req, 'clients:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ status: z.enum(['active', 'blocked']) }), req.body);
+      const c = container.clients.setStatus(id, body.status);
+      if (!c) throw notFound('Client introuvable');
+      audit(req, 'client.status', id, { status: body.status });
+      return { client: c };
+    });
+
+    // --- Codes promo ---
+    scoped.get('/admin/promos', async (req) => { require(req, 'promos:read'); return { promos: container.promos.list() }; });
+
+    scoped.put('/admin/promos', async (req) => {
+      require(req, 'promos:write');
+      const body = parse(z.object({
+        code: z.string().min(2).max(24),
+        kind: z.enum(['percent', 'amount']),
+        value: z.number().positive(),
+        maxUses: z.number().int().positive().optional(),
+        active: z.boolean().optional(),
+      }), req.body);
+      const promo = container.promos.upsert(body);
+      audit(req, 'promo.upsert', promo.id, { kind: promo.kind, value: promo.value });
+      return { promo };
+    });
+
+    scoped.post('/admin/promos/:code/active', async (req) => {
+      require(req, 'promos:write');
+      const { code } = req.params as { code: string };
+      const body = parse(z.object({ active: z.boolean() }), req.body);
+      const p = container.promos.setActive(code, body.active);
+      if (!p) throw notFound('Code promo introuvable');
+      audit(req, 'promo.active', code, { active: body.active });
+      return { promo: p };
+    });
+
+    scoped.delete('/admin/promos/:code', async (req) => {
+      require(req, 'promos:write');
+      const { code } = req.params as { code: string };
+      container.promos.remove(code);
+      audit(req, 'promo.delete', code);
+      return { ok: true };
+    });
+
+    // --- Services & disponibilité (zones) ---
+    scoped.get('/admin/services', async (req) => { require(req, 'services:read'); return { config: container.settings.getServices() }; });
+
+    scoped.put('/admin/services', async (req) => {
+      require(req, 'services:write');
+      const body = parse(z.object({
+        city: z.string().optional(),
+        open: z.boolean().optional(),
+        services: z.record(z.string(), z.boolean()).optional(),
+      }), req.body);
+      const config = container.settings.updateServices(body);
+      audit(req, 'services.update', undefined, body);
+      return { config };
+    });
+
+    // --- Support & chat (côté agent) ---
+    scoped.get('/admin/support', async (req) => { require(req, 'support:read'); return { conversations: container.support.list() }; });
+
+    scoped.post('/admin/support/:id/reply', async (req) => {
+      require(req, 'support:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ text: z.string().min(1).max(2000) }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const msg = container.support.post(id, { from: 'agent', author: account.name, text: body.text });
+      if (!msg) throw notFound('Conversation introuvable');
+      container.support.assign(id, account.name);
+      audit(req, 'support.reply', id);
+      return { message: msg };
+    });
+
+    scoped.post('/admin/support/:id/status', async (req) => {
+      require(req, 'support:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ status: z.enum(['open', 'pending', 'closed']) }), req.body);
+      const conv = container.support.setStatus(id, body.status);
+      if (!conv) throw notFound('Conversation introuvable');
+      audit(req, 'support.status', id, { status: body.status });
+      return { conversation: conv };
+    });
+
+    // --- Journal d'audit ---
+    scoped.get('/admin/audit', async (req) => { require(req, 'audit:read'); return { entries: container.audit.list(200) }; });
   });
 }

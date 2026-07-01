@@ -94,6 +94,8 @@ export interface PricingContext {
   trafficLevel?: TrafficLevel;
   /** Remise relative issue d'un code promo (0..1). */
   discountRate?: number;
+  /** Remise FCFA calculée depuis un code promo (prioritaire), en fonction du sous-total. */
+  promoDiscount?: (subtotal: number) => number;
   /** Paramètres de prix pilotables (console Admin). Par défaut : DEFAULT_PRICING. */
   settings?: PricingSettings;
 }
@@ -125,7 +127,9 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
   const trafficMult = 1 + (trafficFactor - 1) * s.trafficWeight;
   const raw = (base + distanceCost + timeCost + stopsCost) * trafficMult;
   const floored = Math.max(raw, tariff.minFare);
-  const discount = floored * discountRate;
+  // Remise : code promo (montant calculé) prioritaire, sinon taux de remise éventuel.
+  const promo = ctx.promoDiscount ? ctx.promoDiscount(floored) : 0;
+  const discount = Math.min(floored, promo > 0 ? promo : floored * discountRate);
 
   const subtotal = floored - discount;
   const tva = subtotal * s.tvaRate;

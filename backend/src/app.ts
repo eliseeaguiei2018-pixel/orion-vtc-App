@@ -23,6 +23,7 @@ import { subscriptionRoutes } from './modules/subscriptions/routes.js';
 import { weddingRoutes } from './modules/wedding/routes.js';
 import { insuranceRoutes } from './modules/insurance/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
+import { supportClientRoutes } from './modules/support/routes.js';
 
 export interface BuiltApp {
   app: FastifyInstance;
@@ -92,6 +93,7 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
   await weddingRoutes(app, container);
   await insuranceRoutes(app, container);
   await adminRoutes(app, container);
+  await supportClientRoutes(app, container);
 
   // Arrêt en douceur : couper les timers de simulation.
   app.addHook('onClose', async () => container.simulator.stopAll());

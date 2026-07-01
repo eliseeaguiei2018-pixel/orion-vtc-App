@@ -44,3 +44,6 @@ export class RealtimeHub {
 export const rideRoom = (rideId: string) => `ride:${rideId}`;
 export const driverRoom = (driverId: string) => `driver:${driverId}`;
 export const EMERGENCY_ROOM = 'emergency';
+/** Room globale des agents support + room par client (chat). */
+export const SUPPORT_ROOM = 'support';
+export const clientRoom = (clientId: string) => `client:${clientId}`;

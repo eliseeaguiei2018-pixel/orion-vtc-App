@@ -16,7 +16,7 @@ import {
   ABIDJAN_PLACES, COUNTRIES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { cancelRide, clientId, createRide, estimate, isLiveBackend, listMyRides, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, type PkgSize, type RideHistoryItem, type SafeDriver } from './api';
+import { cancelRide, clientId, createRide, estimate, isLiveBackend, listMyRides, listSupport, openSupport, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
 import { LANGUAGES, useI18n, type Lang } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubPlan, TierOption, WeddingDuration } from './types';
 
@@ -268,7 +268,8 @@ export function App() {
         )}
         {screen === 'wallet' && <WalletScreen onBack={() => setScreen('home')} onToast={showToast} />}
         {screen === 'history' && <HistoryScreen onBack={() => setScreen('home')} />}
-        {screen === 'help' && <HelpScreen onBack={() => setScreen('home')} />}
+        {screen === 'help' && <HelpScreen onBack={() => setScreen('home')} onSupport={() => setScreen('support')} />}
+        {screen === 'support' && <SupportChatScreen onBack={() => setScreen('help')} />}
         {screen === 'subscription' && (
           <SubscriptionScreen currentPlan={currentPlan} onBack={() => setScreen('home')}
             onSubscribe={(p) => { setCurrentPlan(p); showToast(t('toast_subscribed')); }} />
@@ -1348,7 +1349,7 @@ function HistoryScreen({ onBack }: { onBack: () => void }) {
 }
 
 /* -------------------------------- Aide ------------------------------- */
-function HelpScreen({ onBack }: { onBack: () => void }) {
+function HelpScreen({ onBack, onSupport }: { onBack: () => void; onSupport: () => void }) {
   const { t } = useI18n();
   const numbers = [
     { label: 'SAMU', num: '185' },
@@ -1361,6 +1362,9 @@ function HelpScreen({ onBack }: { onBack: () => void }) {
     <div className="screen page">
       <TopBar onBack={onBack} title={t('help_title')} />
       <div className="page-body">
+        <button className="btn btn-primary" style={{ marginBottom: 18 }} onClick={onSupport}>
+          <IconBell size={18} /> {t('sup_cta')}
+        </button>
         <span className="eyebrow"><IconShield size={13} /> {t('help_emergency')}</span>
         <div className="stack" style={{ margin: '10px 0 20px' }}>
           {numbers.map((n) => (
@@ -1397,6 +1401,63 @@ function HelpScreen({ onBack }: { onBack: () => void }) {
           ))}
         </div>
         <p className="faint" style={{ textAlign: 'center', fontSize: 12 }}>ORION · v0.2.0 · Abidjan 🇨🇮</p>
+      </div>
+    </div>
+  );
+}
+
+/* --------------------------- Chat support ---------------------------- */
+function SupportChatScreen({ onBack }: { onBack: () => void }) {
+  const { t } = useI18n();
+  const [messages, setMessages] = useState<SupportMessage[]>([]);
+  const [text, setText] = useState('');
+  const [convId, setConvId] = useState<string | null>(null);
+  const cid = clientId();
+
+  useEffect(() => {
+    (async () => {
+      const convs = await listSupport(cid);
+      if (convs && convs.length) { setConvId(convs[0]!.id); setMessages(convs[0]!.messages); }
+    })();
+  }, [cid]);
+
+  const send = async () => {
+    const body = text.trim();
+    if (!body) return;
+    setText('');
+    const mine: SupportMessage = { id: `l${Date.now()}`, from: 'client', text: body, at: new Date().toISOString() };
+    setMessages((m) => [...m, mine]);
+    const conv = await openSupport(cid, body);
+    if (conv) { setConvId(conv.id); setMessages(conv.messages); }
+    else {
+      // Démo hors-ligne : réponse automatique de courtoisie.
+      window.setTimeout(() => setMessages((m) => [...m, { id: `a${Date.now()}`, from: 'agent', author: 'Support ORION', text: t('sup_auto'), at: new Date().toISOString() }]), 900);
+    }
+  };
+
+  return (
+    <div className="screen page">
+      <TopBar onBack={onBack} title={t('sup_title')} />
+      <div className="page-body" style={{ display: 'flex', flexDirection: 'column' }}>
+        <div className="sup-chat">
+          {messages.length === 0 && (
+            <div className="sup-intro">
+              <span className="list-ico" style={{ color: 'var(--green)', width: 44, height: 44 }}><IconShieldCheck size={22} /></span>
+              <p className="h-sub" style={{ textAlign: 'center' }}>{t('sup_intro')}</p>
+            </div>
+          )}
+          {messages.map((m) => (
+            <div key={m.id} className={`sup-bubble ${m.from}`}>
+              <span>{m.text}</span>
+              <span className="sup-meta">{m.from === 'agent' ? (m.author ?? 'ORION') : t('sup_you')} · {new Date(m.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+          ))}
+        </div>
+        <div className="sup-input">
+          <input value={text} onChange={(e) => setText(e.target.value)} placeholder={t('sup_placeholder')} onKeyDown={(e) => { if (e.key === 'Enter') void send(); }} />
+          <button className="btn btn-primary" style={{ width: 'auto', padding: '0 18px' }} onClick={() => void send()}>{t('sup_send')}</button>
+        </div>
+        {convId && <p className="faint" style={{ textAlign: 'center', fontSize: 11, marginTop: 6 }}>#{convId} · {t('sup_note')}</p>}
       </div>
     </div>
   );

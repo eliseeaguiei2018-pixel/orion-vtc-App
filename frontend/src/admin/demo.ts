@@ -57,7 +57,44 @@ const me = {
   name: 'Super Admin',
   role: 'super_admin',
   roleLabel: 'Super Admin',
-  permissions: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'alerts:read', 'alerts:write', 'pricing:read', 'pricing:write', 'roles:read'],
+  permissions: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'services:write', 'support:read', 'support:write', 'audit:read', 'roles:read'],
 };
 
-export const DEMO = { overview, alerts, fleet, rides, drivers, pricing, me };
+const clients = [
+  { id: 'client-8842', name: 'Awa Koffi', phone: '+225 07 08 09 10 11', status: 'active', rides: 34, createdAt: iso(60 * 24 * 40), lastSeenAt: iso(120) },
+  { id: 'client-1190', name: 'Jean Brou', phone: '+225 05 44 22 11 00', status: 'active', rides: 12, createdAt: iso(60 * 24 * 15), lastSeenAt: iso(300) },
+  { id: 'client-4521', name: 'Fatou N’Dri', phone: '+225 01 22 33 44 55', status: 'blocked', rides: 3, createdAt: iso(60 * 24 * 5), lastSeenAt: iso(1400) },
+];
+
+const promos = [
+  { id: 'BIENVENUE', kind: 'percent', value: 30, active: true, uses: 214, maxUses: 1000, createdAt: iso(60 * 24 * 10) },
+  { id: 'ORION500', kind: 'amount', value: 500, active: true, uses: 88, createdAt: iso(60 * 24 * 4) },
+  { id: 'NOEL', kind: 'percent', value: 15, active: false, uses: 0, createdAt: iso(60 * 24 * 2) },
+];
+
+const services = {
+  city: 'Abidjan', open: true,
+  services: { course: true, delivery: true, food: false, shop: false, market: false, colis: false },
+};
+
+const support = [
+  { id: 'c1a2b3', clientId: 'client-8842', subject: 'Objet oublié', status: 'open', assignee: undefined, createdAt: iso(40), updatedAt: iso(6),
+    messages: [
+      { id: 'm1', from: 'client', text: 'Bonjour, j’ai oublié mon téléphone dans la voiture.', at: iso(40) },
+      { id: 'm2', from: 'agent', author: 'Support ORION', text: 'Bonjour Awa, on contacte le chauffeur tout de suite.', at: iso(30) },
+      { id: 'm3', from: 'client', text: 'Merci beaucoup 🙏', at: iso(6) },
+    ] },
+  { id: 'd4e5f6', clientId: 'client-1190', subject: 'Question paiement', status: 'pending', assignee: 'Support ORION', createdAt: iso(120), updatedAt: iso(55),
+    messages: [
+      { id: 'm4', from: 'client', text: 'Le paiement Wave a échoué mais j’ai été débité.', at: iso(120) },
+      { id: 'm5', from: 'agent', author: 'Support ORION', text: 'On vérifie la transaction, un instant.', at: iso(55) },
+    ] },
+];
+
+const audit = [
+  { id: 'a1', at: iso(3), actor: 'Super Admin', role: 'super_admin', action: 'pricing.update', details: { perKm: 130 } },
+  { id: 'a2', at: iso(25), actor: 'Awa (Finance)', role: 'finance', action: 'promo.upsert', target: 'BIENVENUE' },
+  { id: 'a3', at: iso(90), actor: 'Support ORION', role: 'support', action: 'client.status', target: 'client-4521', details: { status: 'blocked' } },
+];
+
+export const DEMO = { overview, alerts, fleet, rides, drivers, pricing, me, clients, promos, services, support, audit };

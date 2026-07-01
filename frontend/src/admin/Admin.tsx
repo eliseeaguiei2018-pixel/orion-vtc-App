@@ -25,6 +25,12 @@ export interface Pricing {
   multipliers: Record<string, number>; bodySurcharge: Record<string, number>;
 }
 export interface Me { name: string; role: string; roleLabel: string; permissions: string[] }
+export interface Client { id: string; name?: string; phone?: string; status: string; rides: number; createdAt: string; lastSeenAt: string }
+export interface Promo { id: string; kind: 'percent' | 'amount'; value: number; active: boolean; uses: number; maxUses?: number; createdAt: string }
+export interface ServicesConfig { city: string; open: boolean; services: Record<string, boolean> }
+export interface SupportMsg { id: string; from: 'client' | 'agent'; author?: string; text: string; at: string }
+export interface Conversation { id: string; clientId: string; subject: string; status: string; assignee?: string; messages: SupportMsg[]; createdAt: string; updatedAt: string }
+export interface AuditEntry { id: string; at: string; actor: string; role: string; action: string; target?: string; details?: Record<string, unknown> }
 
 /* ------------------------------- API --------------------------------- */
 const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
@@ -34,6 +40,7 @@ const H = () => ({ 'x-admin-token': getToken(), 'content-type': 'application/jso
 async function adminGet<T>(p: string): Promise<T> { const r = await fetch(API + p, { headers: H() }); if (!r.ok) throw new Error(String(r.status)); return r.json() as Promise<T>; }
 async function adminPost<T>(p: string, b?: unknown): Promise<T> { const r = await fetch(API + p, { method: 'POST', headers: H(), body: JSON.stringify(b ?? {}) }); if (!r.ok) throw new Error(String(r.status)); return r.json() as Promise<T>; }
 async function adminPut<T>(p: string, b: unknown): Promise<T> { const r = await fetch(API + p, { method: 'PUT', headers: H(), body: JSON.stringify(b) }); if (!r.ok) throw new Error(String(r.status)); return r.json() as Promise<T>; }
+async function adminDel(p: string): Promise<void> { await fetch(API + p, { method: 'DELETE', headers: H() }); }
 const fcfa = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' F';
 
 /* --------------------------- Porte d'entrée -------------------------- */
@@ -88,13 +95,18 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'pricing' | 'roles';
+type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'pricing' | 'promos' | 'services' | 'audit' | 'roles';
 const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'overview', label: 'Vue d’ensemble', perm: 'overview:read', icon: '📊' },
   { id: 'alerts', label: 'Supervision SAMU', perm: 'alerts:read', icon: '🚨' },
+  { id: 'support', label: 'Support & chat', perm: 'support:read', icon: '💬' },
   { id: 'rides', label: 'Courses', perm: 'rides:read', icon: '🚗' },
   { id: 'drivers', label: 'Chauffeurs', perm: 'drivers:read', icon: '🧑‍✈️' },
+  { id: 'clients', label: 'Clients', perm: 'clients:read', icon: '👥' },
   { id: 'pricing', label: 'Tarification', perm: 'pricing:read', icon: '💰' },
+  { id: 'promos', label: 'Codes promo', perm: 'promos:read', icon: '🎟️' },
+  { id: 'services', label: 'Services & ville', perm: 'services:read', icon: '🧩' },
+  { id: 'audit', label: 'Journal', perm: 'audit:read', icon: '📜' },
   { id: 'roles', label: 'Rôles & accès', perm: 'roles:read', icon: '🛡️' },
 ];
 
@@ -107,13 +119,20 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [rides, setRides] = useState<RideRow[]>([]);
   const [drivers, setDrivers] = useState<DriverRow[]>([]);
   const [pricing, setPricing] = useState<Pricing | null>(null);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [promos, setPromos] = useState<Promo[]>([]);
+  const [services, setServices] = useState<ServicesConfig | null>(null);
+  const [support, setSupport] = useState<Conversation[]>([]);
+  const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [live, setLive] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [section, setSection] = useState<Section>('overview');
 
   const loadDemo = useCallback(() => {
     setMe(DEMO.me); setOv(DEMO.overview); setAlerts(DEMO.alerts); setFleet(DEMO.fleet);
-    setRides(DEMO.rides); setDrivers(DEMO.drivers); setPricing(DEMO.pricing); setLive(false);
+    setRides(DEMO.rides); setDrivers(DEMO.drivers); setPricing(DEMO.pricing);
+    setClients(DEMO.clients); setPromos(DEMO.promos as Promo[]); setServices(DEMO.services);
+    setSupport(DEMO.support as Conversation[]); setAudit(DEMO.audit as AuditEntry[]); setLive(false);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -127,6 +146,11 @@ function Console({ onLogout }: { onLogout: () => void }) {
       if (has('drivers:read')) { setFleet((await adminGet<{ fleet: FleetUnit[] }>('/admin/fleet/live')).fleet); setDrivers((await adminGet<{ drivers: DriverRow[] }>('/admin/drivers')).drivers); }
       if (has('rides:read')) setRides((await adminGet<{ rides: RideRow[] }>('/admin/rides?limit=12')).rides);
       if (has('pricing:read')) setPricing((await adminGet<{ pricing: Pricing }>('/admin/pricing')).pricing);
+      if (has('clients:read')) setClients((await adminGet<{ clients: Client[] }>('/admin/clients')).clients);
+      if (has('promos:read')) setPromos((await adminGet<{ promos: Promo[] }>('/admin/promos')).promos);
+      if (has('services:read')) setServices((await adminGet<{ config: ServicesConfig }>('/admin/services')).config);
+      if (has('support:read')) setSupport((await adminGet<{ conversations: Conversation[] }>('/admin/support')).conversations);
+      if (has('audit:read')) setAudit((await adminGet<{ entries: AuditEntry[] }>('/admin/audit')).entries);
     } catch { loadDemo(); }
   }, [loadDemo]);
 
@@ -146,6 +170,46 @@ function Console({ onLogout }: { onLogout: () => void }) {
     if (!API) { setPricing((p) => (p ? { ...p, ...patch, multipliers: { ...p.multipliers, ...(patch.multipliers ?? {}) } } : p)); return; }
     const { pricing: next } = await adminPut<{ pricing: Pricing }>('/admin/pricing', patch);
     setPricing(next);
+  };
+
+  const setClientStatus = async (id: string, status: string) => {
+    if (!API) { setClients((xs) => xs.map((c) => (c.id === id ? { ...c, status } : c))); return; }
+    try { await adminPost(`/admin/clients/${id}/status`, { status }); setClients((xs) => xs.map((c) => (c.id === id ? { ...c, status } : c))); } catch { /* ignore */ }
+  };
+
+  const savePromo = async (p: { code: string; kind: 'percent' | 'amount'; value: number; maxUses?: number }) => {
+    if (!API) { setPromos((xs) => { const id = p.code.toUpperCase(); const ex = xs.find((x) => x.id === id); const np: Promo = { id, kind: p.kind, value: p.value, active: ex?.active ?? true, uses: ex?.uses ?? 0, maxUses: p.maxUses, createdAt: ex?.createdAt ?? new Date().toISOString() }; return ex ? xs.map((x) => (x.id === id ? np : x)) : [np, ...xs]; }); return; }
+    const { promo } = await adminPut<{ promo: Promo }>('/admin/promos', p);
+    setPromos((xs) => (xs.some((x) => x.id === promo.id) ? xs.map((x) => (x.id === promo.id ? promo : x)) : [promo, ...xs]));
+  };
+  const togglePromo = async (code: string, active: boolean) => {
+    if (!API) { setPromos((xs) => xs.map((x) => (x.id === code ? { ...x, active } : x))); return; }
+    try { await adminPost(`/admin/promos/${code}/active`, { active }); setPromos((xs) => xs.map((x) => (x.id === code ? { ...x, active } : x))); } catch { /* */ }
+  };
+  const deletePromo = async (code: string) => {
+    if (API) await adminDel(`/admin/promos/${code}`);
+    setPromos((xs) => xs.filter((x) => x.id !== code));
+  };
+
+  const saveServices = async (patch: Partial<ServicesConfig>) => {
+    if (!API) { setServices((s) => (s ? { ...s, ...patch, services: { ...s.services, ...(patch.services ?? {}) } } : s)); return; }
+    const { config } = await adminPut<{ config: ServicesConfig }>('/admin/services', patch);
+    setServices(config);
+  };
+
+  const supportReply = async (convId: string, text: string) => {
+    const msg: SupportMsg = { id: Math.random().toString(36).slice(2, 8), from: 'agent', author: me?.name, text, at: new Date().toISOString() };
+    if (API) { try { await adminPost(`/admin/support/${convId}/reply`, { text }); } catch { /* */ } }
+    setSupport((xs) => xs.map((c) => (c.id === convId ? { ...c, messages: [...c.messages, msg], status: 'pending' } : c)));
+  };
+  const supportSetStatus = async (convId: string, status: string) => {
+    if (API) { try { await adminPost(`/admin/support/${convId}/status`, { status }); } catch { /* */ } }
+    setSupport((xs) => xs.map((c) => (c.id === convId ? { ...c, status } : c)));
+  };
+
+  const driverAction = async (id: string, kind: 'kyc' | 'availability', value: string) => {
+    if (API) { try { await adminPost(`/admin/drivers/${id}/${kind}`, kind === 'kyc' ? { status: value } : { availability: value }); } catch { /* */ } }
+    setDrivers((xs) => xs.map((d) => (d.id === id ? { ...d, ...(kind === 'kyc' ? { kycStatus: value, availability: value === 'suspended' ? 'offline' : d.availability } : { availability: value }) } : d)));
   };
 
   if (!me || !ov) return <div className="adm-loading">Chargement de la console…</div>;
@@ -190,9 +254,14 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
         {section === 'overview' && <OverviewSection ov={ov} fleet={fleet} openAlerts={openAlerts} />}
         {section === 'alerts' && <AlertsSection alerts={alerts} fleet={fleet} openAlerts={openAlerts} canWrite={can('alerts:write')} onStatus={setAlertStatus} />}
+        {section === 'support' && <SupportSection convs={support} canWrite={can('support:write')} onReply={supportReply} onStatus={supportSetStatus} />}
         {section === 'rides' && <RidesSection rides={rides} />}
-        {section === 'drivers' && <DriversSection drivers={drivers} />}
+        {section === 'drivers' && <DriversSection drivers={drivers} canWrite={can('drivers:write')} onAction={driverAction} />}
+        {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} />}
         {section === 'pricing' && pricing && <PricingEditor pricing={pricing} canWrite={can('pricing:write')} onSave={savePricing} />}
+        {section === 'promos' && <PromosSection promos={promos} canWrite={can('promos:write')} onSave={savePromo} onToggle={togglePromo} onDelete={deletePromo} />}
+        {section === 'services' && services && <ServicesSection config={services} canWrite={can('services:write')} onSave={saveServices} />}
+        {section === 'audit' && <AuditSection entries={audit} />}
         {section === 'roles' && <RolesSection me={me} />}
       </main>
     </div>
@@ -268,12 +337,12 @@ function RidesSection({ rides }: { rides: RideRow[] }) {
   );
 }
 
-function DriversSection({ drivers }: { drivers: DriverRow[] }) {
+function DriversSection({ drivers, canWrite, onAction }: { drivers: DriverRow[]; canWrite: boolean; onAction: (id: string, kind: 'kyc' | 'availability', value: string) => void }) {
   return (
     <div className="adm-card">
       <div className="adm-card-h"><h3>Chauffeurs</h3><span className="adm-muted">{drivers.length}</span></div>
       <table className="adm-table">
-        <thead><tr><th>Nom</th><th>Matricule</th><th>Niveau</th><th>KYC</th><th>État</th><th className="r">Solde</th><th className="r">Note</th></tr></thead>
+        <thead><tr><th>Nom</th><th>Matricule</th><th>Niveau</th><th>KYC</th><th>État</th><th className="r">Solde</th><th className="r">Note</th>{canWrite && <th>Actions</th>}</tr></thead>
         <tbody>
           {drivers.map((d) => (
             <tr key={d.id}>
@@ -281,6 +350,16 @@ function DriversSection({ drivers }: { drivers: DriverRow[] }) {
               <td><span className={`adm-pill kyc-${d.kycStatus}`}>{kycLabel(d.kycStatus)}</span></td>
               <td><span className={`adm-pill av-${d.availability}`}>{availLabel(d.availability)}</span></td>
               <td className="r">{fcfa(d.balance)}</td><td className="r">★ {d.rating.toFixed(2)}</td>
+              {canWrite && (
+                <td>
+                  <div className="row" style={{ gap: 6 }}>
+                    {d.kycStatus !== 'active' && <button className="adm-btn xs solid" onClick={() => onAction(d.id, 'kyc', 'active')}>Approuver</button>}
+                    {d.kycStatus !== 'suspended'
+                      ? <button className="adm-btn xs" onClick={() => onAction(d.id, 'kyc', 'suspended')}>Suspendre</button>
+                      : <button className="adm-btn xs" onClick={() => onAction(d.id, 'kyc', 'active')}>Réactiver</button>}
+                  </div>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
@@ -288,6 +367,160 @@ function DriversSection({ drivers }: { drivers: DriverRow[] }) {
     </div>
   );
 }
+
+function ClientsSection({ clients, canWrite, onStatus }: { clients: Client[]; canWrite: boolean; onStatus: (id: string, s: string) => void }) {
+  return (
+    <div className="adm-card">
+      <div className="adm-card-h"><h3>Clients</h3><span className="adm-muted">{clients.length}</span></div>
+      <table className="adm-table">
+        <thead><tr><th>Client</th><th>Téléphone</th><th className="r">Courses</th><th>Statut</th>{canWrite && <th>Actions</th>}</tr></thead>
+        <tbody>
+          {clients.map((c) => (
+            <tr key={c.id}>
+              <td>{c.name ?? c.id}<div className="mono adm-muted" style={{ fontSize: 11 }}>{c.id}</div></td>
+              <td>{c.phone ?? '—'}</td><td className="r">{c.rides}</td>
+              <td><span className={`adm-pill ${c.status === 'blocked' ? 'kyc-manual_review' : 'av-online'}`}>{c.status === 'blocked' ? 'Bloqué' : 'Actif'}</span></td>
+              {canWrite && (
+                <td>{c.status === 'blocked'
+                  ? <button className="adm-btn xs solid" onClick={() => onStatus(c.id, 'active')}>Débloquer</button>
+                  : <button className="adm-btn xs" onClick={() => onStatus(c.id, 'blocked')}>Bloquer</button>}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PromosSection({ promos, canWrite, onSave, onToggle, onDelete }: { promos: Promo[]; canWrite: boolean; onSave: (p: { code: string; kind: 'percent' | 'amount'; value: number; maxUses?: number }) => void; onToggle: (code: string, active: boolean) => void; onDelete: (code: string) => void }) {
+  const [code, setCode] = useState(''); const [kind, setKind] = useState<'percent' | 'amount'>('percent'); const [value, setValue] = useState(20);
+  return (
+    <>
+      {canWrite && (
+        <div className="adm-card">
+          <div className="adm-card-h"><h3>Nouveau code promo</h3></div>
+          <div className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <label className="price-field"><span>Code</span><input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="BIENVENUE" /></label>
+            <label className="price-field"><span>Type</span>
+              <select value={kind} onChange={(e) => setKind(e.target.value as 'percent' | 'amount')} className="adm-select"><option value="percent">Pourcentage (%)</option><option value="amount">Montant (F)</option></select>
+            </label>
+            <label className="price-field"><span>Valeur</span><input type="number" value={value} onChange={(e) => setValue(Number(e.target.value))} /></label>
+            <button className="adm-btn solid" onClick={() => { if (code.trim()) { onSave({ code: code.trim(), kind, value }); setCode(''); } }}>Créer</button>
+          </div>
+        </div>
+      )}
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Codes promo</h3><span className="adm-muted">{promos.length}</span></div>
+        <table className="adm-table">
+          <thead><tr><th>Code</th><th>Remise</th><th className="r">Utilisations</th><th>Actif</th>{canWrite && <th>Actions</th>}</tr></thead>
+          <tbody>
+            {promos.map((p) => (
+              <tr key={p.id}>
+                <td className="mono">{p.id}</td>
+                <td>{p.kind === 'percent' ? `-${p.value}%` : `-${fcfa(p.value)}`}</td>
+                <td className="r">{p.uses}{p.maxUses ? ` / ${p.maxUses}` : ''}</td>
+                <td><span className={`adm-pill ${p.active ? 'av-online' : 'kyc-manual_review'}`}>{p.active ? 'Actif' : 'Inactif'}</span></td>
+                {canWrite && (
+                  <td><div className="row" style={{ gap: 6 }}>
+                    <button className="adm-btn xs" onClick={() => onToggle(p.id, !p.active)}>{p.active ? 'Désactiver' : 'Activer'}</button>
+                    <button className="adm-btn xs" onClick={() => onDelete(p.id)}>Suppr.</button>
+                  </div></td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+const SERVICE_LABEL: Record<string, string> = { course: 'Course (VTC)', delivery: 'Livraison moto', food: 'Food', shop: 'Achat & Vente', market: 'Supermarché', colis: 'Colis / Cargo' };
+function ServicesSection({ config, canWrite, onSave }: { config: ServicesConfig; canWrite: boolean; onSave: (patch: Partial<ServicesConfig>) => void }) {
+  return (
+    <div className="adm-card">
+      <div className="adm-card-h"><h3>Services & disponibilité — {config.city}</h3><span className="adm-muted">Active/désactive les services de l'app cliente</span></div>
+      <div className="opt" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--a-stroke)', marginBottom: 10 }}>
+        <strong style={{ flex: 1 }}>ORION ouvert (service actif)</strong>
+        <button className={`adm-toggle${config.open ? ' on' : ''}`} disabled={!canWrite} onClick={() => onSave({ open: !config.open })}><span /></button>
+      </div>
+      <div className="stack" style={{ gap: 8 }}>
+        {Object.keys(SERVICE_LABEL).map((k) => (
+          <div key={k} className="row between" style={{ padding: '8px 0' }}>
+            <span>{SERVICE_LABEL[k]}</span>
+            <button className={`adm-toggle${config.services[k] ? ' on' : ''}`} disabled={!canWrite} onClick={() => onSave({ services: { [k]: !config.services[k] } })}><span /></button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SupportSection({ convs, canWrite, onReply, onStatus }: { convs: Conversation[]; canWrite: boolean; onReply: (id: string, text: string) => void; onStatus: (id: string, s: string) => void }) {
+  const [sel, setSel] = useState<string | null>(convs[0]?.id ?? null);
+  const [text, setText] = useState('');
+  const conv = convs.find((c) => c.id === sel) ?? convs[0] ?? null;
+  return (
+    <div className="adm-grid2">
+      <div className="adm-card" style={{ maxHeight: 640, overflow: 'auto' }}>
+        <div className="adm-card-h"><h3>Conversations</h3><span className="adm-muted">{convs.length}</span></div>
+        <div className="stack" style={{ gap: 6 }}>
+          {convs.length === 0 && <p className="adm-empty">Aucune conversation.</p>}
+          {convs.map((c) => (
+            <button key={c.id} className={`adm-conv${conv?.id === c.id ? ' on' : ''}`} onClick={() => setSel(c.id)}>
+              <div className="row between"><strong>{c.subject}</strong><span className={`adm-pill s-${c.status === 'open' ? 'searching' : c.status === 'pending' ? 'in_progress' : 'completed'}`}>{convStatus(c.status)}</span></div>
+              <div className="adm-muted" style={{ fontSize: 12 }}>{c.clientId} · {c.messages.length} msg</div>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="adm-card" style={{ display: 'flex', flexDirection: 'column', maxHeight: 640 }}>
+        {conv ? (
+          <>
+            <div className="adm-card-h"><h3>{conv.subject}</h3><span className="adm-muted">{conv.clientId}</span></div>
+            <div className="adm-chat">
+              {conv.messages.map((m) => (
+                <div key={m.id} className={`adm-bubble ${m.from}`}>
+                  <div className="adm-bubble-txt">{m.text}</div>
+                  <div className="adm-bubble-meta">{m.from === 'agent' ? (m.author ?? 'Agent') : 'Client'} · {new Date(m.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+                </div>
+              ))}
+            </div>
+            {canWrite && (
+              <div className="adm-chat-input">
+                <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Répondre au client…" onKeyDown={(e) => { if (e.key === 'Enter' && text.trim()) { onReply(conv.id, text.trim()); setText(''); } }} />
+                <button className="adm-btn solid" onClick={() => { if (text.trim()) { onReply(conv.id, text.trim()); setText(''); } }}>Envoyer</button>
+                <button className="adm-btn ghost" onClick={() => onStatus(conv.id, 'closed')}>Clore</button>
+              </div>
+            )}
+          </>
+        ) : <p className="adm-empty">Sélectionne une conversation.</p>}
+      </div>
+    </div>
+  );
+}
+
+function AuditSection({ entries }: { entries: AuditEntry[] }) {
+  return (
+    <div className="adm-card">
+      <div className="adm-card-h"><h3>Journal d'audit</h3><span className="adm-muted">{entries.length} actions</span></div>
+      <table className="adm-table">
+        <thead><tr><th>Quand</th><th>Auteur</th><th>Rôle</th><th>Action</th><th>Cible</th></tr></thead>
+        <tbody>
+          {entries.map((e) => (
+            <tr key={e.id}>
+              <td className="adm-muted">{new Date(e.at).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+              <td>{e.actor}</td><td className="cap">{e.role}</td><td className="mono">{e.action}</td><td className="mono adm-muted">{e.target ?? '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+const convStatus = (s: string) => ({ open: 'Ouverte', pending: 'En attente', closed: 'Close' }[s] ?? s);
 
 /* --------------------------- Éditeur de prix ------------------------- */
 function exampleFare(p: Pricing, tier: string, km: number): number {

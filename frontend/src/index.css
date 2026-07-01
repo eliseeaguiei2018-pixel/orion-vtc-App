@@ -318,6 +318,18 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
 
 .perk { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px;
   border: 1px solid var(--stroke); background: linear-gradient(160deg, rgba(0,168,101,0.10), rgba(0,168,101,0.02)); }
+
+/* Chat support (client) */
+.sup-chat { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px 0 12px; min-height: 320px; }
+.sup-intro { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: auto; padding: 24px; }
+.sup-bubble { max-width: 82%; padding: 10px 13px; border-radius: 16px; display: flex; flex-direction: column; gap: 3px; }
+.sup-bubble.client { align-self: flex-end; background: linear-gradient(140deg, var(--green-bright), var(--green-deep)); color: #fff; border-bottom-right-radius: 5px; }
+.sup-bubble.agent { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--stroke); border-bottom-left-radius: 5px; }
+.sup-bubble > span:first-child { font-size: 14.5px; }
+.sup-meta { font-size: 10px; opacity: 0.7; }
+.sup-input { display: flex; gap: 8px; align-items: center; padding-top: 8px; border-top: 1px solid var(--stroke); }
+.sup-input input { flex: 1; background: var(--surface-2); border: 1px solid var(--stroke); border-radius: 12px; padding: 12px 14px; color: var(--text); font-size: 15px; outline: none; }
+.sup-input input:focus { border-color: var(--green); }
 .del-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
 .del-head .svc-illus.small { width: 60px; }
 

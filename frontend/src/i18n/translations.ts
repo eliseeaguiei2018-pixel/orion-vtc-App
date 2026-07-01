@@ -107,6 +107,10 @@ const fr: Dict = {
   del_searching: 'Recherche d’un coursier…', del_searching_sub: 'Nous contactons les coursiers moto les plus proches.',
   del_picked: 'Colis récupéré', del_enroute: 'Colis en route vers la destination', del_meeting: 'Retrait du colis',
   wifi_free: 'Wi-Fi gratuit illimité à bord', fixed_badge: 'Prix fixe · trafic inclus',
+  sup_cta: 'Discuter avec le support', sup_title: 'Support ORION', sup_send: 'Envoyer',
+  sup_placeholder: 'Écrivez votre message…', sup_you: 'Vous', sup_note: 'Un agent ORION vous répond ici.',
+  sup_intro: 'Bonjour 👋 Comment pouvons-nous vous aider ? Écrivez-nous, un agent ORION vous répond.',
+  sup_auto: 'Merci pour votre message ! Un agent ORION va vous répondre dans un instant.',
 };
 
 const en: Dict = {
@@ -193,6 +197,10 @@ const en: Dict = {
   del_searching: 'Finding a courier…', del_searching_sub: 'Reaching the nearest moto couriers.',
   del_picked: 'Parcel picked up', del_enroute: 'Parcel on the way', del_meeting: 'Parcel pickup',
   wifi_free: 'Free unlimited Wi-Fi on board', fixed_badge: 'Fixed price · traffic included',
+  sup_cta: 'Chat with support', sup_title: 'ORION Support', sup_send: 'Send',
+  sup_placeholder: 'Type your message…', sup_you: 'You', sup_note: 'An ORION agent replies here.',
+  sup_intro: 'Hi 👋 How can we help? Write to us and an ORION agent will reply.',
+  sup_auto: 'Thanks for your message! An ORION agent will reply shortly.',
   pay_title: 'Payment', pay_redirect: 'Redirecting to {p}…', pay_confirm_in: 'Confirm in {p}', pay_success: 'Payment received by ORION',
   pay_email: 'Receipt sent by email 📧', pay_notif: 'Driver & client notified', pay_open: 'Open {p}',
 };

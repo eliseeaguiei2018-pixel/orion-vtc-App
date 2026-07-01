@@ -69,6 +69,8 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       }
 
       container.rides.save(created);
+      // Rattache la course au client (fiche client / support).
+      container.clients.incrementRides(created.clientId);
 
       // Tracking live : le serveur simule le trajet du chauffeur et émet les événements
       // temps réel (driver.location + ride.status) consommés par l'app via WebSocket.

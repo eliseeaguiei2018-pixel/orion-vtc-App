@@ -19,6 +19,10 @@ import { RealtimeHub } from './modules/realtime/hub.js';
 import { createMapsProvider, type MapsProvider } from './modules/maps/service.js';
 import { createRepository } from './core/db/repository.js';
 import { genMatricule, type Driver } from './modules/drivers/store.js';
+import { ClientStore, type Client } from './modules/clients/store.js';
+import { PromoService, type Promo } from './modules/promos/service.js';
+import { SupportService } from './modules/support/service.js';
+import { AuditService } from './modules/admin/audit.js';
 import type { Ride } from './modules/rides/store.js';
 import type { LedgerEntry } from './modules/wallet/service.js';
 import type { Subscription } from './modules/subscriptions/service.js';
@@ -47,6 +51,10 @@ export interface Container {
   subscriptions: SubscriptionService;
   wedding: WeddingService;
   settings: SettingsService;
+  clients: ClientStore;
+  promos: PromoService;
+  support: SupportService;
+  audit: AuditService;
 }
 
 export function createContainer(): Container {
@@ -56,10 +64,12 @@ export function createContainer(): Container {
   const rides = new RideStore(createRepository<Ride>('rides'));
   const matching = new MatchingEngine(geo, drivers);
 
-  // Paramètres pilotables (prix) — modifiables depuis la console Admin, persistés.
-  const settings = new SettingsService(createRepository<PricingRecord>('settings'));
+  // Paramètres pilotables (prix + services) — modifiables depuis la console Admin, persistés.
+  const settings = new SettingsService(createRepository<PricingRecord>('settings'), createRepository('services'));
+  // Codes promo (remises) pilotés depuis la console.
+  const promos = new PromoService(createRepository<Promo>('promos'));
 
-  // Tarification : paramètres pilotables (Admin) + détection de trafic (intégrée au prix fixe).
+  // Tarification : paramètres pilotables (Admin) + trafic intégré + code promo éventuel.
   const registry = new ServiceRegistry().register(
     new RideServiceModule((req) => {
       const traffic = trafficInfo(req.origin, req.destination);
@@ -67,6 +77,7 @@ export function createContainer(): Container {
         trafficFactor: traffic.factor,
         trafficLevel: traffic.level,
         settings: settings.getPricing(),
+        promoDiscount: (subtotal: number) => promos.evaluate(req.promoCode, subtotal)?.discount ?? 0,
       };
     }),
   );
@@ -95,6 +106,10 @@ export function createContainer(): Container {
     subscriptions: new SubscriptionService(createRepository<Subscription>('subscriptions')),
     wedding: new WeddingService(createRepository<WeddingReservation>('wedding')),
     settings,
+    promos,
+    clients: new ClientStore(createRepository<Client>('clients')),
+    support: new SupportService(realtime),
+    audit: new AuditService(),
   };
 }
 

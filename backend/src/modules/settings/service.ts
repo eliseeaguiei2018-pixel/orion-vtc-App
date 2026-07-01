@@ -1,6 +1,18 @@
 import { DEFAULT_PRICING, type PricingSettings } from '../services/ride/pricing.js';
 import type { Repository } from '../../core/db/repository.js';
 
+/** Disponibilité des services & de la ville — pilotée depuis la console. */
+export interface ServicesConfig {
+  city: string;
+  open: boolean; // ORION ouvert/fermé (maintenance)
+  services: Record<string, boolean>; // course, delivery, food, shop, market, colis
+}
+export const DEFAULT_SERVICES: ServicesConfig = {
+  city: 'Abidjan',
+  open: true,
+  services: { course: true, delivery: true, food: false, shop: false, market: false, colis: false },
+};
+
 /**
  * Paramètres globaux ORION pilotés depuis la console Admin (centre de contrôle).
  * Aujourd'hui : tarification (leviers augmenter/réduire les prix). Persisté → survit au
@@ -22,12 +34,33 @@ const stripId = (r: PricingRecord): PricingSettings => {
   return rest;
 };
 
+interface ServicesRecord extends ServicesConfig { id: string; }
+const SERVICES_ID = 'services';
+
 export class SettingsService {
   private pricing: PricingSettings;
+  private services: ServicesConfig;
 
-  constructor(private readonly repo?: Repository<PricingRecord>) {
+  constructor(
+    private readonly repo?: Repository<PricingRecord>,
+    private readonly servicesRepo?: Repository<ServicesRecord>,
+  ) {
     const saved = repo?.get(PRICING_ID);
     this.pricing = saved ? stripId(saved) : { ...DEFAULT_PRICING };
+    const savedSvc = servicesRepo?.get(SERVICES_ID);
+    this.services = savedSvc ? { city: savedSvc.city, open: savedSvc.open, services: savedSvc.services } : { ...DEFAULT_SERVICES, services: { ...DEFAULT_SERVICES.services } };
+  }
+
+  getServices(): ServicesConfig { return this.services; }
+
+  updateServices(patch: Partial<ServicesConfig>): ServicesConfig {
+    this.services = {
+      ...this.services,
+      ...patch,
+      services: { ...this.services.services, ...(patch.services ?? {}) },
+    };
+    this.servicesRepo?.put({ id: SERVICES_ID, ...this.services });
+    return this.services;
   }
 
   getPricing(): PricingSettings {
