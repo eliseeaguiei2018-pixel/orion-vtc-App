@@ -3,10 +3,15 @@ import type { LatLng } from '../types';
 import { useTheme } from '../theme';
 
 /**
- * Carte stylisée ORION projetant de vraies coordonnées d'Abidjan, adaptée au thème
- * (clair / sombre). Affiche l'itinéraire (avec arrêts), des marqueurs de trafic
- * (carrefours / embouteillages) et une VOITURE comme repère de suivi.
- * En présence d'une clé Google Maps, on peut substituer une carte réelle sans changer l'app.
+ * Carte ORION façon navigation (style Google/Waze) projetant de vraies coordonnées
+ * d'Abidjan, adaptée au thème clair / sombre :
+ *  - hiérarchie de voirie (grands boulevards + rues secondaires + trame résidentielle),
+ *  - lagune Ébrié + espaces verts + libellés de communes (Plateau, Cocody, …),
+ *  - marqueurs de trafic (carrefours / embouteillages), itinéraire, arrêts et VOITURE.
+ *
+ * En production, en présence d'une clé Google Maps (ou de tuiles OSM/MapTiler), on
+ * substitue le fond de carte réel via cette même couche : les marqueurs, l'itinéraire
+ * et le suivi voiture restent identiques (couche d'abstraction cartographique).
  */
 const VIEW_W = 400;
 const VIEW_H = 800;
@@ -30,11 +35,20 @@ function curvedPath(a: Pt, b: Pt): string {
 }
 
 interface Palette {
-  bg0: string; bg1: string; street1: string; street2: string; lagune: string;
+  land: string; land2: string; water: string; park: string;
+  roadCasing: string; roadFill: string; primaryCasing: string; primaryFill: string; label: string;
   route0: string; route1: string; origin: string; dest: string; car: string; ink: string;
 }
-const DARK: Palette = { bg0: '#0e3325', bg1: '#04100b', street1: '#103527', street2: '#163f2e', lagune: '#072a3a', route0: '#2bffa6', route1: '#00b46e', origin: '#2bffa6', dest: '#f5c451', car: '#2bffa6', ink: '#04140d' };
-const LIGHT: Palette = { bg0: '#e9faf1', bg1: '#ffffff', street1: '#d2e8dd', street2: '#bfdacd', lagune: '#d3ecf5', route0: '#00c884', route1: '#008a53', origin: '#00a865', dest: '#e0a92e', car: '#00a865', ink: '#ffffff' };
+const DARK: Palette = {
+  land: '#0c2018', land2: '#08160f', water: '#0a2b3c', park: '#123a26',
+  roadCasing: '#0d2419', roadFill: '#20402f', primaryCasing: '#6f521c', primaryFill: '#b98a2c', label: '#61806f',
+  route0: '#2bffa6', route1: '#00b46e', origin: '#2bffa6', dest: '#f5c451', car: '#2bffa6', ink: '#04140d',
+};
+const LIGHT: Palette = {
+  land: '#e9f1ea', land2: '#f4f8f4', water: '#bfe0f0', park: '#d5eccf',
+  roadCasing: '#d0dcd4', roadFill: '#ffffff', primaryCasing: '#eab308', primaryFill: '#ffd775', label: '#8aa093',
+  route0: '#00c884', route1: '#008a53', origin: '#00a865', dest: '#e0a92e', car: '#00a865', ink: '#ffffff',
+};
 
 interface Props {
   origin: LatLng;
@@ -54,6 +68,21 @@ export function OrionMap({ origin, destination, stops = [], car, traffic = true 
   const sp = useMemo(() => stops.map(project), [stops]);
   const c = useMemo(() => (car ? project(car) : null), [car]);
 
+  // Trame résidentielle (avenues + rues) générée pour densifier la ville.
+  const grid = useMemo(() => {
+    const av: string[] = [];
+    for (let x = -20; x <= 420; x += 30) {
+      const j = ((x / 30) % 2 === 0 ? 1 : -1);
+      av.push(`M ${x} -20 C ${x + 16 * j} 200, ${x - 14 * j} 520, ${x + 9 * j} 820`);
+    }
+    const st: string[] = [];
+    for (let y = -20; y <= 820; y += 34) {
+      const j = ((y / 34) % 2 === 0 ? 1 : -1);
+      st.push(`M -20 ${y} C 120 ${y + 12 * j}, 280 ${y - 12 * j}, 420 ${y + 7 * j}`);
+    }
+    return [...av, ...st];
+  }, []);
+
   // Itinéraire passant par les arrêts.
   const points: Pt[] = d ? [o, ...sp, d] : [];
   const segs = points.slice(1).map((p, i) => curvedPath(points[i]!, p));
@@ -62,27 +91,61 @@ export function OrionMap({ origin, destination, stops = [], car, traffic = true 
     <div className="map-wrap">
       <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} preserveAspectRatio="xMidYMid slice">
         <defs>
-          <radialGradient id="bgGlow" cx="50%" cy="38%" r="60%">
-            <stop offset="0%" stopColor={P.bg0} />
-            <stop offset="100%" stopColor={P.bg1} />
+          <radialGradient id="bgGlow" cx="50%" cy="34%" r="72%">
+            <stop offset="0%" stopColor={P.land2} />
+            <stop offset="100%" stopColor={P.land} />
           </radialGradient>
           <linearGradient id="routeGrad" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor={P.route0} />
             <stop offset="100%" stopColor={P.route1} />
           </linearGradient>
-          <filter id="soft"><feGaussianBlur stdDeviation="1.1" /></filter>
+          <clipPath id="frame"><rect width={VIEW_W} height={VIEW_H} /></clipPath>
         </defs>
 
-        <rect width={VIEW_W} height={VIEW_H} fill="url(#bgGlow)" />
+        <g clipPath="url(#frame)">
+          <rect width={VIEW_W} height={VIEW_H} fill="url(#bgGlow)" />
 
-        <g stroke={P.street1} strokeWidth="6" opacity="0.55" filter="url(#soft)">
-          {STREETS.map((dp, i) => <path key={i} d={dp} fill="none" />)}
-        </g>
-        <g stroke={P.street2} strokeWidth="1.4" opacity="0.5">
-          {STREETS.map((dp, i) => <path key={i} d={dp} fill="none" />)}
-        </g>
+          {/* Espaces verts (parcs / Banco). */}
+          <g fill={P.park} opacity="0.75">
+            <ellipse cx="70" cy="150" rx="70" ry="60" />
+            <ellipse cx="330" cy="120" rx="55" ry="46" />
+            <ellipse cx="360" cy="700" rx="60" ry="70" />
+          </g>
 
-        <path d="M -20 560 C 120 520 200 600 400 540 L 400 700 C 220 660 120 700 -20 660 Z" fill={P.lagune} opacity="0.6" />
+          {/* Lagune Ébrié (Abidjan est bâtie autour). */}
+          <path
+            d="M -20 452 C 90 430 170 470 250 452 C 320 437 370 470 420 452 L 420 566 C 350 590 300 556 250 566 C 160 584 90 548 -20 584 Z"
+            fill={P.water}
+          />
+          <path d="M 250 452 C 262 520 258 640 250 820 L 300 820 C 306 640 300 520 300 460 Z" fill={P.water} opacity="0.9" />
+
+          {/* Trame résidentielle (rues) — casing puis remplissage. */}
+          <g stroke={P.roadCasing} strokeWidth="3.4" fill="none" opacity="0.9">
+            {grid.map((dp, i) => <path key={i} d={dp} />)}
+          </g>
+          <g stroke={P.roadFill} strokeWidth="1.7" fill="none" opacity="0.95">
+            {grid.map((dp, i) => <path key={i} d={dp} />)}
+          </g>
+
+          {/* Grands boulevards (voirie primaire) — casing + remplissage chaud. */}
+          <g stroke={P.primaryCasing} strokeWidth="9.5" fill="none" strokeLinecap="round">
+            {PRIMARIES.map((dp, i) => <path key={i} d={dp} />)}
+          </g>
+          <g stroke={P.primaryFill} strokeWidth="6" fill="none" strokeLinecap="round">
+            {PRIMARIES.map((dp, i) => <path key={i} d={dp} />)}
+          </g>
+
+          {/* Libellés de communes. */}
+          <g fill={P.label} fontSize="11" fontWeight="700" opacity="0.9"
+             style={{ letterSpacing: '0.12em', textTransform: 'uppercase' } as React.CSSProperties}>
+            <text x="150" y="300">Plateau</text>
+            <text x="300" y="150">Cocody</text>
+            <text x="60" y="250">Yopougon</text>
+            <text x="150" y="185">Adjamé</text>
+            <text x="180" y="640">Marcory</text>
+            <text x="120" y="430">Treichville</text>
+          </g>
+        </g>
 
         {/* Trafic : carrefours / feux tricolores / embouteillages. */}
         {traffic && TRAFFIC_POINTS.map((tp, i) => (
@@ -124,7 +187,7 @@ function CarMarker({ x, y, P }: { x: number; y: number; P: Palette }) {
   return (
     <g className="car-marker" transform={`translate(${x} ${y})`}>
       <circle r="15" fill={P.car} opacity="0.18" />
-      <circle r="12.5" fill={P.bg1} stroke={P.car} strokeWidth="2" />
+      <circle r="12.5" fill={P.land2} stroke={P.car} strokeWidth="2" />
       <g transform="translate(-7 -6) scale(0.6)" fill="none" stroke={P.car} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M2 13l1.4-4.2A2 2 0 0 1 5.3 7.5h9.4a2 2 0 0 1 1.9 1.3L18 13" />
         <rect x="1.5" y="13" width="17" height="4.5" rx="1.6" />
@@ -151,17 +214,21 @@ function Pin({ x, y, kind, P }: { x: number; y: number; kind: 'origin' | 'dest';
   );
 }
 
-const STREETS = [
-  'M 0 120 L 400 90', 'M 0 230 Q 200 200 400 250', 'M 40 0 L 90 800', 'M 180 0 Q 220 400 160 800',
-  'M 300 0 L 340 800', 'M 0 380 L 400 360', 'M 0 470 Q 200 450 400 480', 'M 120 0 L 150 560',
-  'M 250 60 L 400 600', 'M 0 650 L 400 640',
+// Grands boulevards d'Abidjan (tracés indicatifs) : Bd Lagunaire, Autoroute du Nord,
+// Bd VGE, Bd de Marseille — voirie primaire mise en avant.
+const PRIMARIES = [
+  'M -20 250 C 120 236 260 300 420 244',
+  'M 84 -20 C 120 200 96 520 168 820',
+  'M -20 610 C 140 590 270 650 420 596',
+  'M 250 -20 C 300 220 332 520 300 820',
+  'M -20 380 C 160 360 300 396 420 372',
 ];
 
 // Carrefours majeurs d'Abidjan (repères) — vert = fluide, orange = dense, rouge = embouteillage.
 const TRAFFIC_POINTS = [
   { x: 150, y: 250, c: '#ff4d5e' }, // Carrefour dense
-  { x: 90, y: 380, c: '#f5c451' },
-  { x: 300, y: 360, c: '#22c55e' },
-  { x: 160, y: 480, c: '#f5c451' },
-  { x: 340, y: 600, c: '#22c55e' },
+  { x: 84, y: 380, c: '#f5c451' },
+  { x: 300, y: 372, c: '#22c55e' },
+  { x: 168, y: 500, c: '#f5c451' },
+  { x: 300, y: 610, c: '#22c55e' },
 ];
