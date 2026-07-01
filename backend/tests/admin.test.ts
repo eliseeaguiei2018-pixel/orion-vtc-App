@@ -56,3 +56,38 @@ test('admin : supervision SAMU (alerte SOS → résolue)', async (t) => {
   assert.equal(upd.statusCode, 200);
   assert.equal(upd.json().alert.status, 'resolved');
 });
+
+test('admin : fiche détaillée chauffeur (profil + courses + ledger)', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Kouassi', category: 'argent' } });
+  const driverId = drv.json().driver.id as string;
+
+  const res = await app.inject({ method: 'GET', url: `/admin/drivers/${driverId}`, headers: AUTH });
+  assert.equal(res.statusCode, 200);
+  const d = res.json().driver;
+  assert.equal(d.id, driverId);
+  assert.equal(d.name, 'Kouassi');
+  assert.equal(d.category, 'argent');
+  assert.ok(Array.isArray(d.rides));
+  assert.ok(Array.isArray(d.ledger));
+  assert.equal(typeof d.balance, 'number');
+  assert.equal(typeof d.earnings, 'number');
+
+  const missing = await app.inject({ method: 'GET', url: '/admin/drivers/inconnu', headers: AUTH });
+  assert.equal(missing.statusCode, 404);
+});
+
+test('admin : fiche détaillée client (dépenses + courses)', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  const res = await app.inject({ method: 'GET', url: '/admin/clients/client-x', headers: AUTH });
+  assert.equal(res.statusCode, 200);
+  const c = res.json().client;
+  assert.equal(c.id, 'client-x');
+  assert.ok(Array.isArray(c.recentRides));
+  assert.ok(Array.isArray(c.conversations));
+  assert.equal(typeof c.spent, 'number');
+});

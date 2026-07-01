@@ -115,6 +115,42 @@ export class AdminService {
     }));
   }
 
+  /** Fiche détaillée d'un chauffeur : profil + gains + dernières courses. */
+  driverDetail(id: string) {
+    const d = this.c.drivers.get(id);
+    if (!d) return null;
+    const history = this.c.wallet.history(id);
+    const rides = this.c.rides.listAll().filter((r) => r.driverId === id).slice(0, 20).map((r) => ({
+      id: r.id, status: r.status, amount: r.quote.amount, createdAt: r.createdAt,
+    }));
+    const earnings = history.filter((e) => e.type === 'ride_earning').reduce((s, e) => s + e.amount, 0);
+    return {
+      id: d.id, name: d.name, matricule: d.matricule, category: d.category,
+      kycStatus: d.kycStatus, availability: d.availability, rating: d.ratingAvg, trips: d.ratingCount,
+      balance: this.c.wallet.balance(id), earnings: Math.round(earnings),
+      ledger: history.slice(0, 20),
+      rides,
+    };
+  }
+
+  /** Fiche détaillée d'un client : profil + dépenses + courses + conversations. */
+  clientDetail(id: string) {
+    const c = this.c.clients.get(id);
+    const rides = this.c.rides.listByClient(id).slice(0, 20).map((r) => ({
+      id: r.id, status: r.status, amount: r.quote.amount, createdAt: r.createdAt,
+    }));
+    const spent = this.c.rides.listByClient(id).filter((r) => REVENUE.has(r.status)).reduce((s, r) => s + r.quote.amount, 0);
+    const conversations = this.c.support.listByClient(id).map((cv) => ({ id: cv.id, subject: cv.subject, status: cv.status, messages: cv.messages.length }));
+    return {
+      id,
+      name: c?.name ?? null, phone: c?.phone ?? null, status: c?.status ?? 'active',
+      rides: c?.rides ?? rides.length, createdAt: c?.createdAt ?? null,
+      spent: Math.round(spent),
+      recentRides: rides,
+      conversations,
+    };
+  }
+
   /** Positions vivantes de la flotte (carte de supervision). */
   async fleetLive() {
     const snap = await this.c.geo.snapshot();

@@ -1,4 +1,4 @@
-import type { Overview, Alert, FleetUnit, RideRow, DriverRow } from './Admin';
+import type { Overview, Alert, FleetUnit, RideRow, DriverRow, Client, DriverDetail, ClientDetail } from './Admin';
 
 /** Jeu de données de démonstration (console autonome, sans backend). */
 const iso = (minAgo: number) => new Date(Date.now() - minAgo * 60000).toISOString();
@@ -107,4 +107,42 @@ const broadcasts = [
   { id: 'b2', audience: 'all', title: 'Prix en baisse', body: 'ORION, toujours moins cher — profitez de nos nouveaux tarifs.', author: 'Awa (Finance)', at: iso(600) },
 ];
 
-export const DEMO = { overview, alerts, fleet, rides, drivers, pricing, me, clients, promos, services, support, audit, finance, broadcasts };
+/** Fiche chauffeur de démonstration (dérivée de la ligne + données factices cohérentes). */
+function driverDetail(id: string, rows: DriverRow[]): DriverDetail {
+  const d = rows.find((x) => x.id === id) ?? drivers[0]!;
+  const earnings = Math.round(d.balance * 3.2);
+  return {
+    id: d.id, name: d.name, matricule: d.matricule, category: d.category, kycStatus: d.kycStatus,
+    availability: d.availability, rating: d.rating, trips: d.trips, balance: d.balance, earnings,
+    rides: [
+      { id: 'r' + d.id + 'a1', status: 'rated', amount: 3200, createdAt: iso(30) },
+      { id: 'r' + d.id + 'b2', status: 'paid', amount: 5400, createdAt: iso(180) },
+      { id: 'r' + d.id + 'c3', status: 'completed', amount: 2650, createdAt: iso(420) },
+      { id: 'r' + d.id + 'd4', status: 'cancelled', amount: 0, createdAt: iso(900) },
+    ],
+    ledger: [
+      { id: 'l1', type: 'ride_earning', amount: 2880, at: iso(30) },
+      { id: 'l2', type: 'commission', amount: -320, at: iso(30) },
+      { id: 'l3', type: 'ride_earning', amount: 4860, at: iso(180) },
+      { id: 'l4', type: 'payout', amount: -20000, at: iso(60 * 24) },
+    ],
+  };
+}
+
+/** Fiche client de démonstration. */
+function clientDetail(id: string, rows: Client[]): ClientDetail {
+  const c = rows.find((x) => x.id === id);
+  const conv = support.filter((s) => s.clientId === id).map((s) => ({ id: s.id, subject: s.subject, status: s.status, messages: s.messages.length }));
+  return {
+    id, name: c?.name ?? null, phone: c?.phone ?? null, status: c?.status ?? 'active',
+    rides: c?.rides ?? 3, createdAt: c?.createdAt ?? null, spent: (c?.rides ?? 3) * 3450,
+    recentRides: [
+      { id: 'r' + id + 'x1', status: 'rated', amount: 3150, createdAt: iso(50) },
+      { id: 'r' + id + 'x2', status: 'paid', amount: 2650, createdAt: iso(320) },
+      { id: 'r' + id + 'x3', status: 'completed', amount: 5400, createdAt: iso(720) },
+    ],
+    conversations: conv,
+  };
+}
+
+export const DEMO = { overview, alerts, fleet, rides, drivers, pricing, me, clients, promos, services, support, audit, finance, broadcasts, driverDetail, clientDetail };

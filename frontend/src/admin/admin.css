@@ -178,3 +178,24 @@ textarea.adm-select { resize: vertical; font-family: inherit; width: 100%; }
   .adm-grid { grid-template-columns: 1fr; }
   .adm-mapcard, .adm-alerts { grid-column: 1; }
 }
+
+/* --- Fiches détaillées (drawer) --- */
+.adm-row-click { cursor: pointer; transition: background .12s; }
+.adm-row-click:hover { background: rgba(43,255,166,0.05); }
+.adm-drawer-wrap { position: fixed; inset: 0; background: rgba(2,10,7,0.55); backdrop-filter: blur(3px); display: flex; justify-content: flex-end; z-index: 60; animation: adm-fade .15s ease; }
+.adm-drawer { width: min(460px, 100%); height: 100%; background: var(--a-panel); border-left: 1px solid var(--a-stroke); box-shadow: -20px 0 60px rgba(0,0,0,0.4); display: flex; flex-direction: column; animation: adm-slide .2s ease; }
+@keyframes adm-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes adm-slide { from { transform: translateX(30px); opacity: .6; } to { transform: translateX(0); opacity: 1; } }
+.adm-drawer-h { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--a-stroke); }
+.adm-drawer-h h3 { margin: 0; font-size: 18px; }
+.adm-drawer-body { padding: 18px 20px; overflow-y: auto; }
+.adm-drawer-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.adm-drawer-sec { margin: 18px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--a-muted); }
+.adm-mini-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.adm-mini-kpi { background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.adm-mini-kpi span { font-size: 11px; color: var(--a-muted); }
+.adm-mini-kpi strong { font-size: 16px; }
+.adm-table.sm { font-size: 12px; }
+.adm-table .pos { color: var(--a-green); } .adm-table .neg { color: var(--a-amber); }
+.adm-conv-list { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.adm-conv-list li { display: flex; justify-content: space-between; gap: 8px; background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 8px; padding: 8px 10px; font-size: 13px; }

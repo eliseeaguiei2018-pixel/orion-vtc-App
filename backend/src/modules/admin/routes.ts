@@ -54,6 +54,14 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
 
     scoped.get('/admin/drivers', async (req) => { require(req, 'drivers:read'); return { drivers: admin.drivers() }; });
 
+    scoped.get('/admin/drivers/:id', async (req) => {
+      require(req, 'drivers:read');
+      const { id } = req.params as { id: string };
+      const detail = admin.driverDetail(id);
+      if (!detail) throw notFound('Chauffeur introuvable');
+      return { driver: detail };
+    });
+
     scoped.get('/admin/fleet/live', async (req) => { require(req, 'drivers:read'); return { fleet: await admin.fleetLive() }; });
 
     // --- Supervision SAMU ---
@@ -123,6 +131,12 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
 
     // --- Clients ---
     scoped.get('/admin/clients', async (req) => { require(req, 'clients:read'); return { clients: container.clients.list() }; });
+
+    scoped.get('/admin/clients/:id', async (req) => {
+      require(req, 'clients:read');
+      const { id } = req.params as { id: string };
+      return { client: admin.clientDetail(id) };
+    });
 
     scoped.post('/admin/clients/:id/status', async (req) => {
       require(req, 'clients:write');

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, type ReactNode } from 'react';
 import { SupervisionMap } from './SupervisionMap';
 import { DEMO } from './demo';
 
@@ -33,6 +33,16 @@ export interface Conversation { id: string; clientId: string; subject: string; s
 export interface AuditEntry { id: string; at: string; actor: string; role: string; action: string; target?: string; details?: Record<string, unknown> }
 export interface Finance { currency: string; gmv: number; revenue: number; commission: number; earnings: number; payouts: number; byTier: Record<string, { count: number; revenue: number }> }
 export interface Announcement { id: string; audience: string; title: string; body: string; author: string; at: string }
+export interface LedgerEntry { id?: string; type: string; amount: number; at?: string; createdAt?: string }
+export interface DetailRide { id: string; status: string; amount: number; createdAt: string }
+export interface DriverDetail {
+  id: string; name: string; matricule: string; category: string; kycStatus: string; availability: string;
+  rating: number; trips: number; balance: number; earnings: number; ledger: LedgerEntry[]; rides: DetailRide[];
+}
+export interface ClientDetail {
+  id: string; name: string | null; phone: string | null; status: string; rides: number; createdAt: string | null;
+  spent: number; recentRides: DetailRide[]; conversations: { id: string; subject: string; status: string; messages: number }[];
+}
 
 /* ------------------------------- API --------------------------------- */
 const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
@@ -133,6 +143,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [live, setLive] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [section, setSection] = useState<Section>('overview');
+  const [driverSel, setDriverSel] = useState<DriverDetail | null>(null);
+  const [clientSel, setClientSel] = useState<ClientDetail | null>(null);
 
   const loadDemo = useCallback(() => {
     setMe(DEMO.me); setOv(DEMO.overview); setAlerts(DEMO.alerts); setFleet(DEMO.fleet);
@@ -236,6 +248,17 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setDrivers((xs) => xs.map((d) => (d.id === id ? { ...d, ...(kind === 'kyc' ? { kycStatus: value, availability: value === 'suspended' ? 'offline' : d.availability } : { availability: value }) } : d)));
   };
 
+  const openDriver = async (id: string) => {
+    if (!API) { setDriverSel(DEMO.driverDetail(id, drivers)); return; }
+    try { setDriverSel((await adminGet<{ driver: DriverDetail }>(`/admin/drivers/${id}`)).driver); }
+    catch { setDriverSel(DEMO.driverDetail(id, drivers)); }
+  };
+  const openClient = async (id: string) => {
+    if (!API) { setClientSel(DEMO.clientDetail(id, clients)); return; }
+    try { setClientSel((await adminGet<{ client: ClientDetail }>(`/admin/clients/${id}`)).client); }
+    catch { setClientSel(DEMO.clientDetail(id, clients)); }
+  };
+
   if (!me || !ov) return <div className="adm-loading">Chargement de la console…</div>;
 
   const can = (p: string) => me.permissions.includes(p);
@@ -280,8 +303,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'alerts' && <AlertsSection alerts={alerts} fleet={fleet} openAlerts={openAlerts} canWrite={can('alerts:write')} onStatus={setAlertStatus} />}
         {section === 'support' && <SupportSection convs={support} canWrite={can('support:write')} onReply={supportReply} onStatus={supportSetStatus} />}
         {section === 'rides' && <RidesSection rides={rides} />}
-        {section === 'drivers' && <DriversSection drivers={drivers} canWrite={can('drivers:write')} onAction={driverAction} />}
-        {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} />}
+        {section === 'drivers' && <DriversSection drivers={drivers} canWrite={can('drivers:write')} onAction={driverAction} onOpen={openDriver} />}
+        {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} onOpen={openClient} />}
         {section === 'notify' && <NotifySection broadcasts={broadcasts} canWrite={can('notify:write')} onSend={sendBroadcast} />}
         {section === 'finance' && finance && <FinanceSection finance={finance} onExport={exportCsv} canExport={can('rides:read')} />}
         {section === 'pricing' && pricing && <PricingEditor pricing={pricing} canWrite={can('pricing:write')} onSave={savePricing} />}
@@ -290,6 +313,9 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'audit' && <AuditSection entries={audit} />}
         {section === 'roles' && <RolesSection me={me} />}
       </main>
+
+      {driverSel && <DriverDrawer d={driverSel} onClose={() => setDriverSel(null)} />}
+      {clientSel && <ClientDrawer c={clientSel} onClose={() => setClientSel(null)} onOpenSupport={() => { setClientSel(null); setSection('support'); }} />}
     </div>
   );
 }
@@ -363,7 +389,7 @@ function RidesSection({ rides }: { rides: RideRow[] }) {
   );
 }
 
-function DriversSection({ drivers, canWrite, onAction }: { drivers: DriverRow[]; canWrite: boolean; onAction: (id: string, kind: 'kyc' | 'availability', value: string) => void }) {
+function DriversSection({ drivers, canWrite, onAction, onOpen }: { drivers: DriverRow[]; canWrite: boolean; onAction: (id: string, kind: 'kyc' | 'availability', value: string) => void; onOpen: (id: string) => void }) {
   return (
     <div className="adm-card">
       <div className="adm-card-h"><h3>Chauffeurs</h3><span className="adm-muted">{drivers.length}</span></div>
@@ -371,13 +397,13 @@ function DriversSection({ drivers, canWrite, onAction }: { drivers: DriverRow[];
         <thead><tr><th>Nom</th><th>Matricule</th><th>Niveau</th><th>KYC</th><th>État</th><th className="r">Solde</th><th className="r">Note</th>{canWrite && <th>Actions</th>}</tr></thead>
         <tbody>
           {drivers.map((d) => (
-            <tr key={d.id}>
+            <tr key={d.id} className="adm-row-click" onClick={() => onOpen(d.id)}>
               <td>{d.name}</td><td className="mono">{d.matricule}</td><td className="cap">{d.category}</td>
               <td><span className={`adm-pill kyc-${d.kycStatus}`}>{kycLabel(d.kycStatus)}</span></td>
               <td><span className={`adm-pill av-${d.availability}`}>{availLabel(d.availability)}</span></td>
               <td className="r">{fcfa(d.balance)}</td><td className="r">★ {d.rating.toFixed(2)}</td>
               {canWrite && (
-                <td>
+                <td onClick={(e) => e.stopPropagation()}>
                   <div className="row" style={{ gap: 6 }}>
                     {d.kycStatus !== 'active' && <button className="adm-btn xs solid" onClick={() => onAction(d.id, 'kyc', 'active')}>Approuver</button>}
                     {d.kycStatus !== 'suspended'
@@ -394,7 +420,7 @@ function DriversSection({ drivers, canWrite, onAction }: { drivers: DriverRow[];
   );
 }
 
-function ClientsSection({ clients, canWrite, onStatus }: { clients: Client[]; canWrite: boolean; onStatus: (id: string, s: string) => void }) {
+function ClientsSection({ clients, canWrite, onStatus, onOpen }: { clients: Client[]; canWrite: boolean; onStatus: (id: string, s: string) => void; onOpen: (id: string) => void }) {
   return (
     <div className="adm-card">
       <div className="adm-card-h"><h3>Clients</h3><span className="adm-muted">{clients.length}</span></div>
@@ -402,12 +428,12 @@ function ClientsSection({ clients, canWrite, onStatus }: { clients: Client[]; ca
         <thead><tr><th>Client</th><th>Téléphone</th><th className="r">Courses</th><th>Statut</th>{canWrite && <th>Actions</th>}</tr></thead>
         <tbody>
           {clients.map((c) => (
-            <tr key={c.id}>
+            <tr key={c.id} className="adm-row-click" onClick={() => onOpen(c.id)}>
               <td>{c.name ?? c.id}<div className="mono adm-muted" style={{ fontSize: 11 }}>{c.id}</div></td>
               <td>{c.phone ?? '—'}</td><td className="r">{c.rides}</td>
               <td><span className={`adm-pill ${c.status === 'blocked' ? 'kyc-manual_review' : 'av-online'}`}>{c.status === 'blocked' ? 'Bloqué' : 'Actif'}</span></td>
               {canWrite && (
-                <td>{c.status === 'blocked'
+                <td onClick={(e) => e.stopPropagation()}>{c.status === 'blocked'
                   ? <button className="adm-btn xs solid" onClick={() => onStatus(c.id, 'active')}>Débloquer</button>
                   : <button className="adm-btn xs" onClick={() => onStatus(c.id, 'blocked')}>Bloquer</button>}
                 </td>
@@ -724,6 +750,93 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string; sub: s
       <span className="adm-kpi-value">{value}</span>
       <span className="adm-kpi-sub">{sub}</span>
     </div>
+  );
+}
+
+/* --------------------------- Fiches détaillées ----------------------- */
+function Drawer({ title, sub, onClose, children }: { title: string; sub?: string; onClose: () => void; children: ReactNode }) {
+  return (
+    <div className="adm-drawer-wrap" onClick={onClose}>
+      <aside className="adm-drawer" onClick={(e) => e.stopPropagation()}>
+        <div className="adm-drawer-h">
+          <div><h3>{title}</h3>{sub && <span className="adm-muted mono">{sub}</span>}</div>
+          <button className="adm-btn ghost xs" onClick={onClose}>✕ Fermer</button>
+        </div>
+        <div className="adm-drawer-body">{children}</div>
+      </aside>
+    </div>
+  );
+}
+
+const ledgerLabel = (t: string) => ({ ride_earning: 'Gain course', commission: 'Commission', payout: 'Retrait', topup: 'Recharge', adjustment: 'Ajustement' }[t] ?? t);
+
+function DriverDrawer({ d, onClose }: { d: DriverDetail; onClose: () => void }) {
+  return (
+    <Drawer title={d.name} sub={d.matricule} onClose={onClose}>
+      <div className="adm-drawer-tags">
+        <span className="adm-pill cap">{d.category}</span>
+        <span className={`adm-pill kyc-${d.kycStatus}`}>{kycLabel(d.kycStatus)}</span>
+        <span className={`adm-pill av-${d.availability}`}>{availLabel(d.availability)}</span>
+      </div>
+      <div className="adm-mini-kpis">
+        <div className="adm-mini-kpi"><span>Solde</span><strong>{fcfa(d.balance)}</strong></div>
+        <div className="adm-mini-kpi"><span>Gains cumulés</span><strong>{fcfa(d.earnings)}</strong></div>
+        <div className="adm-mini-kpi"><span>Note</span><strong>★ {d.rating.toFixed(2)}</strong></div>
+        <div className="adm-mini-kpi"><span>Courses notées</span><strong>{d.trips}</strong></div>
+      </div>
+      <h4 className="adm-drawer-sec">Dernières courses</h4>
+      {d.rides.length === 0 ? <p className="adm-muted">Aucune course.</p> : (
+        <table className="adm-table sm">
+          <thead><tr><th>Course</th><th>Statut</th><th className="r">Montant</th></tr></thead>
+          <tbody>{d.rides.map((r) => (
+            <tr key={r.id}><td className="mono">{r.id.slice(0, 10)}</td><td>{rideStatusLabel(r.status)}</td><td className="r">{fcfa(r.amount)}</td></tr>
+          ))}</tbody>
+        </table>
+      )}
+      <h4 className="adm-drawer-sec">Mouvements du portefeuille</h4>
+      {d.ledger.length === 0 ? <p className="adm-muted">Aucun mouvement.</p> : (
+        <table className="adm-table sm">
+          <thead><tr><th>Type</th><th className="r">Montant</th></tr></thead>
+          <tbody>{d.ledger.map((e, i) => (
+            <tr key={e.id ?? i}><td>{ledgerLabel(e.type)}</td><td className={`r ${e.amount < 0 ? 'neg' : 'pos'}`}>{fcfa(e.amount)}</td></tr>
+          ))}</tbody>
+        </table>
+      )}
+    </Drawer>
+  );
+}
+
+function ClientDrawer({ c, onClose, onOpenSupport }: { c: ClientDetail; onClose: () => void; onOpenSupport: () => void }) {
+  return (
+    <Drawer title={c.name ?? c.id} sub={c.id} onClose={onClose}>
+      <div className="adm-drawer-tags">
+        <span className={`adm-pill ${c.status === 'blocked' ? 'kyc-manual_review' : 'av-online'}`}>{c.status === 'blocked' ? 'Bloqué' : 'Actif'}</span>
+        {c.phone && <span className="adm-pill">{c.phone}</span>}
+      </div>
+      <div className="adm-mini-kpis">
+        <div className="adm-mini-kpi"><span>Dépensé</span><strong>{fcfa(c.spent)}</strong></div>
+        <div className="adm-mini-kpi"><span>Courses</span><strong>{c.rides}</strong></div>
+        <div className="adm-mini-kpi"><span>Conversations</span><strong>{c.conversations.length}</strong></div>
+      </div>
+      <h4 className="adm-drawer-sec">Dernières courses</h4>
+      {c.recentRides.length === 0 ? <p className="adm-muted">Aucune course.</p> : (
+        <table className="adm-table sm">
+          <thead><tr><th>Course</th><th>Statut</th><th className="r">Montant</th></tr></thead>
+          <tbody>{c.recentRides.map((r) => (
+            <tr key={r.id}><td className="mono">{r.id.slice(0, 10)}</td><td>{rideStatusLabel(r.status)}</td><td className="r">{fcfa(r.amount)}</td></tr>
+          ))}</tbody>
+        </table>
+      )}
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
+        <h4 className="adm-drawer-sec" style={{ margin: 0 }}>Conversations</h4>
+        <button className="adm-btn xs" onClick={onOpenSupport}>Ouvrir le support</button>
+      </div>
+      {c.conversations.length === 0 ? <p className="adm-muted">Aucune conversation.</p> : (
+        <ul className="adm-conv-list">{c.conversations.map((cv) => (
+          <li key={cv.id}><span>{cv.subject}</span><span className="adm-muted">{cv.messages} msg · {cv.status}</span></li>
+        ))}</ul>
+      )}
+    </Drawer>
   );
 }
 
