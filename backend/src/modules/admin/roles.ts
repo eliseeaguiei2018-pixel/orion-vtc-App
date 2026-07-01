@@ -16,6 +16,8 @@ export type Permission =
   | 'promos:read' | 'promos:write'
   | 'services:read' | 'services:write'
   | 'support:read' | 'support:write'
+  | 'finance:read'
+  | 'notify:read' | 'notify:write'
   | 'audit:read'
   | 'roles:read';
 
@@ -23,16 +25,16 @@ const ALL: Permission[] = [
   'overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write',
   'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'pricing:read', 'pricing:write',
   'promos:read', 'promos:write', 'services:read', 'services:write', 'support:read', 'support:write',
-  'audit:read', 'roles:read',
+  'finance:read', 'notify:read', 'notify:write', 'audit:read', 'roles:read',
 ];
 
 /** Matrice rôle → permissions (couches d'accès selon le poste). */
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   super_admin: ALL,
-  ops: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'support:read', 'support:write', 'services:read'],
-  finance: ['overview:read', 'rides:read', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read'],
-  support: ['overview:read', 'rides:read', 'clients:read', 'clients:write', 'alerts:read', 'support:read', 'support:write', 'promos:read'],
-  viewer: ['overview:read', 'rides:read', 'drivers:read', 'clients:read', 'alerts:read', 'pricing:read', 'promos:read', 'services:read', 'support:read'],
+  ops: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'support:read', 'support:write', 'services:read', 'notify:read', 'notify:write'],
+  finance: ['overview:read', 'rides:read', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'finance:read', 'notify:read'],
+  support: ['overview:read', 'rides:read', 'clients:read', 'clients:write', 'alerts:read', 'support:read', 'support:write', 'promos:read', 'notify:read', 'notify:write'],
+  viewer: ['overview:read', 'rides:read', 'drivers:read', 'clients:read', 'alerts:read', 'pricing:read', 'promos:read', 'services:read', 'support:read', 'finance:read', 'notify:read'],
 };
 
 export const ROLE_LABEL: Record<Role, string> = {

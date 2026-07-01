@@ -292,6 +292,9 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
 .hub-search { display: flex; align-items: center; gap: 10px; width: 100%; padding: 14px 16px; border: none; cursor: pointer;
   border-radius: 16px; background: #fff; color: var(--text); box-shadow: 0 10px 30px rgba(0,0,0,0.18); }
 .hub-search span { color: var(--muted); font-size: 15px; }
+.hub-announce { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 14px;
+  background: rgba(255,255,255,0.16); color: #fff; }
+.hub-announce-x { background: transparent; border: none; color: #fff; opacity: 0.85; font-size: 14px; cursor: pointer; padding: 0 2px; }
 .page-body.hub-body { padding: 16px 16px calc(24px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 16px; }
 
 .svc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }

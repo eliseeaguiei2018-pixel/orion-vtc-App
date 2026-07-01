@@ -22,6 +22,7 @@ import { genMatricule, type Driver } from './modules/drivers/store.js';
 import { ClientStore, type Client } from './modules/clients/store.js';
 import { PromoService, type Promo } from './modules/promos/service.js';
 import { SupportService } from './modules/support/service.js';
+import { NotificationService } from './modules/notifications/service.js';
 import { AuditService } from './modules/admin/audit.js';
 import type { Ride } from './modules/rides/store.js';
 import type { LedgerEntry } from './modules/wallet/service.js';
@@ -54,6 +55,7 @@ export interface Container {
   clients: ClientStore;
   promos: PromoService;
   support: SupportService;
+  notifications: NotificationService;
   audit: AuditService;
 }
 
@@ -109,6 +111,7 @@ export function createContainer(): Container {
     promos,
     clients: new ClientStore(createRepository<Client>('clients')),
     support: new SupportService(realtime),
+    notifications: new NotificationService(realtime),
     audit: new AuditService(),
   };
 }

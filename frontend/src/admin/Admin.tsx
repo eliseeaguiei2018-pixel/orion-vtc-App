@@ -31,6 +31,8 @@ export interface ServicesConfig { city: string; open: boolean; services: Record<
 export interface SupportMsg { id: string; from: 'client' | 'agent'; author?: string; text: string; at: string }
 export interface Conversation { id: string; clientId: string; subject: string; status: string; assignee?: string; messages: SupportMsg[]; createdAt: string; updatedAt: string }
 export interface AuditEntry { id: string; at: string; actor: string; role: string; action: string; target?: string; details?: Record<string, unknown> }
+export interface Finance { currency: string; gmv: number; revenue: number; commission: number; earnings: number; payouts: number; byTier: Record<string, { count: number; revenue: number }> }
+export interface Announcement { id: string; audience: string; title: string; body: string; author: string; at: string }
 
 /* ------------------------------- API --------------------------------- */
 const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
@@ -95,14 +97,16 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'pricing' | 'promos' | 'services' | 'audit' | 'roles';
+type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'promos' | 'finance' | 'services' | 'audit' | 'roles';
 const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'overview', label: 'Vue d’ensemble', perm: 'overview:read', icon: '📊' },
   { id: 'alerts', label: 'Supervision SAMU', perm: 'alerts:read', icon: '🚨' },
   { id: 'support', label: 'Support & chat', perm: 'support:read', icon: '💬' },
+  { id: 'notify', label: 'Notifications', perm: 'notify:read', icon: '📣' },
   { id: 'rides', label: 'Courses', perm: 'rides:read', icon: '🚗' },
   { id: 'drivers', label: 'Chauffeurs', perm: 'drivers:read', icon: '🧑‍✈️' },
   { id: 'clients', label: 'Clients', perm: 'clients:read', icon: '👥' },
+  { id: 'finance', label: 'Finances', perm: 'finance:read', icon: '📈' },
   { id: 'pricing', label: 'Tarification', perm: 'pricing:read', icon: '💰' },
   { id: 'promos', label: 'Codes promo', perm: 'promos:read', icon: '🎟️' },
   { id: 'services', label: 'Services & ville', perm: 'services:read', icon: '🧩' },
@@ -124,6 +128,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [services, setServices] = useState<ServicesConfig | null>(null);
   const [support, setSupport] = useState<Conversation[]>([]);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
+  const [finance, setFinance] = useState<Finance | null>(null);
+  const [broadcasts, setBroadcasts] = useState<Announcement[]>([]);
   const [live, setLive] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [section, setSection] = useState<Section>('overview');
@@ -132,7 +138,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setMe(DEMO.me); setOv(DEMO.overview); setAlerts(DEMO.alerts); setFleet(DEMO.fleet);
     setRides(DEMO.rides); setDrivers(DEMO.drivers); setPricing(DEMO.pricing);
     setClients(DEMO.clients); setPromos(DEMO.promos as Promo[]); setServices(DEMO.services);
-    setSupport(DEMO.support as Conversation[]); setAudit(DEMO.audit as AuditEntry[]); setLive(false);
+    setSupport(DEMO.support as Conversation[]); setAudit(DEMO.audit as AuditEntry[]);
+    setFinance(DEMO.finance); setBroadcasts(DEMO.broadcasts as Announcement[]); setLive(false);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -150,6 +157,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
       if (has('promos:read')) setPromos((await adminGet<{ promos: Promo[] }>('/admin/promos')).promos);
       if (has('services:read')) setServices((await adminGet<{ config: ServicesConfig }>('/admin/services')).config);
       if (has('support:read')) setSupport((await adminGet<{ conversations: Conversation[] }>('/admin/support')).conversations);
+      if (has('finance:read')) setFinance(await adminGet<Finance>('/admin/finance'));
+      if (has('notify:read')) setBroadcasts((await adminGet<{ announcements: Announcement[] }>('/admin/broadcasts')).announcements);
       if (has('audit:read')) setAudit((await adminGet<{ entries: AuditEntry[] }>('/admin/audit')).entries);
     } catch { loadDemo(); }
   }, [loadDemo]);
@@ -207,6 +216,21 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setSupport((xs) => xs.map((c) => (c.id === convId ? { ...c, status } : c)));
   };
 
+  const sendBroadcast = async (a: { audience: string; title: string; body: string }) => {
+    const local: Announcement = { id: Math.random().toString(36).slice(2, 8), author: me?.name ?? 'Admin', at: new Date().toISOString(), ...a };
+    if (API) { try { const { announcement } = await adminPost<{ announcement: Announcement }>('/admin/broadcast', a); setBroadcasts((xs) => [announcement, ...xs]); return; } catch { /* */ } }
+    setBroadcasts((xs) => [local, ...xs]);
+  };
+
+  const exportCsv = () => {
+    if (API) { window.open(`${API}/admin/rides.csv`, '_blank'); return; }
+    const head = 'id,client,status,amount';
+    const rows = rides.map((r) => `${r.id},${r.clientId},${r.status},${r.amount}`);
+    const blob = new Blob([[head, ...rows].join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob); const a = document.createElement('a');
+    a.href = url; a.download = 'orion-courses.csv'; a.click(); URL.revokeObjectURL(url);
+  };
+
   const driverAction = async (id: string, kind: 'kyc' | 'availability', value: string) => {
     if (API) { try { await adminPost(`/admin/drivers/${id}/${kind}`, kind === 'kyc' ? { status: value } : { availability: value }); } catch { /* */ } }
     setDrivers((xs) => xs.map((d) => (d.id === id ? { ...d, ...(kind === 'kyc' ? { kycStatus: value, availability: value === 'suspended' ? 'offline' : d.availability } : { availability: value }) } : d)));
@@ -258,6 +282,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'rides' && <RidesSection rides={rides} />}
         {section === 'drivers' && <DriversSection drivers={drivers} canWrite={can('drivers:write')} onAction={driverAction} />}
         {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} />}
+        {section === 'notify' && <NotifySection broadcasts={broadcasts} canWrite={can('notify:write')} onSend={sendBroadcast} />}
+        {section === 'finance' && finance && <FinanceSection finance={finance} onExport={exportCsv} canExport={can('rides:read')} />}
         {section === 'pricing' && pricing && <PricingEditor pricing={pricing} canWrite={can('pricing:write')} onSave={savePricing} />}
         {section === 'promos' && <PromosSection promos={promos} canWrite={can('promos:write')} onSave={savePromo} onToggle={togglePromo} onDelete={deletePromo} />}
         {section === 'services' && services && <ServicesSection config={services} canWrite={can('services:write')} onSave={saveServices} />}
@@ -521,6 +547,68 @@ function AuditSection({ entries }: { entries: AuditEntry[] }) {
   );
 }
 const convStatus = (s: string) => ({ open: 'Ouverte', pending: 'En attente', closed: 'Close' }[s] ?? s);
+
+function NotifySection({ broadcasts, canWrite, onSend }: { broadcasts: Announcement[]; canWrite: boolean; onSend: (a: { audience: string; title: string; body: string }) => void }) {
+  const [audience, setAudience] = useState('clients'); const [title, setTitle] = useState(''); const [body, setBody] = useState('');
+  const audLabel = (a: string) => ({ clients: 'Clients', drivers: 'Chauffeurs', all: 'Tous' }[a] ?? a);
+  return (
+    <>
+      {canWrite && (
+        <div className="adm-card">
+          <div className="adm-card-h"><h3>Nouvelle annonce</h3><span className="adm-muted">Diffusée en temps réel</span></div>
+          <div className="price-grid">
+            <label className="price-field"><span>Destinataires</span>
+              <select className="adm-select" value={audience} onChange={(e) => setAudience(e.target.value)}><option value="clients">Clients</option><option value="drivers">Chauffeurs</option><option value="all">Tous</option></select>
+            </label>
+            <label className="price-field" style={{ gridColumn: 'span 2' }}><span>Titre</span><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex. Wi-Fi gratuit à bord" /></label>
+          </div>
+          <label className="price-field" style={{ marginTop: 12 }}><span>Message</span><textarea className="adm-select" rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Votre message aux utilisateurs…" /></label>
+          <button className="adm-btn solid" style={{ marginTop: 12 }} onClick={() => { if (title.trim() && body.trim()) { onSend({ audience, title: title.trim(), body: body.trim() }); setTitle(''); setBody(''); } }}>📣 Diffuser</button>
+        </div>
+      )}
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Annonces envoyées</h3><span className="adm-muted">{broadcasts.length}</span></div>
+        <div className="stack" style={{ gap: 8 }}>
+          {broadcasts.length === 0 && <p className="adm-empty">Aucune annonce.</p>}
+          {broadcasts.map((a) => (
+            <div key={a.id} className="adm-role-card">
+              <div className="row between"><strong>{a.title}</strong><span className="adm-pill av-online">{audLabel(a.audience)}</span></div>
+              <p className="adm-muted" style={{ margin: '4px 0', fontSize: 13 }}>{a.body}</p>
+              <span className="adm-muted" style={{ fontSize: 11 }}>{a.author} · {new Date(a.at).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+const TIER_LABEL: Record<string, string> = { bronze: 'Bronze', argent: 'Argent', or: 'Or', diamant: 'Diamant', livraison: 'Livraison', ride: 'Course' };
+function FinanceSection({ finance, onExport, canExport }: { finance: Finance; onExport: () => void; canExport: boolean }) {
+  const tiers = Object.entries(finance.byTier);
+  const maxRev = Math.max(1, ...tiers.map(([, v]) => v.revenue));
+  return (
+    <>
+      <section className="adm-kpis">
+        <Kpi label="GMV (volume)" value={fcfa(finance.gmv)} sub="toutes courses" tone="teal" />
+        <Kpi label="Revenu encaissé" value={fcfa(finance.revenue)} sub="courses payées" tone="green" />
+        <Kpi label="Commission ORION" value={fcfa(finance.commission)} sub="marge plateforme" tone="mint" />
+        <Kpi label="Payouts chauffeurs" value={fcfa(finance.payouts)} sub="retraits versés" tone="muted" />
+      </section>
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Revenu par catégorie</h3>{canExport && <button className="adm-btn ghost" onClick={onExport}>⬇ Exporter CSV</button>}</div>
+        <div className="stack" style={{ gap: 10, marginTop: 6 }}>
+          {tiers.map(([k, v]) => (
+            <div key={k}>
+              <div className="row between" style={{ fontSize: 13, marginBottom: 4 }}><span className="cap">{TIER_LABEL[k] ?? k} · {v.count} courses</span><strong>{fcfa(v.revenue)}</strong></div>
+              <div className="fin-bar"><span style={{ width: `${(v.revenue / maxRev) * 100}%` }} /></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
 
 /* --------------------------- Éditeur de prix ------------------------- */
 function exampleFare(p: Pricing, tier: string, km: number): number {

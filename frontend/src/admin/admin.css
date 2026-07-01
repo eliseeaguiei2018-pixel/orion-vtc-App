@@ -82,6 +82,9 @@ body { margin: 0; background: var(--a-bg); color: var(--a-text); font-family: 'I
 .adm-chat-input { display: flex; gap: 8px; border-top: 1px solid var(--a-stroke); padding-top: 10px; }
 .adm-chat-input input { flex: 1; background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 10px; padding: 10px 12px; color: var(--a-text); outline: none; }
 .adm-chat-input input:focus { border-color: var(--a-green2); }
+textarea.adm-select { resize: vertical; font-family: inherit; width: 100%; }
+.fin-bar { height: 10px; border-radius: 999px; background: var(--a-panel2); overflow: hidden; border: 1px solid var(--a-stroke); }
+.fin-bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--a-green2), var(--a-green)); }
 
 @media (max-width: 860px) {
   .adm-shell { grid-template-columns: 1fr; }

@@ -69,6 +69,38 @@ export class AdminService {
     });
   }
 
+  /** Agrégats financiers (reporting) : GMV, revenu, commission, payouts + par niveau. */
+  finance() {
+    const rides = this.c.rides.listAll();
+    const byTier: Record<string, { count: number; revenue: number }> = {};
+    let gmv = 0, revenue = 0;
+    for (const r of rides) {
+      gmv += r.quote.amount;
+      const tier = r.quote.serviceType === 'delivery' ? 'livraison' : (r.driverId ? this.c.drivers.get(r.driverId)?.category ?? r.serviceType : r.serviceType);
+      byTier[tier] ??= { count: 0, revenue: 0 };
+      byTier[tier].count += 1;
+      if (REVENUE.has(r.status)) { revenue += r.quote.amount; byTier[tier].revenue += r.quote.amount; }
+    }
+    const wallet = this.c.wallet.totals();
+    return {
+      currency: 'XOF',
+      gmv: Math.round(gmv), revenue: Math.round(revenue),
+      commission: wallet.commission, earnings: wallet.earnings, payouts: wallet.payouts,
+      byTier,
+    };
+  }
+
+  /** Export CSV des courses (comptabilité). */
+  ridesCsv(): string {
+    const head = 'id,clientId,driverName,matricule,status,amount,currency,trafficLevel,createdAt';
+    const rows = this.c.rides.listAll().map((r) => {
+      const d = r.driverId ? this.c.drivers.get(r.driverId) : undefined;
+      return [r.id, r.clientId, d?.name ?? '', d?.matricule ?? '', r.status, r.quote.amount, r.quote.currency, r.quote.trafficLevel, r.createdAt]
+        .map((v) => String(v).replace(/[",\n]/g, ' ')).join(',');
+    });
+    return [head, ...rows].join('\n');
+  }
+
   drivers() {
     return this.c.drivers.list().map((d) => ({
       id: d.id,

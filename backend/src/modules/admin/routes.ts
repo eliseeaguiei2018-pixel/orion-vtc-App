@@ -209,6 +209,32 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       return { conversation: conv };
     });
 
+    // --- Finances & export ---
+    scoped.get('/admin/finance', async (req) => { require(req, 'finance:read'); return admin.finance(); });
+
+    scoped.get('/admin/rides.csv', async (req, reply) => {
+      require(req, 'rides:read');
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header('content-disposition', 'attachment; filename="orion-courses.csv"');
+      return admin.ridesCsv();
+    });
+
+    // --- Notifications / diffusion ---
+    scoped.get('/admin/broadcasts', async (req) => { require(req, 'notify:read'); return { announcements: container.notifications.list() }; });
+
+    scoped.post('/admin/broadcast', async (req) => {
+      require(req, 'notify:write');
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const body = parse(z.object({
+        audience: z.enum(['clients', 'drivers', 'all']),
+        title: z.string().min(1).max(120),
+        body: z.string().min(1).max(1000),
+      }), req.body);
+      const a = container.notifications.broadcast({ ...body, author: account.name });
+      audit(req, 'broadcast', a.id, { audience: a.audience, title: a.title });
+      return { announcement: a };
+    });
+
     // --- Journal d'audit ---
     scoped.get('/admin/audit', async (req) => { require(req, 'audit:read'); return { entries: container.audit.list(200) }; });
   });

@@ -16,7 +16,7 @@ import {
   ABIDJAN_PLACES, COUNTRIES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { cancelRide, clientId, createRide, estimate, isLiveBackend, listMyRides, listSupport, openSupport, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
+import { cancelRide, clientId, createRide, estimate, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, type Announcement, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
 import { LANGUAGES, useI18n, type Lang } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubPlan, TierOption, WeddingDuration } from './types';
 
@@ -92,6 +92,8 @@ export function App() {
   const [currentPlan, setCurrentPlan] = useState<string | null>(null);
   const [phone, setPhone] = useState('');
   const [toast, setToast] = useState<{ message: string; danger?: boolean } | null>(null);
+  const [announce, setAnnounce] = useState<Announcement | null>(null);
+  useEffect(() => { listAnnouncements().then((a) => setAnnounce(a[0] ?? null)); }, []);
 
   const showToast = (message: string, danger?: boolean) => {
     setToast({ message, danger });
@@ -209,7 +211,7 @@ export function App() {
         {screen === 'permissions' && <PermissionsScreen onDone={() => setScreen('home')} />}
 
         {screen === 'home' && (
-          <HomeScreen
+          <HomeScreen announce={announce}
             onSearch={() => { setMode('ride'); setScreen('destination'); }}
             onCourse={() => { setMode('ride'); setScreen('destination'); }}
             onDelivery={() => { setMode('delivery'); setScreen('delivery'); }}
@@ -470,12 +472,14 @@ function MiniSvc({ illus, label, onClick }: { illus: React.ReactNode; label: str
   );
 }
 
-function HomeScreen({ onSearch, onCourse, onDelivery, onQuick, onNav, onSoon }: {
+function HomeScreen({ announce, onSearch, onCourse, onDelivery, onQuick, onNav, onSoon }: {
+  announce: Announcement | null;
   onSearch: () => void; onCourse: () => void; onDelivery: () => void;
   onQuick: (p: Place) => void; onNav: (s: Screen) => void; onSoon: (name: string) => void;
 }) {
   const { t } = useI18n();
   const quick = ABIDJAN_PLACES.filter((p) => p.kind === 'home' || p.kind === 'work' || p.kind === 'hub');
+  const [showAnnounce, setShowAnnounce] = useState(true);
   return (
     <div className="screen page hub">
       <div className="hub-hero">
@@ -487,6 +491,16 @@ function HomeScreen({ onSearch, onCourse, onDelivery, onQuick, onNav, onSoon }: 
         <button className="hub-search rise rise-2" onClick={onSearch}>
           <IconSearch size={20} /> <span>{t('home_search')}</span>
         </button>
+        {announce && showAnnounce && (
+          <div className="hub-announce rise rise-2">
+            <IconBell size={18} />
+            <span className="col grow" style={{ textAlign: 'start' }}>
+              <strong style={{ fontSize: 13 }}>{announce.title}</strong>
+              <span style={{ fontSize: 12, opacity: 0.9 }}>{announce.body}</span>
+            </span>
+            <button className="hub-announce-x" onClick={() => setShowAnnounce(false)} aria-label="Fermer">✕</button>
+          </div>
+        )}
       </div>
 
       <div className="page-body hub-body">

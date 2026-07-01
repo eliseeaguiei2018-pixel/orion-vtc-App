@@ -247,6 +247,13 @@ export async function listSupport(cid: string): Promise<SupportConversation[] | 
   return res?.conversations ?? null;
 }
 
+export interface Announcement { id: string; title: string; body: string; at: string }
+/** Annonces ORION à afficher au client (bannière). */
+export async function listAnnouncements(): Promise<Announcement[]> {
+  const res = await tryFetch<{ announcements: Announcement[] }>('/announcements');
+  return res?.announcements ?? [];
+}
+
 /** URL WebSocket de suivi d'une course (null si pas de backend configuré). */
 export function rideSocketUrl(rideId: string): string | null {
   if (!API) return null;

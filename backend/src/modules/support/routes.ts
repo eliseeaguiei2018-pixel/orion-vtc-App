@@ -12,6 +12,9 @@ export async function supportClientRoutes(app: FastifyInstance, container: Conta
   // Config publique : services activés + ville ouverte (l'app cliente adapte son hub).
   app.get('/config', async () => ({ ...container.settings.getServices(), currency: 'XOF' }));
 
+  // Annonces publiques (bannière app cliente).
+  app.get('/announcements', async () => ({ announcements: container.notifications.forAudience('clients') }));
+
   // Le client démarre / poursuit une conversation.
   app.post('/support/messages', async (req, reply) => {
     const body = parse(
