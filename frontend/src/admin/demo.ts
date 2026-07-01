@@ -30,6 +30,24 @@ const rides: RideRow[] = [
   { id: 'r7c3390fd', clientId: 'client-9902', driverName: 'Konan Yao', matricule: 'ORION-CI-1042', status: 'paid', amount: 2650, currency: 'XOF', trafficLevel: 'fluid', createdAt: iso(33) },
   { id: 'r3e1180ab', clientId: 'client-2214', driverName: null, matricule: null, status: 'searching', amount: 4100, currency: 'XOF', trafficLevel: 'dense', createdAt: iso(1) },
 ];
+// Volume réaliste pour la pagination (démo) : ~60 courses réparties sur 24 h.
+{
+  const statuses = ['rated', 'paid', 'completed', 'completed', 'rated', 'cancelled'] as const;
+  const traffics = ['fluid', 'dense', 'jam'] as const;
+  for (let i = 0; i < 54; i++) {
+    const f = fleet[i % fleet.length]!;
+    rides.push({
+      id: 'r' + (1000 + i * 7).toString(16).padStart(8, '0'),
+      clientId: 'client-' + (1000 + ((i * 137) % 9000)),
+      driverName: f.name, matricule: f.matricule,
+      status: statuses[i % statuses.length]!,
+      amount: 1200 + ((i * 613) % 9800),
+      currency: 'XOF',
+      trafficLevel: traffics[i % traffics.length]!,
+      createdAt: iso(40 + i * 25),
+    });
+  }
+}
 
 const drivers: DriverRow[] = fleet.map((f, i) => ({
   id: f.id, name: f.name, matricule: f.matricule!, category: f.category,
@@ -76,6 +94,22 @@ const clients = [
   { id: 'client-1190', name: 'Jean Brou', phone: '+225 05 44 22 11 00', status: 'active', rides: 12, createdAt: iso(60 * 24 * 15), lastSeenAt: iso(300) },
   { id: 'client-4521', name: 'Fatou N’Dri', phone: '+225 01 22 33 44 55', status: 'blocked', rides: 3, createdAt: iso(60 * 24 * 5), lastSeenAt: iso(1400) },
 ];
+// Volume réaliste pour la pagination (démo) : ~34 clients.
+{
+  const firsts = ['Koffi', 'Adjoua', 'Yao', 'Aminata', 'Sékou', 'Mariam', 'Didier', 'Nadia', 'Bakary', 'Chantal'];
+  const lasts = ['Kouadio', 'Traoré', 'N’Guessan', 'Cissé', 'Bamba', 'Aka', 'Koné', 'Brou'];
+  for (let i = 0; i < 31; i++) {
+    clients.push({
+      id: 'client-' + (2000 + i * 61),
+      name: `${firsts[i % firsts.length]} ${lasts[i % lasts.length]}`,
+      phone: `+225 0${(i % 6) + 1} ${String(10 + i).padStart(2, '0')} ${String(20 + i * 3 % 80).padStart(2, '0')} ${String((i * 17) % 100).padStart(2, '0')} ${String((i * 29) % 100).padStart(2, '0')}`,
+      status: i % 13 === 7 ? 'blocked' : 'active',
+      rides: (i * 5) % 60,
+      createdAt: iso(60 * 24 * (2 + i)),
+      lastSeenAt: iso(30 + i * 90),
+    });
+  }
+}
 
 const promos = [
   { id: 'BIENVENUE', kind: 'percent', value: 30, active: true, uses: 214, maxUses: 1000, createdAt: iso(60 * 24 * 10) },

@@ -235,3 +235,7 @@ textarea.adm-select { resize: vertical; font-family: inherit; width: 100%; }
 /* --- Cloche sirène SAMU --- */
 .adm-mute { font-size: 15px; padding: 6px 10px; }
 .adm-mute.off { opacity: .55; }
+
+/* --- Pagination serveur --- */
+.adm-pager { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; margin-top: 4px; border-top: 1px solid rgba(28,58,44,0.5); font-size: 12px; }
+.adm-pager .adm-btn[disabled] { opacity: .4; cursor: default; }

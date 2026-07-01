@@ -12,6 +12,16 @@ const ACTIVE: ReadonlySet<RideStatus> = new Set([
 const REVENUE: ReadonlySet<RideStatus> = new Set(['completed', 'paid', 'rated']);
 const ALERT_OPEN = new Set(['raised', 'dispatched', 'acknowledged']);
 
+/** Pagination serveur : découpe une liste et renvoie les métadonnées (page 1-indexée). */
+export interface PageMeta { total: number; page: number; pages: number; limit: number }
+export function paginate<T>(list: T[], pageOpt?: number, limitOpt?: number): { items: T[]; meta: PageMeta } {
+  const limit = Math.min(200, Math.max(1, Math.round(limitOpt ?? 25)));
+  const total = list.length;
+  const pages = Math.max(1, Math.ceil(total / limit));
+  const page = Math.min(pages, Math.max(1, Math.round(pageOpt ?? 1)));
+  return { items: list.slice((page - 1) * limit, page * limit), meta: { total, page, pages, limit } };
+}
+
 export class AdminService {
   constructor(private readonly c: Container) {}
 
@@ -47,10 +57,11 @@ export class AdminService {
     };
   }
 
-  rides(opts: { status?: string; limit?: number } = {}) {
+  rides(opts: { status?: string; page?: number; limit?: number } = {}) {
     let list = this.c.rides.listAll();
     if (opts.status) list = list.filter((r) => r.status === opts.status);
-    return list.slice(0, opts.limit ?? 100).map((r) => {
+    const { items, meta } = paginate(list, opts.page, opts.limit);
+    const rides = items.map((r) => {
       const driver = r.driverId ? this.c.drivers.get(r.driverId) : undefined;
       return {
         id: r.id,
@@ -67,6 +78,7 @@ export class AdminService {
         createdAt: r.createdAt,
       };
     });
+    return { rides, ...meta };
   }
 
   /** Agrégats financiers (reporting) : GMV, revenu, commission, payouts + par niveau. */
@@ -133,8 +145,9 @@ export class AdminService {
     return [head, ...rows].join('\n');
   }
 
-  drivers() {
-    return this.c.drivers.list().map((d) => ({
+  drivers(opts: { page?: number; limit?: number } = {}) {
+    const { items, meta } = paginate(this.c.drivers.list(), opts.page, opts.limit);
+    const drivers = items.map((d) => ({
       id: d.id,
       name: d.name,
       matricule: d.matricule,
@@ -145,6 +158,7 @@ export class AdminService {
       trips: d.ratingCount,
       balance: this.c.wallet.balance(d.id),
     }));
+    return { drivers, ...meta };
   }
 
   /** Fiche détaillée d'un chauffeur : profil + gains + dernières courses. */

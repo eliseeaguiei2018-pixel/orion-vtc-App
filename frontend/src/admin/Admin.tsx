@@ -46,6 +46,14 @@ export interface SearchResults {
   clients: { id: string; name: string | null; phone: string | null; status: string; rides: number }[];
   rides: { id: string; clientId: string; status: string; amount: number; createdAt: string }[];
 }
+export interface PageMeta { total: number; page: number; pages: number }
+const PAGE_SIZE = 25;
+/** Pagination locale (mode démo) — même contrat que le serveur. */
+function pageSlice<T>(list: T[], page: number): { items: T[]; meta: PageMeta } {
+  const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+  const p = Math.min(pages, Math.max(1, page));
+  return { items: list.slice((p - 1) * PAGE_SIZE, p * PAGE_SIZE), meta: { total: list.length, page: p, pages } };
+}
 export interface LedgerEntry { id?: string; type: string; amount: number; at?: string; createdAt?: string }
 export interface DetailRide { id: string; status: string; amount: number; createdAt: string }
 export interface DriverDetail {
@@ -214,15 +222,25 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [clientSel, setClientSel] = useState<ClientDetail | null>(null);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [muted, setMuted] = useState(() => localStorage.getItem('orion.admin.muted') === '1');
+  const [ridesPage, setRidesPage] = useState(1);
+  const [driversPage, setDriversPage] = useState(1);
+  const [clientsPage, setClientsPage] = useState(1);
+  const emptyMeta: PageMeta = { total: 0, page: 1, pages: 1 };
+  const [ridesMeta, setRidesMeta] = useState<PageMeta>(emptyMeta);
+  const [driversMeta, setDriversMeta] = useState<PageMeta>(emptyMeta);
+  const [clientsMeta, setClientsMeta] = useState<PageMeta>(emptyMeta);
 
   const loadDemo = useCallback(() => {
     setMe(DEMO.me); setOv(DEMO.overview); setStats(DEMO.stats(statsDays)); setAlerts(DEMO.alerts); setFleet(DEMO.fleet);
-    setRides(DEMO.rides); setDrivers(DEMO.drivers); setPricing(DEMO.pricing); setZones(DEMO.zones as Zone[]);
-    setClients(DEMO.clients); setPromos(DEMO.promos as Promo[]); setServices(DEMO.services);
+    const dr = pageSlice(DEMO.rides, ridesPage); setRides(dr.items); setRidesMeta(dr.meta);
+    const dd = pageSlice(DEMO.drivers, driversPage); setDrivers(dd.items); setDriversMeta(dd.meta);
+    const dc = pageSlice(DEMO.clients, clientsPage); setClients(dc.items); setClientsMeta(dc.meta);
+    setPricing(DEMO.pricing); setZones(DEMO.zones as Zone[]);
+    setPromos(DEMO.promos as Promo[]); setServices(DEMO.services);
     setSupport(DEMO.support as Conversation[]); setAudit(DEMO.audit as AuditEntry[]);
     setFinance(DEMO.finance); setBroadcasts(DEMO.broadcasts as Announcement[]);
     setTransfers(DEMO.treasury as Transfer[]); setLive(false);
-  }, [statsDays]);
+  }, [statsDays, ridesPage, driversPage, clientsPage]);
 
   const refresh = useCallback(async () => {
     if (!API) { loadDemo(); return; }
@@ -232,10 +250,20 @@ function Console({ onLogout }: { onLogout: () => void }) {
       const has = (p: string) => meRes.permissions.includes(p);
       if (has('overview:read')) { setOv(await adminGet<Overview>('/admin/overview')); setStats(await adminGet<Stats>(`/admin/stats?days=${statsDays}`)); }
       if (has('alerts:read')) setAlerts((await adminGet<{ alerts: Alert[] }>('/admin/alerts')).alerts);
-      if (has('drivers:read')) { setFleet((await adminGet<{ fleet: FleetUnit[] }>('/admin/fleet/live')).fleet); setDrivers((await adminGet<{ drivers: DriverRow[] }>('/admin/drivers')).drivers); }
-      if (has('rides:read')) setRides((await adminGet<{ rides: RideRow[] }>('/admin/rides?limit=12')).rides);
+      if (has('drivers:read')) {
+        setFleet((await adminGet<{ fleet: FleetUnit[] }>('/admin/fleet/live')).fleet);
+        const d = await adminGet<{ drivers: DriverRow[] } & PageMeta>(`/admin/drivers?page=${driversPage}&limit=${PAGE_SIZE}`);
+        setDrivers(d.drivers); setDriversMeta({ total: d.total, page: d.page, pages: d.pages });
+      }
+      if (has('rides:read')) {
+        const r = await adminGet<{ rides: RideRow[] } & PageMeta>(`/admin/rides?page=${ridesPage}&limit=${PAGE_SIZE}`);
+        setRides(r.rides); setRidesMeta({ total: r.total, page: r.page, pages: r.pages });
+      }
       if (has('pricing:read')) { setPricing((await adminGet<{ pricing: Pricing }>('/admin/pricing')).pricing); setZones((await adminGet<{ zones: Zone[] }>('/admin/zones')).zones); }
-      if (has('clients:read')) setClients((await adminGet<{ clients: Client[] }>('/admin/clients')).clients);
+      if (has('clients:read')) {
+        const c = await adminGet<{ clients: Client[] } & PageMeta>(`/admin/clients?page=${clientsPage}&limit=${PAGE_SIZE}`);
+        setClients(c.clients); setClientsMeta({ total: c.total, page: c.page, pages: c.pages });
+      }
       if (has('promos:read')) setPromos((await adminGet<{ promos: Promo[] }>('/admin/promos')).promos);
       if (has('services:read')) setServices((await adminGet<{ config: ServicesConfig }>('/admin/services')).config);
       if (has('support:read')) setSupport((await adminGet<{ conversations: Conversation[] }>('/admin/support')).conversations);
@@ -244,7 +272,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
       if (has('notify:read')) setBroadcasts((await adminGet<{ announcements: Announcement[] }>('/admin/broadcasts')).announcements);
       if (has('audit:read')) setAudit((await adminGet<{ entries: AuditEntry[] }>('/admin/audit')).entries);
     } catch { loadDemo(); }
-  }, [loadDemo, statsDays]);
+  }, [loadDemo, statsDays, ridesPage, driversPage, clientsPage]);
 
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
@@ -347,14 +375,33 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setBroadcasts((xs) => [local, ...xs]);
   };
 
-  const exportCsv = () => {
-    if (API) { window.open(`${API}/admin/rides.csv`, '_blank'); return; }
-    const head = 'id,client,status,amount';
-    const rows = rides.map((r) => `${r.id},${r.clientId},${r.status},${r.amount}`);
-    const blob = new Blob([[head, ...rows].join('\n')], { type: 'text/csv' });
+  /** Télécharge un CSV : via l'API (avec session JWT) ou généré localement (démo). */
+  const downloadCsv = async (path: string, filename: string, local: () => string) => {
+    let content: string;
+    if (API) {
+      try {
+        const res = await fetch(API + path, { headers: H() });
+        if (res.status === 401) { onUnauthorized(); return; }
+        content = await res.text();
+      } catch { content = local(); }
+    } else {
+      content = local();
+    }
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob); const a = document.createElement('a');
-    a.href = url; a.download = 'orion-courses.csv'; a.click(); URL.revokeObjectURL(url);
+    a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
   };
+
+  const exportCsv = () => void downloadCsv('/admin/rides.csv', 'orion-courses.csv', () => {
+    const head = 'id,client,status,amount';
+    return [head, ...rides.map((r) => `${r.id},${r.clientId},${r.status},${r.amount}`)].join('\n');
+  });
+
+  const exportTreasuryCsv = () => void downloadCsv('/admin/treasury.csv', 'orion-tresorerie.csv', () => {
+    const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const head = 'reference,montant,devise,destination,motif,demande_par,statut,decide_par,cree_le';
+    return [head, ...transfers.map((t) => [t.id, t.amount, t.currency, t.destination, t.reason, t.requestedBy, t.status, t.decidedBy, t.createdAt].map(esc).join(','))].join('\n');
+  });
 
   const driverAction = async (id: string, kind: 'kyc' | 'availability', value: string) => {
     if (API) { try { await adminPost(`/admin/drivers/${id}/${kind}`, kind === 'kyc' ? { status: value } : { availability: value }); } catch { /* */ } }
@@ -458,12 +505,12 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'overview' && <OverviewSection ov={ov} fleet={fleet} openAlerts={openAlerts} stats={stats} statsDays={statsDays} onStatsDays={setStatsDays} />}
         {section === 'alerts' && <AlertsSection alerts={alerts} fleet={fleet} openAlerts={openAlerts} canWrite={can('alerts:write')} onStatus={setAlertStatus} />}
         {section === 'support' && <SupportSection convs={support} canWrite={can('support:write')} onReply={supportReply} onStatus={supportSetStatus} />}
-        {section === 'rides' && <RidesSection rides={rides} />}
-        {section === 'drivers' && <DriversSection drivers={drivers} canWrite={can('drivers:write')} onAction={driverAction} onOpen={openDriver} />}
-        {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} onOpen={openClient} />}
+        {section === 'rides' && <RidesSection rides={rides} meta={ridesMeta} onPage={setRidesPage} />}
+        {section === 'drivers' && <DriversSection drivers={drivers} canWrite={can('drivers:write')} onAction={driverAction} onOpen={openDriver} meta={driversMeta} onPage={setDriversPage} />}
+        {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} onOpen={openClient} meta={clientsMeta} onPage={setClientsPage} />}
         {section === 'notify' && <NotifySection broadcasts={broadcasts} canWrite={can('notify:write')} onSend={sendBroadcast} />}
         {section === 'finance' && finance && <FinanceSection finance={finance} onExport={exportCsv} canExport={can('rides:read')} />}
-        {section === 'treasury' && <TreasurySection transfers={transfers} meName={me.name} canRequest={can('treasury:request')} canApprove={can('treasury:approve')} onRequest={requestTransfer} onDecide={decideTransfer} />}
+        {section === 'treasury' && <TreasurySection transfers={transfers} meName={me.name} canRequest={can('treasury:request')} canApprove={can('treasury:approve')} onRequest={requestTransfer} onDecide={decideTransfer} onExport={exportTreasuryCsv} />}
         {section === 'pricing' && pricing && <PricingEditor pricing={pricing} canWrite={can('pricing:write')} onSave={savePricing} />}
         {section === 'zones' && <ZonesSection zones={zones} canWrite={can('pricing:write')} onSave={saveZone} onToggle={toggleZone} onDelete={deleteZone} onReset={resetZones} />}
         {section === 'promos' && <PromosSection promos={promos} canWrite={can('promos:write')} onSave={savePromo} onToggle={togglePromo} onDelete={deletePromo} />}
@@ -566,10 +613,10 @@ function AlertsSection({ alerts, fleet, openAlerts, canWrite, onStatus }: { aler
   );
 }
 
-function RidesSection({ rides }: { rides: RideRow[] }) {
+function RidesSection({ rides, meta, onPage }: { rides: RideRow[]; meta: PageMeta; onPage: (p: number) => void }) {
   return (
     <div className="adm-card">
-      <div className="adm-card-h"><h3>Courses récentes</h3><span className="adm-muted">{rides.length}</span></div>
+      <div className="adm-card-h"><h3>Courses</h3><span className="adm-muted">{meta.total}</span></div>
       <table className="adm-table">
         <thead><tr><th>Course</th><th>Chauffeur</th><th>Statut</th><th>Trafic</th><th className="r">Montant</th></tr></thead>
         <tbody>
@@ -582,14 +629,15 @@ function RidesSection({ rides }: { rides: RideRow[] }) {
           ))}
         </tbody>
       </table>
+      <Pager meta={meta} onPage={onPage} />
     </div>
   );
 }
 
-function DriversSection({ drivers, canWrite, onAction, onOpen }: { drivers: DriverRow[]; canWrite: boolean; onAction: (id: string, kind: 'kyc' | 'availability', value: string) => void; onOpen: (id: string) => void }) {
+function DriversSection({ drivers, canWrite, onAction, onOpen, meta, onPage }: { drivers: DriverRow[]; canWrite: boolean; onAction: (id: string, kind: 'kyc' | 'availability', value: string) => void; onOpen: (id: string) => void; meta: PageMeta; onPage: (p: number) => void }) {
   return (
     <div className="adm-card">
-      <div className="adm-card-h"><h3>Chauffeurs</h3><span className="adm-muted">{drivers.length}</span></div>
+      <div className="adm-card-h"><h3>Chauffeurs</h3><span className="adm-muted">{meta.total}</span></div>
       <table className="adm-table">
         <thead><tr><th>Nom</th><th>Matricule</th><th>Niveau</th><th>KYC</th><th>État</th><th className="r">Solde</th><th className="r">Note</th>{canWrite && <th>Actions</th>}</tr></thead>
         <tbody>
@@ -613,14 +661,15 @@ function DriversSection({ drivers, canWrite, onAction, onOpen }: { drivers: Driv
           ))}
         </tbody>
       </table>
+      <Pager meta={meta} onPage={onPage} />
     </div>
   );
 }
 
-function ClientsSection({ clients, canWrite, onStatus, onOpen }: { clients: Client[]; canWrite: boolean; onStatus: (id: string, s: string) => void; onOpen: (id: string) => void }) {
+function ClientsSection({ clients, canWrite, onStatus, onOpen, meta, onPage }: { clients: Client[]; canWrite: boolean; onStatus: (id: string, s: string) => void; onOpen: (id: string) => void; meta: PageMeta; onPage: (p: number) => void }) {
   return (
     <div className="adm-card">
-      <div className="adm-card-h"><h3>Clients</h3><span className="adm-muted">{clients.length}</span></div>
+      <div className="adm-card-h"><h3>Clients</h3><span className="adm-muted">{meta.total}</span></div>
       <table className="adm-table">
         <thead><tr><th>Client</th><th>Téléphone</th><th className="r">Courses</th><th>Statut</th>{canWrite && <th>Actions</th>}</tr></thead>
         <tbody>
@@ -639,6 +688,7 @@ function ClientsSection({ clients, canWrite, onStatus, onOpen }: { clients: Clie
           ))}
         </tbody>
       </table>
+      <Pager meta={meta} onPage={onPage} />
     </div>
   );
 }
@@ -1058,10 +1108,11 @@ const TR_STATUS: Record<string, { label: string; cls: string }> = {
   rejected: { label: 'Rejeté', cls: 'tr-rejected' },
 };
 
-function TreasurySection({ transfers, meName, canRequest, canApprove, onRequest, onDecide }: {
+function TreasurySection({ transfers, meName, canRequest, canApprove, onRequest, onDecide, onExport }: {
   transfers: Transfer[]; meName: string; canRequest: boolean; canApprove: boolean;
   onRequest: (i: { amount: number; destination: string; reason: string }) => void;
   onDecide: (id: string, action: 'approve' | 'reject', note?: string) => void;
+  onExport: () => void;
 }) {
   const [amount, setAmount] = useState(1_000_000);
   const [destination, setDestination] = useState('');
@@ -1100,7 +1151,13 @@ function TreasurySection({ transfers, meName, canRequest, canApprove, onRequest,
         </div>
       )}
       <div className="adm-card">
-        <div className="adm-card-h"><h3>Virements</h3><span className="adm-muted">{transfers.length}</span></div>
+        <div className="adm-card-h">
+          <h3>Virements</h3>
+          <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+            <span className="adm-muted">{transfers.length}</span>
+            <button className="adm-btn xs" onClick={onExport}>⬇ Export comptable (CSV)</button>
+          </div>
+        </div>
         {transfers.length === 0 && <p className="adm-empty">Aucun virement pour l'instant.</p>}
         <table className="adm-table">
           <thead><tr><th>Réf.</th><th className="r">Montant</th><th>Destination</th><th>Motif</th><th>Demandé par</th><th>Statut</th><th>Décision</th>{canApprove && <th>Actions</th>}</tr></thead>
@@ -1162,6 +1219,20 @@ function RolesSection({ me }: { me: Me }) {
         Les comptes se configurent côté serveur (ADMIN_USERS, mots de passe hachés — <code>npm run hash-password</code>).
         Seuls les rôles de direction (CEO, DG, DAA, COO) peuvent approuver un virement : la double validation est imposée par le serveur, pas seulement par l'interface.
       </p>
+    </div>
+  );
+}
+
+/** Barre de pagination serveur (page X / Y · N éléments). */
+function Pager({ meta, onPage }: { meta: PageMeta; onPage: (p: number) => void }) {
+  if (meta.pages <= 1) return <div className="adm-pager"><span className="adm-muted">{meta.total} élément(s)</span></div>;
+  return (
+    <div className="adm-pager">
+      <span className="adm-muted">{meta.total} élément(s) · page {meta.page} / {meta.pages}</span>
+      <div className="row" style={{ gap: 6 }}>
+        <button className="adm-btn xs" disabled={meta.page <= 1} onClick={() => onPage(meta.page - 1)}>← Précédent</button>
+        <button className="adm-btn xs" disabled={meta.page >= meta.pages} onClick={() => onPage(meta.page + 1)}>Suivant →</button>
+      </div>
     </div>
   );
 }

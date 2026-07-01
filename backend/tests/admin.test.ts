@@ -263,3 +263,39 @@ test('admin : anti-brute-force — verrouillage après 5 échecs', async (t) => 
   const locked = await app.inject({ method: 'POST', url: '/admin/login', payload: { username: 'ghost', password: 'x' } });
   assert.equal(locked.statusCode, 429);
 });
+
+test('admin : pagination serveur des chauffeurs', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  for (const n of ['Aya', 'Bintou', 'Chaka']) {
+    await app.inject({ method: 'POST', url: '/drivers', payload: { name: n, category: 'bronze' } });
+  }
+  const p1 = await app.inject({ method: 'GET', url: '/admin/drivers?page=1&limit=2', headers: AUTH });
+  const b1 = p1.json();
+  assert.equal(b1.drivers.length, 2);
+  assert.equal(b1.total, 3);
+  assert.equal(b1.pages, 2);
+  assert.equal(b1.page, 1);
+  const p2 = await app.inject({ method: 'GET', url: '/admin/drivers?page=2&limit=2', headers: AUTH });
+  assert.equal(p2.json().drivers.length, 1);
+  // Page au-delà de la fin → ramenée à la dernière page.
+  const p9 = await app.inject({ method: 'GET', url: '/admin/drivers?page=9&limit=2', headers: AUTH });
+  assert.equal(p9.json().page, 2);
+});
+
+test('admin : export comptable trésorerie (CSV, échappement)', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  await app.inject({
+    method: 'POST', url: '/admin/treasury/request', headers: AUTH,
+    payload: { amount: 750000, destination: 'SGCI, agence "Plateau"', reason: 'Test, virement' },
+  });
+  const csv = await app.inject({ method: 'GET', url: '/admin/treasury.csv', headers: AUTH });
+  assert.equal(csv.statusCode, 200);
+  assert.match(csv.headers['content-type'] as string, /text\/csv/);
+  assert.ok(csv.body.startsWith('reference,montant'));
+  // Les virgules et guillemets internes sont bien échappés (RFC 4180).
+  assert.ok(csv.body.includes('"SGCI, agence ""Plateau"""'));
+});

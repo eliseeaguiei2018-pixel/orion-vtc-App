@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { parse } from '../../core/validate.js';
 import { notFound, unauthorized, forbidden } from '../../core/errors.js';
-import { AdminService } from './service.js';
+import { AdminService, paginate } from './service.js';
 import { can, resolveAccount, ROLE_PERMISSIONS, ROLE_LABEL, type AdminAccount, type Permission } from './roles.js';
 import { login, issueToken, verifyToken, bearerToken, lockedFor, recordLoginFailure, clearLoginFailures } from './auth.js';
 
@@ -126,6 +126,14 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       return { transfer: result };
     });
 
+    // Export comptable des virements (CSV — comptabilité / commissariat aux comptes).
+    scoped.get('/admin/treasury.csv', async (req, reply) => {
+      require(req, 'treasury:read');
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header('content-disposition', 'attachment; filename="orion-tresorerie.csv"');
+      return container.treasury.csv();
+    });
+
     scoped.post('/admin/treasury/:id/reject', async (req) => {
       require(req, 'treasury:approve');
       const { id } = req.params as { id: string };
@@ -137,13 +145,22 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       return { transfer };
     });
 
-    scoped.get('/admin/rides', async (req) => {
-      require(req, 'rides:read');
-      const q = parse(z.object({ status: z.string().optional(), limit: z.coerce.number().int().positive().max(500).optional() }), req.query);
-      return { rides: admin.rides(q) };
+    const pageQuery = z.object({
+      page: z.coerce.number().int().positive().optional(),
+      limit: z.coerce.number().int().positive().max(200).optional(),
     });
 
-    scoped.get('/admin/drivers', async (req) => { require(req, 'drivers:read'); return { drivers: admin.drivers() }; });
+    scoped.get('/admin/rides', async (req) => {
+      require(req, 'rides:read');
+      const q = parse(pageQuery.extend({ status: z.string().optional() }), req.query);
+      return admin.rides(q);
+    });
+
+    scoped.get('/admin/drivers', async (req) => {
+      require(req, 'drivers:read');
+      const q = parse(pageQuery, req.query);
+      return admin.drivers(q);
+    });
 
     scoped.get('/admin/drivers/:id', async (req) => {
       require(req, 'drivers:read');
@@ -264,7 +281,12 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     });
 
     // --- Clients ---
-    scoped.get('/admin/clients', async (req) => { require(req, 'clients:read'); return { clients: container.clients.list() }; });
+    scoped.get('/admin/clients', async (req) => {
+      require(req, 'clients:read');
+      const q = parse(pageQuery, req.query);
+      const { items, meta } = paginate(container.clients.list(), q.page, q.limit);
+      return { clients: items, ...meta };
+    });
 
     scoped.get('/admin/clients/:id', async (req) => {
       require(req, 'clients:read');

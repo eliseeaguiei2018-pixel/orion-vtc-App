@@ -94,4 +94,14 @@ export class TreasuryService {
   pendingCount(): number {
     return this.list().filter((t) => t.status === 'pending').length;
   }
+
+  /** Export comptable CSV (échappement RFC 4180 : champs entre guillemets doublés). */
+  csv(): string {
+    const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const head = ['reference', 'montant', 'devise', 'destination', 'motif', 'demande_par', 'role', 'statut', 'decide_par', 'note_decision', 'cree_le', 'decide_le', 'execute_le'];
+    const rows = this.list().map((t) =>
+      [t.id, t.amount, t.currency, t.destination, t.reason, t.requestedBy, t.requestedRole, t.status, t.decidedBy, t.decisionNote, t.createdAt, t.decidedAt, t.executedAt].map(esc).join(','),
+    );
+    return [head.join(','), ...rows].join('\n');
+  }
 }
