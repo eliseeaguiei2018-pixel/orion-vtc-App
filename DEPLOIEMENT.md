@@ -75,7 +75,26 @@ npx cap open android   # ouvre Android Studio pour générer l'APK / publier
 
 ---
 
-## Activer Google Maps (optionnel)
+## Activer un VRAI fond de carte (rues d'Abidjan)
+
+Par défaut, ORION affiche sa **carte stylisée « façon navigation »** (rues, boulevards,
+lagune Ébrié, communes) — elle fonctionne **hors-ligne et sans clé**. Pour afficher le
+**plan réel** (tuiles), définis une variable d'environnement Frontend (Vercel → Environment) :
+
+| Fournisseur | Variables | Notes |
+|-------------|-----------|-------|
+| **OpenStreetMap** | `VITE_MAP_PROVIDER=osm` | Gratuit, sans clé. Idéal pour démarrer. |
+| **MapTiler** | `VITE_MAP_PROVIDER=maptiler` + `VITE_MAPTILER_KEY=...` | Rues détaillées, thème premium. |
+| **Google** | `VITE_MAP_PROVIDER=google` + `VITE_GOOGLE_MAPS_API_KEY=...` | Nécessite l'activation « Map Tiles API » (partenariat Google). |
+| **Autre** | `VITE_MAP_TILE_URL=https://.../{z}/{x}/{y}.png` | Gabarit générique, n'importe quel fournisseur. |
+
+Le reste de l'app ne change pas : itinéraire, arrêts, marqueurs et **suivi voiture temps réel**
+s'affichent par-dessus le fond réel (couche d'abstraction `src/mapConfig.ts` + `RealMap`).
+
+> ℹ️ Le fond réel a besoin d'un accès Internet aux serveurs de tuiles ; en démo hors-ligne,
+> l'app retombe automatiquement sur la carte stylisée.
+
+## Activer Google Maps côté itinéraires (optionnel)
 1. Obtiens une clé sur Google Cloud (APIs : Directions, Places, Maps JavaScript).
 2. Backend : variable `GOOGLE_MAPS_API_KEY` (Render → Environment).
 3. Frontend : variable `VITE_GOOGLE_MAPS_API_KEY` (Vercel → Environment).

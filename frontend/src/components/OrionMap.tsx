@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import type { LatLng } from '../types';
 import { useTheme } from '../theme';
+import { getTileConfig } from '../mapConfig';
+import { RealMap } from './RealMap';
 
 /**
  * Carte ORION façon navigation (style Google/Waze) projetant de vraies coordonnées
@@ -63,6 +65,12 @@ export function OrionMap({ origin, destination, stops = [], car, traffic = true 
   const { resolved } = useTheme();
   const P = resolved === 'light' ? LIGHT : DARK;
 
+  // Vrai fond de carte (tuiles) si un fournisseur est configuré ; sinon carte stylisée.
+  const tiles = getTileConfig();
+  if (tiles) {
+    return <RealMap origin={origin} destination={destination} stops={stops} car={car} tiles={tiles} />;
+  }
+
   const o = useMemo(() => project(origin), [origin]);
   const d = useMemo(() => (destination ? project(destination) : null), [destination]);
   const sp = useMemo(() => stops.map(project), [stops]);
@@ -105,19 +113,12 @@ export function OrionMap({ origin, destination, stops = [], car, traffic = true 
         <g clipPath="url(#frame)">
           <rect width={VIEW_W} height={VIEW_H} fill="url(#bgGlow)" />
 
-          {/* Espaces verts (parcs / Banco). */}
-          <g fill={P.park} opacity="0.75">
-            <ellipse cx="70" cy="150" rx="70" ry="60" />
-            <ellipse cx="330" cy="120" rx="55" ry="46" />
-            <ellipse cx="360" cy="700" rx="60" ry="70" />
+          {/* Espaces verts (Parc du Banco, jardins). */}
+          <g fill={P.park} opacity="0.8">
+            <ellipse cx="64" cy="150" rx="76" ry="64" />
+            <ellipse cx="336" cy="120" rx="58" ry="48" />
+            <ellipse cx="366" cy="712" rx="64" ry="74" />
           </g>
-
-          {/* Lagune Ébrié (Abidjan est bâtie autour). */}
-          <path
-            d="M -20 452 C 90 430 170 470 250 452 C 320 437 370 470 420 452 L 420 566 C 350 590 300 556 250 566 C 160 584 90 548 -20 584 Z"
-            fill={P.water}
-          />
-          <path d="M 250 452 C 262 520 258 640 250 820 L 300 820 C 306 640 300 520 300 460 Z" fill={P.water} opacity="0.9" />
 
           {/* Trame résidentielle (rues) — casing puis remplissage. */}
           <g stroke={P.roadCasing} strokeWidth="3.4" fill="none" opacity="0.9">
@@ -135,16 +136,43 @@ export function OrionMap({ origin, destination, stops = [], car, traffic = true 
             {PRIMARIES.map((dp, i) => <path key={i} d={dp} />)}
           </g>
 
-          {/* Libellés de communes. */}
-          <g fill={P.label} fontSize="11" fontWeight="700" opacity="0.9"
+          {/* Lagune Ébrié — dessinée AU-DESSUS de la voirie (Abidjan est bâtie autour). */}
+          <g>
+            <path
+              d="M -20 448 C 90 424 168 466 250 448 C 322 432 372 466 420 446 L 420 572 C 350 598 300 560 250 572 C 158 590 88 552 -20 590 Z"
+              fill={P.water}
+            />
+            {/* Baie de Cocody (bras vertical) */}
+            <path d="M 244 452 C 252 540 250 660 246 820 L 302 820 C 308 660 302 540 300 456 Z" fill={P.water} />
+            {/* Reflet subtil */}
+            <path d="M -20 470 C 100 452 180 486 260 470 C 330 456 372 484 420 468" fill="none"
+              stroke={P.roadFill} strokeOpacity="0.25" strokeWidth="2" />
+          </g>
+
+          {/* Ponts sur la lagune (Pont HKB / FHB / de Gaulle) — casing + tablier. */}
+          <g stroke={P.primaryCasing} strokeWidth="9.5" fill="none" strokeLinecap="butt">
+            {BRIDGES.map((dp, i) => <path key={i} d={dp} />)}
+          </g>
+          <g stroke={P.primaryFill} strokeWidth="6" fill="none" strokeLinecap="butt">
+            {BRIDGES.map((dp, i) => <path key={i} d={dp} />)}
+          </g>
+
+          {/* Libellés de communes + lagune. */}
+          <g fill={P.label} fontSize="11" fontWeight="700" opacity="0.92"
              style={{ letterSpacing: '0.12em', textTransform: 'uppercase' } as React.CSSProperties}>
             <text x="150" y="300">Plateau</text>
             <text x="300" y="150">Cocody</text>
-            <text x="60" y="250">Yopougon</text>
+            <text x="56" y="250">Yopougon</text>
             <text x="150" y="185">Adjamé</text>
-            <text x="180" y="640">Marcory</text>
-            <text x="120" y="430">Treichville</text>
+            <text x="150" y="120">Abobo</text>
+            <text x="326" y="360">Riviera</text>
+            <text x="120" y="424">Treichville</text>
+            <text x="188" y="648">Marcory</text>
+            <text x="300" y="700">Koumassi</text>
           </g>
+          <text x="40" y="530" fill={P.water} fontSize="12" fontWeight="700" opacity="0.9"
+            style={{ letterSpacing: '0.16em' } as React.CSSProperties}
+            stroke={P.land} strokeWidth="0.4">Lagune Ébrié</text>
         </g>
 
         {/* Trafic : carrefours / feux tricolores / embouteillages. */}
@@ -222,6 +250,13 @@ const PRIMARIES = [
   'M -20 610 C 140 590 270 650 420 596',
   'M 250 -20 C 300 220 332 520 300 820',
   'M -20 380 C 160 360 300 396 420 372',
+];
+
+// Ponts sur la lagune Ébrié (tabliers traversant l'eau).
+const BRIDGES = [
+  'M 168 436 L 176 588',   // axe Plateau ↔ sud
+  'M 296 440 L 300 590',   // axe est
+  'M 96 452 L 104 596',    // pont ouest
 ];
 
 // Carrefours majeurs d'Abidjan (repères) — vert = fluide, orange = dense, rouge = embouteillage.
