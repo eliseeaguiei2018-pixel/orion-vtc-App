@@ -42,8 +42,73 @@ async function adminPost<T>(path: string, body: unknown): Promise<T> {
 
 const fcfa = (n: number) => n.toLocaleString('fr-FR') + ' F';
 
-/* ------------------------------- Vue --------------------------------- */
+/* --------------------------- Porte d'entrée -------------------------- */
 export function Admin() {
+  const [authed, setAuthed] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const t = localStorage.getItem(tokenKey);
+      if (!t) { setChecking(false); return; }
+      if (!API) { setAuthed(true); setChecking(false); return; } // démo autonome
+      try { await adminGet('/admin/overview'); setAuthed(true); }
+      catch { localStorage.removeItem(tokenKey); }
+      setChecking(false);
+    })();
+  }, []);
+
+  if (checking) return <div className="adm-loading">Vérification de l'accès…</div>;
+  if (!authed) return <Login onDone={() => setAuthed(true)} />;
+  return <Dashboard onLogout={() => { localStorage.removeItem(tokenKey); setAuthed(false); }} />;
+}
+
+/* --------------------------- Écran de connexion --------------------- */
+function Login({ onDone }: { onDone: () => void }) {
+  const [value, setValue] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = value.trim();
+    if (!token) { setErr('Saisis ton jeton administrateur.'); return; }
+    setBusy(true); setErr('');
+    localStorage.setItem(tokenKey, token);
+    if (!API) { onDone(); return; } // mode démo : pas de backend à vérifier
+    try { await adminGet('/admin/overview'); onDone(); }
+    catch { localStorage.removeItem(tokenKey); setErr('Jeton refusé. Accès réservé au personnel ORION.'); setBusy(false); }
+  };
+
+  return (
+    <div className="adm-login">
+      <form className="adm-login-card" onSubmit={submit}>
+        <span className="adm-logo big" aria-hidden>
+          <svg width="30" height="30" viewBox="0 0 512 512"><path d="M256 92 C 338 150 372 252 318 350 C 300 382 280 404 256 424 C 232 404 212 382 194 350 C 140 252 174 150 256 92 Z" fill="#04140d"/><g fill="#04140d"><circle cx="372" cy="120" r="15"/><circle cx="406" cy="150" r="12"/><circle cx="430" cy="186" r="9"/></g></svg>
+        </span>
+        <h1>ORION Admin</h1>
+        <p className="adm-login-sub">Console de supervision & SAMU — accès réservé au personnel ORION.</p>
+        <label className="adm-login-label">Jeton administrateur</label>
+        <input
+          className="adm-login-input"
+          type="password"
+          placeholder="••••••••••••"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          autoFocus
+        />
+        {err && <div className="adm-login-err">{err}</div>}
+        <button className="adm-btn solid big" type="submit" disabled={busy}>
+          {busy ? 'Connexion…' : 'Se connecter'}
+        </button>
+        {!API && <p className="adm-login-demo">Mode démo — n'importe quel jeton ouvre la console (données simulées).</p>}
+      </form>
+    </div>
+  );
+}
+
+/* ------------------------------- Console ----------------------------- */
+function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [ov, setOv] = useState<Overview | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [fleet, setFleet] = useState<FleetUnit[]>([]);
@@ -105,6 +170,7 @@ export function Admin() {
           <span className={`adm-live ${live ? 'on' : 'demo'}`}>{live ? '● EN DIRECT' : '● MODE DÉMO'}</span>
           <span className="adm-clock">{now.toLocaleTimeString('fr-FR')}</span>
           <button className="adm-btn ghost" onClick={() => void refresh()}>Rafraîchir</button>
+          <button className="adm-btn ghost" onClick={onLogout}>Déconnexion</button>
         </div>
       </header>
 

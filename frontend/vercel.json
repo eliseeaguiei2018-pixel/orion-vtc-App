@@ -3,5 +3,10 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "_comment_admin": "Sous-domaine admin : remplacer 'admin.orion.ci' par ton vrai domaine admin dans Vercel (Domains).",
+  "rewrites": [
+    { "source": "/", "has": [{ "type": "host", "value": "admin.orion.ci" }], "destination": "/admin.html" },
+    { "source": "/(.*)", "has": [{ "type": "host", "value": "admin.orion.ci" }], "destination": "/admin.html" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }

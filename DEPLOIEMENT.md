@@ -83,10 +83,18 @@ Le dashboard d'administration est une **page séparée** de l'app cliente :
 - Fonctionnalités : KPIs (courses actives, chauffeurs en ligne, revenu/commission, alertes),
   **carte de supervision de la flotte** (positions temps réel), **file SAMU** (SOS/accidents
   avec prise en charge / résolution), tables Courses et Chauffeurs (KYC, état, note).
-- Accès protégé par un **jeton administrateur** (en-tête `x-admin-token`) :
+- **Écran de connexion** : à l'ouverture, la console demande le **jeton administrateur**
+  (champ masqué). Le jeton est vérifié auprès du backend puis mémorisé sur le poste ;
+  bouton **Déconnexion** dans l'en-tête.
   - Backend : variable `ADMIN_TOKEN` (Render → Environment, mettre un vrai secret).
-  - Le dashboard lit le jeton dans `localStorage['orion.admin.token']` (défaut démo `orion-admin-dev`).
 - Sans backend joignable, la console bascule en **mode démo** (données simulées) pour la présentation.
+
+### Mettre l'admin sur un sous-domaine dédié (recommandé)
+1. Dans Vercel → **Domains**, ajoute `admin.tondomaine.ci` au projet frontend.
+2. Dans `frontend/vercel.json`, remplace `admin.orion.ci` par ce domaine (règles `rewrites`
+   déjà prêtes : sur ce sous-domaine, la racine sert `admin.html`).
+3. Résultat : `tondomaine.ci` = app client ; `admin.tondomaine.ci` = console admin.
+4. Sécurité en plus (optionnel) : mot de passe Vercel ou **liste d'IP** (bureau ORION).
 
 > 🔒 En production : remplacer le jeton simple par une authentification forte (SSO/JWT + rôles)
 > et un **audit log immuable** des actions admin.

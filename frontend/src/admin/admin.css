@@ -8,6 +8,23 @@
 body { margin: 0; background: var(--a-bg); color: var(--a-text); font-family: 'Inter', system-ui, sans-serif; }
 .adm-loading { min-height: 100vh; display: grid; place-items: center; color: var(--a-muted); }
 
+/* Écran de connexion */
+.adm-login { min-height: 100vh; display: grid; place-items: center; padding: 24px;
+  background: radial-gradient(90% 70% at 50% 0%, #0e3826 0%, #071009 60%); }
+.adm-login-card { width: 100%; max-width: 380px; background: var(--a-panel); border: 1px solid var(--a-stroke);
+  border-radius: 20px; padding: 30px 28px; display: flex; flex-direction: column; gap: 10px; text-align: center;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.45); }
+.adm-logo.big { width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 6px; }
+.adm-login-card h1 { font-family: 'Sora', sans-serif; font-size: 22px; margin: 0; }
+.adm-login-sub { color: var(--a-muted); font-size: 13px; margin: 0 0 8px; }
+.adm-login-label { text-align: left; font-size: 12px; color: var(--a-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.adm-login-input { background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 10px;
+  padding: 12px 14px; color: var(--a-text); font-size: 15px; outline: none; }
+.adm-login-input:focus { border-color: var(--a-green2); }
+.adm-login-err { color: var(--a-danger); font-size: 12px; text-align: left; }
+.adm-btn.big { padding: 12px; font-size: 15px; border-radius: 10px; margin-top: 4px; }
+.adm-login-demo { color: var(--a-muted); font-size: 11px; margin: 6px 0 0; }
+
 .adm { max-width: 1280px; margin: 0 auto; padding: 20px 22px 40px; }
 
 .adm-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; }
