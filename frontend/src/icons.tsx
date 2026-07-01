@@ -124,3 +124,6 @@ export const IconFingerprint = ({ size, strokeWidth }: P) => (
 export const IconLock = ({ size, strokeWidth }: P) => (
   <svg {...base(size, strokeWidth)}><rect x="4.5" y="10" width="15" height="11" rx="2.5" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
 );
+export const IconWifi = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M2 8.5a16 16 0 0 1 20 0" /><path d="M5 12a11 11 0 0 1 14 0" /><path d="M8.5 15.5a6 6 0 0 1 7 0" /><circle cx="12" cy="19" r="0.6" fill="currentColor" /></svg>
+);

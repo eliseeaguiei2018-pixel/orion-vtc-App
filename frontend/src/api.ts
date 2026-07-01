@@ -53,24 +53,28 @@ function localTraffic(): { level: 'fluid' | 'dense' | 'jam'; factor: number } {
   return { level: 'fluid', factor: 1 };
 }
 
-/** Estimation locale (miroir simplifié du backend, en FCFA, avec TVA 5% + frais 10%). */
+/**
+ * Estimation locale (miroir du backend). PRIX FIXE : le montant affiché = montant payé.
+ * Trafic INTÉGRÉ au prix (adouci), jamais facturé à part. Tarifs abordables (< concurrence).
+ */
+const TRAFFIC_PRICE_WEIGHT = 0.6;
 function localEstimate(origin: LatLng, destination: LatLng, tier: TierOption, opts: EstimateOpts = {}): Quote {
   const stops = opts.stops ?? [];
   const pts = [origin, ...stops, destination];
-  let raw = 0;
-  for (let i = 1; i < pts.length; i++) raw += haversine(pts[i - 1]!, pts[i]!);
-  const distanceMeters = raw * 1.3;
+  let dist = 0;
+  for (let i = 1; i < pts.length; i++) dist += haversine(pts[i - 1]!, pts[i]!);
+  const distanceMeters = dist;
   const km = distanceMeters / 1000;
   const bodyF = BODY[opts.bodyType ?? 'berline'];
   const traffic = localTraffic();
-  const etaSeconds = Math.round((km / 22) * 3600 * traffic.factor);
-  const base = 500 * tier.multiplier * bodyF + stops.length * 300 * tier.multiplier;
-  const distance = km * 250 * tier.multiplier * bodyF;
-  const time = (km / 22) * 60 * 35 * tier.multiplier * bodyF;
-  const surge = 1.1;
-  const floored = Math.max((base + distance + time) * surge, 1000 * tier.multiplier);
-  const trafficCost = floored * (traffic.factor - 1);
-  const subtotal = floored + trafficCost;
+  const m = tier.multiplier;
+  const etaSeconds = Math.round((km / 24) * 3600 * traffic.factor);
+  const minutes = (km / 24) * 60; // temps facturé à vitesse libre (trafic non surfacturé)
+  const base = 300 * m * bodyF + stops.length * 250 * m;
+  const distance = km * 130 * m * bodyF;
+  const time = minutes * 18 * m * bodyF;
+  const trafficMult = 1 + (traffic.factor - 1) * TRAFFIC_PRICE_WEIGHT;
+  const subtotal = Math.max((base + distance + time) * trafficMult, 600 * m);
   const tva = subtotal * 0.05;
   const fee = subtotal * 0.1;
   const insurance = opts.insurance ? subtotal * 0.02 : 0;
@@ -82,8 +86,8 @@ function localEstimate(origin: LatLng, destination: LatLng, tier: TierOption, op
     etaSeconds,
     trafficLevel: traffic.level,
     breakdown: {
-      base: Math.round(base), distance: Math.round(distance), time: Math.round(time), surge,
-      traffic: Math.round(trafficCost), discount: 0, subtotal: Math.round(subtotal),
+      base: Math.round(base), distance: Math.round(distance), time: Math.round(time), surge: 1,
+      traffic: 0, discount: 0, subtotal: Math.round(subtotal),
       tva: Math.round(tva), fee: Math.round(fee), insurance: Math.round(insurance),
     },
   };
@@ -108,12 +112,12 @@ export function previewDelivery(origin: LatLng, destination: LatLng, size: PkgSi
   const traffic = localTraffic();
   const f = PKG_FACTOR[size];
   const etaSeconds = Math.round((km / 26) * 3600 * traffic.factor); // moto plus rapide
-  const base = 600 * f;
-  const distance = km * 170 * f;
-  const time = (km / 26) * 60 * 22 * f;
-  const floored = Math.max(base + distance + time, 700);
-  const trafficCost = floored * (traffic.factor - 1);
-  const subtotal = floored + trafficCost;
+  const minutes = (km / 26) * 60;
+  const base = 450 * f;
+  const distance = km * 150 * f;
+  const time = minutes * 14 * f;
+  const trafficMult = 1 + (traffic.factor - 1) * TRAFFIC_PRICE_WEIGHT;
+  const subtotal = Math.max((base + distance + time) * trafficMult, 500);
   const tva = subtotal * 0.05;
   const fee = subtotal * 0.1;
   return {
@@ -125,7 +129,7 @@ export function previewDelivery(origin: LatLng, destination: LatLng, size: PkgSi
     trafficLevel: traffic.level,
     breakdown: {
       base: Math.round(base), distance: Math.round(distance), time: Math.round(time), surge: 1,
-      traffic: Math.round(trafficCost), discount: 0, subtotal: Math.round(subtotal),
+      traffic: 0, discount: 0, subtotal: Math.round(subtotal),
       tva: Math.round(tva), fee: Math.round(fee), insurance: 0,
     },
   };

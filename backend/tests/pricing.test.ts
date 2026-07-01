@@ -36,13 +36,20 @@ test('les niveaux sont croissants : bronze < argent < or < diamant', () => {
   assert.ok(bronze < argent && argent < or && or < diamant);
 });
 
-test('le trafic (embouteillage) majore le prix et l’ETA', () => {
+test('le trafic est intégré au PRIX FIXE (pas de ligne « supplément ») et majore l’ETA', () => {
   const fluid = estimatePrice({ origin, destination, category: 'bronze' }, { trafficFactor: 1 });
   const jam = estimatePrice({ origin, destination, category: 'bronze' }, { trafficFactor: 1.35, trafficLevel: 'jam' });
-  assert.ok(jam.amount > fluid.amount);
+  assert.ok(jam.amount >= fluid.amount); // trafic déjà pris en compte dans le prix fixe
   assert.ok(jam.etaSeconds > fluid.etaSeconds);
-  assert.ok(jam.breakdown.traffic > 0);
+  assert.equal(jam.breakdown.traffic, 0); // aucune surfacturation séparée
   assert.equal(jam.trafficLevel, 'jam');
+});
+
+test('prix fixe : pas de surge (montant affiché = montant final)', () => {
+  const normal = estimatePrice({ origin, destination, category: 'bronze' });
+  const withSurge = estimatePrice({ origin, destination, category: 'bronze' }, { surgeMultiplier: 2 });
+  assert.equal(withSurge.amount, normal.amount);
+  assert.equal(normal.breakdown.surge, 1);
 });
 
 test('un SUV coûte plus cher qu’une berline', () => {

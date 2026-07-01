@@ -35,7 +35,7 @@ const fr: Dict = {
   dest_title: 'Destination', dest_search: 'Quartier, lieu, adresse à Abidjan…', dest_none: 'Aucun résultat',
   est_choose: 'Choisissez votre course', est_min: 'min', est_cta: 'Choisir',
   conf_title: 'Confirmer', conf_departure: 'Départ', conf_payment: 'Paiement',
-  conf_total: 'Total estimé', conf_confirm: 'Confirmer la course', conf_locked: 'Prix verrouillé · aucun supplément surprise',
+  conf_total: 'Prix fixe', conf_confirm: 'Confirmer la course', conf_locked: 'Prix fixe garanti — vous payez exactement ce montant, embouteillages inclus.',
   search_title: 'Recherche d’un chauffeur…', search_sub: 'Nous contactons les chauffeurs ORION les plus proches.', search_cancel: 'Annuler',
   track_title: 'Suivi en direct', track_arrives: 'arrive', track_arrived: 'Votre chauffeur est arrivé 🎉',
   track_enroute: 'En route vers votre destination', track_meeting: 'Point de rendez-vous', track_dest: 'Arrivée',
@@ -106,6 +106,7 @@ const fr: Dict = {
   del_cta: 'Commander la livraison', del_note: 'Un coursier ORION récupère et livre votre colis.',
   del_searching: 'Recherche d’un coursier…', del_searching_sub: 'Nous contactons les coursiers moto les plus proches.',
   del_picked: 'Colis récupéré', del_enroute: 'Colis en route vers la destination', del_meeting: 'Retrait du colis',
+  wifi_free: 'Wi-Fi gratuit illimité à bord', fixed_badge: 'Prix fixe · trafic inclus',
 };
 
 const en: Dict = {
@@ -122,7 +123,7 @@ const en: Dict = {
   dest_title: 'Destination', dest_search: 'Area, place, address in Abidjan…', dest_none: 'No results',
   est_choose: 'Choose your ride', est_min: 'min', est_cta: 'Choose',
   conf_title: 'Confirm', conf_departure: 'Pickup', conf_payment: 'Payment',
-  conf_total: 'Estimated total', conf_confirm: 'Confirm ride', conf_locked: 'Locked price · no surprise fees',
+  conf_total: 'Fixed price', conf_confirm: 'Confirm ride', conf_locked: 'Guaranteed fixed price — you pay exactly this, traffic included.',
   search_title: 'Finding a driver…', search_sub: 'Reaching the nearest ORION drivers.', search_cancel: 'Cancel',
   track_title: 'Live tracking', track_arrives: 'arriving', track_arrived: 'Your driver has arrived 🎉',
   track_enroute: 'On the way to your destination', track_meeting: 'Pickup point', track_dest: 'Arrival',
@@ -191,6 +192,7 @@ const en: Dict = {
   del_cta: 'Order delivery', del_note: 'An ORION courier picks up and delivers your parcel.',
   del_searching: 'Finding a courier…', del_searching_sub: 'Reaching the nearest moto couriers.',
   del_picked: 'Parcel picked up', del_enroute: 'Parcel on the way', del_meeting: 'Parcel pickup',
+  wifi_free: 'Free unlimited Wi-Fi on board', fixed_badge: 'Fixed price · traffic included',
   pay_title: 'Payment', pay_redirect: 'Redirecting to {p}…', pay_confirm_in: 'Confirm in {p}', pay_success: 'Payment received by ORION',
   pay_email: 'Receipt sent by email 📧', pay_notif: 'Driver & client notified', pay_open: 'Open {p}',
 };

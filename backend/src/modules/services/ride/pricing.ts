@@ -26,8 +26,18 @@ export interface CategoryTariff {
   avgSpeedKmh: number;
 }
 
-/** Tarif de base FCFA (Abidjan), modulé ensuite par le multiplicateur du niveau. */
-const BASE_TARIFF = { baseFare: 500, perKm: 250, perMinute: 35, minFare: 1000, avgSpeedKmh: 22 };
+/**
+ * Tarif de base FCFA (Abidjan), modulé ensuite par le multiplicateur du niveau.
+ * Positionnement : PLUS ABORDABLE que la concurrence (Yango). Le prix affiché est FIXE
+ * et garanti — le trafic est déjà pris en compte en amont, jamais facturé après coup.
+ */
+const BASE_TARIFF = { baseFare: 300, perKm: 130, perMinute: 18, minFare: 600, avgSpeedKmh: 24 };
+
+/**
+ * Influence (adoucie) du trafic sur le PRIX, intégrée au prix fixe : on tient compte des
+ * embouteillages sans gonfler la facture. Le client voit UN seul prix, garanti à l'arrivée.
+ */
+const TRAFFIC_PRICE_WEIGHT = 0.6;
 
 export const DEFAULT_TIER: Tier = 'bronze';
 
@@ -63,7 +73,6 @@ function routeDistanceMeters(origin: LatLng, destination: LatLng, stops: LatLng[
   return total;
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 /** Le FCFA n'a pas de centimes : on arrondit au multiple de 50 le plus proche. */
 const roundFcfa = (n: number) => Math.round(n / 50) * 50;
 
@@ -82,32 +91,35 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
   const category = req.category && isTier(req.category) ? req.category : DEFAULT_TIER;
   const tariff = tariffForTier(category);
   const bodyFactor = BODY_SURCHARGE[req.bodyType ?? 'berline'] ?? 1;
-  const surge = Math.max(1, ctx.surgeMultiplier ?? 1);
   const trafficFactor = Math.max(1, ctx.trafficFactor ?? 1);
   const discountRate = Math.min(1, Math.max(0, ctx.discountRate ?? 0));
 
   const stops = req.stops ?? [];
   const distanceMeters = routeDistanceMeters(req.origin, req.destination, stops);
   const distanceKm = distanceMeters / 1000;
-  // Le trafic allonge le temps de trajet → ETA majoré.
+  // ETA affichée : le trafic allonge la durée réelle (info au client, sans surfacturation).
   const etaSeconds = Math.round((distanceKm / tariff.avgSpeedKmh) * 3600 * trafficFactor);
+  // Temps FACTURÉ : calculé à vitesse libre → on NE facture PAS le temps passé dans les
+  // embouteillages. Le trafic n'agit que via un léger facteur intégré au prix fixe.
   const minutes = (distanceKm / tariff.avgSpeedKmh) * 60;
 
   const base = tariff.baseFare * bodyFactor;
   const distanceCost = distanceKm * tariff.perKm * bodyFactor;
   const timeCost = minutes * tariff.perMinute * bodyFactor;
   // Chaque arrêt intermédiaire ajoute un forfait d'attente.
-  const stopsCost = stops.length * 300 * FLEET[category].multiplier;
+  const stopsCost = stops.length * 250 * FLEET[category].multiplier;
 
-  const afterSurge = (base + distanceCost + timeCost + stopsCost) * surge;
-  const floored = Math.max(afterSurge, tariff.minFare);
-  const trafficSurcharge = floored * (trafficFactor - 1);
-  const discount = (floored + trafficSurcharge) * discountRate;
+  // Trafic intégré (adouci) dans le prix — PAS de ligne « supplément » séparée.
+  const trafficMult = 1 + (trafficFactor - 1) * TRAFFIC_PRICE_WEIGHT;
+  const raw = (base + distanceCost + timeCost + stopsCost) * trafficMult;
+  const floored = Math.max(raw, tariff.minFare);
+  const discount = floored * discountRate;
 
-  const subtotal = floored + trafficSurcharge - discount;
+  const subtotal = floored - discount;
   const tva = subtotal * TVA_RATE;
   const fee = subtotal * APP_FEE_RATE;
   const insurance = req.insurance ? subtotal * INSURANCE_RATE : 0;
+  // PRIX FIXE GARANTI : ce montant arrondi est exactement ce que le client paiera.
   const amount = roundFcfa(subtotal + tva + fee + insurance);
 
   return {
@@ -121,8 +133,8 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
       base: Math.round(base + stopsCost),
       distance: Math.round(distanceCost),
       time: Math.round(timeCost),
-      surge: round2(surge),
-      traffic: Math.round(trafficSurcharge),
+      surge: 1,
+      traffic: 0, // trafic intégré au prix fixe (aucune surfacturation séparée)
       discount: Math.round(discount),
       subtotal: Math.round(subtotal),
       tva: Math.round(tva),

@@ -5,7 +5,7 @@ import {
   IconBell, IconBolt, IconBriefcase, IconCalendar, IconCamera, IconCheck, IconChevron, IconClock, IconCrown,
   IconFingerprint, IconGem, IconGlobe, IconHome, IconImage, IconLeaf, IconLock, IconMic, IconMinus,
   IconPhone, IconPhoneOff, IconPin, IconPlane, IconPlus, IconRing, IconSearch, IconSettings, IconShare,
-  IconShield, IconShieldCheck, IconStar, IconTraffic, IconVolume, IconWallet,
+  IconShield, IconShieldCheck, IconStar, IconTraffic, IconVolume, IconWallet, IconWifi,
 } from './icons';
 import { useTheme, type ThemeMode } from './theme';
 import { LogoGlyph } from './components/Logo';
@@ -793,9 +793,21 @@ function ConfirmScreen({ origin, destination, tier, quote, payment, stops, onAdd
               </div>
             )}
             <div className="divider" style={{ margin: '8px 0' }} />
-            <div className="fare-total"><span className="muted">{t('conf_total')}</span><span className="amt">{formatXOF(quote.amount)}</span></div>
+            <div className="fare-total">
+              <span className="col" style={{ alignItems: 'flex-start' }}>
+                <span className="muted">{t('conf_total')}</span>
+                <span className="badge green" style={{ fontSize: 10, marginTop: 4 }}><IconShieldCheck size={11} /> {t('fixed_badge')}</span>
+              </span>
+              <span className="amt">{formatXOF(quote.amount)}</span>
+            </div>
           </>
         )}
+        {/* Avantage à bord : Wi-Fi gratuit illimité */}
+        <div className="perk" style={{ marginTop: 12 }}>
+          <span className="list-ico" style={{ color: 'var(--green)' }}><IconWifi size={18} /></span>
+          <span className="grow" style={{ textAlign: 'start', fontSize: 13, fontWeight: 600 }}>{t('wifi_free')}</span>
+          <span className="badge green" style={{ fontSize: 10 }}>GRATUIT</span>
+        </div>
         <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={onConfirm}>{scheduled ? t('sched_set') : t('conf_confirm')}</button>
         <p className="faint" style={{ textAlign: 'center', fontSize: 12, marginTop: 8 }}>{t('conf_locked')}</p>
       </Sheet>
@@ -940,6 +952,13 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
 
         {(phase === 'enroute' || phase === 'arrived') && (
           <button className="btn btn-danger" style={{ marginTop: 10 }} onClick={onCancel}>{t('act_cancel')}</button>
+        )}
+        {!del && (
+          <div className="perk" style={{ marginTop: 12 }}>
+            <span className="list-ico" style={{ color: 'var(--green)' }}><IconWifi size={18} /></span>
+            <span className="grow" style={{ textAlign: 'start', fontSize: 13, fontWeight: 600 }}>{t('wifi_free')}</span>
+            <span className="badge green" style={{ fontSize: 10 }}>À BORD</span>
+          </div>
         )}
         <div className="card" style={{ padding: 12, marginTop: 12 }}>
           <div className="row gap-sm" style={{ fontSize: 13 }}>
