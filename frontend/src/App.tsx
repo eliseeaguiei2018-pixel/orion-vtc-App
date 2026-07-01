@@ -8,7 +8,7 @@ import {
   IconShield, IconShieldCheck, IconStar, IconTraffic, IconVolume, IconWallet,
 } from './icons';
 import { useTheme, type ThemeMode } from './theme';
-import { LogoGlyph, LogoWordmark } from './components/Logo';
+import { LogoGlyph } from './components/Logo';
 import { authenticateBiometric, isBiometricEnabled, setBiometricEnabled } from './security';
 import type { TrustedContact } from './api';
 import {
@@ -231,7 +231,8 @@ function Splash({ onDone }: { onDone: () => void }) {
   return (
     <div className="splash" onClick={onDone}>
       <div className="splash-rings"><span /><span /><span /></div>
-      <div className="splash-mark"><LogoWordmark size={66} /></div>
+      <div className="splash-logo" style={{ color: '#fff' }}><LogoGlyph size={56} /></div>
+      <div className="splash-word">ORION</div>
       <div className="splash-tag">{t('tagline')}</div>
     </div>
   );
@@ -272,7 +273,7 @@ function Onboarding({ onStart, onLang }: { onStart: () => void; onLang: () => vo
       <OrionMap origin={DEFAULT_ORIGIN.location} />
       <button className="avatar lang-fab" onClick={onLang} aria-label="Language"><IconGlobe size={20} /></button>
       <div style={{ position: 'relative', zIndex: 2 }} className="stack">
-        <div className="rise" style={{ color: 'var(--splash-mark-ink)', marginBottom: 4 }}><LogoWordmark size={44} /></div>
+        <div className="logo-mark rise" style={{ color: '#fff' }}><LogoGlyph size={46} /></div>
         <div className="eyebrow rise rise-2">{t('onb_eyebrow')}</div>
         <h1 className="h-hero rise rise-2">{t('onb_title')}</h1>
         <p className="h-sub rise rise-3">{t('onb_subtitle')}</p>

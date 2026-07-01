@@ -6,15 +6,15 @@
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="120" fill="url(#g)"/>
-  <!-- Le « O » d'ORION : anneau ouvert vers les étoiles -->
-  <circle cx="196" cy="262" r="112" fill="none" stroke="#ffffff" stroke-width="52"
-          stroke-linecap="round" stroke-dasharray="629.7 74" transform="rotate(-18 196 262)"/>
-  <!-- Repère de départ -->
-  <circle cx="262" cy="170" r="14" fill="#ffffff"/>
-  <!-- Ceinture d'Orion : 3 étoiles -->
+  <!-- Feuille -->
+  <path d="M256 92 C 338 150 372 252 318 350 C 300 382 280 404 256 424 C 232 404 212 382 194 350 C 140 252 174 150 256 92 Z" fill="#ffffff"/>
+  <!-- Nervure-route -->
+  <path d="M256 150 C 250 240 250 330 256 408" stroke="#04140d" stroke-opacity="0.28" stroke-width="14" stroke-linecap="round" fill="none"/>
+  <path d="M256 250 L 214 214 M256 300 L 300 268" stroke="#04140d" stroke-opacity="0.28" stroke-width="12" stroke-linecap="round"/>
+  <!-- Ceinture d'Orion -->
   <g fill="#ffffff">
-    <path d="M356 106 Q356 150 400 150 Q356 150 356 194 Q356 150 312 150 Q356 150 356 106 Z"/>
-    <path d="M408 166 Q408 196 438 196 Q408 196 408 226 Q408 196 378 196 Q408 196 408 166 Z"/>
-    <path d="M450 218 Q450 238 470 238 Q450 238 450 258 Q450 238 430 238 Q450 238 450 218 Z"/>
+    <circle cx="372" cy="120" r="15"/>
+    <circle cx="406" cy="150" r="12"/>
+    <circle cx="430" cy="186" r="9"/>
   </g>
 </svg>
