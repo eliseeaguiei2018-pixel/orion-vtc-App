@@ -49,6 +49,10 @@ const schema = z.object({
   // CORS : origine(s) autorisée(s) pour l'app cliente. '*' en dev ; liste en prod.
   CORS_ORIGIN: z.string().default('*'),
 
+  // Jeton d'accès au dashboard Admin / supervision SAMU (RBAC simple, en-tête x-admin-token).
+  // En production : remplacer par un vrai secret + auth forte (SSO/JWT + rôles).
+  ADMIN_TOKEN: z.string().default('orion-admin-dev'),
+
   // Persistance : 'memory' (volatile, défaut/tests) ou 'sqlite' (durable, fichier local).
   // En production : 'postgres' via la même interface Repository (cf. docs).
   PERSISTENCE: z.enum(['memory', 'sqlite']).default('memory'),

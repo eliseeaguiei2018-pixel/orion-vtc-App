@@ -89,4 +89,9 @@ export class RideStore {
       .filter((r) => r.clientId === clientId)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
+
+  /** Toutes les courses (supervision admin), plus récentes d'abord. */
+  listAll(): Ride[] {
+    return [...this.rides.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
 }

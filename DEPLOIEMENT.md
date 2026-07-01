@@ -75,6 +75,22 @@ npx cap open android   # ouvre Android Studio pour générer l'APK / publier
 
 ---
 
+## Console Admin & supervision SAMU
+
+Le dashboard d'administration est une **page séparée** de l'app cliente :
+
+- En local : `http://localhost:5173/admin.html` (dev) ou `/admin.html` après build.
+- Fonctionnalités : KPIs (courses actives, chauffeurs en ligne, revenu/commission, alertes),
+  **carte de supervision de la flotte** (positions temps réel), **file SAMU** (SOS/accidents
+  avec prise en charge / résolution), tables Courses et Chauffeurs (KYC, état, note).
+- Accès protégé par un **jeton administrateur** (en-tête `x-admin-token`) :
+  - Backend : variable `ADMIN_TOKEN` (Render → Environment, mettre un vrai secret).
+  - Le dashboard lit le jeton dans `localStorage['orion.admin.token']` (défaut démo `orion-admin-dev`).
+- Sans backend joignable, la console bascule en **mode démo** (données simulées) pour la présentation.
+
+> 🔒 En production : remplacer le jeton simple par une authentification forte (SSO/JWT + rôles)
+> et un **audit log immuable** des actions admin.
+
 ## Activer un VRAI fond de carte (rues d'Abidjan)
 
 Par défaut, ORION affiche sa **carte stylisée « façon navigation »** (rues, boulevards,

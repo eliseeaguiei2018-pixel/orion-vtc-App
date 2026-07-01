@@ -82,6 +82,19 @@ export class WalletService {
     return [...(this.ledger.get(driverId) ?? [])].sort((a, b) => b.at.localeCompare(a.at));
   }
 
+  /** Totaux plateforme (reporting admin) : gains bruts distribués et commissions perçues. */
+  totals(): { earnings: number; commission: number; payouts: number } {
+    let earnings = 0, commission = 0, payouts = 0;
+    for (const list of this.ledger.values()) {
+      for (const e of list) {
+        if (e.type === 'ride_earning') earnings += e.amount;
+        else if (e.type === 'commission') commission += -e.amount;
+        else if (e.type === 'payout') payouts += -e.amount;
+      }
+    }
+    return { earnings: Math.round(earnings), commission: Math.round(commission), payouts: Math.round(payouts) };
+  }
+
   /** Demande de retrait vers mobile money. Refuse si solde insuffisant. */
   requestPayout(driverId: string, amount: number): LedgerEntry {
     if (amount <= 0) throw badRequest('Montant de retrait invalide');

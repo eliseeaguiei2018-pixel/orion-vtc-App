@@ -6,6 +6,15 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   base: process.env.VITE_BASE ?? '/',
   plugins: [react()],
+  // Multi-page : app cliente (index.html) + dashboard admin (admin.html).
+  build: {
+    rollupOptions: {
+      input: {
+        main: new URL('./index.html', import.meta.url).pathname,
+        admin: new URL('./admin.html', import.meta.url).pathname,
+      },
+    },
+  },
   server: {
     port: 5173,
     proxy: {

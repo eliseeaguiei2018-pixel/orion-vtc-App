@@ -20,6 +20,9 @@ services:
       # ⚠️ En production, restreindre CORS au domaine du front (ex: https://orion.vercel.app)
       - key: CORS_ORIGIN
         value: "*"
+      # Jeton du dashboard Admin / supervision SAMU — définir un vrai secret dans Render.
+      - key: ADMIN_TOKEN
+        sync: false
       # Clé Google Maps (optionnelle) — à définir dans le tableau de bord Render (secret).
       # - key: GOOGLE_MAPS_API_KEY
       #   sync: false

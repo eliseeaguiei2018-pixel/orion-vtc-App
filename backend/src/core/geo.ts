@@ -47,6 +47,8 @@ export interface GeoIndex {
   remove(id: string): Promise<void>;
   /** Voisins dans un rayon, triés par distance croissante. */
   nearby(center: LatLng, radiusMeters: number, limit?: number): Promise<GeoNeighbor[]>;
+  /** Toutes les positions vivantes (non expirées) — supervision de flotte. */
+  snapshot(): Promise<GeoEntry[]>;
   size(): Promise<number>;
 }
 
@@ -84,6 +86,16 @@ export class InMemoryGeoIndex implements GeoIndex {
     }
     result.sort((a, b) => a.distanceMeters - b.distanceMeters);
     return result.slice(0, limit);
+  }
+
+  async snapshot(): Promise<GeoEntry[]> {
+    const now = Date.now();
+    const live: GeoEntry[] = [];
+    for (const e of this.entries.values()) {
+      if (e.expiresAt <= now) { this.entries.delete(e.id); continue; }
+      live.push({ id: e.id, lat: e.lat, lng: e.lng, meta: e.meta });
+    }
+    return live;
   }
 
   async size(): Promise<number> {

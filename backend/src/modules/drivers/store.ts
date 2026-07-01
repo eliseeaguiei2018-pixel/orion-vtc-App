@@ -53,6 +53,11 @@ export class DriverStore {
     return this.drivers.get(id);
   }
 
+  /** Tous les chauffeurs (supervision admin / flotte). */
+  list(): Driver[] {
+    return [...this.drivers.values()];
+  }
+
   /** Le chauffeur passe en ligne et publie sa position dans l'index géo. */
   async goOnline(id: string, pos: LatLng): Promise<void> {
     const d = this.drivers.get(id);
