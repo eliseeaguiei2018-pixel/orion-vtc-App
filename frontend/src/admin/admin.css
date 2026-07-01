@@ -239,3 +239,29 @@ textarea.adm-select { resize: vertical; font-family: inherit; width: 100%; }
 /* --- Pagination serveur --- */
 .adm-pager { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; margin-top: 4px; border-top: 1px solid rgba(28,58,44,0.5); font-size: 12px; }
 .adm-pager .adm-btn[disabled] { opacity: .4; cursor: default; }
+
+/* ==================== MODE JOUR (thème clair) ==================== */
+/* Activé via <html data-adm-theme="light"> — commutateur ☀️/🌙 dans l'en-tête. */
+html[data-adm-theme='light'] {
+  --a-bg: #f3f7f4; --a-panel: #ffffff; --a-panel2: #ecf3ee; --a-stroke: #d3e3d8;
+  --a-text: #0b1f14; --a-muted: #587165; --a-green: #0eb772; --a-green2: #0a9f66;
+  --a-danger: #d92038; --a-amber: #a87407; --a-teal: #0a8f7a;
+}
+html[data-adm-theme='light'] .adm-login { background: radial-gradient(90% 70% at 50% 0%, #d8efe2 0%, #f3f7f4 60%); }
+html[data-adm-theme='light'] .adm-login-card { box-shadow: 0 30px 80px rgba(11,31,20,0.12); }
+html[data-adm-theme='light'] .adm-navi:hover { background: rgba(10,159,102,0.06); }
+html[data-adm-theme='light'] .adm-navi.on { background: rgba(14,183,114,0.12); border-color: rgba(14,183,114,0.35); }
+html[data-adm-theme='light'] .adm-table td { border-bottom-color: rgba(19,68,44,0.12); }
+html[data-adm-theme='light'] .adm-pager { border-top-color: rgba(19,68,44,0.12); }
+html[data-adm-theme='light'] .adm-seg-b.on { color: #ffffff; }
+html[data-adm-theme='light'] .adm-btn.solid { color: #ffffff; }
+html[data-adm-theme='light'] .adm-navi-badge { color: #ffffff; }
+html[data-adm-theme='light'] .adm-row-click:hover { background: rgba(14,183,114,0.07); }
+html[data-adm-theme='light'] .adm-search-item:hover { background: rgba(14,183,114,0.09); }
+html[data-adm-theme='light'] .adm-search-pop { box-shadow: 0 18px 50px rgba(11,31,20,0.18); }
+html[data-adm-theme='light'] .adm-drawer { box-shadow: -20px 0 60px rgba(11,31,20,0.18); }
+html[data-adm-theme='light'] .adm-drawer-wrap { background: rgba(11,31,20,0.28); }
+html[data-adm-theme='light'] .adm-alert { background: #ffffff; }
+html[data-adm-theme='light'] .adm-kpi { background: var(--a-panel); }
+html[data-adm-theme='light'] .adm-toggle.on { background: rgba(14,183,114,0.15); }
+html[data-adm-theme='light'] .adm-navi.on, html[data-adm-theme='light'] .adm-navi:hover { color: var(--a-text); }

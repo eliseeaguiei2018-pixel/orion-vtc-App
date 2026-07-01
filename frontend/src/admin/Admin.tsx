@@ -95,6 +95,13 @@ async function adminPut<T>(p: string, b: unknown): Promise<T> { const r = await 
 async function adminDel(p: string): Promise<void> { const r = await fetch(API + p, { method: 'DELETE', headers: H() }); if (r.status === 401) onUnauthorized(); }
 const fcfa = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' F';
 
+/* ----------------------- Thème jour / nuit --------------------------- */
+const themeKey = 'orion.admin.theme';
+type AdmTheme = 'dark' | 'light';
+function applyTheme(t: AdmTheme): void { document.documentElement.setAttribute('data-adm-theme', t); }
+function savedTheme(): AdmTheme { return localStorage.getItem(themeKey) === 'light' ? 'light' : 'dark'; }
+applyTheme(savedTheme()); // appliqué dès le chargement (écran de connexion inclus)
+
 /** Sirène d'alerte SAMU (deux tons), générée en WebAudio — aucun fichier audio requis. */
 function playSiren(): void {
   try {
@@ -246,6 +253,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
   const [selfSession, setSelfSession] = useState<string | null>(null);
   const [muted, setMuted] = useState(() => localStorage.getItem('orion.admin.muted') === '1');
+  const [theme, setTheme] = useState<AdmTheme>(savedTheme);
   const [ridesPage, setRidesPage] = useState(1);
   const [driversPage, setDriversPage] = useState(1);
   const [clientsPage, setClientsPage] = useState(1);
@@ -478,6 +486,14 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setMuted((m) => { localStorage.setItem('orion.admin.muted', m ? '0' : '1'); return !m; });
   };
 
+  const toggleTheme = () => {
+    setTheme((t) => {
+      const next: AdmTheme = t === 'dark' ? 'light' : 'dark';
+      localStorage.setItem(themeKey, next); applyTheme(next);
+      return next;
+    });
+  };
+
   // Révoque une session (l'employé est déconnecté immédiatement).
   const revokeSess = async (id: string) => {
     if (API) { try { await adminPost(`/admin/sessions/${id}/revoke`); } catch { /* */ } }
@@ -527,6 +543,9 @@ function Console({ onLogout }: { onLogout: () => void }) {
             />
           )}
           <div className="adm-top-right">
+            <button className="adm-btn ghost adm-mute" title={theme === 'dark' ? 'Passer en mode jour' : 'Passer en mode nuit'} onClick={toggleTheme}>
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </button>
             <button className={`adm-btn ghost adm-mute${muted ? ' off' : ''}`} title={muted ? 'Réactiver la sirène SAMU' : 'Couper la sirène SAMU'} onClick={toggleMute}>
               {muted ? '🔕' : '🔔'}
             </button>
