@@ -98,6 +98,8 @@ export interface PricingContext {
   promoDiscount?: (subtotal: number) => number;
   /** Paramètres de prix pilotables (console Admin). Par défaut : DEFAULT_PRICING. */
   settings?: PricingSettings;
+  /** Facteur de zone (commune de prise en charge) intégré au prix fixe. 1 = neutre. */
+  zoneFactor?: number;
 }
 
 export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): PriceResult {
@@ -125,7 +127,9 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
 
   // Trafic intégré (adouci) dans le prix — PAS de ligne « supplément » séparée.
   const trafficMult = 1 + (trafficFactor - 1) * s.trafficWeight;
-  const raw = (base + distanceCost + timeCost + stopsCost) * trafficMult;
+  // Facteur de zone (commune de départ) intégré au prix fixe — levier ops par quartier.
+  const zoneFactor = Math.max(0.1, ctx.zoneFactor ?? 1);
+  const raw = (base + distanceCost + timeCost + stopsCost) * trafficMult * zoneFactor;
   const floored = Math.max(raw, tariff.minFare);
   // Remise : code promo (montant calculé) prioritaire, sinon taux de remise éventuel.
   const promo = ctx.promoDiscount ? ctx.promoDiscount(floored) : 0;

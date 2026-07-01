@@ -91,3 +91,52 @@ test('admin : fiche détaillée client (dépenses + courses)', async (t) => {
   assert.ok(Array.isArray(c.conversations));
   assert.equal(typeof c.spent, 'number');
 });
+
+test('admin : zones — liste par défaut + upsert + facteur appliqué au prix', async (t) => {
+  const { app, container } = await buildApp();
+  t.after(() => app.close());
+
+  const list = await app.inject({ method: 'GET', url: '/admin/zones', headers: AUTH });
+  assert.equal(list.statusCode, 200);
+  assert.ok(list.json().zones.length >= 1);
+
+  // Crée une zone très chère centrée sur un point précis.
+  const up = await app.inject({
+    method: 'PUT', url: '/admin/zones', headers: AUTH,
+    payload: { id: 'test-zone', name: 'Test', factor: 2, lat: 5.35, lng: -4.0, radiusKm: 2, active: true },
+  });
+  assert.equal(up.statusCode, 200);
+  assert.equal(up.json().zone.factor, 2);
+
+  // Le facteur de zone doit remonter pour un point dans le rayon.
+  assert.equal(container.settings.zoneFactor({ lat: 5.35, lng: -4.0 }), 2);
+
+  // Désactivation → facteur neutre (1) pour ce même point (si aucune autre zone).
+  const off = await app.inject({ method: 'POST', url: '/admin/zones/test-zone/active', headers: AUTH, payload: { active: false } });
+  assert.equal(off.statusCode, 200);
+  assert.equal(off.json().zone.active, false);
+
+  // Suppression.
+  const del = await app.inject({ method: 'DELETE', url: '/admin/zones/test-zone', headers: AUTH });
+  assert.equal(del.statusCode, 200);
+  assert.equal(container.settings.getZones().some((z) => z.id === 'test-zone'), false);
+});
+
+test('admin : zone factor modifie le prix fixe', async (t) => {
+  const { app, container } = await buildApp();
+  t.after(() => app.close());
+
+  const origin = { lat: 5.35, lng: -4.0 };
+  const destination = { lat: 5.37, lng: -3.98 };
+
+  // Neutralise toutes les zones par défaut pour isoler l'effet.
+  for (const z of [...container.settings.getZones()]) container.settings.removeZone(z.id);
+  const q1 = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin, destination, category: 'bronze' } });
+  const base = q1.json().quote.amount as number;
+
+  container.settings.upsertZone({ id: 'z-cher', name: 'Cher', factor: 1.5, lat: 5.35, lng: -4.0, radiusKm: 3, active: true });
+  const q2 = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin, destination, category: 'bronze' } });
+  const withZone = q2.json().quote.amount as number;
+
+  assert.ok(withZone > base, `zone chère doit augmenter le prix (${withZone} > ${base})`);
+});

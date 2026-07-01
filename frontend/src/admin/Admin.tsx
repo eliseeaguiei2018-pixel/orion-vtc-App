@@ -28,6 +28,7 @@ export interface Me { name: string; role: string; roleLabel: string; permissions
 export interface Client { id: string; name?: string; phone?: string; status: string; rides: number; createdAt: string; lastSeenAt: string }
 export interface Promo { id: string; kind: 'percent' | 'amount'; value: number; active: boolean; uses: number; maxUses?: number; createdAt: string }
 export interface ServicesConfig { city: string; open: boolean; services: Record<string, boolean> }
+export interface Zone { id: string; name: string; factor: number; lat: number; lng: number; radiusKm: number; active: boolean }
 export interface SupportMsg { id: string; from: 'client' | 'agent'; author?: string; text: string; at: string }
 export interface Conversation { id: string; clientId: string; subject: string; status: string; assignee?: string; messages: SupportMsg[]; createdAt: string; updatedAt: string }
 export interface AuditEntry { id: string; at: string; actor: string; role: string; action: string; target?: string; details?: Record<string, unknown> }
@@ -107,7 +108,7 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'promos' | 'finance' | 'services' | 'audit' | 'roles';
+type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'services' | 'audit' | 'roles';
 const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'overview', label: 'Vue d’ensemble', perm: 'overview:read', icon: '📊' },
   { id: 'alerts', label: 'Supervision SAMU', perm: 'alerts:read', icon: '🚨' },
@@ -118,6 +119,7 @@ const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'clients', label: 'Clients', perm: 'clients:read', icon: '👥' },
   { id: 'finance', label: 'Finances', perm: 'finance:read', icon: '📈' },
   { id: 'pricing', label: 'Tarification', perm: 'pricing:read', icon: '💰' },
+  { id: 'zones', label: 'Zones & tarifs', perm: 'pricing:read', icon: '🗺️' },
   { id: 'promos', label: 'Codes promo', perm: 'promos:read', icon: '🎟️' },
   { id: 'services', label: 'Services & ville', perm: 'services:read', icon: '🧩' },
   { id: 'audit', label: 'Journal', perm: 'audit:read', icon: '📜' },
@@ -133,6 +135,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [rides, setRides] = useState<RideRow[]>([]);
   const [drivers, setDrivers] = useState<DriverRow[]>([]);
   const [pricing, setPricing] = useState<Pricing | null>(null);
+  const [zones, setZones] = useState<Zone[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [promos, setPromos] = useState<Promo[]>([]);
   const [services, setServices] = useState<ServicesConfig | null>(null);
@@ -148,7 +151,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   const loadDemo = useCallback(() => {
     setMe(DEMO.me); setOv(DEMO.overview); setAlerts(DEMO.alerts); setFleet(DEMO.fleet);
-    setRides(DEMO.rides); setDrivers(DEMO.drivers); setPricing(DEMO.pricing);
+    setRides(DEMO.rides); setDrivers(DEMO.drivers); setPricing(DEMO.pricing); setZones(DEMO.zones as Zone[]);
     setClients(DEMO.clients); setPromos(DEMO.promos as Promo[]); setServices(DEMO.services);
     setSupport(DEMO.support as Conversation[]); setAudit(DEMO.audit as AuditEntry[]);
     setFinance(DEMO.finance); setBroadcasts(DEMO.broadcasts as Announcement[]); setLive(false);
@@ -164,7 +167,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
       if (has('alerts:read')) setAlerts((await adminGet<{ alerts: Alert[] }>('/admin/alerts')).alerts);
       if (has('drivers:read')) { setFleet((await adminGet<{ fleet: FleetUnit[] }>('/admin/fleet/live')).fleet); setDrivers((await adminGet<{ drivers: DriverRow[] }>('/admin/drivers')).drivers); }
       if (has('rides:read')) setRides((await adminGet<{ rides: RideRow[] }>('/admin/rides?limit=12')).rides);
-      if (has('pricing:read')) setPricing((await adminGet<{ pricing: Pricing }>('/admin/pricing')).pricing);
+      if (has('pricing:read')) { setPricing((await adminGet<{ pricing: Pricing }>('/admin/pricing')).pricing); setZones((await adminGet<{ zones: Zone[] }>('/admin/zones')).zones); }
       if (has('clients:read')) setClients((await adminGet<{ clients: Client[] }>('/admin/clients')).clients);
       if (has('promos:read')) setPromos((await adminGet<{ promos: Promo[] }>('/admin/promos')).promos);
       if (has('services:read')) setServices((await adminGet<{ config: ServicesConfig }>('/admin/services')).config);
@@ -191,6 +194,25 @@ function Console({ onLogout }: { onLogout: () => void }) {
     if (!API) { setPricing((p) => (p ? { ...p, ...patch, multipliers: { ...p.multipliers, ...(patch.multipliers ?? {}) } } : p)); return; }
     const { pricing: next } = await adminPut<{ pricing: Pricing }>('/admin/pricing', patch);
     setPricing(next);
+  };
+
+  const saveZone = async (zn: Zone) => {
+    if (!API) { setZones((xs) => (xs.some((z) => z.id === zn.id) ? xs.map((z) => (z.id === zn.id ? zn : z)) : [...xs, zn])); return; }
+    const { zone } = await adminPut<{ zone: Zone }>('/admin/zones', zn);
+    setZones((xs) => (xs.some((z) => z.id === zone.id) ? xs.map((z) => (z.id === zone.id ? zone : z)) : [...xs, zone]));
+  };
+  const toggleZone = async (id: string, active: boolean) => {
+    if (API) { try { await adminPost(`/admin/zones/${id}/active`, { active }); } catch { /* */ } }
+    setZones((xs) => xs.map((z) => (z.id === id ? { ...z, active } : z)));
+  };
+  const deleteZone = async (id: string) => {
+    if (API) await adminDel(`/admin/zones/${id}`);
+    setZones((xs) => xs.filter((z) => z.id !== id));
+  };
+  const resetZones = async () => {
+    if (!API) { setZones(DEMO.zones as Zone[]); return; }
+    const { zones: next } = await adminPost<{ zones: Zone[] }>('/admin/zones/reset');
+    setZones(next);
   };
 
   const setClientStatus = async (id: string, status: string) => {
@@ -308,6 +330,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'notify' && <NotifySection broadcasts={broadcasts} canWrite={can('notify:write')} onSend={sendBroadcast} />}
         {section === 'finance' && finance && <FinanceSection finance={finance} onExport={exportCsv} canExport={can('rides:read')} />}
         {section === 'pricing' && pricing && <PricingEditor pricing={pricing} canWrite={can('pricing:write')} onSave={savePricing} />}
+        {section === 'zones' && <ZonesSection zones={zones} canWrite={can('pricing:write')} onSave={saveZone} onToggle={toggleZone} onDelete={deleteZone} onReset={resetZones} />}
         {section === 'promos' && <PromosSection promos={promos} canWrite={can('promos:write')} onSave={savePromo} onToggle={togglePromo} onDelete={deletePromo} />}
         {section === 'services' && services && <ServicesSection config={services} canWrite={can('services:write')} onSave={saveServices} />}
         {section === 'audit' && <AuditSection entries={audit} />}
@@ -443,6 +466,73 @@ function ClientsSection({ clients, canWrite, onStatus, onOpen }: { clients: Clie
         </tbody>
       </table>
     </div>
+  );
+}
+
+const slugify = (s: string) => s.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+const pct = (f: number) => (f === 1 ? 'neutre' : `${f > 1 ? '+' : ''}${Math.round((f - 1) * 100)} %`);
+
+function ZonesSection({ zones, canWrite, onSave, onToggle, onDelete, onReset }: { zones: Zone[]; canWrite: boolean; onSave: (z: Zone) => void; onToggle: (id: string, active: boolean) => void; onDelete: (id: string) => void; onReset: () => void }) {
+  const [name, setName] = useState(''); const [factor, setFactor] = useState(1);
+  const [lat, setLat] = useState(5.35); const [lng, setLng] = useState(-4.0); const [radiusKm, setRadiusKm] = useState(3);
+  const add = () => {
+    const id = slugify(name);
+    if (!id) return;
+    onSave({ id, name: name.trim(), factor, lat, lng, radiusKm, active: true });
+    setName(''); setFactor(1);
+  };
+  return (
+    <>
+      <div className="adm-card">
+        <p className="adm-muted" style={{ margin: 0 }}>
+          Le <strong>facteur de zone</strong> module le prix fixe selon la commune de <strong>prise en charge</strong>.
+          1 = neutre · &lt; 1 = moins cher (plus compétitif) · &gt; 1 = plus cher. Le trafic reste intégré au prix garanti.
+        </p>
+      </div>
+      {canWrite && (
+        <div className="adm-card">
+          <div className="adm-card-h"><h3>Nouvelle zone</h3></div>
+          <div className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <label className="price-field"><span>Nom (commune)</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Cocody" /></label>
+            <label className="price-field"><span>Facteur ×</span><input type="number" step="0.01" value={factor} onChange={(e) => setFactor(Number(e.target.value))} /></label>
+            <label className="price-field"><span>Latitude</span><input type="number" step="0.0001" value={lat} onChange={(e) => setLat(Number(e.target.value))} /></label>
+            <label className="price-field"><span>Longitude</span><input type="number" step="0.0001" value={lng} onChange={(e) => setLng(Number(e.target.value))} /></label>
+            <label className="price-field"><span>Rayon (km)</span><input type="number" step="0.5" value={radiusKm} onChange={(e) => setRadiusKm(Number(e.target.value))} /></label>
+            <button className="adm-btn solid" onClick={add}>Ajouter</button>
+          </div>
+        </div>
+      )}
+      <div className="adm-card">
+        <div className="adm-card-h">
+          <h3>Zones tarifaires</h3>
+          <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+            <span className="adm-muted">{zones.length}</span>
+            {canWrite && <button className="adm-btn xs" onClick={onReset}>Réinitialiser</button>}
+          </div>
+        </div>
+        <table className="adm-table">
+          <thead><tr><th>Zone</th><th className="r">Facteur</th><th className="r">Effet</th><th className="r">Rayon</th><th>Centre</th><th>Actif</th>{canWrite && <th>Actions</th>}</tr></thead>
+          <tbody>
+            {zones.map((z) => (
+              <tr key={z.id}>
+                <td>{z.name}<div className="mono adm-muted" style={{ fontSize: 11 }}>{z.id}</div></td>
+                <td className="r">× {z.factor.toFixed(2)}</td>
+                <td className={`r ${z.factor < 1 ? 'pos' : z.factor > 1 ? 'neg' : ''}`}>{pct(z.factor)}</td>
+                <td className="r">{z.radiusKm} km</td>
+                <td className="mono adm-muted" style={{ fontSize: 11 }}>{z.lat.toFixed(3)}, {z.lng.toFixed(3)}</td>
+                <td><span className={`adm-pill ${z.active ? 'av-online' : 'kyc-manual_review'}`}>{z.active ? 'Actif' : 'Inactif'}</span></td>
+                {canWrite && (
+                  <td><div className="row" style={{ gap: 6 }}>
+                    <button className="adm-btn xs" onClick={() => onToggle(z.id, !z.active)}>{z.active ? 'Désactiver' : 'Activer'}</button>
+                    <button className="adm-btn xs" onClick={() => onDelete(z.id)}>Suppr.</button>
+                  </div></td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 

@@ -105,6 +105,49 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       return { pricing: container.settings.resetPricing() };
     });
 
+    // --- Zones & tarifs par zone (levier prix par commune) ---
+    scoped.get('/admin/zones', async (req) => { require(req, 'pricing:read'); return { zones: container.settings.getZones() }; });
+
+    scoped.put('/admin/zones', async (req) => {
+      require(req, 'pricing:write');
+      const body = parse(z.object({
+        id: z.string().min(2).max(40).regex(/^[a-z0-9_-]+$/),
+        name: z.string().min(2).max(60),
+        factor: z.number().min(0.1).max(5),
+        lat: z.number().min(-90).max(90),
+        lng: z.number().min(-180).max(180),
+        radiusKm: z.number().min(0.1).max(100),
+        active: z.boolean().optional(),
+      }), req.body);
+      const zone = container.settings.upsertZone({ active: true, ...body });
+      audit(req, 'zone.upsert', zone.id, { name: zone.name, factor: zone.factor });
+      return { zone };
+    });
+
+    scoped.post('/admin/zones/:id/active', async (req) => {
+      require(req, 'pricing:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ active: z.boolean() }), req.body);
+      const zone = container.settings.setZoneActive(id, body.active);
+      if (!zone) throw notFound('Zone introuvable');
+      audit(req, 'zone.active', id, { active: body.active });
+      return { zone };
+    });
+
+    scoped.delete('/admin/zones/:id', async (req) => {
+      require(req, 'pricing:write');
+      const { id } = req.params as { id: string };
+      container.settings.removeZone(id);
+      audit(req, 'zone.delete', id);
+      return { ok: true };
+    });
+
+    scoped.post('/admin/zones/reset', async (req) => {
+      require(req, 'pricing:write');
+      audit(req, 'zone.reset');
+      return { zones: container.settings.resetZones() };
+    });
+
     // --- Gestion chauffeurs (actions) ---
     scoped.post('/admin/drivers/:id/kyc', async (req) => {
       require(req, 'drivers:write');

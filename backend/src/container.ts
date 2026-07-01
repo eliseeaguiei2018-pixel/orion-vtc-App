@@ -67,7 +67,7 @@ export function createContainer(): Container {
   const matching = new MatchingEngine(geo, drivers);
 
   // Paramètres pilotables (prix + services) — modifiables depuis la console Admin, persistés.
-  const settings = new SettingsService(createRepository<PricingRecord>('settings'), createRepository('services'));
+  const settings = new SettingsService(createRepository<PricingRecord>('settings'), createRepository('services'), createRepository('zones'));
   // Codes promo (remises) pilotés depuis la console.
   const promos = new PromoService(createRepository<Promo>('promos'));
 
@@ -79,6 +79,7 @@ export function createContainer(): Container {
         trafficFactor: traffic.factor,
         trafficLevel: traffic.level,
         settings: settings.getPricing(),
+        zoneFactor: settings.zoneFactor(req.origin),
         promoDiscount: (subtotal: number) => promos.evaluate(req.promoCode, subtotal)?.discount ?? 0,
       };
     }),
