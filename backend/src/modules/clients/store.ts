@@ -12,6 +12,10 @@ export interface Client {
   phone?: string;
   status: ClientStatus;
   rides: number;
+  /** Annulations cumulées (détection d'abus). */
+  cancellations?: number;
+  /** Avertissements automatiques (annulations abusives : 1 par palier de 3). */
+  warnings?: number;
   createdAt: string;
   lastSeenAt: string;
 }
@@ -39,6 +43,22 @@ export class ClientStore {
     const c = this.touch(id);
     c.rides += 1;
     this.repo?.put(c);
+  }
+
+  /**
+   * Compte une annulation ; tous les 3 cumuls, un avertissement automatique
+   * est posé (anti-abus). Renvoie true si un avertissement vient d'être émis.
+   */
+  incrementCancellations(id: string): boolean {
+    const c = this.touch(id);
+    c.cancellations = (c.cancellations ?? 0) + 1;
+    let warned = false;
+    if (c.cancellations % 3 === 0) {
+      c.warnings = (c.warnings ?? 0) + 1;
+      warned = true;
+    }
+    this.repo?.put(c);
+    return warned;
   }
 
   get(id: string): Client | undefined { return this.clients.get(id); }

@@ -24,6 +24,12 @@ export interface Driver {
   batteryPct?: number;
   /** Cantonnement : chauffeur épinglé à une zone (il n'est matché que dans celle-ci). */
   zoneLockId?: string;
+  /** Dossier véhicule (CRM flotte). */
+  vehicleModel?: string;
+  /** Expiration de l'assurance (ISO) — alerte console < 30 jours. */
+  insuranceExpiry?: string;
+  /** Module éco-conduite validé (vidéo + QCM ≥ 80 %). */
+  trained?: boolean;
 }
 
 /** Génère un matricule ORION lisible, ex. ORION-CI-4821. */

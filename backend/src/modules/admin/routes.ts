@@ -408,6 +408,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     scoped.post('/admin/drivers/:id/zone', async (req) => {
       require(req, 'drivers:write');
       const { id } = req.params as { id: string };
+      assertManagerScope(req, id);
       const body = parse(z.object({ zoneId: z.string().nullable() }), req.body);
       const d = container.drivers.get(id);
       if (!d) throw notFound('Chauffeur introuvable');
@@ -423,6 +424,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     scoped.post('/admin/drivers/:id/warn', async (req) => {
       require(req, 'drivers:write');
       const { id } = req.params as { id: string };
+      assertManagerScope(req, id);
       const d = container.drivers.get(id);
       if (!d) throw notFound('Chauffeur introuvable');
       d.warnings = (d.warnings ?? 0) + 1;
@@ -471,10 +473,69 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       return { ok: true };
     });
 
+    // Portée chef d'équipe : un manager n'agit QUE sur les chauffeurs de sa flotte.
+    const assertManagerScope = (req: FastifyRequest, driverId: string): void => {
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      if (account.role === 'manager' && !container.teams.managerOwnsDriver(account.username ?? '', driverId)) {
+        throw forbidden('Chef d’équipe : action limitée aux chauffeurs de votre flotte');
+      }
+    };
+
+    // --- Équipes & managers (flottes affiliées) ---
+    scoped.get('/admin/teams', async (req) => {
+      require(req, 'teams:read');
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      // Un chef d'équipe ne voit QUE ses équipes (portée serveur).
+      const teams = account.role === 'manager'
+        ? container.teams.listByManager(account.username ?? '')
+        : container.teams.list();
+      const detail = teams.map((t) => ({
+        ...t,
+        drivers: t.driverIds
+          .map((did) => container.drivers.get(did))
+          .filter((d): d is NonNullable<typeof d> => Boolean(d))
+          .map((d) => ({ id: d.id, name: d.name, matricule: d.matricule, availability: d.availability, rating: d.ratingAvg })),
+      }));
+      return { teams: detail };
+    });
+
+    scoped.put('/admin/teams', async (req) => {
+      require(req, 'teams:write');
+      const body = parse(z.object({
+        id: z.string().optional(),
+        name: z.string().min(2).max(60),
+        managerUsername: z.string().min(1).max(80),
+        managerName: z.string().max(80).optional(),
+        driverIds: z.array(z.string()).max(500).optional(),
+      }), req.body);
+      const team = container.teams.upsert(body);
+      audit(req, 'team.upsert', team.id, { name: team.name, manager: team.managerUsername, fleet: team.driverIds.length });
+      return { team };
+    });
+
+    scoped.post('/admin/teams/:id/drivers', async (req) => {
+      require(req, 'teams:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ driverIds: z.array(z.string()).max(500) }), req.body);
+      const team = container.teams.setDrivers(id, body.driverIds);
+      if (!team) throw notFound('Équipe introuvable');
+      audit(req, 'team.fleet', id, { fleet: team.driverIds.length });
+      return { team };
+    });
+
+    scoped.delete('/admin/teams/:id', async (req) => {
+      require(req, 'teams:write');
+      const { id } = req.params as { id: string };
+      container.teams.remove(id);
+      audit(req, 'team.delete', id);
+      return { ok: true };
+    });
+
     // --- Gestion chauffeurs (actions) ---
     scoped.post('/admin/drivers/:id/kyc', async (req) => {
       require(req, 'drivers:write');
       const { id } = req.params as { id: string };
+      assertManagerScope(req, id);
       const body = parse(z.object({ status: z.enum(['draft', 'docs_submitted', 'manual_review', 'approved', 'active', 'suspended']) }), req.body);
       const d = container.drivers.get(id);
       if (!d) throw notFound('Chauffeur introuvable');
@@ -488,6 +549,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     scoped.post('/admin/drivers/:id/availability', async (req) => {
       require(req, 'drivers:write');
       const { id } = req.params as { id: string };
+      assertManagerScope(req, id);
       const body = parse(z.object({ availability: z.enum(['offline', 'online', 'on_trip', 'paused']) }), req.body);
       if (!container.drivers.get(id)) throw notFound('Chauffeur introuvable');
       container.drivers.setAvailability(id, body.availability);

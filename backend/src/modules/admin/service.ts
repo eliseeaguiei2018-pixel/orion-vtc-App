@@ -197,6 +197,10 @@ export class AdminService {
       rating: d.ratingAvg,
       trips: d.ratingCount,
       balance: this.c.wallet.balance(d.id),
+      vehicleModel: d.vehicleModel ?? null,
+      insuranceExpiry: d.insuranceExpiry ?? null,
+      trained: d.trained ?? false,
+      zoneLockId: d.zoneLockId ?? null,
     }));
     return { drivers, ...meta };
   }

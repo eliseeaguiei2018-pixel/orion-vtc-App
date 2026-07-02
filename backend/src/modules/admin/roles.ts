@@ -17,6 +17,9 @@ export type Role =
   | 'daa'         // Directeur des Affaires Administratives — accès total
   | 'coo'         // Directeur des Opérations — accès total
   | 'cfo'         // Directeur Financier — finance complète, virements sur approbation
+  | 'fleet_manager'     // Gestionnaire de flotte — validation chauffeurs, véhicules, dispatch
+  | 'financial_analyst' // Analyste financier — exports, factures, paiements (lecture)
+  | 'manager'           // Chef d'équipe — supervise SON équipe et sa flotte affiliée
   | 'ops'         // Équipe opérations / dispatch
   | 'finance'     // Équipe finance (lecture trésorerie, pas de demande)
   | 'support'     // Support client
@@ -35,6 +38,7 @@ export type Permission =
   | 'finance:read'
   | 'treasury:read' | 'treasury:request' | 'treasury:approve'
   | 'sessions:read' | 'sessions:write'
+  | 'teams:read' | 'teams:write'
   | 'search:read'
   | 'notify:read' | 'notify:write'
   | 'audit:read'
@@ -45,7 +49,7 @@ const ALL: Permission[] = [
   'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'pricing:read', 'pricing:write',
   'promos:read', 'promos:write', 'services:read', 'services:write', 'support:read', 'support:write',
   'finance:read', 'treasury:read', 'treasury:request', 'treasury:approve',
-  'sessions:read', 'sessions:write', 'search:read',
+  'sessions:read', 'sessions:write', 'teams:read', 'teams:write', 'search:read',
   'notify:read', 'notify:write', 'audit:read', 'roles:read',
 ];
 
@@ -58,6 +62,13 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   coo: ALL,
   // CFO : pilotage financier complet + DEMANDE de virement — jamais l'approbation.
   cfo: ['overview:read', 'rides:read', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'finance:read', 'treasury:read', 'treasury:request', 'search:read', 'notify:read', 'audit:read', 'roles:read'],
+  // Gestionnaire de flotte : validation chauffeurs (KYC), véhicules, surveillance dispatch.
+  fleet_manager: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'alerts:read', 'teams:read', 'teams:write', 'search:read', 'notify:read'],
+  // Analyste financier : accès RESTREINT en lecture — exports, factures, paiements chauffeurs.
+  financial_analyst: ['overview:read', 'rides:read', 'finance:read', 'treasury:read', 'search:read', 'audit:read'],
+  // Chef d'équipe : supervise SON équipe (portée réduite imposée côté serveur sur /admin/teams
+  // et sur les actions chauffeurs — uniquement les membres de sa flotte affiliée).
+  manager: ['overview:read', 'rides:read', 'drivers:read', 'drivers:write', 'teams:read', 'search:read', 'notify:read'],
   ops: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'support:read', 'support:write', 'services:read', 'search:read', 'notify:read', 'notify:write'],
   finance: ['overview:read', 'rides:read', 'pricing:read', 'promos:read', 'promos:write', 'services:read', 'finance:read', 'treasury:read', 'search:read', 'notify:read'],
   support: ['overview:read', 'rides:read', 'clients:read', 'clients:write', 'alerts:read', 'support:read', 'support:write', 'promos:read', 'search:read', 'notify:read', 'notify:write'],
@@ -71,6 +82,9 @@ export const ROLE_LABEL: Record<Role, string> = {
   daa: 'Dir. des Affaires Administratives',
   coo: 'Directeur des Opérations',
   cfo: 'Directeur Financier (CFO)',
+  fleet_manager: 'Gestionnaire de Flotte',
+  financial_analyst: 'Analyste Financier',
+  manager: 'Chef d’équipe',
   ops: 'Opérations / Dispatch',
   finance: 'Équipe Finance',
   support: 'Support client',

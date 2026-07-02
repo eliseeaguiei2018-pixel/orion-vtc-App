@@ -92,7 +92,7 @@ const me = {
   name: 'PDG ORION',
   role: 'ceo',
   roleLabel: 'CEO — Président Directeur Général',
-  permissions: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'services:write', 'support:read', 'support:write', 'finance:read', 'treasury:read', 'treasury:request', 'treasury:approve', 'sessions:read', 'sessions:write', 'search:read', 'notify:read', 'notify:write', 'audit:read', 'roles:read'],
+  permissions: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'services:write', 'support:read', 'support:write', 'finance:read', 'treasury:read', 'treasury:request', 'treasury:approve', 'sessions:read', 'sessions:write', 'teams:read', 'teams:write', 'search:read', 'notify:read', 'notify:write', 'audit:read', 'roles:read'],
 };
 
 /** Réglages dispatch & qualité (démo). */
@@ -157,6 +157,21 @@ const green = {
     ],
   },
 };
+
+/** Équipes de démonstration (managers + flottes affiliées). */
+const teams = [
+  { id: 'tm-cocody', name: 'Équipe Cocody', managerUsername: 'chef.awa', managerName: 'Awa Koné', driverIds: ['d1', 'd3', 'd5'], createdAt: iso(60 * 24 * 12),
+    drivers: [
+      { id: 'd1', name: 'Konan Yao', matricule: 'ORION-CI-1042', availability: 'online', rating: 4.7 },
+      { id: 'd3', name: 'Aïcha Touré', matricule: 'ORION-CI-1207', availability: 'online', rating: 4.9 },
+      { id: 'd5', name: 'Mamadou Bamba', matricule: 'ORION-CI-9034', availability: 'online', rating: 4.8 },
+    ] },
+  { id: 'tm-marcory', name: 'Équipe Marcory — Zone 4', managerUsername: 'chef.yao', managerName: 'Yao N’Dri', driverIds: ['d2', 'd7'], createdAt: iso(60 * 24 * 8),
+    drivers: [
+      { id: 'd2', name: 'Awa Diomandé', matricule: 'ORION-CI-2210', availability: 'on_trip', rating: 4.8 },
+      { id: 'd7', name: 'Fatou Koné', matricule: 'ORION-CI-7788', availability: 'on_trip', rating: 4.9 },
+    ] },
+];
 
 /** Sessions actives de démonstration (qui est connecté à la console). */
 const sessions = [
@@ -316,4 +331,4 @@ function clientDetail(id: string, rows: Client[]): ClientDetail {
   };
 }
 
-export const DEMO = { overview, stats, alerts, fleet, rides, drivers, pricing, zones, me, clients, promos, services, support, audit, finance, broadcasts, treasury, sessions, search, driverDetail, clientDetail, ops, quality, disputes, rideForensic, green };
+export const DEMO = { overview, stats, alerts, fleet, rides, drivers, pricing, zones, me, clients, promos, services, support, audit, finance, broadcasts, treasury, sessions, search, driverDetail, clientDetail, ops, quality, disputes, rideForensic, green, teams };

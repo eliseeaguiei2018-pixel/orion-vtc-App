@@ -59,6 +59,10 @@ export interface OpsConfig {
   maxEtaMinutes: number; offerTimeoutSec: number; surgeEnabled: boolean; surgeCapGreen: number;
   waitFeePerMin: number;
 }
+export interface Team {
+  id: string; name: string; managerUsername: string; managerName?: string; driverIds: string[]; createdAt: string;
+  drivers?: { id: string; name: string; matricule: string; availability: string; rating: number }[];
+}
 export interface GreenReport {
   co2SavedKg: number; co2SavedTons: number; kmElectric: number; kmHybrid: number;
   electricShare: number; hybridShare: number;
@@ -235,7 +239,7 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'services' | 'audit' | 'sessions' | 'roles';
+type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'services' | 'audit' | 'sessions' | 'roles';
 const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'overview', label: 'Vue d’ensemble', perm: 'overview:read', icon: '📊' },
   { id: 'alerts', label: 'Supervision SAMU', perm: 'alerts:read', icon: '🚨' },
@@ -245,6 +249,7 @@ const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'dispatch', label: 'Dispatch', perm: 'rides:write', icon: '🎯' },
   { id: 'quality', label: 'Qualité & notes', perm: 'drivers:read', icon: '⭐' },
   { id: 'green', label: 'Mobilité verte', perm: 'overview:read', icon: '🌱' },
+  { id: 'teams', label: 'Équipes', perm: 'teams:read', icon: '🧑‍🤝‍🧑' },
   { id: 'disputes', label: 'Litiges', perm: 'support:read', icon: '⚖️' },
   { id: 'drivers', label: 'Chauffeurs', perm: 'drivers:read', icon: '🧑‍✈️' },
   { id: 'clients', label: 'Clients', perm: 'clients:read', icon: '👥' },
@@ -291,6 +296,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [forensic, setForensic] = useState<RideForensic | null>(null);
   const [green, setGreen] = useState<GreenReport | null>(null);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [muted, setMuted] = useState(() => localStorage.getItem('orion.admin.muted') === '1');
   const [theme, setTheme] = useState<AdmTheme>(savedTheme);
   const [ridesPage, setRidesPage] = useState(1);
@@ -314,6 +320,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setSessions(DEMO.sessions as ActiveSession[]); setSelfSession(DEMO.sessions[0]?.id ?? null);
     setOps(DEMO.ops as OpsConfig); setQuality(DEMO.quality()); setDisputes(DEMO.disputes as Dispute[]);
     setGreen(DEMO.green as GreenReport);
+    setTeams(DEMO.teams as Team[]);
     setLive(false);
   }, [statsDays, ridesPage, driversPage, clientsPage]);
 
@@ -347,6 +354,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
       if (has('sessions:read')) { const s = await adminGet<{ sessions: ActiveSession[]; self: string | null }>('/admin/sessions'); setSessions(s.sessions); setSelfSession(s.self); }
       if (has('rides:read')) setOps((await adminGet<{ ops: OpsConfig }>('/admin/dispatch')).ops);
       if (has('overview:read')) setGreen(await adminGet<GreenReport>('/admin/green'));
+      if (has('teams:read')) setTeams((await adminGet<{ teams: Team[] }>('/admin/teams')).teams);
       if (has('drivers:read')) setQuality(await adminGet<{ threshold: number; autoWarn: boolean; drivers: QualityRow[] }>('/admin/quality'));
       if (has('support:read')) setDisputes((await adminGet<{ disputes: Dispute[] }>('/admin/disputes')).disputes);
       if (has('notify:read')) setBroadcasts((await adminGet<{ announcements: Announcement[] }>('/admin/broadcasts')).announcements);
@@ -568,6 +576,25 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setDisputes((xs) => xs.map((d) => (d.id === id ? { ...d, status, resolution: resolution ?? d.resolution, refund: refund ?? d.refund, decidedBy: me?.name, decidedAt: new Date().toISOString() } : d)));
   };
 
+  // Équipes : création/mise à jour + affectation de flotte.
+  const saveTeam = async (input: { id?: string; name: string; managerUsername: string; managerName?: string; driverIds?: string[] }) => {
+    if (!API) {
+      const id = input.id ?? Math.random().toString(36).slice(2, 10);
+      const detail = (input.driverIds ?? []).map((did) => drivers.find((d) => d.id === did)).filter(Boolean)
+        .map((d) => ({ id: d!.id, name: d!.name, matricule: d!.matricule, availability: d!.availability, rating: d!.rating }));
+      setTeams((xs) => {
+        const next: Team = { id, name: input.name, managerUsername: input.managerUsername, managerName: input.managerName, driverIds: input.driverIds ?? [], createdAt: new Date().toISOString(), drivers: detail };
+        return xs.some((t) => t.id === id) ? xs.map((t) => (t.id === id ? next : t)) : [...xs, next];
+      });
+      return;
+    }
+    try { await adminPut('/admin/teams', input); void refresh(); } catch { /* */ }
+  };
+  const deleteTeam = async (id: string) => {
+    if (API) await adminDel(`/admin/teams/${id}`);
+    setTeams((xs) => xs.filter((t) => t.id !== id));
+  };
+
   // Révoque une session (l'employé est déconnecté immédiatement).
   const revokeSess = async (id: string) => {
     if (API) { try { await adminPost(`/admin/sessions/${id}/revoke`); } catch { /* */ } }
@@ -637,6 +664,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'quality' && quality && <QualitySection q={quality} canWrite={can('drivers:write')} onWarn={warnDriver} onSuspend={(id) => driverAction(id, 'kyc', 'suspended')} onSaveOps={saveOps} />}
         {section === 'disputes' && <DisputesSection disputes={disputes} canWrite={can('support:write')} onDecide={decideDispute} onOpenRide={openForensic} />}
         {section === 'green' && green && <GreenSection g={green} />}
+        {section === 'teams' && <TeamsSection teams={teams} allDrivers={drivers} canWrite={can('teams:write')} onSave={saveTeam} onDelete={deleteTeam} />}
         {section === 'drivers' && <DriversSection drivers={drivers} canWrite={can('drivers:write')} onAction={driverAction} onOpen={openDriver} meta={driversMeta} onPage={setDriversPage} />}
         {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} onOpen={openClient} meta={clientsMeta} onPage={setClientsPage} />}
         {section === 'notify' && <NotifySection broadcasts={broadcasts} canWrite={can('notify:write')} onSend={sendBroadcast} />}
@@ -1612,6 +1640,78 @@ function GreenSection({ g }: { g: GreenReport }) {
   );
 }
 
+/* --------------------------- Équipes & managers ----------------------- */
+function TeamsSection({ teams, allDrivers, canWrite, onSave, onDelete }: {
+  teams: Team[]; allDrivers: DriverRow[]; canWrite: boolean;
+  onSave: (i: { id?: string; name: string; managerUsername: string; managerName?: string; driverIds?: string[] }) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [name, setName] = useState('');
+  const [managerUsername, setManagerUsername] = useState('');
+  const [managerName, setManagerName] = useState('');
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const chosen = Object.keys(selected).filter((k) => selected[k]);
+  const submit = () => {
+    if (!name.trim() || !managerUsername.trim()) return;
+    onSave({ name: name.trim(), managerUsername: managerUsername.trim(), managerName: managerName.trim() || undefined, driverIds: chosen });
+    setName(''); setManagerUsername(''); setManagerName(''); setSelected({});
+  };
+  return (
+    <>
+      <div className="adm-card">
+        <p className="adm-muted" style={{ margin: 0 }}>
+          Chaque équipe est dirigée par un <strong>chef d'équipe</strong> (compte console, rôle « manager »)
+          et se voit affilier une <strong>flotte de chauffeurs</strong>. Le manager ne voit et n'agit que sur
+          SA flotte — la portée est imposée par le serveur, pas par l'affichage.
+        </p>
+      </div>
+      {canWrite && (
+        <div className="adm-card">
+          <div className="adm-card-h"><h3>Créer une équipe</h3></div>
+          <div className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <label className="price-field"><span>Nom de l'équipe</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Équipe Cocody Nord" /></label>
+            <label className="price-field"><span>Identifiant du manager</span><input value={managerUsername} onChange={(e) => setManagerUsername(e.target.value)} placeholder="chef.awa" /></label>
+            <label className="price-field"><span>Nom du manager</span><input value={managerName} onChange={(e) => setManagerName(e.target.value)} placeholder="Awa Koné" /></label>
+          </div>
+          <p className="adm-muted" style={{ margin: '12px 0 6px', fontSize: 12 }}>Flotte affiliée ({chosen.length} chauffeur{chosen.length > 1 ? 's' : ''}) :</p>
+          <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+            {allDrivers.map((d) => (
+              <button key={d.id} className={`adm-btn xs${selected[d.id] ? ' solid' : ''}`} onClick={() => setSelected((s) => ({ ...s, [d.id]: !s[d.id] }))}>
+                {d.name}
+              </button>
+            ))}
+          </div>
+          <button className="adm-btn solid" style={{ marginTop: 12 }} onClick={submit}>Créer l'équipe</button>
+        </div>
+      )}
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Équipes</h3><span className="adm-muted">{teams.length}</span></div>
+        {teams.length === 0 && <p className="adm-empty">Aucune équipe pour l'instant.</p>}
+        <div className="stack" style={{ gap: 10 }}>
+          {teams.map((t) => (
+            <div key={t.id} className="adm-dispute">
+              <div className="row between" style={{ flexWrap: 'wrap', gap: 8 }}>
+                <div>
+                  <strong>{t.name}</strong>
+                  <div className="adm-muted" style={{ fontSize: 12 }}>Manager : {t.managerName ?? t.managerUsername} <span className="mono">({t.managerUsername})</span> · {t.driverIds.length} chauffeur{t.driverIds.length > 1 ? 's' : ''}</div>
+                </div>
+                {canWrite && <button className="adm-btn xs" onClick={() => onDelete(t.id)}>Dissoudre</button>}
+              </div>
+              {(t.drivers ?? []).length > 0 && (
+                <div className="row" style={{ gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                  {(t.drivers ?? []).map((d) => (
+                    <span key={d.id} className="adm-pill" title={d.matricule}>{d.name} · ★ {d.rating.toFixed(1)}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
 /* ------------------------- Sessions actives -------------------------- */
 const ago = (iso: string) => {
   const s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
@@ -1668,6 +1768,9 @@ const ROLE_MATRIX: { role: string; label: string; desc: string; tier?: 'exec' }[
   { role: 'coo', label: 'Directeur des Opérations', desc: 'Accès total — opérations, approbation des virements.', tier: 'exec' },
   { role: 'super_admin', label: 'Super Admin (technique)', desc: 'Accès technique complet (équipe plateforme).', tier: 'exec' },
   { role: 'cfo', label: 'Directeur Financier (CFO)', desc: 'Finance complète + DEMANDE de virement — l’exécution exige l’aval d’un dirigeant (double validation).' },
+  { role: 'fleet_manager', label: 'Gestionnaire de Flotte', desc: 'Validation des chauffeurs (KYC), gestion des véhicules, surveillance du dispatch, équipes.' },
+  { role: 'financial_analyst', label: 'Analyste Financier', desc: 'Accès restreint en lecture : exports de données, factures, suivi des paiements chauffeurs.' },
+  { role: 'manager', label: 'Chef d’équipe', desc: 'Supervise SON équipe et sa flotte affiliée uniquement — portée imposée par le serveur.' },
   { role: 'ops', label: 'Opérations / Dispatch', desc: 'Courses, chauffeurs, supervision SAMU, recherche.' },
   { role: 'finance', label: 'Équipe Finance', desc: 'Revenus, promos, trésorerie en lecture seule.' },
   { role: 'support', label: 'Support client', desc: 'Chat client, clients, courses, alertes (lecture).' },

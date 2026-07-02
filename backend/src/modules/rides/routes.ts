@@ -135,6 +135,16 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       container.matching.releaseLock(ride.driverId);
       container.drivers.setAvailability(ride.driverId, 'online');
     }
+    // Anti-abus : annulations cumulées → avertissement automatique tous les 3.
+    if (body.to === 'cancelled') {
+      const warned = container.clients.incrementCancellations(ride.clientId);
+      if (warned) {
+        container.audit.log({
+          actor: 'Système ORION', role: 'super_admin', action: 'client.warning_auto',
+          target: ride.clientId, details: { reason: 'annulations abusives', cancellations: container.clients.get(ride.clientId)?.cancellations },
+        });
+      }
+    }
     return { ride };
   });
 
