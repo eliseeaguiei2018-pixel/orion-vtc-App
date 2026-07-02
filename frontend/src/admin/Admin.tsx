@@ -52,6 +52,11 @@ export interface ActiveSession {
 }
 export interface PageMeta { total: number; page: number; pages: number }
 export interface OpsConfig { strategy: 'nearest' | 'longest_idle' | 'zone_queue'; minRating: number; autoWarn: boolean }
+export interface GreenReport {
+  co2SavedKg: number; co2SavedTons: number; kmElectric: number; kmHybrid: number;
+  electricShare: number; hybridShare: number;
+  fleet: { electric: number; hybrid: number; lowBattery: number; batteries: { id: string; name: string; matricule: string; batteryPct?: number; availability: string }[] };
+}
 export interface QualityRow { id: string; name: string; matricule: string; category: string; rating: number; trips: number; warnings: number; kycStatus: string; below: boolean }
 export interface Dispute {
   id: string; rideId: string; clientId: string; kind: string; description: string;
@@ -223,7 +228,7 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'services' | 'audit' | 'sessions' | 'roles';
+type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'services' | 'audit' | 'sessions' | 'roles';
 const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'overview', label: 'Vue d’ensemble', perm: 'overview:read', icon: '📊' },
   { id: 'alerts', label: 'Supervision SAMU', perm: 'alerts:read', icon: '🚨' },
@@ -232,6 +237,7 @@ const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'rides', label: 'Courses', perm: 'rides:read', icon: '🚗' },
   { id: 'dispatch', label: 'Dispatch', perm: 'rides:write', icon: '🎯' },
   { id: 'quality', label: 'Qualité & notes', perm: 'drivers:read', icon: '⭐' },
+  { id: 'green', label: 'Mobilité verte', perm: 'overview:read', icon: '🌱' },
   { id: 'disputes', label: 'Litiges', perm: 'support:read', icon: '⚖️' },
   { id: 'drivers', label: 'Chauffeurs', perm: 'drivers:read', icon: '🧑‍✈️' },
   { id: 'clients', label: 'Clients', perm: 'clients:read', icon: '👥' },
@@ -277,6 +283,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [quality, setQuality] = useState<{ threshold: number; autoWarn: boolean; drivers: QualityRow[] } | null>(null);
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [forensic, setForensic] = useState<RideForensic | null>(null);
+  const [green, setGreen] = useState<GreenReport | null>(null);
   const [muted, setMuted] = useState(() => localStorage.getItem('orion.admin.muted') === '1');
   const [theme, setTheme] = useState<AdmTheme>(savedTheme);
   const [ridesPage, setRidesPage] = useState(1);
@@ -299,6 +306,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setTransfers(DEMO.treasury as Transfer[]);
     setSessions(DEMO.sessions as ActiveSession[]); setSelfSession(DEMO.sessions[0]?.id ?? null);
     setOps(DEMO.ops as OpsConfig); setQuality(DEMO.quality()); setDisputes(DEMO.disputes as Dispute[]);
+    setGreen(DEMO.green as GreenReport);
     setLive(false);
   }, [statsDays, ridesPage, driversPage, clientsPage]);
 
@@ -331,6 +339,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
       if (has('treasury:read')) setTransfers((await adminGet<{ transfers: Transfer[] }>('/admin/treasury')).transfers);
       if (has('sessions:read')) { const s = await adminGet<{ sessions: ActiveSession[]; self: string | null }>('/admin/sessions'); setSessions(s.sessions); setSelfSession(s.self); }
       if (has('rides:read')) setOps((await adminGet<{ ops: OpsConfig }>('/admin/dispatch')).ops);
+      if (has('overview:read')) setGreen(await adminGet<GreenReport>('/admin/green'));
       if (has('drivers:read')) setQuality(await adminGet<{ threshold: number; autoWarn: boolean; drivers: QualityRow[] }>('/admin/quality'));
       if (has('support:read')) setDisputes((await adminGet<{ disputes: Dispute[] }>('/admin/disputes')).disputes);
       if (has('notify:read')) setBroadcasts((await adminGet<{ announcements: Announcement[] }>('/admin/broadcasts')).announcements);
@@ -620,6 +629,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'dispatch' && ops && <DispatchSection ops={ops} onSave={saveOps} />}
         {section === 'quality' && quality && <QualitySection q={quality} canWrite={can('drivers:write')} onWarn={warnDriver} onSuspend={(id) => driverAction(id, 'kyc', 'suspended')} onSaveOps={saveOps} />}
         {section === 'disputes' && <DisputesSection disputes={disputes} canWrite={can('support:write')} onDecide={decideDispute} onOpenRide={openForensic} />}
+        {section === 'green' && green && <GreenSection g={green} />}
         {section === 'drivers' && <DriversSection drivers={drivers} canWrite={can('drivers:write')} onAction={driverAction} onOpen={openDriver} meta={driversMeta} onPage={setDriversPage} />}
         {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} onOpen={openClient} meta={clientsMeta} onPage={setClientsPage} />}
         {section === 'notify' && <NotifySection broadcasts={broadcasts} canWrite={can('notify:write')} onSend={sendBroadcast} />}
@@ -1499,6 +1509,49 @@ function TreasurySection({ transfers, meName, canRequest, canApprove, onRequest,
                     {t.status === 'pending' && t.requestedBy === meName && <span className="adm-muted" style={{ fontSize: 12 }}>Votre demande — aval d'un autre dirigeant requis</span>}
                   </td>
                 )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+/* --------------------------- Mobilité verte --------------------------- */
+function GreenSection({ g }: { g: GreenReport }) {
+  const co2 = g.co2SavedTons >= 1 ? `${g.co2SavedTons.toLocaleString('fr-FR')} t` : `${g.co2SavedKg.toLocaleString('fr-FR')} kg`;
+  return (
+    <>
+      <section className="adm-kpis">
+        <Kpi label="CO2 économisé" value={co2} sub="vs flotte thermique équivalente" tone="green" />
+        <Kpi label="Trajets 100 % électriques" value={`${g.electricShare} %`} sub={`${g.kmElectric.toLocaleString('fr-FR')} km parcourus`} tone="mint" />
+        <Kpi label="Trajets hybrides" value={`${g.hybridShare} %`} sub={`${g.kmHybrid.toLocaleString('fr-FR')} km parcourus`} tone="teal" />
+        <Kpi label="Batteries faibles" value={String(g.fleet.lowBattery)} sub="véhicules < 20 % (exclus du dispatch si insuffisant)" tone={g.fleet.lowBattery ? 'danger' : 'muted'} />
+      </section>
+      <div className="adm-card">
+        <p className="adm-muted" style={{ margin: 0 }}>
+          Hypothèses : thermique ~150 g CO2/km · électrique ~20 g/km · hybride ~90 g/km (courses terminées).
+          L'algorithme <strong>écarte automatiquement</strong> du dispatch tout électrique dont la batterie ne couvre
+          pas la course demandée (~1 %/km + réserve 10 %).
+        </p>
+      </div>
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Télémétrie batteries (SoC)</h3><span className="adm-muted">{g.fleet.electric} électriques · {g.fleet.hybrid} hybrides</span></div>
+        {g.fleet.batteries.length === 0 && <p className="adm-empty">Aucune télémétrie remontée (app chauffeur → POST /drivers/:id/telemetry).</p>}
+        <table className="adm-table">
+          <thead><tr><th>Véhicule</th><th>Matricule</th><th>État</th><th style={{ width: '40%' }}>Batterie</th></tr></thead>
+          <tbody>
+            {g.fleet.batteries.map((b) => (
+              <tr key={b.id}>
+                <td>{b.name}</td><td className="mono">{b.matricule}</td>
+                <td><span className={`adm-pill av-${b.availability}`}>{availLabel(b.availability)}</span></td>
+                <td>
+                  <div className="adm-batt">
+                    <div className={`adm-batt-fill${(b.batteryPct ?? 0) < 20 ? ' low' : ''}`} style={{ width: `${b.batteryPct ?? 0}%` }} />
+                    <span className="adm-batt-label">{b.batteryPct ?? 0} %</span>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>

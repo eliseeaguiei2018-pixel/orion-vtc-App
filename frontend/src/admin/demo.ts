@@ -136,6 +136,22 @@ function rideForensic(rideId: string) {
   };
 }
 
+/** Mobilité verte (démo) : CO2 économisé, parts électrique/hybride, batteries SoC. */
+const green = {
+  co2SavedKg: 18425, co2SavedTons: 18.43, kmElectric: 128400, kmHybrid: 21500,
+  electricShare: 86, hybridShare: 14,
+  fleet: {
+    electric: 8, hybrid: 2, lowBattery: 1,
+    batteries: [
+      { id: 'd1', name: 'Konan Yao', matricule: 'ORION-CI-1042', batteryPct: 84, availability: 'online' },
+      { id: 'd2', name: 'Awa Diomandé', matricule: 'ORION-CI-2210', batteryPct: 57, availability: 'on_trip' },
+      { id: 'd3', name: 'Aïcha Touré', matricule: 'ORION-CI-1207', batteryPct: 92, availability: 'online' },
+      { id: 'd5', name: 'Mamadou Bamba', matricule: 'ORION-CI-9034', batteryPct: 14, availability: 'online' },
+      { id: 'd7', name: 'Fatou Koné', matricule: 'ORION-CI-7788', batteryPct: 66, availability: 'on_trip' },
+    ],
+  },
+};
+
 /** Sessions actives de démonstration (qui est connecté à la console). */
 const sessions = [
   { id: 'sess-ceo-1', username: 'pdg', name: 'PDG ORION', role: 'ceo', ip: '102.64.18.4', userAgent: 'Chrome 138 · MacBook Pro', createdAt: iso(95), lastSeenAt: iso(0), expiresAt: iso(-600) },
@@ -294,4 +310,4 @@ function clientDetail(id: string, rows: Client[]): ClientDetail {
   };
 }
 
-export const DEMO = { overview, stats, alerts, fleet, rides, drivers, pricing, zones, me, clients, promos, services, support, audit, finance, broadcasts, treasury, sessions, search, driverDetail, clientDetail, ops, quality, disputes, rideForensic };
+export const DEMO = { overview, stats, alerts, fleet, rides, drivers, pricing, zones, me, clients, promos, services, support, audit, finance, broadcasts, treasury, sessions, search, driverDetail, clientDetail, ops, quality, disputes, rideForensic, green };
