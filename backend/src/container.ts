@@ -25,6 +25,7 @@ import { SupportService } from './modules/support/service.js';
 import { NotificationService } from './modules/notifications/service.js';
 import { AuditService } from './modules/admin/audit.js';
 import { TreasuryService, type Transfer } from './modules/treasury/service.js';
+import { DisputeService, type Dispute } from './modules/disputes/service.js';
 import type { Ride } from './modules/rides/store.js';
 import type { LedgerEntry } from './modules/wallet/service.js';
 import type { Subscription } from './modules/subscriptions/service.js';
@@ -59,6 +60,7 @@ export interface Container {
   notifications: NotificationService;
   audit: AuditService;
   treasury: TreasuryService;
+  disputes: DisputeService;
 }
 
 export function createContainer(): Container {
@@ -66,10 +68,14 @@ export function createContainer(): Container {
   // Repositories durables (mémoire par défaut, SQLite si PERSISTENCE=sqlite).
   const drivers = new DriverStore(geo, createRepository<Driver>('drivers'));
   const rides = new RideStore(createRepository<Ride>('rides'));
-  const matching = new MatchingEngine(geo, drivers);
+  // Dispatch : la règle d'attribution (console) est relue à chaque course.
+  const matching = new MatchingEngine(geo, drivers, undefined, () => ({
+    strategy: settings.getOps().strategy,
+    inQueueZone: (p) => Boolean(settings.zoneForPoint(p)),
+  }));
 
   // Paramètres pilotables (prix + services) — modifiables depuis la console Admin, persistés.
-  const settings = new SettingsService(createRepository<PricingRecord>('settings'), createRepository('services'), createRepository('zones'));
+  const settings = new SettingsService(createRepository<PricingRecord>('settings'), createRepository('services'), createRepository('zones'), createRepository('ops'));
   // Codes promo (remises) pilotés depuis la console.
   const promos = new PromoService(createRepository<Promo>('promos'));
 
@@ -114,6 +120,7 @@ export function createContainer(): Container {
     promos,
     clients: new ClientStore(createRepository<Client>('clients')),
     treasury: new TreasuryService(createRepository<Transfer>('treasury')),
+    disputes: new DisputeService(createRepository<Dispute>('disputes')),
     support: new SupportService(realtime),
     notifications: new NotificationService(realtime),
     audit: new AuditService(),

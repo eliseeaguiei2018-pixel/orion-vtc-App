@@ -68,15 +68,37 @@ const SERVICES_ID = 'services';
 interface ZonesRecord { id: string; zones: Zone[]; }
 const ZONES_ID = 'zones';
 
+/**
+ * Réglages OPÉRATIONS (pilotés depuis la console) :
+ * - strategy : règle d'attribution des courses.
+ *   'nearest'      → chauffeur le plus proche (défaut, minimise l'attente client) ;
+ *   'longest_idle' → le plus ancien en attente (équité de revenus entre chauffeurs) ;
+ *   'zone_queue'   → file d'attente FIFO dans les zones denses (aéroport, gares) —
+ *                    dans une zone tarifaire active, le plus ancien en attente passe
+ *                    d'abord ; hors zone, retour au plus proche.
+ * - minRating / autoWarn : modération qualité (avertissement automatique sous le seuil).
+ */
+export type DispatchStrategy = 'nearest' | 'longest_idle' | 'zone_queue';
+export interface OpsConfig {
+  strategy: DispatchStrategy;
+  minRating: number;   // seuil qualité (note moyenne)
+  autoWarn: boolean;   // avertissement automatique sous le seuil
+}
+export const DEFAULT_OPS: OpsConfig = { strategy: 'nearest', minRating: 4.5, autoWarn: true };
+interface OpsRecord extends OpsConfig { id: string; }
+const OPS_ID = 'ops';
+
 export class SettingsService {
   private pricing: PricingSettings;
   private services: ServicesConfig;
   private zones: Zone[];
+  private ops: OpsConfig;
 
   constructor(
     private readonly repo?: Repository<PricingRecord>,
     private readonly servicesRepo?: Repository<ServicesRecord>,
     private readonly zonesRepo?: Repository<ZonesRecord>,
+    private readonly opsRepo?: Repository<OpsRecord>,
   ) {
     const saved = repo?.get(PRICING_ID);
     this.pricing = saved ? stripId(saved) : { ...DEFAULT_PRICING };
@@ -84,6 +106,21 @@ export class SettingsService {
     this.services = savedSvc ? { city: savedSvc.city, open: savedSvc.open, services: savedSvc.services } : { ...DEFAULT_SERVICES, services: { ...DEFAULT_SERVICES.services } };
     const savedZones = zonesRepo?.get(ZONES_ID);
     this.zones = savedZones ? savedZones.zones.map((z) => ({ ...z })) : DEFAULT_ZONES.map((z) => ({ ...z }));
+    const savedOps = opsRepo?.get(OPS_ID);
+    this.ops = savedOps ? { strategy: savedOps.strategy, minRating: savedOps.minRating, autoWarn: savedOps.autoWarn } : { ...DEFAULT_OPS };
+  }
+
+  /* ---------------------- Dispatch & qualité (ops) ---------------------- */
+  getOps(): OpsConfig { return this.ops; }
+
+  updateOps(patch: Partial<OpsConfig>): OpsConfig {
+    this.ops = {
+      ...this.ops,
+      ...patch,
+      minRating: Math.min(5, Math.max(1, patch.minRating ?? this.ops.minRating)),
+    };
+    this.opsRepo?.put({ id: OPS_ID, ...this.ops });
+    return this.ops;
   }
 
   /* ------------------------------- Zones ------------------------------- */

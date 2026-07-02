@@ -14,6 +14,10 @@ export interface Driver {
   category: string;
   ratingAvg: number;
   ratingCount: number;
+  /** Début de la période d'attente courante (équité du dispatch FIFO). */
+  idleSince?: string;
+  /** Avertissements qualité reçus (note sous le seuil, comportement). */
+  warnings?: number;
 }
 
 /** Génère un matricule ORION lisible, ex. ORION-CI-4821. */
@@ -63,6 +67,7 @@ export class DriverStore {
     const d = this.drivers.get(id);
     if (!d) return;
     d.availability = 'online';
+    d.idleSince = new Date().toISOString(); // entre dans la file d'attente (dispatch FIFO)
     this.repo.put(d);
     await this.geo.upsert({ id, lat: pos.lat, lng: pos.lng, meta: { category: d.category } });
   }
@@ -87,6 +92,7 @@ export class DriverStore {
     const d = this.drivers.get(id);
     if (d) {
       d.availability = availability;
+      if (availability === 'online') d.idleSince = new Date().toISOString(); // re-entre dans la file
       this.repo.put(d);
     }
   }

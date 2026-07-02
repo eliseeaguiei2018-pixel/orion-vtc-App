@@ -80,6 +80,9 @@ export class RideSimulator {
       }
       const t = Math.min(1, (Date.now() - startedAt) / durationMs);
       const pos = lerp(from, to, t);
+      // Tracé GPS conservé sur la course (borné) — sert à l'instruction des litiges.
+      current.trace ??= [];
+      if (current.trace.length < 200) current.trace.push({ lat: pos.lat, lng: pos.lng });
       this.realtime.publish(rideRoom(ride.id), 'driver.location', { driverId: ride.driverId, position: pos });
       if (t >= 1) {
         this.clear(timer);

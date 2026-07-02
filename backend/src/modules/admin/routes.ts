@@ -296,6 +296,129 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       return { zones: container.settings.resetZones() };
     });
 
+    // --- Dispatch & affectation (règles pilotables + qualité) ---
+    scoped.get('/admin/dispatch', async (req) => { require(req, 'rides:read'); return { ops: container.settings.getOps() }; });
+
+    scoped.put('/admin/dispatch', async (req) => {
+      require(req, 'rides:write');
+      const body = parse(z.object({
+        strategy: z.enum(['nearest', 'longest_idle', 'zone_queue']).optional(),
+        minRating: z.number().min(1).max(5).optional(),
+        autoWarn: z.boolean().optional(),
+      }), req.body);
+      const ops = container.settings.updateOps(body);
+      audit(req, 'dispatch.update', undefined, body);
+      return { ops };
+    });
+
+    // Réassignation MANUELLE d'une course (bug, chauffeur injoignable, incident).
+    scoped.post('/admin/rides/:id/reassign', async (req, reply) => {
+      require(req, 'rides:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ driverId: z.string().optional() }), req.body ?? {});
+      const ride = container.rides.get(id);
+      if (!ride) throw notFound('Course introuvable');
+      const REASSIGNABLE = new Set(['searching', 'no_driver', 'accepted', 'driver_en_route', 'arrived']);
+      if (!REASSIGNABLE.has(ride.status)) {
+        reply.code(409);
+        return { error: `Course non réassignable au statut « ${ride.status} »` };
+      }
+      // Libère l'ancien chauffeur.
+      const previous = ride.driverId ?? null;
+      if (previous) {
+        container.matching.releaseLock(previous);
+        container.drivers.setAvailability(previous, 'online');
+      }
+      // Chauffeur imposé, ou re-matching automatique (règle de dispatch courante).
+      let next: string | null = null;
+      if (body.driverId) {
+        const d = container.drivers.get(body.driverId);
+        if (!d) throw notFound('Chauffeur introuvable');
+        if (d.availability !== 'online' || d.id === previous) {
+          reply.code(409);
+          return { error: 'Ce chauffeur n’est pas disponible' };
+        }
+        next = d.id;
+      } else {
+        const match = await container.matching.findDriver(ride.origin, ride.quote.category);
+        next = match && match.driverId !== previous ? match.driverId : null;
+        if (match && match.driverId === previous) container.matching.releaseLock(match.driverId);
+      }
+      if (!next) {
+        ride.driverId = undefined;
+        ride.status = 'no_driver';
+        ride.events.push({ type: 'reassign_failed', at: new Date().toISOString(), payload: { previous } });
+        container.rides.persist(ride);
+        reply.code(409);
+        return { error: 'Aucun chauffeur disponible pour la réassignation' };
+      }
+      ride.driverId = next;
+      ride.status = 'accepted';
+      ride.events.push({ type: 'reassigned', at: new Date().toISOString(), payload: { previous, next } });
+      container.drivers.setAvailability(next, 'on_trip');
+      container.rides.persist(ride);
+      audit(req, 'ride.reassign', id, { previous, next });
+      const d = container.drivers.get(next);
+      return { ride: { id: ride.id, status: ride.status, driverId: next, driverName: d?.name ?? null, matricule: d?.matricule ?? null } };
+    });
+
+    // Fiche complète d'une course (instruction de litige : tracé GPS + tarification + événements).
+    scoped.get('/admin/rides/:id', async (req) => {
+      require(req, 'rides:read');
+      const { id } = req.params as { id: string };
+      const ride = container.rides.get(id);
+      if (!ride) throw notFound('Course introuvable');
+      const d = ride.driverId ? container.drivers.get(ride.driverId) : undefined;
+      return { ride, driverName: d?.name ?? null, matricule: d?.matricule ?? null };
+    });
+
+    // --- Qualité & notes (modération) ---
+    scoped.get('/admin/quality', async (req) => {
+      require(req, 'drivers:read');
+      const ops = container.settings.getOps();
+      const drivers = container.drivers.list()
+        .map((d) => ({ id: d.id, name: d.name, matricule: d.matricule, category: d.category, rating: d.ratingAvg, trips: d.ratingCount, warnings: d.warnings ?? 0, kycStatus: d.kycStatus, below: d.ratingCount >= 5 && d.ratingAvg < ops.minRating }))
+        .sort((a, b) => a.rating - b.rating)
+        .slice(0, 100);
+      return { threshold: ops.minRating, autoWarn: ops.autoWarn, drivers };
+    });
+
+    scoped.post('/admin/drivers/:id/warn', async (req) => {
+      require(req, 'drivers:write');
+      const { id } = req.params as { id: string };
+      const d = container.drivers.get(id);
+      if (!d) throw notFound('Chauffeur introuvable');
+      d.warnings = (d.warnings ?? 0) + 1;
+      container.drivers.persist(id);
+      audit(req, 'driver.warning', id, { warnings: d.warnings });
+      return { driver: { id: d.id, warnings: d.warnings } };
+    });
+
+    // --- Litiges & réclamations ---
+    scoped.get('/admin/disputes', async (req) => {
+      require(req, 'support:read');
+      return { disputes: container.disputes.list(), open: container.disputes.openCount() };
+    });
+
+    scoped.post('/admin/disputes/:id/status', async (req) => {
+      require(req, 'support:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({
+        status: z.enum(['investigating', 'resolved', 'rejected']),
+        resolution: z.string().max(500).optional(),
+        refund: z.number().min(0).max(1_000_000).optional(),
+      }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const dispute = container.disputes.decide(id, body.status, account.name, body.resolution, body.refund);
+      if (!dispute) throw notFound('Litige introuvable');
+      // Remboursement éventuel → crédité sur le portefeuille client (traçable).
+      if (body.status === 'resolved' && (body.refund ?? 0) > 0) {
+        container.clientWallet.credit(dispute.clientId, body.refund!, 'adjustment', `Litige ${dispute.id} — remboursement`, dispute.rideId);
+      }
+      audit(req, `dispute.${body.status}`, id, { refund: body.refund, kind: dispute.kind });
+      return { dispute };
+    });
+
     // --- Sessions actives (qui est connecté à la console) ---
     scoped.get('/admin/sessions', async (req) => {
       require(req, 'sessions:read');

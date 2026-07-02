@@ -51,6 +51,24 @@ export interface ActiveSession {
   createdAt: string; lastSeenAt: string; expiresAt: string; revoked?: boolean;
 }
 export interface PageMeta { total: number; page: number; pages: number }
+export interface OpsConfig { strategy: 'nearest' | 'longest_idle' | 'zone_queue'; minRating: number; autoWarn: boolean }
+export interface QualityRow { id: string; name: string; matricule: string; category: string; rating: number; trips: number; warnings: number; kycStatus: string; below: boolean }
+export interface Dispute {
+  id: string; rideId: string; clientId: string; kind: string; description: string;
+  status: 'open' | 'investigating' | 'resolved' | 'rejected';
+  createdAt: string; decidedBy?: string; resolution?: string; refund?: number; decidedAt?: string;
+}
+export interface RideForensic {
+  ride: {
+    id: string; clientId: string; driverId?: string; status: string;
+    origin: { lat: number; lng: number }; destination: { lat: number; lng: number };
+    quote: { amount: number; currency: string; breakdown?: Record<string, number> };
+    events: { type: string; at: string; payload?: Record<string, unknown> }[];
+    trace?: { lat: number; lng: number }[];
+    createdAt: string;
+  };
+  driverName: string | null; matricule: string | null;
+}
 const PAGE_SIZE = 25;
 /** Pagination locale (mode démo) — même contrat que le serveur. */
 function pageSlice<T>(list: T[], page: number): { items: T[]; meta: PageMeta } {
@@ -205,13 +223,16 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'services' | 'audit' | 'sessions' | 'roles';
+type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'services' | 'audit' | 'sessions' | 'roles';
 const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'overview', label: 'Vue d’ensemble', perm: 'overview:read', icon: '📊' },
   { id: 'alerts', label: 'Supervision SAMU', perm: 'alerts:read', icon: '🚨' },
   { id: 'support', label: 'Support & chat', perm: 'support:read', icon: '💬' },
   { id: 'notify', label: 'Notifications', perm: 'notify:read', icon: '📣' },
   { id: 'rides', label: 'Courses', perm: 'rides:read', icon: '🚗' },
+  { id: 'dispatch', label: 'Dispatch', perm: 'rides:write', icon: '🎯' },
+  { id: 'quality', label: 'Qualité & notes', perm: 'drivers:read', icon: '⭐' },
+  { id: 'disputes', label: 'Litiges', perm: 'support:read', icon: '⚖️' },
   { id: 'drivers', label: 'Chauffeurs', perm: 'drivers:read', icon: '🧑‍✈️' },
   { id: 'clients', label: 'Clients', perm: 'clients:read', icon: '👥' },
   { id: 'finance', label: 'Finances', perm: 'finance:read', icon: '📈' },
@@ -252,6 +273,10 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
   const [selfSession, setSelfSession] = useState<string | null>(null);
+  const [ops, setOps] = useState<OpsConfig | null>(null);
+  const [quality, setQuality] = useState<{ threshold: number; autoWarn: boolean; drivers: QualityRow[] } | null>(null);
+  const [disputes, setDisputes] = useState<Dispute[]>([]);
+  const [forensic, setForensic] = useState<RideForensic | null>(null);
   const [muted, setMuted] = useState(() => localStorage.getItem('orion.admin.muted') === '1');
   const [theme, setTheme] = useState<AdmTheme>(savedTheme);
   const [ridesPage, setRidesPage] = useState(1);
@@ -273,6 +298,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setFinance(DEMO.finance); setBroadcasts(DEMO.broadcasts as Announcement[]);
     setTransfers(DEMO.treasury as Transfer[]);
     setSessions(DEMO.sessions as ActiveSession[]); setSelfSession(DEMO.sessions[0]?.id ?? null);
+    setOps(DEMO.ops as OpsConfig); setQuality(DEMO.quality()); setDisputes(DEMO.disputes as Dispute[]);
     setLive(false);
   }, [statsDays, ridesPage, driversPage, clientsPage]);
 
@@ -304,6 +330,9 @@ function Console({ onLogout }: { onLogout: () => void }) {
       if (has('finance:read')) setFinance(await adminGet<Finance>('/admin/finance'));
       if (has('treasury:read')) setTransfers((await adminGet<{ transfers: Transfer[] }>('/admin/treasury')).transfers);
       if (has('sessions:read')) { const s = await adminGet<{ sessions: ActiveSession[]; self: string | null }>('/admin/sessions'); setSessions(s.sessions); setSelfSession(s.self); }
+      if (has('rides:read')) setOps((await adminGet<{ ops: OpsConfig }>('/admin/dispatch')).ops);
+      if (has('drivers:read')) setQuality(await adminGet<{ threshold: number; autoWarn: boolean; drivers: QualityRow[] }>('/admin/quality'));
+      if (has('support:read')) setDisputes((await adminGet<{ disputes: Dispute[] }>('/admin/disputes')).disputes);
       if (has('notify:read')) setBroadcasts((await adminGet<{ announcements: Announcement[] }>('/admin/broadcasts')).announcements);
       if (has('audit:read')) setAudit((await adminGet<{ entries: AuditEntry[] }>('/admin/audit')).entries);
     } catch { loadDemo(); }
@@ -494,6 +523,35 @@ function Console({ onLogout }: { onLogout: () => void }) {
     });
   };
 
+  // Dispatch & qualité (règles d'attribution + seuil de notes).
+  const saveOps = async (patch: Partial<OpsConfig>) => {
+    if (!API) { setOps((o) => (o ? { ...o, ...patch } : o)); setQuality((q) => (q ? { ...q, threshold: patch.minRating ?? q.threshold, autoWarn: patch.autoWarn ?? q.autoWarn } : q)); return; }
+    try { const { ops: next } = await adminPut<{ ops: OpsConfig }>('/admin/dispatch', patch); setOps(next); } catch { /* */ }
+  };
+
+  const warnDriver = async (id: string) => {
+    if (API) { try { await adminPost(`/admin/drivers/${id}/warn`); } catch { /* */ } }
+    setQuality((q) => (q ? { ...q, drivers: q.drivers.map((d) => (d.id === id ? { ...d, warnings: d.warnings + 1 } : d)) } : q));
+  };
+
+  // Réassignation manuelle d'une course (auto : re-matching selon la règle courante).
+  const reassignRide = async (id: string) => {
+    if (!API) { setRides((xs) => xs.map((r) => (r.id === id ? { ...r, driverName: 'Serge Aka', matricule: 'ORION-CI-4820', status: 'accepted' } : r))); return; }
+    try { await adminPost(`/admin/rides/${id}/reassign`); void refresh(); } catch { /* aucun chauffeur dispo */ }
+  };
+
+  // Instruction d'un litige : fiche complète de la course (tracé GPS + tarif).
+  const openForensic = async (rideId: string) => {
+    if (!API) { setForensic(DEMO.rideForensic(rideId)); return; }
+    try { setForensic(await adminGet<RideForensic>(`/admin/rides/${rideId}`)); }
+    catch { setForensic(DEMO.rideForensic(rideId)); }
+  };
+
+  const decideDispute = async (id: string, status: 'investigating' | 'resolved' | 'rejected', resolution?: string, refund?: number) => {
+    if (API) { try { await adminPost(`/admin/disputes/${id}/status`, { status, resolution, refund }); } catch { /* */ } }
+    setDisputes((xs) => xs.map((d) => (d.id === id ? { ...d, status, resolution: resolution ?? d.resolution, refund: refund ?? d.refund, decidedBy: me?.name, decidedAt: new Date().toISOString() } : d)));
+  };
+
   // Révoque une session (l'employé est déconnecté immédiatement).
   const revokeSess = async (id: string) => {
     if (API) { try { await adminPost(`/admin/sessions/${id}/revoke`); } catch { /* */ } }
@@ -558,7 +616,10 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'overview' && <OverviewSection ov={ov} fleet={fleet} openAlerts={openAlerts} stats={stats} statsDays={statsDays} onStatsDays={setStatsDays} />}
         {section === 'alerts' && <AlertsSection alerts={alerts} fleet={fleet} openAlerts={openAlerts} canWrite={can('alerts:write')} onStatus={setAlertStatus} />}
         {section === 'support' && <SupportSection convs={support} canWrite={can('support:write')} onReply={supportReply} onStatus={supportSetStatus} />}
-        {section === 'rides' && <RidesSection rides={rides} meta={ridesMeta} onPage={setRidesPage} />}
+        {section === 'rides' && <RidesSection rides={rides} meta={ridesMeta} onPage={setRidesPage} canWrite={can('rides:write')} onReassign={reassignRide} onOpen={openForensic} />}
+        {section === 'dispatch' && ops && <DispatchSection ops={ops} onSave={saveOps} />}
+        {section === 'quality' && quality && <QualitySection q={quality} canWrite={can('drivers:write')} onWarn={warnDriver} onSuspend={(id) => driverAction(id, 'kyc', 'suspended')} onSaveOps={saveOps} />}
+        {section === 'disputes' && <DisputesSection disputes={disputes} canWrite={can('support:write')} onDecide={decideDispute} onOpenRide={openForensic} />}
         {section === 'drivers' && <DriversSection drivers={drivers} canWrite={can('drivers:write')} onAction={driverAction} onOpen={openDriver} meta={driversMeta} onPage={setDriversPage} />}
         {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} onOpen={openClient} meta={clientsMeta} onPage={setClientsPage} />}
         {section === 'notify' && <NotifySection broadcasts={broadcasts} canWrite={can('notify:write')} onSend={sendBroadcast} />}
@@ -575,6 +636,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
       {driverSel && <DriverDrawer d={driverSel} onClose={() => setDriverSel(null)} />}
       {clientSel && <ClientDrawer c={clientSel} onClose={() => setClientSel(null)} onOpenSupport={() => { setClientSel(null); setSection('support'); }} />}
+      {forensic && <ForensicDrawer f={forensic} onClose={() => setForensic(null)} />}
     </div>
   );
 }
@@ -667,24 +729,225 @@ function AlertsSection({ alerts, fleet, openAlerts, canWrite, onStatus }: { aler
   );
 }
 
-function RidesSection({ rides, meta, onPage }: { rides: RideRow[]; meta: PageMeta; onPage: (p: number) => void }) {
+const REASSIGNABLE = new Set(['searching', 'no_driver', 'accepted', 'driver_en_route', 'arrived']);
+
+function RidesSection({ rides, meta, onPage, canWrite, onReassign, onOpen }: { rides: RideRow[]; meta: PageMeta; onPage: (p: number) => void; canWrite: boolean; onReassign: (id: string) => void; onOpen: (id: string) => void }) {
   return (
     <div className="adm-card">
-      <div className="adm-card-h"><h3>Courses</h3><span className="adm-muted">{meta.total}</span></div>
+      <div className="adm-card-h"><h3>Courses</h3><span className="adm-muted">{meta.total} · cliquer = fiche (tracé GPS, tarif)</span></div>
       <table className="adm-table">
-        <thead><tr><th>Course</th><th>Chauffeur</th><th>Statut</th><th>Trafic</th><th className="r">Montant</th></tr></thead>
+        <thead><tr><th>Course</th><th>Chauffeur</th><th>Statut</th><th>Trafic</th><th className="r">Montant</th>{canWrite && <th>Actions</th>}</tr></thead>
         <tbody>
           {rides.map((r) => (
-            <tr key={r.id}>
+            <tr key={r.id} className="adm-row-click" onClick={() => onOpen(r.id)}>
               <td className="mono">{r.id.slice(0, 8)}</td><td>{r.driverName ?? '—'}</td>
               <td><span className={`adm-pill s-${r.status}`}>{rideStatusLabel(r.status)}</span></td>
               <td>{trafficLabel(r.trafficLevel)}</td><td className="r">{fcfa(r.amount)}</td>
+              {canWrite && (
+                <td onClick={(e) => e.stopPropagation()}>
+                  {REASSIGNABLE.has(r.status) && <button className="adm-btn xs" onClick={() => onReassign(r.id)}>Réassigner</button>}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
       </table>
       <Pager meta={meta} onPage={onPage} />
     </div>
+  );
+}
+
+/* ---------------------- Dispatch & affectation ------------------------ */
+const STRATEGIES: { id: OpsConfig['strategy']; label: string; desc: string }[] = [
+  { id: 'nearest', label: 'Le plus proche', desc: 'Minimise l’attente du client. Recommandé en ville.' },
+  { id: 'longest_idle', label: 'Le plus ancien en attente', desc: 'Équité de revenus entre chauffeurs (FIFO global).' },
+  { id: 'zone_queue', label: 'File d’attente par zone', desc: 'FIFO dans les zones denses (aéroport, gares) — plus proche ailleurs.' },
+];
+
+function DispatchSection({ ops, onSave }: { ops: OpsConfig; onSave: (p: Partial<OpsConfig>) => void }) {
+  return (
+    <>
+      <div className="adm-card">
+        <p className="adm-muted" style={{ margin: 0 }}>
+          La <strong>règle d'attribution</strong> décide quel chauffeur reçoit chaque course. Effet immédiat
+          sur toutes les nouvelles courses. En cas de bug ou de chauffeur injoignable, la course peut être
+          <strong> réassignée manuellement</strong> depuis la table Courses.
+        </p>
+      </div>
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Règle d'attribution des courses</h3></div>
+        <div className="stack" style={{ gap: 10 }}>
+          {STRATEGIES.map((s) => (
+            <button key={s.id} className={`adm-role-card${ops.strategy === s.id ? ' on' : ''}`} style={{ textAlign: 'left', cursor: 'pointer', width: '100%' }} onClick={() => onSave({ strategy: s.id })}>
+              <div className="row between"><strong>{s.label}</strong>{ops.strategy === s.id && <span className="adm-pill av-online">Active</span>}</div>
+              <p className="adm-muted" style={{ margin: '4px 0 0', fontSize: 13 }}>{s.desc}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ------------------------- Qualité & notes ---------------------------- */
+function QualitySection({ q, canWrite, onWarn, onSuspend, onSaveOps }: {
+  q: { threshold: number; autoWarn: boolean; drivers: QualityRow[] };
+  canWrite: boolean; onWarn: (id: string) => void; onSuspend: (id: string) => void; onSaveOps: (p: Partial<OpsConfig>) => void;
+}) {
+  const below = q.drivers.filter((d) => d.below).length;
+  return (
+    <>
+      <section className="adm-kpis">
+        <Kpi label="Seuil qualité" value={`★ ${q.threshold.toFixed(1)}`} sub="note moyenne minimale" tone="green" />
+        <Kpi label="Sous le seuil" value={String(below)} sub="chauffeurs à surveiller" tone={below ? 'danger' : 'muted'} />
+        <Kpi label="Avertissement auto" value={q.autoWarn ? 'Activé' : 'Coupé'} sub="dès la 5e note sous le seuil" tone="teal" />
+        <Kpi label="Chauffeurs suivis" value={String(q.drivers.length)} sub="classés par note croissante" tone="mint" />
+      </section>
+      {canWrite && (
+        <div className="adm-card">
+          <div className="adm-card-h"><h3>Réglages qualité</h3></div>
+          <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <label className="price-field"><span>Seuil (note minimale)</span>
+              <input type="number" min={1} max={5} step={0.1} value={q.threshold} onChange={(e) => onSaveOps({ minRating: Number(e.target.value) })} />
+            </label>
+            <label className="row" style={{ gap: 8, alignItems: 'center', paddingBottom: 8 }}>
+              <button className={`adm-toggle${q.autoWarn ? ' on' : ''}`} onClick={() => onSaveOps({ autoWarn: !q.autoWarn })}><span /></button>
+              <span style={{ fontSize: 13 }}>Avertissement automatique sous le seuil</span>
+            </label>
+          </div>
+        </div>
+      )}
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Modération des notes</h3><span className="adm-muted">{q.drivers.length}</span></div>
+        <table className="adm-table">
+          <thead><tr><th>Chauffeur</th><th>Matricule</th><th className="r">Note</th><th className="r">Courses</th><th className="r">Avertissements</th><th>État</th>{canWrite && <th>Actions</th>}</tr></thead>
+          <tbody>
+            {q.drivers.map((d) => (
+              <tr key={d.id}>
+                <td>{d.name}</td><td className="mono">{d.matricule}</td>
+                <td className={`r ${d.below ? 'neg' : ''}`}>★ {d.rating.toFixed(2)}</td>
+                <td className="r">{d.trips}</td>
+                <td className="r">{d.warnings > 0 ? <span className="adm-pill tr-pending">{d.warnings}</span> : '—'}</td>
+                <td>{d.below ? <span className="adm-pill tr-rejected">Sous le seuil</span> : <span className="adm-pill av-online">OK</span>}</td>
+                {canWrite && (
+                  <td><div className="row" style={{ gap: 6 }}>
+                    <button className="adm-btn xs" onClick={() => onWarn(d.id)}>Avertir</button>
+                    {d.kycStatus !== 'suspended' && d.below && <button className="adm-btn xs" onClick={() => onSuspend(d.id)}>Suspendre</button>}
+                  </div></td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+/* ------------------------------ Litiges ------------------------------- */
+const DISPUTE_KIND: Record<string, string> = { objet_perdu: '🧳 Objet perdu', trajet: '🗺️ Contestation trajet', facturation: '🧾 Facturation', comportement: '⚠️ Comportement' };
+const DISPUTE_STATUS: Record<string, { label: string; cls: string }> = {
+  open: { label: 'Ouvert', cls: 'tr-pending' },
+  investigating: { label: 'En instruction', cls: 'tr-pending' },
+  resolved: { label: 'Résolu', cls: 'tr-approved' },
+  rejected: { label: 'Rejeté', cls: 'tr-rejected' },
+};
+
+function DisputesSection({ disputes, canWrite, onDecide, onOpenRide }: {
+  disputes: Dispute[]; canWrite: boolean;
+  onDecide: (id: string, s: 'investigating' | 'resolved' | 'rejected', resolution?: string, refund?: number) => void;
+  onOpenRide: (rideId: string) => void;
+}) {
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [refunds, setRefunds] = useState<Record<string, number>>({});
+  const open = disputes.filter((d) => d.status === 'open' || d.status === 'investigating');
+  return (
+    <>
+      <div className="adm-card">
+        <p className="adm-muted" style={{ margin: 0 }}>
+          Réclamations clients : objets trouvés, contestations de trajet, erreurs de facturation, comportements.
+          Cliquer sur la <strong>réf. course</strong> ouvre la fiche d'instruction : <strong>tracé GPS</strong> de la
+          course, tarification appliquée et événements horodatés. Un remboursement est crédité sur le
+          portefeuille client et journalisé.
+        </p>
+      </div>
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Litiges</h3><span className="adm-muted">{open.length} en cours · {disputes.length} au total</span></div>
+        {disputes.length === 0 && <p className="adm-empty">Aucun litige. ✅</p>}
+        <div className="stack" style={{ gap: 10 }}>
+          {disputes.map((d) => (
+            <div key={d.id} className="adm-dispute">
+              <div className="row between" style={{ gap: 10, flexWrap: 'wrap' }}>
+                <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <strong>{DISPUTE_KIND[d.kind] ?? d.kind}</strong>
+                  <span className={`adm-pill ${DISPUTE_STATUS[d.status]?.cls}`}>{DISPUTE_STATUS[d.status]?.label}</span>
+                  <button className="adm-btn xs mono" onClick={() => onOpenRide(d.rideId)}>📍 {d.rideId.slice(0, 8)}</button>
+                  <span className="adm-muted mono" style={{ fontSize: 11 }}>{d.clientId}</span>
+                </div>
+                <span className="adm-muted" style={{ fontSize: 12 }}>{new Date(d.createdAt).toLocaleString('fr-FR')}</span>
+              </div>
+              <p style={{ margin: '8px 0', fontSize: 13 }}>{d.description}</p>
+              {d.resolution && <p className="adm-muted" style={{ margin: '0 0 8px', fontSize: 12 }}>Résolution : {d.resolution}{d.refund ? ` · remboursé ${fcfa(d.refund)}` : ''} — {d.decidedBy}</p>}
+              {canWrite && (d.status === 'open' || d.status === 'investigating') && (
+                <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {d.status === 'open' && <button className="adm-btn xs" onClick={() => onDecide(d.id, 'investigating')}>Instruire</button>}
+                  <input className="adm-inline-input" placeholder="Note de résolution…" value={notes[d.id] ?? ''} onChange={(e) => setNotes((n) => ({ ...n, [d.id]: e.target.value }))} />
+                  <input className="adm-inline-input" style={{ width: 120 }} type="number" min={0} step={50} placeholder="Remb. (F)" value={refunds[d.id] ?? ''} onChange={(e) => setRefunds((r) => ({ ...r, [d.id]: Number(e.target.value) }))} />
+                  <button className="adm-btn xs solid" onClick={() => onDecide(d.id, 'resolved', notes[d.id] || 'Litige traité', refunds[d.id] || 0)}>Résoudre</button>
+                  <button className="adm-btn xs" onClick={() => onDecide(d.id, 'rejected', notes[d.id] || 'Réclamation non fondée')}>Rejeter</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* --------------- Fiche d'instruction : tracé GPS + tarif -------------- */
+function ForensicDrawer({ f, onClose }: { f: RideForensic; onClose: () => void }) {
+  const { ride } = f;
+  const pts = ride.trace && ride.trace.length > 1 ? ride.trace : [ride.origin, ride.destination];
+  const lats = pts.map((p) => p.lat), lngs = pts.map((p) => p.lng);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats), minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+  const W = 380, H = 200, PAD = 16;
+  const sx = (lng: number) => PAD + ((lng - minLng) / Math.max(1e-6, maxLng - minLng)) * (W - PAD * 2);
+  const sy = (lat: number) => H - PAD - ((lat - minLat) / Math.max(1e-6, maxLat - minLat)) * (H - PAD * 2);
+  const path = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${sx(p.lng).toFixed(1)},${sy(p.lat).toFixed(1)}`).join(' ');
+  const bd = ride.quote.breakdown ?? {};
+  return (
+    <Drawer title={`Course ${ride.id.slice(0, 8)}`} sub={`${ride.clientId} · ${f.driverName ?? 'sans chauffeur'} ${f.matricule ? `(${f.matricule})` : ''}`} onClose={onClose}>
+      <div className="adm-drawer-tags">
+        <span className={`adm-pill s-${ride.status}`}>{rideStatusLabel(ride.status)}</span>
+        <span className="adm-pill">{fcfa(ride.quote.amount)}</span>
+        <span className="adm-pill">{new Date(ride.createdAt).toLocaleString('fr-FR')}</span>
+      </div>
+      <h4 className="adm-drawer-sec">Tracé GPS ({ride.trace?.length ?? 0} points)</h4>
+      <svg className="adm-trace" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Tracé GPS de la course">
+        <rect x="0" y="0" width={W} height={H} rx="10" className="adm-trace-bg" />
+        <path d={path} className="adm-trace-path" />
+        <circle cx={sx(pts[0]!.lng)} cy={sy(pts[0]!.lat)} r="5" className="adm-trace-a" />
+        <circle cx={sx(pts[pts.length - 1]!.lng)} cy={sy(pts[pts.length - 1]!.lat)} r="5" className="adm-trace-b" />
+      </svg>
+      <h4 className="adm-drawer-sec">Tarification appliquée</h4>
+      <table className="adm-table sm">
+        <tbody>
+          {Object.entries({ base: 'Base', distance: 'Distance', time: 'Temps', discount: 'Remise', subtotal: 'Sous-total', tva: 'TVA', fee: 'Frais ORION', insurance: 'Assurance' })
+            .filter(([k]) => bd[k] !== undefined && bd[k] !== 0)
+            .map(([k, label]) => (
+              <tr key={k}><td>{label}</td><td className="r">{fcfa(bd[k]!)}</td></tr>
+            ))}
+          <tr><td><strong>Total payé (prix fixe)</strong></td><td className="r"><strong>{fcfa(ride.quote.amount)}</strong></td></tr>
+        </tbody>
+      </table>
+      <h4 className="adm-drawer-sec">Événements</h4>
+      <ul className="adm-conv-list">
+        {ride.events.map((e, i) => (
+          <li key={i}><span>{e.type}</span><span className="adm-muted">{new Date(e.at).toLocaleTimeString('fr-FR')}</span></li>
+        ))}
+      </ul>
+    </Drawer>
   );
 }
 

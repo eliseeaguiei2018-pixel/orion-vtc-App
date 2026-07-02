@@ -149,7 +149,7 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
 
     rideStateMachine.assertTransition(ride.status, 'rated');
     ride.status = 'rated';
-    appendEvent(ride, 'rated', { stars: body.stars });
+    appendEvent(ride, 'rated', { stars: body.stars, comment: body.comment });
     container.rides.persist(ride);
 
     const driver = ride.driverId ? container.drivers.get(ride.driverId) : undefined;
@@ -157,9 +157,38 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       const total = driver.ratingAvg * driver.ratingCount + body.stars;
       driver.ratingCount += 1;
       driver.ratingAvg = Math.round((total / driver.ratingCount) * 100) / 100;
+
+      // Modération qualité : avertissement AUTOMATIQUE si la moyenne passe sous le
+      // seuil (console → OpsConfig), après un minimum de notes pour être significatif.
+      const ops = container.settings.getOps();
+      if (ops.autoWarn && driver.ratingCount >= 5 && driver.ratingAvg < ops.minRating) {
+        driver.warnings = (driver.warnings ?? 0) + 1;
+        container.audit.log({
+          actor: 'Système ORION', role: 'super_admin', action: 'driver.warning_auto',
+          target: driver.id, details: { rating: driver.ratingAvg, threshold: ops.minRating, warnings: driver.warnings },
+        });
+      }
+
+      container.drivers.persist(driver.id);
       container.matching.releaseLock(driver.id);
       container.drivers.setAvailability(driver.id, 'online');
     }
     return { ride };
+  });
+
+  // Réclamation / litige ouvert par le client (objet perdu, trajet, facturation, comportement).
+  app.post('/rides/:id/dispute', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = parse(z.object({
+      clientId: z.string().min(1).max(80),
+      kind: z.enum(['objet_perdu', 'trajet', 'facturation', 'comportement']),
+      description: z.string().min(3).max(1000),
+    }), req.body);
+    const ride = container.rides.get(id);
+    if (!ride) throw notFound('Course introuvable');
+    if (ride.clientId !== body.clientId) throw badRequest('Cette course n’appartient pas à ce client');
+    const dispute = container.disputes.open({ rideId: id, ...body });
+    reply.code(201);
+    return { dispute };
   });
 }

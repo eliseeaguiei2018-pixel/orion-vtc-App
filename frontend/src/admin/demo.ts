@@ -89,6 +89,53 @@ const me = {
   permissions: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'services:write', 'support:read', 'support:write', 'finance:read', 'treasury:read', 'treasury:request', 'treasury:approve', 'sessions:read', 'sessions:write', 'search:read', 'notify:read', 'notify:write', 'audit:read', 'roles:read'],
 };
 
+/** Réglages dispatch & qualité (démo). */
+const ops = { strategy: 'nearest', minRating: 4.5, autoWarn: true };
+
+/** Modération des notes (démo) : dérivée de la flotte, avec deux cas sous le seuil. */
+function quality() {
+  const rows = drivers.map((d, i) => ({
+    id: d.id, name: d.name, matricule: d.matricule, category: d.category,
+    rating: i === 2 ? 4.12 : i === 8 ? 4.38 : d.rating, trips: d.trips,
+    warnings: i === 2 ? 2 : i === 8 ? 1 : 0, kycStatus: d.kycStatus,
+    below: i === 2 || i === 8,
+  })).sort((a, b) => a.rating - b.rating);
+  return { threshold: 4.5, autoWarn: true, drivers: rows };
+}
+
+/** Litiges de démonstration. */
+const disputes = [
+  { id: 'lt-01a', rideId: 'r55aa120e', clientId: 'client-3345', kind: 'objet_perdu', description: 'Téléphone Samsung oublié sur la banquette arrière, coque bleue.', status: 'open', createdAt: iso(35) },
+  { id: 'lt-02b', rideId: 'r7c3390fd', clientId: 'client-9902', kind: 'facturation', description: 'Débité 2 650 F sur Wave ET Orange Money pour la même course.', status: 'investigating', createdAt: iso(160), decidedBy: undefined },
+  { id: 'lt-03c', rideId: 'r10a2f9c1', clientId: 'client-8842', kind: 'trajet', description: 'Le chauffeur a fait un détour par Adjamé, trajet plus long qu’annoncé.', status: 'resolved', resolution: 'Tracé GPS vérifié : détour imposé par un axe fermé. Geste commercial.', refund: 500, decidedBy: 'PDG ORION', createdAt: iso(60 * 26), decidedAt: iso(60 * 24) },
+];
+
+/** Fiche d'instruction d'une course (démo) : tracé GPS synthétique + tarif. */
+function rideForensic(rideId: string) {
+  const row = rides.find((r) => r.id === rideId) ?? rides[0]!;
+  const o = { lat: 5.325, lng: -4.02 }, dst = { lat: 5.36, lng: -3.985 };
+  const trace: { lat: number; lng: number }[] = [];
+  for (let i = 0; i <= 40; i++) {
+    const t = i / 40;
+    trace.push({ lat: o.lat + (dst.lat - o.lat) * t + Math.sin(t * 6) * 0.004, lng: o.lng + (dst.lng - o.lng) * t + Math.cos(t * 4) * 0.003 });
+  }
+  const sub = Math.round(row.amount / 1.15);
+  return {
+    ride: {
+      id: row.id, clientId: row.clientId, driverId: 'd1', status: row.status,
+      origin: o, destination: dst,
+      quote: { amount: row.amount, currency: 'XOF', breakdown: { base: 300, distance: Math.round(sub * 0.6), time: Math.round(sub * 0.25), subtotal: sub, tva: Math.round(sub * 0.05), fee: Math.round(sub * 0.1) } },
+      events: [
+        { type: 'created', at: row.createdAt }, { type: 'accepted', at: row.createdAt },
+        { type: 'driver_en_route', at: row.createdAt }, { type: 'in_progress', at: row.createdAt },
+        { type: row.status, at: row.createdAt },
+      ],
+      trace, createdAt: row.createdAt,
+    },
+    driverName: row.driverName, matricule: row.matricule,
+  };
+}
+
 /** Sessions actives de démonstration (qui est connecté à la console). */
 const sessions = [
   { id: 'sess-ceo-1', username: 'pdg', name: 'PDG ORION', role: 'ceo', ip: '102.64.18.4', userAgent: 'Chrome 138 · MacBook Pro', createdAt: iso(95), lastSeenAt: iso(0), expiresAt: iso(-600) },
@@ -247,4 +294,4 @@ function clientDetail(id: string, rows: Client[]): ClientDetail {
   };
 }
 
-export const DEMO = { overview, stats, alerts, fleet, rides, drivers, pricing, zones, me, clients, promos, services, support, audit, finance, broadcasts, treasury, sessions, search, driverDetail, clientDetail };
+export const DEMO = { overview, stats, alerts, fleet, rides, drivers, pricing, zones, me, clients, promos, services, support, audit, finance, broadcasts, treasury, sessions, search, driverDetail, clientDetail, ops, quality, disputes, rideForensic };

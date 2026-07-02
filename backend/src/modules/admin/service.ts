@@ -134,13 +134,18 @@ export class AdminService {
     };
   }
 
-  /** Export CSV des courses (comptabilité). */
+  /** Export CSV des courses (comptabilité) — anti-injection de formule tableur. */
   ridesCsv(): string {
+    const clean = (v: unknown) => {
+      let s = String(v ?? '').replace(/[",\n]/g, ' ');
+      if (/^[=+\-@]/.test(s)) s = `'${s}`;
+      return s;
+    };
     const head = 'id,clientId,driverName,matricule,status,amount,currency,trafficLevel,createdAt';
     const rows = this.c.rides.listAll().map((r) => {
       const d = r.driverId ? this.c.drivers.get(r.driverId) : undefined;
       return [r.id, r.clientId, d?.name ?? '', d?.matricule ?? '', r.status, r.quote.amount, r.quote.currency, r.quote.trafficLevel, r.createdAt]
-        .map((v) => String(v).replace(/[",\n]/g, ' ')).join(',');
+        .map(clean).join(',');
     });
     return [head, ...rows].join('\n');
   }

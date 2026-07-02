@@ -22,6 +22,8 @@ export interface Ride {
   shareToken?: string;
   /** Contact de confiance prévenu au départ — ORION peut le joindre en cas d'accident. */
   trustedContact?: TrustedContact;
+  /** Tracé GPS de la course (échantillonné, borné à 200 points) — instruction des litiges. */
+  trace?: LatLng[];
   createdAt: string;
 }
 
