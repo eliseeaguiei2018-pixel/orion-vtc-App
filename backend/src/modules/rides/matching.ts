@@ -13,7 +13,12 @@ export interface DispatchContext {
   strategy: string;
   /** Vrai si le point de prise en charge est dans une zone à file d'attente (aéroport…). */
   inQueueZone: (p: LatLng) => boolean;
+  /** Filtre ETA (minutes) : chauffeur exclu si son temps d'approche dépasse ce seuil. */
+  maxEtaMinutes?: number;
 }
+
+/** Vitesse d'approche urbaine présumée pour l'ETA chauffeur (km/h). */
+const APPROACH_SPEED_KMH = 28;
 
 interface Candidate { id: string; distanceMeters: number; driver: Driver }
 
@@ -69,6 +74,11 @@ export class MatchingEngine {
         if (!driver || driver.availability !== 'online') continue;
         if (this.assignmentLocks.has(c.id)) continue; // déjà réservé (lock)
         if (!this.hasRangeFor(driver, rideDistanceMeters)) continue; // batterie insuffisante
+        // Filtre ETA : au-delà du seuil (console), le client attendrait trop.
+        if (ctx?.maxEtaMinutes !== undefined) {
+          const etaMin = (c.distanceMeters / 1000 / APPROACH_SPEED_KMH) * 60;
+          if (etaMin > ctx.maxEtaMinutes) continue;
+        }
         candidates.push({ id: c.id, distanceMeters: c.distanceMeters, driver });
       }
       if (candidates.length === 0) continue;
@@ -78,7 +88,7 @@ export class MatchingEngine {
       return {
         driverId: chosen.id,
         distanceMeters: Math.round(chosen.distanceMeters),
-        etaSeconds: Math.round((chosen.distanceMeters / 1000 / 28) * 3600),
+        etaSeconds: Math.round((chosen.distanceMeters / 1000 / APPROACH_SPEED_KMH) * 3600),
       };
     }
     return null;

@@ -90,7 +90,7 @@ const me = {
 };
 
 /** Réglages dispatch & qualité (démo). */
-const ops = { strategy: 'nearest', minRating: 4.5, autoWarn: true };
+const ops = { strategy: 'nearest', minRating: 4.5, autoWarn: true, maxEtaMinutes: 7, offerTimeoutSec: 12, surgeEnabled: true, surgeCapGreen: 1.3 };
 
 /** Modération des notes (démo) : dérivée de la flotte, avec deux cas sous le seuil. */
 function quality() {

@@ -176,3 +176,42 @@ test('mobilité verte : télémétrie batterie, exclusion du dispatch, indicateu
   assert.equal(g.fleet.lowBattery, 1);
   assert.ok(g.fleet.batteries.some((b: { id: string; batteryPct: number }) => b.id === faible && b.batteryPct === 8));
 });
+
+test('dispatch avancé : filtre ETA, cascade (bornes 10–15 s), surge plafonné vert', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  // --- Filtre ETA : seuil 3 min → un chauffeur à ~3,5 km (ETA ~7,5 min) est exclu.
+  await driverAt(app, 'Lointain', 5.378, -4.018);
+  await app.inject({ method: 'PUT', url: '/admin/dispatch', headers: AUTH, payload: { maxEtaMinutes: 3 } });
+  const r1 = await createRide(app, 'client-eta1');
+  assert.equal(r1.status, 'no_driver', 'ETA trop long → aucun chauffeur éligible');
+  // Seuil élargi → le même chauffeur devient éligible.
+  await app.inject({ method: 'PUT', url: '/admin/dispatch', headers: AUTH, payload: { maxEtaMinutes: 30 } });
+  const r2 = await createRide(app, 'client-eta2');
+  assert.equal(r2.status, 'accepted');
+  await app.inject({ method: 'POST', url: `/rides/${r2.id}/transition`, payload: { to: 'cancelled' } });
+
+  // --- Cascade : le délai d'offre est borné 10–15 s (zod refuse hors bornes).
+  const bad = await app.inject({ method: 'PUT', url: '/admin/dispatch', headers: AUTH, payload: { offerTimeoutSec: 20 } });
+  assert.equal(bad.statusCode, 400);
+  const ok = await app.inject({ method: 'PUT', url: '/admin/dispatch', headers: AUTH, payload: { offerTimeoutSec: 15 } });
+  assert.equal(ok.json().ops.offerTimeoutSec, 15);
+
+  // --- Surge par cellules : 1 chauffeur en ligne, rafale de demandes au même point
+  // → demande > offre ×2 → ×1.5 brut, PLAFONNÉ à 1.3 (incitation verte).
+  const est = () => app.inject({
+    method: 'POST', url: '/pricing/estimate',
+    payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'bronze' },
+  });
+  let last = await est();
+  for (let i = 0; i < 5; i++) last = await est();
+  const surged = last.json().quote;
+  assert.equal(surged.breakdown.surge, 1.3, 'surge actif mais plafonné vert (1.3)');
+
+  // Surge désactivé depuis la console → retour à 1 immédiatement.
+  await app.inject({ method: 'PUT', url: '/admin/dispatch', headers: AUTH, payload: { surgeEnabled: false } });
+  const calm = await est();
+  assert.equal(calm.json().quote.breakdown.surge, 1);
+  assert.ok(calm.json().quote.amount < surged.amount, 'le prix retombe sans surge');
+});

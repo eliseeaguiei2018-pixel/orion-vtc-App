@@ -51,7 +51,10 @@ export interface ActiveSession {
   createdAt: string; lastSeenAt: string; expiresAt: string; revoked?: boolean;
 }
 export interface PageMeta { total: number; page: number; pages: number }
-export interface OpsConfig { strategy: 'nearest' | 'longest_idle' | 'zone_queue'; minRating: number; autoWarn: boolean }
+export interface OpsConfig {
+  strategy: 'nearest' | 'longest_idle' | 'zone_queue'; minRating: number; autoWarn: boolean;
+  maxEtaMinutes: number; offerTimeoutSec: number; surgeEnabled: boolean; surgeCapGreen: number;
+}
 export interface GreenReport {
   co2SavedKg: number; co2SavedTons: number; kmElectric: number; kmHybrid: number;
   electricShare: number; hybridShare: number;
@@ -794,6 +797,38 @@ function DispatchSection({ ops, onSave }: { ops: OpsConfig; onSave: (p: Partial<
             </button>
           ))}
         </div>
+      </div>
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Filtre ETA & cascade d'attribution</h3></div>
+        <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <label className="price-field"><span>ETA max chauffeur (minutes)</span>
+            <input type="number" min={2} max={30} value={ops.maxEtaMinutes} onChange={(e) => onSave({ maxEtaMinutes: Number(e.target.value) })} />
+          </label>
+          <label className="price-field"><span>Délai d'acceptation (10–15 s)</span>
+            <input type="number" min={10} max={15} value={ops.offerTimeoutSec} onChange={(e) => onSave({ offerTimeoutSec: Number(e.target.value) })} />
+          </label>
+        </div>
+        <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
+          Un chauffeur au-delà de l'ETA max n'est jamais proposé. En cascade : le meilleur profil reçoit l'offre ;
+          sans réponse dans le délai, elle bascule au suivant (branché à l'app chauffeur).
+        </p>
+      </div>
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Multiplicateur de forte demande (surge)</h3></div>
+        <div className="row" style={{ gap: 14, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <label className="row" style={{ gap: 8, alignItems: 'center', paddingBottom: 8 }}>
+            <button className={`adm-toggle${ops.surgeEnabled ? ' on' : ''}`} onClick={() => onSave({ surgeEnabled: !ops.surgeEnabled })}><span /></button>
+            <span style={{ fontSize: 13 }}>{ops.surgeEnabled ? 'Activé' : 'Désactivé'}</span>
+          </label>
+          <label className="price-field"><span>Plafond vert (incitation) ×</span>
+            <input type="number" min={1} max={2} step={0.1} value={ops.surgeCapGreen} onChange={(e) => onSave({ surgeCapGreen: Number(e.target.value) })} />
+          </label>
+        </div>
+        <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
+          La carte est découpée en cellules (~800 m). Si la demande y dépasse l'offre de 30 % → ×1.3 ; du double → ×1.5.
+          Le multiplicateur est <strong>plafonné sur la flotte électrique</strong> : prix stable pour le choix vert,
+          et toujours intégré AVANT le verrouillage — le prix affiché reste le prix payé.
+        </p>
       </div>
     </>
   );

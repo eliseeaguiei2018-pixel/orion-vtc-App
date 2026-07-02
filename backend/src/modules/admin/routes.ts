@@ -308,10 +308,20 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         strategy: z.enum(['nearest', 'longest_idle', 'zone_queue']).optional(),
         minRating: z.number().min(1).max(5).optional(),
         autoWarn: z.boolean().optional(),
+        maxEtaMinutes: z.number().min(2).max(30).optional(),
+        offerTimeoutSec: z.number().min(10).max(15).optional(),
+        surgeEnabled: z.boolean().optional(),
+        surgeCapGreen: z.number().min(1).max(2).optional(),
       }), req.body);
       const ops = container.settings.updateOps(body);
       audit(req, 'dispatch.update', undefined, body);
       return { ops };
+    });
+
+    // Zones à forte demande (cellules) : demande vs offre + surge courant.
+    scoped.get('/admin/demand', async (req) => {
+      require(req, 'rides:read');
+      return { cells: await container.demand.hotCells() };
     });
 
     // Réassignation MANUELLE d'une course (bug, chauffeur injoignable, incident).

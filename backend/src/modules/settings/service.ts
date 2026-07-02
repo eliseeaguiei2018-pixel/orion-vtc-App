@@ -81,10 +81,21 @@ const ZONES_ID = 'zones';
 export type DispatchStrategy = 'nearest' | 'longest_idle' | 'zone_queue';
 export interface OpsConfig {
   strategy: DispatchStrategy;
-  minRating: number;   // seuil qualité (note moyenne)
-  autoWarn: boolean;   // avertissement automatique sous le seuil
+  minRating: number;        // seuil qualité (note moyenne)
+  autoWarn: boolean;        // avertissement automatique sous le seuil
+  /** Filtre ETA : un chauffeur n'est éligible que si son temps d'approche ≤ ce seuil. */
+  maxEtaMinutes: number;
+  /** Cascade d'attribution : délai d'acceptation d'une offre (10–15 s) avant bascule au suivant. */
+  offerTimeoutSec: number;
+  /** Surge par cellules : multiplicateur automatique quand la demande dépasse l'offre de 30 %. */
+  surgeEnabled: boolean;
+  /** Incitation verte : plafond du multiplicateur sur la flotte électrique (prix stable). */
+  surgeCapGreen: number;
 }
-export const DEFAULT_OPS: OpsConfig = { strategy: 'nearest', minRating: 4.5, autoWarn: true };
+export const DEFAULT_OPS: OpsConfig = {
+  strategy: 'nearest', minRating: 4.5, autoWarn: true,
+  maxEtaMinutes: 7, offerTimeoutSec: 12, surgeEnabled: true, surgeCapGreen: 1.3,
+};
 interface OpsRecord extends OpsConfig { id: string; }
 const OPS_ID = 'ops';
 
@@ -107,7 +118,14 @@ export class SettingsService {
     const savedZones = zonesRepo?.get(ZONES_ID);
     this.zones = savedZones ? savedZones.zones.map((z) => ({ ...z })) : DEFAULT_ZONES.map((z) => ({ ...z }));
     const savedOps = opsRepo?.get(OPS_ID);
-    this.ops = savedOps ? { strategy: savedOps.strategy, minRating: savedOps.minRating, autoWarn: savedOps.autoWarn } : { ...DEFAULT_OPS };
+    if (savedOps) {
+      // Fusion avec les défauts : les enregistrements persistés avant l'ajout
+      // d'un champ (ETA, cascade, surge) restent valides.
+      const { id: _opsId, ...rest } = savedOps;
+      this.ops = { ...DEFAULT_OPS, ...rest };
+    } else {
+      this.ops = { ...DEFAULT_OPS };
+    }
   }
 
   /* ---------------------- Dispatch & qualité (ops) ---------------------- */
@@ -118,6 +136,10 @@ export class SettingsService {
       ...this.ops,
       ...patch,
       minRating: Math.min(5, Math.max(1, patch.minRating ?? this.ops.minRating)),
+      maxEtaMinutes: Math.min(30, Math.max(2, patch.maxEtaMinutes ?? this.ops.maxEtaMinutes ?? 7)),
+      offerTimeoutSec: Math.min(15, Math.max(10, patch.offerTimeoutSec ?? this.ops.offerTimeoutSec ?? 12)),
+      surgeEnabled: patch.surgeEnabled ?? this.ops.surgeEnabled ?? true,
+      surgeCapGreen: Math.min(2, Math.max(1, patch.surgeCapGreen ?? this.ops.surgeCapGreen ?? 1.3)),
     };
     this.opsRepo?.put({ id: OPS_ID, ...this.ops });
     return this.ops;

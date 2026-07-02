@@ -6,7 +6,7 @@ import { estimatePrice, type PricingContext } from './pricing.js';
 import { isWithinCotedIvoire } from '../../geo-ci/zones.js';
 
 /** Fournit le contexte de tarification dynamique (surge, promo) pour une demande. */
-export type PricingContextProvider = (req: EstimateRequest) => PricingContext;
+export type PricingContextProvider = (req: EstimateRequest) => PricingContext | Promise<PricingContext>;
 
 /**
  * Implémentation VTC du contrat ServiceModule. Première brique du moteur multi-service.
@@ -27,7 +27,7 @@ export class RideServiceModule implements ServiceModule {
         code: 'OUT_OF_SERVICE_AREA',
       });
     }
-    const price = estimatePrice(req, this.contextProvider(req));
+    const price = estimatePrice(req, await this.contextProvider(req));
     const now = Date.now();
     return {
       lockId: randomUUID(),

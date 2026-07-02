@@ -129,7 +129,10 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
   const trafficMult = 1 + (trafficFactor - 1) * s.trafficWeight;
   // Facteur de zone (commune de départ) intégré au prix fixe — levier ops par quartier.
   const zoneFactor = Math.max(0.1, ctx.zoneFactor ?? 1);
-  const raw = (base + distanceCost + timeCost + stopsCost) * trafficMult * zoneFactor;
+  // Surge encadré (demande > offre) — appliqué AVANT le verrouillage : le devis
+  // affiché reste un PRIX FIXE garanti. Plafonné sur la flotte verte (console).
+  const surge = Math.max(1, ctx.surgeMultiplier ?? 1);
+  const raw = (base + distanceCost + timeCost + stopsCost) * trafficMult * zoneFactor * surge;
   const floored = Math.max(raw, tariff.minFare);
   // Remise : code promo (montant calculé) prioritaire, sinon taux de remise éventuel.
   const promo = ctx.promoDiscount ? ctx.promoDiscount(floored) : 0;
@@ -153,7 +156,7 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
       base: Math.round(base + stopsCost),
       distance: Math.round(distanceCost),
       time: Math.round(timeCost),
-      surge: 1,
+      surge,
       traffic: 0, // trafic intégré au prix fixe (aucune surfacturation séparée)
       discount: Math.round(discount),
       subtotal: Math.round(subtotal),

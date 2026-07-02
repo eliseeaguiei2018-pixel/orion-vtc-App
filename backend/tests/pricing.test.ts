@@ -45,11 +45,15 @@ test('le trafic est intégré au PRIX FIXE (pas de ligne « supplément ») et m
   assert.equal(jam.trafficLevel, 'jam');
 });
 
-test('prix fixe : pas de surge (montant affiché = montant final)', () => {
+test('prix fixe : le surge encadré s’applique AVANT le verrouillage du devis', () => {
+  // Sans surge : multiplicateur neutre affiché dans le détail (transparence).
   const normal = estimatePrice({ origin, destination, category: 'bronze' });
-  const withSurge = estimatePrice({ origin, destination, category: 'bronze' }, { surgeMultiplier: 2 });
-  assert.equal(withSurge.amount, normal.amount);
   assert.equal(normal.breakdown.surge, 1);
+  // Avec surge (demande > offre) : le montant du devis intègre le multiplicateur —
+  // le prix AFFICHÉ reste exactement le prix PAYÉ (verrouillé ensuite).
+  const withSurge = estimatePrice({ origin, destination, category: 'bronze' }, { surgeMultiplier: 1.3 });
+  assert.equal(withSurge.breakdown.surge, 1.3);
+  assert.ok(withSurge.amount > normal.amount);
 });
 
 test('un SUV coûte plus cher qu’une berline', () => {

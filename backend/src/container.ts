@@ -26,6 +26,7 @@ import { NotificationService } from './modules/notifications/service.js';
 import { AuditService } from './modules/admin/audit.js';
 import { TreasuryService, type Transfer } from './modules/treasury/service.js';
 import { DisputeService, type Dispute } from './modules/disputes/service.js';
+import { DemandService } from './modules/rides/demand.js';
 import type { Ride } from './modules/rides/store.js';
 import type { LedgerEntry } from './modules/wallet/service.js';
 import type { Subscription } from './modules/subscriptions/service.js';
@@ -61,6 +62,7 @@ export interface Container {
   audit: AuditService;
   treasury: TreasuryService;
   disputes: DisputeService;
+  demand: DemandService;
 }
 
 export function createContainer(): Container {
@@ -72,7 +74,11 @@ export function createContainer(): Container {
   const matching = new MatchingEngine(geo, drivers, undefined, () => ({
     strategy: settings.getOps().strategy,
     inQueueZone: (p) => Boolean(settings.zoneForPoint(p)),
+    maxEtaMinutes: settings.getOps().maxEtaMinutes,
   }));
+
+  // Surge par cellules : demande vs offre en fenêtre glissante (10 min).
+  const demand = new DemandService(geo);
 
   // Paramètres pilotables (prix + services) — modifiables depuis la console Admin, persistés.
   const settings = new SettingsService(createRepository<PricingRecord>('settings'), createRepository('services'), createRepository('zones'), createRepository('ops'));
@@ -81,13 +87,19 @@ export function createContainer(): Container {
 
   // Tarification : paramètres pilotables (Admin) + trafic intégré + code promo éventuel.
   const registry = new ServiceRegistry().register(
-    new RideServiceModule((req) => {
+    new RideServiceModule(async (req) => {
       const traffic = trafficInfo(req.origin, req.destination);
+      // Surge : chaque devis compte comme une demande dans sa cellule ;
+      // plafonné (incitation verte) — la flotte ORION est électrique.
+      demand.record(req.origin);
+      const ops = settings.getOps();
+      const surgeRaw = ops.surgeEnabled ? await demand.surgeFor(req.origin) : 1;
       return {
         trafficFactor: traffic.factor,
         trafficLevel: traffic.level,
         settings: settings.getPricing(),
         zoneFactor: settings.zoneFactor(req.origin),
+        surgeMultiplier: Math.min(surgeRaw, ops.surgeCapGreen),
         promoDiscount: (subtotal: number) => promos.evaluate(req.promoCode, subtotal)?.discount ?? 0,
       };
     }),
@@ -121,6 +133,7 @@ export function createContainer(): Container {
     clients: new ClientStore(createRepository<Client>('clients')),
     treasury: new TreasuryService(createRepository<Transfer>('treasury')),
     disputes: new DisputeService(createRepository<Dispute>('disputes')),
+    demand,
     support: new SupportService(realtime),
     notifications: new NotificationService(realtime),
     audit: new AuditService(),
