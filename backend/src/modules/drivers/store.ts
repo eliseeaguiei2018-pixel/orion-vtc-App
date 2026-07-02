@@ -18,6 +18,10 @@ export interface Driver {
   idleSince?: string;
   /** Avertissements qualité reçus (note sous le seuil, comportement). */
   warnings?: number;
+  /** Motorisation (flotte verte) : électrique ou hybride. */
+  engine?: 'electric' | 'hybrid';
+  /** Niveau de batterie % (SoC) remonté par l'app chauffeur — flotte électrique. */
+  batteryPct?: number;
 }
 
 /** Génère un matricule ORION lisible, ex. ORION-CI-4821. */

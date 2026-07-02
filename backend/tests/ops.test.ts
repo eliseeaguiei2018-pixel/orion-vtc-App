@@ -149,3 +149,30 @@ test('audit : exports CSV protégés contre l’injection de formule tableur', a
   assert.ok(csv.body.includes(`"'=HYPERLINK`), 'formule neutralisée par apostrophe');
   assert.ok(csv.body.includes(`"'+SOMME`), 'formule neutralisée par apostrophe');
 });
+
+test('mobilité verte : télémétrie batterie, exclusion du dispatch, indicateurs CO2', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  // Deux électriques proches : batterie faible (8 %) vs pleine (90 %).
+  const faible = await driverAt(app, 'Batterie faible', 5.351, -4.001);
+  const pleine = await driverAt(app, 'Batterie pleine', 5.352, -4.002);
+  await app.inject({ method: 'POST', url: `/drivers/${faible}/telemetry`, payload: { engine: 'electric', batteryPct: 8 } });
+  await app.inject({ method: 'POST', url: `/drivers/${pleine}/telemetry`, payload: { engine: 'electric', batteryPct: 90 } });
+
+  // Course ~3 km → il faut ≥ ~13 % : la batterie faible est exclue même si plus proche.
+  const ride = await createRide(app, 'client-green');
+  assert.equal(ride.driverId, pleine, 'le véhicule à 8 % de batterie est écarté du dispatch');
+
+  // Indicateurs verts : CO2 économisé + part électrique + télémétrie visible.
+  for (const s of ['driver_en_route', 'arrived', 'in_progress', 'completed', 'paid'] as const) {
+    await app.inject({ method: 'POST', url: `/rides/${ride.id}/transition`, payload: { to: s } });
+  }
+  const green = await app.inject({ method: 'GET', url: '/admin/green', headers: AUTH });
+  const g = green.json();
+  assert.ok(g.co2SavedKg > 0, 'CO2 économisé calculé');
+  assert.equal(g.electricShare, 100);
+  assert.equal(g.fleet.electric, 2);
+  assert.equal(g.fleet.lowBattery, 1);
+  assert.ok(g.fleet.batteries.some((b: { id: string; batteryPct: number }) => b.id === faible && b.batteryPct === 8));
+});

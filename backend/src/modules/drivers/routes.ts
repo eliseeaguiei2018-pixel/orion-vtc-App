@@ -75,3 +75,25 @@ export async function driverRoutes(app: FastifyInstance, container: Container): 
     return { status: 'updated' };
   });
 }
+
+/* Télémétrie flotte verte : l'app chauffeur remonte motorisation et niveau de
+   batterie (SoC). L'algorithme exclut du dispatch les électriques dont
+   l'autonomie ne couvre pas la course demandée. */
+export async function greenTelemetryRoutes(app: import('fastify').FastifyInstance, container: import('../../container.js').Container): Promise<void> {
+  app.post('/drivers/:id/telemetry', async (req) => {
+    const { id } = req.params as { id: string };
+    const { z } = await import('zod');
+    const { parse } = await import('../../core/validate.js');
+    const { notFound } = await import('../../core/errors.js');
+    const body = parse(z.object({
+      engine: z.enum(['electric', 'hybrid']).optional(),
+      batteryPct: z.number().min(0).max(100).optional(),
+    }), req.body);
+    const d = container.drivers.get(id);
+    if (!d) throw notFound('Chauffeur introuvable');
+    if (body.engine) d.engine = body.engine;
+    if (body.batteryPct !== undefined) d.batteryPct = Math.round(body.batteryPct);
+    container.drivers.persist(id);
+    return { ok: true, engine: d.engine ?? null, batteryPct: d.batteryPct ?? null };
+  });
+}

@@ -8,7 +8,7 @@ import { AppError } from './core/errors.js';
 import { createContainer, type Container } from './container.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { pricingRoutes } from './modules/pricing/routes.js';
-import { driverRoutes } from './modules/drivers/routes.js';
+import { driverRoutes, greenTelemetryRoutes } from './modules/drivers/routes.js';
 import { rideRoutes } from './modules/rides/routes.js';
 import { complianceRoutes } from './modules/compliance/routes.js';
 import { geoCiRoutes } from './modules/geo-ci/routes.js';
@@ -80,6 +80,7 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
   await healthRoutes(app, container);
   await pricingRoutes(app, container);
   await driverRoutes(app, container);
+  await greenTelemetryRoutes(app, container);
   await rideRoutes(app, container);
   await complianceRoutes(app, container);
   await geoCiRoutes(app, container);

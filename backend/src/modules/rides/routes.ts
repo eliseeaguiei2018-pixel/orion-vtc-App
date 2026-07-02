@@ -56,7 +56,7 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       if (body.trustedContact) appendEvent(created, 'shared', { contact: body.trustedContact.name });
 
       // Matching : recherche d'un chauffeur disponible à proximité.
-      const match = await container.matching.findDriver(created.origin, quote.category);
+      const match = await container.matching.findDriver(created.origin, quote.category, quote.distanceMeters);
       if (match) {
         rideStateMachine.assertTransition(created.status, 'accepted');
         created.status = 'accepted';

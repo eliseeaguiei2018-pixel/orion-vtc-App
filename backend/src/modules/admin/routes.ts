@@ -121,6 +121,9 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       return admin.stats(q.days ?? 7);
     });
 
+    // --- Mobilité verte : CO2 économisé, part électrique, télémétrie batteries ---
+    scoped.get('/admin/green', async (req) => { require(req, 'overview:read'); return admin.green(); });
+
     // --- Recherche globale (résultats limités aux permissions du rôle) ---
     scoped.get('/admin/search', async (req) => {
       require(req, 'search:read');

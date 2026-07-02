@@ -134,6 +134,41 @@ export class AdminService {
     };
   }
 
+  /**
+   * Indicateurs de MOBILITÉ VERTE : CO2 économisé vs flotte thermique et part
+   * des trajets 100 % électriques vs hybrides. Hypothèses (ADEME, arrondies) :
+   * thermique ~150 g CO2/km ; électrique ~20 g/km (mix + fabrication) ;
+   * hybride ~90 g/km. Basé sur les courses terminées (distance du devis).
+   */
+  green() {
+    const G_THERMAL = 150, G_ELECTRIC = 20, G_HYBRID = 90; // g CO2 / km
+    let kmElectric = 0, kmHybrid = 0, ridesElectric = 0, ridesHybrid = 0;
+    for (const r of this.c.rides.listAll()) {
+      if (!REVENUE.has(r.status)) continue;
+      const km = (r.quote.distanceMeters ?? 0) / 1000;
+      const engine = r.driverId ? this.c.drivers.get(r.driverId)?.engine ?? 'electric' : 'electric';
+      if (engine === 'hybrid') { kmHybrid += km; ridesHybrid += 1; }
+      else { kmElectric += km; ridesElectric += 1; } // flotte ORION : électrique par défaut
+    }
+    const savedKg = (kmElectric * (G_THERMAL - G_ELECTRIC) + kmHybrid * (G_THERMAL - G_HYBRID)) / 1000;
+    const totalRides = ridesElectric + ridesHybrid;
+    const fleet = this.c.drivers.list();
+    return {
+      co2SavedKg: Math.round(savedKg * 10) / 10,
+      co2SavedTons: Math.round(savedKg / 10) / 100,
+      kmElectric: Math.round(kmElectric), kmHybrid: Math.round(kmHybrid),
+      electricShare: totalRides ? Math.round((ridesElectric / totalRides) * 100) : 100,
+      hybridShare: totalRides ? Math.round((ridesHybrid / totalRides) * 100) : 0,
+      fleet: {
+        electric: fleet.filter((d) => (d.engine ?? 'electric') === 'electric').length,
+        hybrid: fleet.filter((d) => d.engine === 'hybrid').length,
+        lowBattery: fleet.filter((d) => d.batteryPct !== undefined && d.batteryPct < 20).length,
+        batteries: fleet.filter((d) => d.batteryPct !== undefined)
+          .map((d) => ({ id: d.id, name: d.name, matricule: d.matricule, batteryPct: d.batteryPct, availability: d.availability })),
+      },
+    };
+  }
+
   /** Export CSV des courses (comptabilité) — anti-injection de formule tableur. */
   ridesCsv(): string {
     const clean = (v: unknown) => {

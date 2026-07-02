@@ -41,7 +41,17 @@ export class MatchingEngine {
     private readonly dispatchCtx?: () => DispatchContext,
   ) {}
 
-  async findDriver(origin: LatLng, category?: string): Promise<MatchResult | null> {
+  /**
+   * Priorisation technique (flotte verte) : un véhicule électrique n'est éligible
+   * que si sa batterie couvre la distance estimée (~1 % par km + réserve de 10 %).
+   */
+  private hasRangeFor(driver: Driver, rideDistanceMeters?: number): boolean {
+    if (driver.engine !== 'electric' || driver.batteryPct === undefined || !rideDistanceMeters) return true;
+    const neededPct = 10 + (rideDistanceMeters / 1000) * 1;
+    return driver.batteryPct >= neededPct;
+  }
+
+  async findDriver(origin: LatLng, category?: string, rideDistanceMeters?: number): Promise<MatchResult | null> {
     const ctx = this.dispatchCtx?.();
     const strategy = ctx?.strategy ?? 'nearest';
     // Règles d'ÉQUITÉ (FIFO) : le rayon max est considéré d'emblée, sinon un chauffeur
@@ -58,6 +68,7 @@ export class MatchingEngine {
         const driver = this.drivers.get(c.id);
         if (!driver || driver.availability !== 'online') continue;
         if (this.assignmentLocks.has(c.id)) continue; // déjà réservé (lock)
+        if (!this.hasRangeFor(driver, rideDistanceMeters)) continue; // batterie insuffisante
         candidates.push({ id: c.id, distanceMeters: c.distanceMeters, driver });
       }
       if (candidates.length === 0) continue;
