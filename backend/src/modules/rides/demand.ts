@@ -30,6 +30,9 @@ export interface CellDemand {
 export class DemandService {
   /** cellule → horodatages des demandes (fenêtre glissante). */
   private readonly cells = new Map<string, number[]>();
+  /** Conversion : sessions (devis) et commandes (courses) cumulées par cellule. */
+  private readonly sessions = new Map<string, number>();
+  private readonly orders = new Map<string, number>();
 
   constructor(private readonly geo: GeoIndex) {}
 
@@ -45,7 +48,34 @@ export class DemandService {
     const fresh = arr.filter((t) => now - t < WINDOW_MS);
     fresh.push(now);
     this.cells.set(key, fresh);
+    this.sessions.set(key, (this.sessions.get(key) ?? 0) + 1);
   }
+
+  /** Enregistre une commande confirmée (course créée) — taux de conversion. */
+  recordOrder(p: LatLng): void {
+    const key = this.cellKey(p);
+    this.orders.set(key, (this.orders.get(key) ?? 0) + 1);
+  }
+
+  /**
+   * Taux de conversion par cellule : sessions (devis ouverts) vs commandes.
+   * Diagnostic immédiat : un taux faible = tarif trop élevé OU manque de chauffeurs.
+   */
+  conversion(limit = 12): { cell: string; lat: number; lng: number; sessions: number; orders: number; rate: number }[] {
+    const out: { cell: string; lat: number; lng: number; sessions: number; orders: number; rate: number }[] = [];
+    for (const [cell, sessions] of this.sessions) {
+      const orders = this.orders.get(cell) ?? 0;
+      const [la, ln] = cell.split(':').map(Number);
+      out.push({
+        cell, lat: (la ?? 0) * CELL_DEG, lng: (ln ?? 0) * CELL_DEG,
+        sessions, orders, rate: sessions ? Math.round((orders / sessions) * 100) : 0,
+      });
+    }
+    return out.sort((a, b) => b.sessions - a.sessions).slice(0, limit);
+  }
+
+  /** Clé de cellule d'un point (exposée pour la prédiction historique). */
+  keyFor(p: LatLng): string { return this.cellKey(p); }
 
   /** Demande courante dans la cellule du point (fenêtre glissante). */
   demandAt(p: LatLng): number {

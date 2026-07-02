@@ -124,6 +124,64 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     // --- Mobilité verte : CO2 économisé, part électrique, télémétrie batteries ---
     scoped.get('/admin/green', async (req) => { require(req, 'overview:read'); return admin.green(); });
 
+    // Bilan carbone PDF (communication institutionnelle / subventions).
+    scoped.get('/admin/green/report.pdf', async (req, reply) => {
+      require(req, 'overview:read');
+      reply.header('content-type', 'application/pdf');
+      reply.header('content-disposition', 'attachment; filename="orion-bilan-carbone.pdf"');
+      return admin.greenReportPdf();
+    });
+
+    // --- Intelligence & prédiction ---
+    scoped.get('/admin/predict', async (req) => { require(req, 'rides:read'); return admin.predict(); });
+    scoped.get('/admin/conversion', async (req) => { require(req, 'rides:read'); return { cells: container.demand.conversion() }; });
+    scoped.get('/admin/churn', async (req) => { require(req, 'overview:read'); return admin.churn(); });
+
+    // --- Comptes Entreprises (B2B) ---
+    scoped.get('/admin/corporate', async (req) => { require(req, 'finance:read'); return { accounts: container.corporate.list() }; });
+
+    scoped.put('/admin/corporate', async (req) => {
+      require(req, 'treasury:request'); // création/modification : niveau finance dirigeante
+      const body = parse(z.object({
+        id: z.string().min(2).max(40).optional(),
+        name: z.string().min(2).max(80),
+        contactEmail: z.string().email().optional(),
+        creditLimit: z.number().min(0).max(1_000_000_000),
+        active: z.boolean().optional(),
+      }), req.body);
+      const account = container.corporate.upsert(body);
+      audit(req, 'corporate.upsert', account.id, { name: account.name, creditLimit: account.creditLimit });
+      return { account };
+    });
+
+    // Facture mensuelle consolidée (CSV compatible logiciels comptables).
+    scoped.get('/admin/corporate/:id/invoice', async (req, reply) => {
+      require(req, 'finance:read');
+      const { id } = req.params as { id: string };
+      const q = parse(z.object({ month: z.string().regex(/^\d{4}-\d{2}$/).optional() }), req.query);
+      const month = q.month ?? new Date().toISOString().slice(0, 7);
+      const acc = container.corporate.get(id);
+      if (!acc) throw notFound('Compte entreprise introuvable');
+      const rides = container.rides.listAll().filter((r) => r.corporateId === id && r.createdAt.startsWith(month));
+      const total = rides.reduce((s, r) => s + r.quote.amount, 0);
+      const esc = (v: unknown) => { let s = String(v ?? ''); if (/^[=+\-@]/.test(s)) s = `'${s}`; return `"${s.replace(/"/g, '""')}"`; };
+      const head = ['course', 'date', 'client', 'statut', 'montant_fcfa'].join(',');
+      const rows = rides.map((r) => [r.id, r.createdAt, r.clientId, r.status, r.quote.amount].map(esc).join(','));
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header('content-disposition', `attachment; filename="facture-${id}-${month}.csv"`);
+      return [`"Facture ORION — ${acc.name} — ${month}"`, head, ...rows, `"TOTAL",,,,"${total}"`].join('\n');
+    });
+
+    // Facture réglée : réinitialise le crédit consommé (nouvelle période).
+    scoped.post('/admin/corporate/:id/settle', async (req) => {
+      require(req, 'treasury:approve'); // encaissement : aval direction
+      const { id } = req.params as { id: string };
+      const account = container.corporate.settle(id);
+      if (!account) throw notFound('Compte entreprise introuvable');
+      audit(req, 'corporate.settle', id);
+      return { account };
+    });
+
     // --- Recherche globale (résultats limités aux permissions du rôle) ---
     scoped.get('/admin/search', async (req) => {
       require(req, 'search:read');

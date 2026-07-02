@@ -67,6 +67,16 @@ export interface GreenReport {
   co2SavedKg: number; co2SavedTons: number; kmElectric: number; kmHybrid: number;
   electricShare: number; hybridShare: number;
   fleet: { electric: number; hybrid: number; lowBattery: number; batteries: { id: string; name: string; matricule: string; batteryPct?: number; availability: string }[] };
+  chargingStations?: { id: string; name: string; lat: number; lng: number; fast: boolean }[];
+}
+export interface PredictCell { cell: string; lat: number; lng: number; expected: number; supply: number; gap: number }
+export interface ConversionCell { cell: string; lat: number; lng: number; sessions: number; orders: number; rate: number }
+export interface ChurnReport {
+  clients: { id: string; name: string | null; rides: number; lastSeenAt: string }[];
+  drivers: { id: string; name: string; matricule: string; idleSince?: string }[];
+}
+export interface CorporateAccount {
+  id: string; name: string; contactEmail?: string; creditLimit: number; balanceUsed: number; active: boolean; createdAt: string;
 }
 export interface QualityRow { id: string; name: string; matricule: string; category: string; rating: number; trips: number; warnings: number; kycStatus: string; below: boolean }
 export interface Dispute {
@@ -239,7 +249,7 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'services' | 'audit' | 'sessions' | 'roles';
+type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'roles';
 const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'overview', label: 'Vue d’ensemble', perm: 'overview:read', icon: '📊' },
   { id: 'alerts', label: 'Supervision SAMU', perm: 'alerts:read', icon: '🚨' },
@@ -250,6 +260,8 @@ const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'quality', label: 'Qualité & notes', perm: 'drivers:read', icon: '⭐' },
   { id: 'green', label: 'Mobilité verte', perm: 'overview:read', icon: '🌱' },
   { id: 'teams', label: 'Équipes', perm: 'teams:read', icon: '🧑‍🤝‍🧑' },
+  { id: 'intel', label: 'Intelligence', perm: 'rides:read', icon: '🧠' },
+  { id: 'b2b', label: 'Entreprises (B2B)', perm: 'finance:read', icon: '🏢' },
   { id: 'disputes', label: 'Litiges', perm: 'support:read', icon: '⚖️' },
   { id: 'drivers', label: 'Chauffeurs', perm: 'drivers:read', icon: '🧑‍✈️' },
   { id: 'clients', label: 'Clients', perm: 'clients:read', icon: '👥' },
@@ -297,6 +309,10 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [forensic, setForensic] = useState<RideForensic | null>(null);
   const [green, setGreen] = useState<GreenReport | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [predict, setPredict] = useState<{ hour: number; cells: PredictCell[] } | null>(null);
+  const [conversion, setConversion] = useState<ConversionCell[]>([]);
+  const [churn, setChurn] = useState<ChurnReport | null>(null);
+  const [corporate, setCorporate] = useState<CorporateAccount[]>([]);
   const [muted, setMuted] = useState(() => localStorage.getItem('orion.admin.muted') === '1');
   const [theme, setTheme] = useState<AdmTheme>(savedTheme);
   const [ridesPage, setRidesPage] = useState(1);
@@ -321,6 +337,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setOps(DEMO.ops as OpsConfig); setQuality(DEMO.quality()); setDisputes(DEMO.disputes as Dispute[]);
     setGreen(DEMO.green as GreenReport);
     setTeams(DEMO.teams as Team[]);
+    setPredict(DEMO.predict); setConversion(DEMO.conversion); setChurn(DEMO.churn);
+    setCorporate(DEMO.corporate as CorporateAccount[]);
     setLive(false);
   }, [statsDays, ridesPage, driversPage, clientsPage]);
 
@@ -355,6 +373,12 @@ function Console({ onLogout }: { onLogout: () => void }) {
       if (has('rides:read')) setOps((await adminGet<{ ops: OpsConfig }>('/admin/dispatch')).ops);
       if (has('overview:read')) setGreen(await adminGet<GreenReport>('/admin/green'));
       if (has('teams:read')) setTeams((await adminGet<{ teams: Team[] }>('/admin/teams')).teams);
+      if (has('rides:read')) {
+        setPredict(await adminGet<{ hour: number; cells: PredictCell[] }>('/admin/predict'));
+        setConversion((await adminGet<{ cells: ConversionCell[] }>('/admin/conversion')).cells);
+      }
+      if (has('overview:read')) setChurn(await adminGet<ChurnReport>('/admin/churn'));
+      if (has('finance:read')) setCorporate((await adminGet<{ accounts: CorporateAccount[] }>('/admin/corporate')).accounts);
       if (has('drivers:read')) setQuality(await adminGet<{ threshold: number; autoWarn: boolean; drivers: QualityRow[] }>('/admin/quality'));
       if (has('support:read')) setDisputes((await adminGet<{ disputes: Dispute[] }>('/admin/disputes')).disputes);
       if (has('notify:read')) setBroadcasts((await adminGet<{ announcements: Announcement[] }>('/admin/broadcasts')).announcements);
@@ -595,6 +619,47 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setTeams((xs) => xs.filter((t) => t.id !== id));
   };
 
+  // B2B : comptes entreprises (ligne de crédit, facture, règlement).
+  const saveCorporate = async (input: { id?: string; name: string; contactEmail?: string; creditLimit: number }) => {
+    if (!API) {
+      const id = input.id ?? input.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      setCorporate((xs) => {
+        const ex = xs.find((a) => a.id === id);
+        const next: CorporateAccount = { id, name: input.name, contactEmail: input.contactEmail, creditLimit: input.creditLimit, balanceUsed: ex?.balanceUsed ?? 0, active: true, createdAt: ex?.createdAt ?? new Date().toISOString() };
+        return ex ? xs.map((a) => (a.id === id ? next : a)) : [...xs, next];
+      });
+      return;
+    }
+    try { await adminPut('/admin/corporate', input); void refresh(); } catch { /* */ }
+  };
+  const settleCorporate = async (id: string) => {
+    if (API) { try { await adminPost(`/admin/corporate/${id}/settle`); } catch { /* */ } }
+    setCorporate((xs) => xs.map((a) => (a.id === id ? { ...a, balanceUsed: 0 } : a)));
+  };
+  const exportInvoice = (id: string) => void downloadCsv(`/admin/corporate/${id}/invoice`, `facture-${id}.csv`, () => {
+    const acc = corporate.find((a) => a.id === id);
+    return `"Facture ORION — ${acc?.name ?? id}"\ncourse,date,client,statut,montant_fcfa\n"TOTAL",,,,"${acc?.balanceUsed ?? 0}"`;
+  });
+
+  // Bilan carbone PDF (via session JWT).
+  const downloadCarbonPdf = async () => {
+    if (!API) { alert('Disponible avec le backend connecté — le PDF est généré côté serveur.'); return; }
+    try {
+      const res = await fetch(`${API}/admin/green/report.pdf`, { headers: H() });
+      if (res.status === 401) { onUnauthorized(); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob); const a = document.createElement('a');
+      a.href = url; a.download = 'orion-bilan-carbone.pdf'; a.click(); URL.revokeObjectURL(url);
+    } catch { /* */ }
+  };
+
+  // Campagne de réengagement (churn) → diffusion clients avec code promo.
+  const reengage = () => void sendBroadcast({
+    audience: 'clients',
+    title: 'Tu nous manques 💚',
+    body: 'Reviens rouler vert avec ORION : -20 % sur ta prochaine course avec le code RETOUR20.',
+  });
+
   // Révoque une session (l'employé est déconnecté immédiatement).
   const revokeSess = async (id: string) => {
     if (API) { try { await adminPost(`/admin/sessions/${id}/revoke`); } catch { /* */ } }
@@ -663,8 +728,10 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'dispatch' && ops && <DispatchSection ops={ops} onSave={saveOps} />}
         {section === 'quality' && quality && <QualitySection q={quality} canWrite={can('drivers:write')} onWarn={warnDriver} onSuspend={(id) => driverAction(id, 'kyc', 'suspended')} onSaveOps={saveOps} />}
         {section === 'disputes' && <DisputesSection disputes={disputes} canWrite={can('support:write')} onDecide={decideDispute} onOpenRide={openForensic} />}
-        {section === 'green' && green && <GreenSection g={green} />}
+        {section === 'green' && green && <GreenSection g={green} onPdf={() => void downloadCarbonPdf()} />}
         {section === 'teams' && <TeamsSection teams={teams} allDrivers={drivers} canWrite={can('teams:write')} onSave={saveTeam} onDelete={deleteTeam} />}
+        {section === 'intel' && <IntelSection predict={predict} conversion={conversion} churn={churn} canNotify={can('notify:write')} onReengage={reengage} />}
+        {section === 'b2b' && <CorporateSection accounts={corporate} canWrite={can('treasury:request')} canSettle={can('treasury:approve')} onSave={saveCorporate} onSettle={settleCorporate} onInvoice={exportInvoice} />}
         {section === 'drivers' && <DriversSection drivers={drivers} canWrite={can('drivers:write')} onAction={driverAction} onOpen={openDriver} meta={driversMeta} onPage={setDriversPage} />}
         {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} onOpen={openClient} meta={clientsMeta} onPage={setClientsPage} />}
         {section === 'notify' && <NotifySection broadcasts={broadcasts} canWrite={can('notify:write')} onSend={sendBroadcast} />}
@@ -1598,7 +1665,7 @@ function TreasurySection({ transfers, meName, canRequest, canApprove, onRequest,
 }
 
 /* --------------------------- Mobilité verte --------------------------- */
-function GreenSection({ g }: { g: GreenReport }) {
+function GreenSection({ g, onPdf }: { g: GreenReport; onPdf: () => void }) {
   const co2 = g.co2SavedTons >= 1 ? `${g.co2SavedTons.toLocaleString('fr-FR')} t` : `${g.co2SavedKg.toLocaleString('fr-FR')} kg`;
   return (
     <>
@@ -1615,6 +1682,32 @@ function GreenSection({ g }: { g: GreenReport }) {
           pas la course demandée (~1 %/km + réserve 10 %).
         </p>
       </div>
+      <div className="adm-card">
+        <div className="adm-card-h">
+          <h3>Bilan carbone</h3>
+          <button className="adm-btn xs solid" onClick={onPdf}>⬇ Certificat CO2 (PDF)</button>
+        </div>
+        <p className="adm-muted" style={{ margin: 0, fontSize: 12 }}>
+          Certificat d'économie de CO2 généré côté serveur — communication institutionnelle et dossiers de
+          subventions écologiques.
+        </p>
+      </div>
+      {(g.chargingStations ?? []).length > 0 && (
+        <div className="adm-card">
+          <div className="adm-card-h"><h3>Bornes de recharge partenaires</h3><span className="adm-muted">{g.chargingStations!.length} bornes · Abidjan</span></div>
+          <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+            {g.chargingStations!.map((s) => (
+              <span key={s.id} className={`adm-pill ${s.fast ? 'av-online' : ''}`} title={`${s.lat.toFixed(4)}, ${s.lng.toFixed(4)}`}>
+                🔌 {s.name}{s.fast ? ' · rapide' : ''}
+              </span>
+            ))}
+          </div>
+          <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
+            En heures creuses, dirige les chauffeurs en batterie faible vers les bornes via une notification
+            (section Notifications → audience « chauffeurs »).
+          </p>
+        </div>
+      )}
       <div className="adm-card">
         <div className="adm-card-h"><h3>Télémétrie batteries (SoC)</h3><span className="adm-muted">{g.fleet.electric} électriques · {g.fleet.hybrid} hybrides</span></div>
         {g.fleet.batteries.length === 0 && <p className="adm-empty">Aucune télémétrie remontée (app chauffeur → POST /drivers/:id/telemetry).</p>}
@@ -1633,6 +1726,145 @@ function GreenSection({ g }: { g: GreenReport }) {
                 </td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+/* ---------------------- Intelligence & prédiction --------------------- */
+function IntelSection({ predict, conversion, churn, canNotify, onReengage }: {
+  predict: { hour: number; cells: PredictCell[] } | null; conversion: ConversionCell[];
+  churn: ChurnReport | null; canNotify: boolean; onReengage: () => void;
+}) {
+  return (
+    <>
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Heatmap prédictive</h3><span className="adm-muted">demande attendue vers {predict ? `${String(predict.hour).padStart(2, '0')}h` : '—'} (moyenne historique)</span></div>
+        {(!predict || predict.cells.length === 0) && <p className="adm-empty">Pas encore assez d'historique pour prédire — les cellules apparaîtront avec l'activité.</p>}
+        {predict && predict.cells.length > 0 && (
+          <table className="adm-table">
+            <thead><tr><th>Cellule</th><th className="r">Demande prévue</th><th className="r">Chauffeurs sur place</th><th className="r">Manque</th><th>Recommandation</th></tr></thead>
+            <tbody>
+              {predict.cells.map((c) => (
+                <tr key={c.cell}>
+                  <td className="mono">{c.lat.toFixed(3)}, {c.lng.toFixed(3)}</td>
+                  <td className="r">{c.expected}</td><td className="r">{c.supply}</td>
+                  <td className={`r ${c.gap > 0 ? 'neg' : 'pos'}`}>{c.gap}</td>
+                  <td>{c.gap > 0 ? <span className="adm-pill tr-pending">Diriger {c.gap} chauffeur{c.gap > 1 ? 's' : ''} en avance</span> : <span className="adm-pill av-online">Couvert</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Conversion par zone</h3><span className="adm-muted">sessions (devis) vs commandes</span></div>
+        {conversion.length === 0 && <p className="adm-empty">Aucune session enregistrée pour l'instant.</p>}
+        {conversion.length > 0 && (
+          <table className="adm-table">
+            <thead><tr><th>Cellule</th><th className="r">Sessions</th><th className="r">Commandes</th><th className="r">Taux</th><th>Diagnostic</th></tr></thead>
+            <tbody>
+              {conversion.map((c) => (
+                <tr key={c.cell}>
+                  <td className="mono">{c.lat.toFixed(3)}, {c.lng.toFixed(3)}</td>
+                  <td className="r">{c.sessions}</td><td className="r">{c.orders}</td>
+                  <td className={`r ${c.rate < 30 ? 'neg' : 'pos'}`}>{c.rate} %</td>
+                  <td>{c.rate < 30 ? <span className="adm-pill tr-rejected">Tarif élevé ou manque de chauffeurs</span> : <span className="adm-pill av-online">Saine</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      <div className="adm-card">
+        <div className="adm-card-h">
+          <h3>Prédiction d'attrition (churn)</h3>
+          {canNotify && <button className="adm-btn xs solid" onClick={onReengage}>📣 Campagne de réengagement</button>}
+        </div>
+        <div className="row" style={{ gap: 18, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div style={{ flex: 1, minWidth: 260 }}>
+            <p className="adm-muted" style={{ margin: '0 0 6px', fontSize: 12 }}>Clients réguliers silencieux ≥ 14 j ({churn?.clients.length ?? 0})</p>
+            <ul className="adm-conv-list">
+              {(churn?.clients ?? []).map((c) => (
+                <li key={c.id}><span>{c.name ?? c.id} · {c.rides} courses</span><span className="adm-muted">{ago(c.lastSeenAt)}</span></li>
+              ))}
+              {(churn?.clients.length ?? 0) === 0 && <li><span className="adm-muted">Aucun — fidélité au vert ✅</span></li>}
+            </ul>
+          </div>
+          <div style={{ flex: 1, minWidth: 260 }}>
+            <p className="adm-muted" style={{ margin: '0 0 6px', fontSize: 12 }}>Chauffeurs inactifs ≥ 7 j ({churn?.drivers.length ?? 0})</p>
+            <ul className="adm-conv-list">
+              {(churn?.drivers ?? []).map((d) => (
+                <li key={d.id}><span>{d.name}</span><span className="adm-muted mono">{d.matricule}</span></li>
+              ))}
+              {(churn?.drivers.length ?? 0) === 0 && <li><span className="adm-muted">Aucun — flotte engagée ✅</span></li>}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ------------------------ Comptes Entreprises (B2B) ------------------- */
+function CorporateSection({ accounts, canWrite, canSettle, onSave, onSettle, onInvoice }: {
+  accounts: CorporateAccount[]; canWrite: boolean; canSettle: boolean;
+  onSave: (i: { id?: string; name: string; contactEmail?: string; creditLimit: number }) => void;
+  onSettle: (id: string) => void; onInvoice: (id: string) => void;
+}) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [limit, setLimit] = useState(500_000);
+  return (
+    <>
+      <div className="adm-card">
+        <p className="adm-muted" style={{ margin: 0 }}>
+          Hôtels, sociétés, ambassades : chaque compte dispose d'une <strong>ligne de crédit mensuelle</strong>.
+          Leurs employés commandent avec le <strong>code société</strong> sans paiement immédiat ; au-delà du
+          plafond, la course est refusée. Facture <strong>consolidée</strong> en fin de mois (CSV compatible
+          logiciels comptables), règlement avec aval de la direction.
+        </p>
+      </div>
+      {canWrite && (
+        <div className="adm-card">
+          <div className="adm-card-h"><h3>Nouveau compte entreprise</h3></div>
+          <div className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <label className="price-field"><span>Raison sociale</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Hôtel Ivoire" /></label>
+            <label className="price-field"><span>E-mail de facturation</span><input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="compta@hotel.ci" /></label>
+            <label className="price-field"><span>Ligne de crédit (F / mois)</span><input type="number" min={0} step={50000} value={limit} onChange={(e) => setLimit(Number(e.target.value))} /></label>
+            <button className="adm-btn solid" onClick={() => { if (name.trim()) { onSave({ name: name.trim(), contactEmail: email.trim() || undefined, creditLimit: limit }); setName(''); setEmail(''); } }}>Créer</button>
+          </div>
+        </div>
+      )}
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Comptes</h3><span className="adm-muted">{accounts.length}</span></div>
+        {accounts.length === 0 && <p className="adm-empty">Aucun compte entreprise pour l'instant.</p>}
+        <table className="adm-table">
+          <thead><tr><th>Société</th><th>Code</th><th className="r">Crédit consommé</th><th className="r">Plafond</th><th style={{ width: '22%' }}>Utilisation</th><th>Actions</th></tr></thead>
+          <tbody>
+            {accounts.map((a) => {
+              const pctUsed = a.creditLimit ? Math.min(100, Math.round((a.balanceUsed / a.creditLimit) * 100)) : 0;
+              return (
+                <tr key={a.id}>
+                  <td>{a.name}<div className="adm-muted" style={{ fontSize: 11 }}>{a.contactEmail ?? '—'}</div></td>
+                  <td className="mono">{a.id}</td>
+                  <td className="r">{fcfa(a.balanceUsed)}</td>
+                  <td className="r">{fcfa(a.creditLimit)}</td>
+                  <td>
+                    <div className="adm-batt">
+                      <div className={`adm-batt-fill${pctUsed >= 90 ? ' low' : ''}`} style={{ width: `${pctUsed}%` }} />
+                      <span className="adm-batt-label">{pctUsed} %</span>
+                    </div>
+                  </td>
+                  <td><div className="row" style={{ gap: 6 }}>
+                    <button className="adm-btn xs" onClick={() => onInvoice(a.id)}>⬇ Facture</button>
+                    {canSettle && a.balanceUsed > 0 && <button className="adm-btn xs solid" onClick={() => onSettle(a.id)}>Régler</button>}
+                  </div></td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -156,6 +156,12 @@ const green = {
       { id: 'd7', name: 'Fatou Koné', matricule: 'ORION-CI-7788', batteryPct: 66, availability: 'on_trip' },
     ],
   },
+  chargingStations: [
+    { id: 'cs-plateau', name: 'Borne Plateau — Rue du Commerce', lat: 5.3236, lng: -4.0187, fast: true },
+    { id: 'cs-cocody', name: 'Borne Cocody — Riviera 2', lat: 5.3601, lng: -3.9788, fast: true },
+    { id: 'cs-marcory', name: 'Borne Marcory — Bd VGE', lat: 5.3009, lng: -3.9812, fast: false },
+    { id: 'cs-aeroport', name: 'Borne Aéroport FHB', lat: 5.2606, lng: -3.9296, fast: true },
+  ],
 };
 
 /** Équipes de démonstration (managers + flottes affiliées). */
@@ -171,6 +177,37 @@ const teams = [
       { id: 'd2', name: 'Awa Diomandé', matricule: 'ORION-CI-2210', availability: 'on_trip', rating: 4.8 },
       { id: 'd7', name: 'Fatou Koné', matricule: 'ORION-CI-7788', availability: 'on_trip', rating: 4.9 },
     ] },
+];
+
+/** Intelligence (démo) : prédiction, conversion, churn. */
+const predict = {
+  hour: (new Date().getHours() + 1) % 24,
+  cells: [
+    { cell: '743:-556', lat: 5.3496, lng: -4.0032, expected: 14, supply: 6, gap: 8 },
+    { cell: '745:-553', lat: 5.364, lng: -3.9816, expected: 9, supply: 7, gap: 2 },
+    { cell: '731:-546', lat: 5.2632, lng: -3.9312, expected: 11, supply: 12, gap: 0 },
+  ],
+};
+const conversion = [
+  { cell: '743:-556', lat: 5.3496, lng: -4.0032, sessions: 220, orders: 154, rate: 70 },
+  { cell: '737:-554', lat: 5.3064, lng: -3.9888, sessions: 145, orders: 38, rate: 26 },
+  { cell: '742:-561', lat: 5.3424, lng: -4.0392, sessions: 98, orders: 61, rate: 62 },
+];
+const churn = {
+  clients: [
+    { id: 'client-2793', name: 'Sékou Traoré', rides: 28, lastSeenAt: iso(60 * 24 * 18) },
+    { id: 'client-2427', name: 'Nadia Cissé', rides: 15, lastSeenAt: iso(60 * 24 * 21) },
+  ],
+  drivers: [
+    { id: 'd9', name: 'Yao N’Guessan', matricule: 'ORION-CI-6120', idleSince: iso(60 * 24 * 9) },
+  ],
+};
+
+/** Comptes entreprises (démo). */
+const corporate = [
+  { id: 'hotel-ivoire', name: 'Hôtel Ivoire', contactEmail: 'compta@hotelivoire.ci', creditLimit: 1_500_000, balanceUsed: 842_500, active: true, createdAt: iso(60 * 24 * 45) },
+  { id: 'sgci-siege', name: 'SGCI — Siège', contactEmail: 'achats@sgci.ci', creditLimit: 3_000_000, balanceUsed: 1_120_000, active: true, createdAt: iso(60 * 24 * 30) },
+  { id: 'ambassade-fr', name: 'Ambassade de France', contactEmail: 'intendance@amba-fr.ci', creditLimit: 800_000, balanceUsed: 96_000, active: true, createdAt: iso(60 * 24 * 12) },
 ];
 
 /** Sessions actives de démonstration (qui est connecté à la console). */
@@ -331,4 +368,4 @@ function clientDetail(id: string, rows: Client[]): ClientDetail {
   };
 }
 
-export const DEMO = { overview, stats, alerts, fleet, rides, drivers, pricing, zones, me, clients, promos, services, support, audit, finance, broadcasts, treasury, sessions, search, driverDetail, clientDetail, ops, quality, disputes, rideForensic, green, teams };
+export const DEMO = { overview, stats, alerts, fleet, rides, drivers, pricing, zones, me, clients, promos, services, support, audit, finance, broadcasts, treasury, sessions, search, driverDetail, clientDetail, ops, quality, disputes, rideForensic, green, teams, predict, conversion, churn, corporate };

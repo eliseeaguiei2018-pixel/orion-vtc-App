@@ -28,6 +28,7 @@ import { TreasuryService, type Transfer } from './modules/treasury/service.js';
 import { DisputeService, type Dispute } from './modules/disputes/service.js';
 import { DemandService } from './modules/rides/demand.js';
 import { TeamService, type Team } from './modules/teams/service.js';
+import { CorporateService, type CorporateAccount } from './modules/corporate/service.js';
 import type { Ride } from './modules/rides/store.js';
 import type { LedgerEntry } from './modules/wallet/service.js';
 import type { Subscription } from './modules/subscriptions/service.js';
@@ -65,6 +66,7 @@ export interface Container {
   disputes: DisputeService;
   demand: DemandService;
   teams: TeamService;
+  corporate: CorporateService;
 }
 
 export function createContainer(): Container {
@@ -142,6 +144,7 @@ export function createContainer(): Container {
     disputes: new DisputeService(createRepository<Dispute>('disputes')),
     demand,
     teams: new TeamService(createRepository<Team>('teams')),
+    corporate: new CorporateService(createRepository<CorporateAccount>('corporate')),
     support: new SupportService(realtime),
     notifications: new NotificationService(realtime),
     audit: new AuditService(),

@@ -12,6 +12,15 @@ const ACTIVE: ReadonlySet<RideStatus> = new Set([
 const REVENUE: ReadonlySet<RideStatus> = new Set(['completed', 'paid', 'rated']);
 const ALERT_OPEN = new Set(['raised', 'dispatched', 'acknowledged']);
 
+/** Bornes de recharge partenaires (Abidjan) — affichées sur la carte console. */
+export const CHARGING_STATIONS = [
+  { id: 'cs-plateau', name: 'Borne Plateau — Rue du Commerce', lat: 5.3236, lng: -4.0187, fast: true },
+  { id: 'cs-cocody', name: 'Borne Cocody — Riviera 2', lat: 5.3601, lng: -3.9788, fast: true },
+  { id: 'cs-marcory', name: 'Borne Marcory — Bd VGE', lat: 5.3009, lng: -3.9812, fast: false },
+  { id: 'cs-yopougon', name: 'Borne Yopougon — Niangon', lat: 5.3341, lng: -4.0899, fast: false },
+  { id: 'cs-aeroport', name: 'Borne Aéroport FHB', lat: 5.2606, lng: -3.9296, fast: true },
+];
+
 /** Pagination serveur : découpe une liste et renvoie les métadonnées (page 1-indexée). */
 export interface PageMeta { total: number; page: number; pages: number; limit: number }
 export function paginate<T>(list: T[], pageOpt?: number, limitOpt?: number): { items: T[]; meta: PageMeta } {
@@ -93,11 +102,15 @@ export class AdminService {
       byTier[tier].count += 1;
       if (REVENUE.has(r.status)) { revenue += r.quote.amount; byTier[tier].revenue += r.quote.amount; }
     }
+    // Split payment : la TVA collectée pour l'État est isolée du revenu plateforme.
+    let taxes = 0;
+    for (const r of rides) if (REVENUE.has(r.status)) taxes += r.quote.breakdown.tva;
     const wallet = this.c.wallet.totals();
     return {
       currency: 'XOF',
       gmv: Math.round(gmv), revenue: Math.round(revenue),
       commission: wallet.commission, earnings: wallet.earnings, payouts: wallet.payouts,
+      taxes: Math.round(taxes),
       byTier,
     };
   }
@@ -166,7 +179,97 @@ export class AdminService {
         batteries: fleet.filter((d) => d.batteryPct !== undefined)
           .map((d) => ({ id: d.id, name: d.name, matricule: d.matricule, batteryPct: d.batteryPct, availability: d.availability })),
       },
+      chargingStations: CHARGING_STATIONS,
     };
+  }
+
+  /**
+   * BILAN CARBONE PDF (communication institutionnelle / subventions) :
+   * certificat d'économie de CO2 généré sans dépendance (PDF 1.4 minimal).
+   */
+  greenReportPdf(): Buffer {
+    const g = this.green();
+    const today = new Date().toLocaleDateString('fr-FR');
+    const lines = [
+      'ORION - CERTIFICAT D’ECONOMIE DE CO2',
+      `Genere le ${today} · Abidjan, Cote d’Ivoire`,
+      '',
+      `CO2 economise vs flotte thermique : ${g.co2SavedTons >= 1 ? g.co2SavedTons + ' tonnes' : g.co2SavedKg + ' kg'}`,
+      `Kilometres 100% electriques : ${g.kmElectric.toLocaleString('fr-FR')} km (${g.electricShare} % des trajets)`,
+      `Kilometres hybrides : ${g.kmHybrid.toLocaleString('fr-FR')} km (${g.hybridShare} % des trajets)`,
+      `Flotte : ${g.fleet.electric} vehicules electriques · ${g.fleet.hybrid} hybrides`,
+      '',
+      'Hypotheses : thermique ~150 g CO2/km, electrique ~20 g/km, hybride ~90 g/km.',
+      'Base : courses terminees, distances des devis verrouilles (auditables).',
+      '',
+      'ORION — Green Mobility · Document destine aux partenaires institutionnels.',
+    ];
+    // PDF 1.4 minimal : une page A4, texte Helvetica (echappement () et \).
+    const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+    const content = ['BT /F1 12 Tf 50 780 Td 18 TL', ...lines.map((l, i) => `${i === 0 ? '' : 'T* '}(${esc(l)}) Tj`), 'ET'].join('\n');
+    const objs = [
+      '<< /Type /Catalog /Pages 2 0 R >>',
+      '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+      `<< /Length ${Buffer.byteLength(content)} >>\nstream\n${content}\nendstream`,
+      '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    ];
+    let pdf = '%PDF-1.4\n';
+    const offsets: number[] = [];
+    objs.forEach((o, i) => { offsets.push(Buffer.byteLength(pdf)); pdf += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+    const xref = Buffer.byteLength(pdf);
+    pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
+    for (const off of offsets) pdf += `${String(off).padStart(10, '0')} 00000 n \n`;
+    pdf += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+    return Buffer.from(pdf);
+  }
+
+  /**
+   * HEATMAP PRÉDICTIVE (30–60 min) : moyenne historique des courses par cellule
+   * pour l'heure à venir (même heure les jours précédents). Comparée à l'offre
+   * actuelle → recommandation d'affectation de chauffeurs EN AVANCE.
+   */
+  async predict() {
+    const nextHour = (new Date().getUTCHours() + 1) % 24;
+    const byCellDays = new Map<string, Map<string, number>>(); // cell → jour → courses à cette heure
+    for (const r of this.c.rides.listAll()) {
+      const d = new Date(r.createdAt);
+      if (d.getUTCHours() !== nextHour) continue;
+      const cell = this.c.demand.keyFor(r.origin);
+      const day = r.createdAt.slice(0, 10);
+      const days = byCellDays.get(cell) ?? new Map<string, number>();
+      days.set(day, (days.get(day) ?? 0) + 1);
+      byCellDays.set(cell, days);
+    }
+    const cells = [] as { cell: string; lat: number; lng: number; expected: number; supply: number; gap: number }[];
+    for (const [cell, days] of byCellDays) {
+      const expected = Math.round([...days.values()].reduce((a, b) => a + b, 0) / days.size);
+      if (expected === 0) continue;
+      const [la, ln] = cell.split(':').map(Number);
+      const lat = (la ?? 0) * 0.0072, lng = (ln ?? 0) * 0.0072;
+      const supply = (await this.c.geo.nearby({ lat, lng }, 1200, 50)).length;
+      cells.push({ cell, lat, lng, expected, supply, gap: Math.max(0, expected - supply) });
+    }
+    cells.sort((a, b) => b.gap - a.gap || b.expected - a.expected);
+    return { hour: nextHour, cells: cells.slice(0, 12) };
+  }
+
+  /**
+   * PRÉDICTION D'ATTRITION (churn) : clients réguliers silencieux depuis 14 jours,
+   * chauffeurs inactifs depuis 7 jours → cibles des campagnes de réengagement.
+   */
+  churn() {
+    const now = Date.now();
+    const DAY = 86_400_000;
+    const clients = this.c.clients.list()
+      .filter((cl) => cl.rides >= 3 && now - Date.parse(cl.lastSeenAt) > 14 * DAY)
+      .map((cl) => ({ id: cl.id, name: cl.name ?? null, rides: cl.rides, lastSeenAt: cl.lastSeenAt }))
+      .slice(0, 50);
+    const drivers = this.c.drivers.list()
+      .filter((d) => d.availability === 'offline' && d.idleSince && now - Date.parse(d.idleSince) > 7 * DAY)
+      .map((d) => ({ id: d.id, name: d.name, matricule: d.matricule, idleSince: d.idleSince }))
+      .slice(0, 50);
+    return { clients, drivers };
   }
 
   /** Export CSV des courses (comptabilité) — anti-injection de formule tableur. */

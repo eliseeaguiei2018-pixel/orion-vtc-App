@@ -26,6 +26,8 @@ export interface Ride {
   trace?: LatLng[];
   /** Minutes d'attente facturables (pauses demandées par le client en course). */
   waitMinutes?: number;
+  /** Compte Entreprise (B2B) : course imputée à la ligne de crédit société. */
+  corporateId?: string;
   createdAt: string;
 }
 

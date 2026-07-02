@@ -13,6 +13,8 @@ const createSchema = z.object({
   lockId: z.string().min(1), // devis verrouillé issu de /pricing/estimate
   // Contact de confiance prévenu au départ (partage de course).
   trustedContact: z.object({ name: z.string().min(1), phone: z.string().min(1) }).optional(),
+  // Compte Entreprise (B2B) : la course est imputée à la ligne de crédit société.
+  corporateCode: z.string().min(2).max(40).optional(),
 });
 
 const transitionSchema = z.object({ to: z.custom<RideStatus>() });
@@ -39,6 +41,18 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
         throw conflict('Devis expiré — re-demandez une estimation');
       }
 
+      // B2B : imputation sur la ligne de crédit société AVANT création (réservation).
+      let corporateId: string | undefined;
+      if (body.corporateCode) {
+        const charged = container.corporate.charge(body.corporateCode, quote.amount);
+        if (charged === null) throw conflict('Code société inconnu');
+        if (charged === 'inactive') throw conflict('Compte entreprise suspendu');
+        if (charged === 'over_limit') throw conflict('Ligne de crédit entreprise dépassée');
+        corporateId = body.corporateCode;
+      }
+      // Conversion par zone : la commande confirmée est comptée dans sa cellule.
+      container.demand.recordOrder(quote.origin);
+
       const created: Ride = {
         id: randomUUID(),
         clientId: body.clientId,
@@ -50,8 +64,10 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
         events: [],
         shareToken: randomUUID().slice(0, 8),
         trustedContact: body.trustedContact,
+        corporateId,
         createdAt: new Date().toISOString(),
       };
+      if (corporateId) appendEvent(created, 'corporate_charged', { corporateId, amount: quote.amount });
       appendEvent(created, 'created', { amount: quote.amount, currency: quote.currency });
       if (body.trustedContact) appendEvent(created, 'shared', { contact: body.trustedContact.name });
 

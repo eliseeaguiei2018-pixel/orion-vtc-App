@@ -104,3 +104,75 @@ test('anti-abus : 3 annulations → avertissement automatique du client', async 
   assert.equal(c?.cancellations, 3);
   assert.equal(c?.warnings, 1, 'avertissement automatique posé au 3e abandon');
 });
+
+test('B2B : ligne de crédit, refus au-delà du plafond, facture mensuelle CSV', async (t) => {
+  const { buildApp } = await import('../src/app.js');
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  const drv = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'B2B Drv', category: 'bronze' } })).json().driver.id as string;
+  await app.inject({ method: 'POST', url: `/drivers/${drv}/online`, payload: { position: { lat: 5.351, lng: -4.001 } } });
+
+  // Plafond calibré pour UNE course : la deuxième dépassera la ligne de crédit.
+  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'bronze' } });
+  const amount = est.json().quote.amount as number;
+  const acc = await app.inject({ method: 'PUT', url: '/admin/corporate', headers: AUTH, payload: { id: 'hotel-ivoire', name: 'Hôtel Ivoire', creditLimit: amount + 100 } });
+  assert.equal(acc.statusCode, 200);
+  const ride = await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-b2b', lockId: est.json().quote.lockId, corporateCode: 'hotel-ivoire' }, headers: { 'idempotency-key': 'b2b-1' } });
+  assert.equal(ride.statusCode, 201);
+
+  // Le crédit consommé est visible ; un dépassement est refusé (409).
+  const list = await app.inject({ method: 'GET', url: '/admin/corporate', headers: AUTH });
+  assert.equal(list.json().accounts[0].balanceUsed, amount);
+  const est2 = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'bronze' } });
+  const over = await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-b2b2', lockId: est2.json().quote.lockId, corporateCode: 'hotel-ivoire' }, headers: { 'idempotency-key': 'b2b-2' } });
+  assert.equal(over.statusCode, 409, 'ligne de crédit dépassée → refus');
+
+  // Facture mensuelle consolidée (CSV) + règlement (remise à zéro, aval direction).
+  const month = new Date().toISOString().slice(0, 7);
+  const inv = await app.inject({ method: 'GET', url: `/admin/corporate/hotel-ivoire/invoice?month=${month}`, headers: AUTH });
+  assert.match(inv.headers['content-type'] as string, /text\/csv/);
+  assert.ok(inv.body.includes('Hôtel Ivoire'));
+  assert.ok(inv.body.includes(String(amount)));
+  const settle = await app.inject({ method: 'POST', url: '/admin/corporate/hotel-ivoire/settle', headers: AUTH });
+  assert.equal(settle.json().account.balanceUsed, 0);
+});
+
+test('IA : conversion par zone, churn et bilan carbone PDF', async (t) => {
+  const { buildApp } = await import('../src/app.js');
+  const { app, container } = await buildApp();
+  t.after(() => app.close());
+
+  const drv = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'IA Drv', category: 'bronze' } })).json().driver.id as string;
+  await app.inject({ method: 'POST', url: `/drivers/${drv}/online`, payload: { position: { lat: 5.351, lng: -4.001 } } });
+
+  // 3 sessions (devis), 1 seule commande → conversion 33 %.
+  const mk = () => app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'bronze' } });
+  const e1 = await mk(); await mk(); await mk();
+  await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-conv', lockId: e1.json().quote.lockId }, headers: { 'idempotency-key': 'cv-1' } });
+  const conv = await app.inject({ method: 'GET', url: '/admin/conversion', headers: AUTH });
+  const cell = conv.json().cells[0];
+  assert.equal(cell.sessions, 3);
+  assert.equal(cell.orders, 1);
+  assert.equal(cell.rate, 33);
+
+  // Churn : client régulier silencieux depuis 20 jours → signalé.
+  const cl = container.clients.touch('client-fidele', { name: 'Mariam' });
+  cl.rides = 12; cl.lastSeenAt = new Date(Date.now() - 20 * 86_400_000).toISOString();
+  const churn = await app.inject({ method: 'GET', url: '/admin/churn', headers: AUTH });
+  assert.ok((churn.json().clients as Array<{ id: string }>).some((c2) => c2.id === 'client-fidele'));
+
+  // Prédiction : endpoint répond avec l'heure ciblée.
+  const pred = await app.inject({ method: 'GET', url: '/admin/predict', headers: AUTH });
+  assert.equal(pred.statusCode, 200);
+  assert.equal(typeof pred.json().hour, 'number');
+
+  // Bilan carbone PDF : vrai PDF téléchargeable.
+  const pdf = await app.inject({ method: 'GET', url: '/admin/green/report.pdf', headers: AUTH });
+  assert.match(pdf.headers['content-type'] as string, /application\/pdf/);
+  assert.equal(pdf.rawPayload.subarray(0, 5).toString(), '%PDF-');
+
+  // Split payment : la TVA collectée apparaît isolée dans les finances.
+  const fin = await app.inject({ method: 'GET', url: '/admin/finance', headers: AUTH });
+  assert.equal(typeof fin.json().taxes, 'number');
+});
