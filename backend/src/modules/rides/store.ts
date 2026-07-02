@@ -24,6 +24,8 @@ export interface Ride {
   trustedContact?: TrustedContact;
   /** Tracé GPS de la course (échantillonné, borné à 200 points) — instruction des litiges. */
   trace?: LatLng[];
+  /** Minutes d'attente facturables (pauses demandées par le client en course). */
+  waitMinutes?: number;
   createdAt: string;
 }
 

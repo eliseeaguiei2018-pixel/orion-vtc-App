@@ -71,11 +71,15 @@ export function createContainer(): Container {
   const drivers = new DriverStore(geo, createRepository<Driver>('drivers'));
   const rides = new RideStore(createRepository<Ride>('rides'));
   // Dispatch : la règle d'attribution (console) est relue à chaque course.
-  const matching = new MatchingEngine(geo, drivers, undefined, () => ({
-    strategy: settings.getOps().strategy,
-    inQueueZone: (p) => Boolean(settings.zoneForPoint(p)),
-    maxEtaMinutes: settings.getOps().maxEtaMinutes,
-  }));
+  const matching = new MatchingEngine(geo, drivers, undefined, (origin) => {
+    const z = settings.zoneForPoint(origin);
+    return {
+      strategy: settings.getOps().strategy,
+      inQueueZone: (p) => Boolean(settings.zoneForPoint(p)),
+      maxEtaMinutes: settings.getOps().maxEtaMinutes,
+      originZone: z ? { id: z.id, minStandard: z.minStandard } : null,
+    };
+  });
 
   // Surge par cellules : demande vs offre en fenêtre glissante (10 min).
   const demand = new DemandService(geo);
@@ -99,6 +103,7 @@ export function createContainer(): Container {
         trafficLevel: traffic.level,
         settings: settings.getPricing(),
         zoneFactor: settings.zoneFactor(req.origin),
+        zonePickupFee: settings.zoneForPoint(req.origin)?.pickupFee ?? 0,
         surgeMultiplier: Math.min(surgeRaw, ops.surgeCapGreen),
         promoDiscount: (subtotal: number) => promos.evaluate(req.promoCode, subtotal)?.discount ?? 0,
       };

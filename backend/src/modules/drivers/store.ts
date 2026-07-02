@@ -22,6 +22,8 @@ export interface Driver {
   engine?: 'electric' | 'hybrid';
   /** Niveau de batterie % (SoC) remonté par l'app chauffeur — flotte électrique. */
   batteryPct?: number;
+  /** Cantonnement : chauffeur épinglé à une zone (il n'est matché que dans celle-ci). */
+  zoneLockId?: string;
 }
 
 /** Génère un matricule ORION lisible, ex. ORION-CI-4821. */

@@ -215,3 +215,54 @@ test('dispatch avancé : filtre ETA, cascade (bornes 10–15 s), surge plafonné
   assert.equal(calm.json().quote.breakdown.surge, 1);
   assert.ok(calm.json().quote.amount < surged.amount, 'le prix retombe sans surge');
 });
+
+test('micro-zonage : standard minimal, frais de secteur, cantonnement, attente 100 F/min', async (t) => {
+  const { app, container } = await buildApp();
+  t.after(() => app.close());
+
+  // --- Standard minimal : Riviera Beverly Hills exige ≥ or.
+  const bronzeBH = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Bronze BH', category: 'bronze' } });
+  const bronzeId = bronzeBH.json().driver.id as string;
+  await app.inject({ method: 'POST', url: `/drivers/${bronzeId}/online`, payload: { position: { lat: 5.3808, lng: -3.9611 } } });
+  const estBH = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.3808, lng: -3.9611 }, destination: { lat: 5.35, lng: -4.0 }, category: 'bronze' } });
+  const lockBH = estBH.json().quote.lockId as string;
+  const rideBH = await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-bh', lockId: lockBH }, headers: { 'idempotency-key': 'bh-1' } });
+  assert.equal(rideBH.json().ride.status, 'no_driver', 'bronze refusé dans un secteur ≥ or');
+
+  // Un chauffeur OR dans le même secteur est accepté.
+  const orBH = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Or BH', category: 'or' } });
+  const orId = orBH.json().driver.id as string;
+  await app.inject({ method: 'POST', url: `/drivers/${orId}/online`, payload: { position: { lat: 5.3809, lng: -3.9612 } } });
+  const estBH2 = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.3808, lng: -3.9611 }, destination: { lat: 5.35, lng: -4.0 }, category: 'or' } });
+  const rideBH2 = await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-bh2', lockId: estBH2.json().quote.lockId }, headers: { 'idempotency-key': 'bh-2' } });
+  assert.equal(rideBH2.json().ride.driverId, orId);
+
+  // --- Frais de prise en charge du secteur intégrés au prix fixe (Beverly Hills : +250 F).
+  const zones = container.settings.getZones();
+  const bh = zones.find((z) => z.id === 'riviera-beverly-hills');
+  assert.equal(bh?.pickupFee, 250);
+
+  // --- Cantonnement : chauffeur épinglé à Beverly Hills → jamais matché ailleurs.
+  await app.inject({ method: 'POST', url: `/admin/drivers/${bronzeId}/zone`, headers: AUTH, payload: { zoneId: 'riviera-beverly-hills' } });
+  // (bronzeId est le seul bronze en ligne) Course à Yopougon → aucun chauffeur.
+  await app.inject({ method: 'POST', url: `/drivers/${bronzeId}/location`, payload: { position: { lat: 5.3456, lng: -4.0864 } } });
+  const estYop = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.3456, lng: -4.0864 }, destination: { lat: 5.35, lng: -4.0 }, category: 'bronze' } });
+  const rideYop = await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-yop', lockId: estYop.json().quote.lockId }, headers: { 'idempotency-key': 'yop-1' } });
+  assert.equal(rideYop.json().ride.status, 'no_driver', 'cantonné à Beverly Hills → indisponible à Yopougon');
+
+  // --- Attente facturée : 5 min × 100 F ajoutées au prix fixe au paiement.
+  const ride2 = rideBH2.json().ride as { id: string; quote?: { amount: number } };
+  const quoteAmount = estBH2.json().quote.amount as number;
+  for (const s of ['driver_en_route', 'arrived', 'in_progress'] as const) {
+    await app.inject({ method: 'POST', url: `/rides/${ride2.id}/transition`, payload: { to: s } });
+  }
+  const wait = await app.inject({ method: 'POST', url: `/rides/${ride2.id}/wait`, payload: { minutes: 5 } });
+  assert.equal(wait.json().waitFee, 500);
+  await app.inject({ method: 'POST', url: `/rides/${ride2.id}/transition`, payload: { to: 'completed' } });
+  const pay = await app.inject({ method: 'POST', url: `/rides/${ride2.id}/pay`, payload: { method: 'cash' }, headers: { 'idempotency-key': 'pay-bh2' } });
+  assert.equal(pay.json().payment.amount, quoteAmount + 500, 'total payé = prix fixe + attente');
+
+  // --- Bonus de secteur versé au chauffeur (Beverly Hills : +300 F).
+  const history = container.wallet.history(orId);
+  assert.ok(history.some((e) => e.type === 'adjustment' && e.amount === 300), 'bonus zone crédité');
+});

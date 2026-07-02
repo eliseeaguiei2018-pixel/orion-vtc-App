@@ -176,6 +176,24 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     return { ride };
   });
 
+  // Attente facturable : le chauffeur (app) déclare une pause demandée par le client
+  // (arrêt course, course en cours) — facturée au tarif console (100 F/min par défaut)
+  // et AJOUTÉE au prix fixe à la fin de la course, ligne visible et auditée.
+  app.post('/rides/:id/wait', async (req) => {
+    const { id } = req.params as { id: string };
+    const body = parse(z.object({ minutes: z.number().min(1).max(120) }), req.body);
+    const ride = container.rides.get(id);
+    if (!ride) throw notFound('Course introuvable');
+    if (ride.status !== 'in_progress' && ride.status !== 'arrived') {
+      throw badRequest('L’attente ne se facture qu’en course (ou à l’arrivée)');
+    }
+    ride.waitMinutes = (ride.waitMinutes ?? 0) + Math.round(body.minutes);
+    const fee = ride.waitMinutes * container.settings.getOps().waitFeePerMin;
+    appendEvent(ride, 'wait', { minutes: Math.round(body.minutes), totalMinutes: ride.waitMinutes, fee });
+    container.rides.persist(ride);
+    return { waitMinutes: ride.waitMinutes, waitFee: fee, perMinute: container.settings.getOps().waitFeePerMin };
+  });
+
   // Réclamation / litige ouvert par le client (objet perdu, trajet, facturation, comportement).
   app.post('/rides/:id/dispute', async (req, reply) => {
     const { id } = req.params as { id: string };

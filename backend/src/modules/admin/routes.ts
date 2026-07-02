@@ -269,6 +269,12 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         lng: z.number().min(-180).max(180),
         radiusKm: z.number().min(0.1).max(100),
         active: z.boolean().optional(),
+        // Micro-zonage résidentiel (qualité de service)
+        waitMaxMin: z.number().min(1).max(60).optional(),
+        driverBonus: z.number().min(0).max(5000).optional(),
+        minStandard: z.enum(['bronze', 'argent', 'or', 'diamant']).optional(),
+        pickupFee: z.number().min(0).max(10_000).optional(),
+        dedicated: z.boolean().optional(),
       }), req.body);
       const zone = container.settings.upsertZone({ active: true, ...body });
       audit(req, 'zone.upsert', zone.id, { name: zone.name, factor: zone.factor });
@@ -312,6 +318,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         offerTimeoutSec: z.number().min(10).max(15).optional(),
         surgeEnabled: z.boolean().optional(),
         surgeCapGreen: z.number().min(1).max(2).optional(),
+        waitFeePerMin: z.number().min(0).max(1000).optional(),
       }), req.body);
       const ops = container.settings.updateOps(body);
       audit(req, 'dispatch.update', undefined, body);
@@ -394,6 +401,23 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         .sort((a, b) => a.rating - b.rating)
         .slice(0, 100);
       return { threshold: ops.minRating, autoWarn: ops.autoWarn, drivers };
+    });
+
+    // Cantonnement : épingle un chauffeur à une zone (null = libère). La zone
+    // stratégique n'est ainsi jamais en pénurie, même si la demande est ailleurs.
+    scoped.post('/admin/drivers/:id/zone', async (req) => {
+      require(req, 'drivers:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ zoneId: z.string().nullable() }), req.body);
+      const d = container.drivers.get(id);
+      if (!d) throw notFound('Chauffeur introuvable');
+      if (body.zoneId && !container.settings.getZones().some((zn) => zn.id === body.zoneId)) {
+        throw notFound('Zone introuvable');
+      }
+      d.zoneLockId = body.zoneId ?? undefined;
+      container.drivers.persist(id);
+      audit(req, 'driver.zone_lock', id, { zoneId: body.zoneId });
+      return { driver: { id: d.id, zoneLockId: d.zoneLockId ?? null } };
     });
 
     scoped.post('/admin/drivers/:id/warn', async (req) => {

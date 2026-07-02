@@ -28,7 +28,10 @@ export interface Me { name: string; role: string; roleLabel: string; permissions
 export interface Client { id: string; name?: string; phone?: string; status: string; rides: number; createdAt: string; lastSeenAt: string }
 export interface Promo { id: string; kind: 'percent' | 'amount'; value: number; active: boolean; uses: number; maxUses?: number; createdAt: string }
 export interface ServicesConfig { city: string; open: boolean; services: Record<string, boolean> }
-export interface Zone { id: string; name: string; factor: number; lat: number; lng: number; radiusKm: number; active: boolean }
+export interface Zone {
+  id: string; name: string; factor: number; lat: number; lng: number; radiusKm: number; active: boolean;
+  waitMaxMin?: number; driverBonus?: number; minStandard?: string; pickupFee?: number; dedicated?: boolean;
+}
 export interface SupportMsg { id: string; from: 'client' | 'agent'; author?: string; text: string; at: string }
 export interface Conversation { id: string; clientId: string; subject: string; status: string; assignee?: string; messages: SupportMsg[]; createdAt: string; updatedAt: string }
 export interface AuditEntry { id: string; at: string; actor: string; role: string; action: string; target?: string; details?: Record<string, unknown> }
@@ -54,6 +57,7 @@ export interface PageMeta { total: number; page: number; pages: number }
 export interface OpsConfig {
   strategy: 'nearest' | 'longest_idle' | 'zone_queue'; minRating: number; autoWarn: boolean;
   maxEtaMinutes: number; offerTimeoutSec: number; surgeEnabled: boolean; surgeCapGreen: number;
+  waitFeePerMin: number;
 }
 export interface GreenReport {
   co2SavedKg: number; co2SavedTons: number; kmElectric: number; kmHybrid: number;
@@ -807,6 +811,9 @@ function DispatchSection({ ops, onSave }: { ops: OpsConfig; onSave: (p: Partial<
           <label className="price-field"><span>Délai d'acceptation (10–15 s)</span>
             <input type="number" min={10} max={15} value={ops.offerTimeoutSec} onChange={(e) => onSave({ offerTimeoutSec: Number(e.target.value) })} />
           </label>
+          <label className="price-field"><span>Attente facturée (F / min)</span>
+            <input type="number" min={0} max={1000} step={25} value={ops.waitFeePerMin} onChange={(e) => onSave({ waitFeePerMin: Number(e.target.value) })} />
+          </label>
         </div>
         <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
           Un chauffeur au-delà de l'ETA max n'est jamais proposé. En cascade : le meilleur profil reçoit l'offre ;
@@ -1097,7 +1104,7 @@ function ZonesSection({ zones, canWrite, onSave, onToggle, onDelete, onReset }: 
           </div>
         </div>
         <table className="adm-table">
-          <thead><tr><th>Zone</th><th className="r">Facteur</th><th className="r">Effet</th><th className="r">Rayon</th><th>Centre</th><th>Actif</th>{canWrite && <th>Actions</th>}</tr></thead>
+          <thead><tr><th>Zone</th><th className="r">Facteur</th><th className="r">Effet</th><th className="r">Rayon</th><th>Qualité de service</th><th>Actif</th>{canWrite && <th>Actions</th>}</tr></thead>
           <tbody>
             {zones.map((z) => (
               <tr key={z.id}>
@@ -1105,7 +1112,16 @@ function ZonesSection({ zones, canWrite, onSave, onToggle, onDelete, onReset }: 
                 <td className="r">× {z.factor.toFixed(2)}</td>
                 <td className={`r ${z.factor < 1 ? 'pos' : z.factor > 1 ? 'neg' : ''}`}>{pct(z.factor)}</td>
                 <td className="r">{z.radiusKm} km</td>
-                <td className="mono adm-muted" style={{ fontSize: 11 }}>{z.lat.toFixed(3)}, {z.lng.toFixed(3)}</td>
+                <td>
+                  <div className="row" style={{ gap: 4, flexWrap: 'wrap' }}>
+                    {z.waitMaxMin && <span className="adm-pill" title="Temps d'attente garanti">⏱ ≤ {z.waitMaxMin} min</span>}
+                    {z.minStandard && <span className="adm-pill tr-pending cap" title="Standard minimal">≥ {z.minStandard}</span>}
+                    {z.pickupFee ? <span className="adm-pill" title="Frais de prise en charge">+{z.pickupFee} F</span> : null}
+                    {z.driverBonus ? <span className="adm-pill av-online" title="Bonus chauffeur">🎁 {z.driverBonus} F</span> : null}
+                    {z.dedicated && <span className="adm-pill tr-approved" title="Flotte cantonnée">📌 Flotte dédiée</span>}
+                    {!z.waitMaxMin && !z.minStandard && !z.pickupFee && !z.driverBonus && !z.dedicated && <span className="adm-muted">—</span>}
+                  </div>
+                </td>
                 <td><span className={`adm-pill ${z.active ? 'av-online' : 'kyc-manual_review'}`}>{z.active ? 'Actif' : 'Inactif'}</span></td>
                 {canWrite && (
                   <td><div className="row" style={{ gap: 6 }}>

@@ -100,6 +100,8 @@ export interface PricingContext {
   settings?: PricingSettings;
   /** Facteur de zone (commune de prise en charge) intégré au prix fixe. 1 = neutre. */
   zoneFactor?: number;
+  /** Frais de prise en charge du micro-secteur (F CFA), intégrés au prix fixe. */
+  zonePickupFee?: number;
 }
 
 export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): PriceResult {
@@ -132,7 +134,10 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
   // Surge encadré (demande > offre) — appliqué AVANT le verrouillage : le devis
   // affiché reste un PRIX FIXE garanti. Plafonné sur la flotte verte (console).
   const surge = Math.max(1, ctx.surgeMultiplier ?? 1);
-  const raw = (base + distanceCost + timeCost + stopsCost) * trafficMult * zoneFactor * surge;
+  // Frais de prise en charge du micro-secteur (Riviera Golf, Zone 4…) : forfait
+  // ajouté APRÈS les multiplicateurs — montant net, lisible, intégré au prix fixe.
+  const pickupFee = Math.max(0, ctx.zonePickupFee ?? 0);
+  const raw = (base + distanceCost + timeCost + stopsCost) * trafficMult * zoneFactor * surge + pickupFee;
   const floored = Math.max(raw, tariff.minFare);
   // Remise : code promo (montant calculé) prioritaire, sinon taux de remise éventuel.
   const promo = ctx.promoDiscount ? ctx.promoDiscount(floored) : 0;

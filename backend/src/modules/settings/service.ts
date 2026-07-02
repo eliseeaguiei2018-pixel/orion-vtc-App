@@ -15,7 +15,21 @@ export interface Zone {
   lng: number;
   radiusKm: number;
   active: boolean;
+  /* --- Micro-zonage résidentiel (qualité de service) --- */
+  /** Temps d'attente maximum garanti dans le secteur (minutes, affiché/objectif). */
+  waitMaxMin?: number;
+  /** Bonus versé au chauffeur qui se rend dans le secteur (F CFA, fidélisation offre). */
+  driverBonus?: number;
+  /** Standard minimal de véhicule exigé dans le secteur (bronze < argent < or < diamant). */
+  minStandard?: 'bronze' | 'argent' | 'or' | 'diamant';
+  /** Frais de prise en charge propres au secteur (F CFA, intégrés au prix fixe). */
+  pickupFee?: number;
+  /** Cantonnement : les chauffeurs épinglés à cette zone n'en sortent pas (jamais en pénurie). */
+  dedicated?: boolean;
 }
+
+/** Rang des niveaux pour le standard minimal de zone. */
+export const TIER_RANK: Record<string, number> = { bronze: 0, argent: 1, or: 2, diamant: 3 };
 
 /** Communes d'Abidjan avec un facteur neutre au départ (ajustable depuis la console). */
 export const DEFAULT_ZONES: Zone[] = [
@@ -27,6 +41,13 @@ export const DEFAULT_ZONES: Zone[] = [
   { id: 'yopougon', name: 'Yopougon', factor: 0.92, lat: 5.3456, lng: -4.0864, radiusKm: 6, active: true },
   { id: 'abobo', name: 'Abobo', factor: 0.92, lat: 5.4204, lng: -4.0159, radiusKm: 6, active: true },
   { id: 'aeroport', name: 'Aéroport (Port-Bouët)', factor: 1.1, lat: 5.2614, lng: -3.9268, radiusKm: 4, active: true },
+  /* Micro-secteurs résidentiels premium (qualité de service garantie). */
+  { id: 'riviera-golf', name: 'Riviera Golf', factor: 1.15, lat: 5.3742, lng: -3.9721, radiusKm: 1.4, active: true, waitMaxMin: 5, driverBonus: 300, minStandard: 'argent', pickupFee: 200, dedicated: true },
+  { id: 'deux-plateaux-vallon', name: 'Deux-Plateaux Vallon', factor: 1.1, lat: 5.3689, lng: -4.0004, radiusKm: 1.3, active: true, waitMaxMin: 5, driverBonus: 200, minStandard: 'argent', pickupFee: 150 },
+  { id: 'cite-des-arts', name: 'Cocody Centre — Cité des Arts', factor: 1.08, lat: 5.3488, lng: -3.9962, radiusKm: 1.1, active: true, waitMaxMin: 6, driverBonus: 150, pickupFee: 100 },
+  { id: 'cocody-danga', name: 'Cocody Danga', factor: 1.1, lat: 5.3391, lng: -4.0011, radiusKm: 1.0, active: true, waitMaxMin: 5, driverBonus: 200, minStandard: 'argent', pickupFee: 150 },
+  { id: 'riviera-beverly-hills', name: 'Riviera Beverly Hills', factor: 1.18, lat: 5.3808, lng: -3.9611, radiusKm: 1.2, active: true, waitMaxMin: 5, driverBonus: 300, minStandard: 'or', pickupFee: 250, dedicated: true },
+  { id: 'marcory-zone4', name: 'Marcory Zone 4', factor: 1.08, lat: 5.2942, lng: -3.9846, radiusKm: 1.6, active: true, waitMaxMin: 6, driverBonus: 150, pickupFee: 100 },
 ];
 
 /** Disponibilité des services & de la ville — pilotée depuis la console. */
@@ -91,10 +112,13 @@ export interface OpsConfig {
   surgeEnabled: boolean;
   /** Incitation verte : plafond du multiplicateur sur la flotte électrique (prix stable). */
   surgeCapGreen: number;
+  /** Attente facturée (pause demandée par le client, en course) : F CFA / minute. */
+  waitFeePerMin: number;
 }
 export const DEFAULT_OPS: OpsConfig = {
   strategy: 'nearest', minRating: 4.5, autoWarn: true,
   maxEtaMinutes: 7, offerTimeoutSec: 12, surgeEnabled: true, surgeCapGreen: 1.3,
+  waitFeePerMin: 100,
 };
 interface OpsRecord extends OpsConfig { id: string; }
 const OPS_ID = 'ops';
@@ -140,6 +164,7 @@ export class SettingsService {
       offerTimeoutSec: Math.min(15, Math.max(10, patch.offerTimeoutSec ?? this.ops.offerTimeoutSec ?? 12)),
       surgeEnabled: patch.surgeEnabled ?? this.ops.surgeEnabled ?? true,
       surgeCapGreen: Math.min(2, Math.max(1, patch.surgeCapGreen ?? this.ops.surgeCapGreen ?? 1.3)),
+      waitFeePerMin: Math.min(1000, Math.max(0, patch.waitFeePerMin ?? this.ops.waitFeePerMin ?? 100)),
     };
     this.opsRepo?.put({ id: OPS_ID, ...this.ops });
     return this.ops;

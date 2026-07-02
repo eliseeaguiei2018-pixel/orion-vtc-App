@@ -63,10 +63,14 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
     const provider = container.payments.get(body.method as PaymentMethod);
     if (!provider) throw badRequest('Moyen de paiement indisponible');
 
+    // Total dû = PRIX FIXE verrouillé + attente facturée éventuelle (100 F/min, console).
+    const waitFee = (ride.waitMinutes ?? 0) * container.settings.getOps().waitFeePerMin;
+    const totalDue = ride.quote.amount + waitFee;
+
     const result = await container.idempotency.run(idempotencyKey(req), () =>
       provider.charge({
         method: body.method as PaymentMethod,
-        amount: ride.quote.amount,
+        amount: totalDue,
         currency: 'XOF',
         phone: body.phone,
         reference: randomUUID(),
@@ -79,12 +83,17 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
       ride.status = 'paid';
       ride.events.push({ type: 'paid', at: new Date().toISOString(), payload: { method: result.method, amount: result.amount } });
       container.rides.persist(ride);
-      // Crédite le gain net du chauffeur et journalise la commission plateforme.
+      // Crédite le gain net du chauffeur (course + attente) et journalise la commission.
       if (ride.driverId) {
-        commission = container.wallet.creditRide(ride.driverId, ride.id, ride.quote.amount);
+        commission = container.wallet.creditRide(ride.driverId, ride.id, totalDue);
+        // Bonus de micro-secteur (fidélisation de l'offre dans les zones premium).
+        const zone = container.settings.zoneForPoint(ride.origin);
+        if (zone?.driverBonus) {
+          container.wallet.credit(ride.driverId, zone.driverBonus, 'adjustment', `Bonus zone ${zone.name}`, ride.id);
+        }
         // Notifie le chauffeur en temps réel du paiement reçu.
         container.realtime.publish(driverRoom(ride.driverId), 'payment.received', {
-          rideId: ride.id, amount: ride.quote.amount, method: result.method,
+          rideId: ride.id, amount: totalDue, method: result.method,
         });
         // Fin de course : on libère le chauffeur (dispo pour une nouvelle course).
         // La notation restant optionnelle, on ne bloque pas le chauffeur dessus.
@@ -95,7 +104,7 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
       const ins = ride.quote.breakdown.insurance;
       if (ins > 0) container.insurance.addContribution(ride.clientId, ride.id, ins);
       // Reçu de course envoyé par e-mail au client (résumé).
-      const receipt = rideReceipt(ride.quote.amount, result.method);
+      const receipt = rideReceipt(totalDue, result.method);
       await sendEmail(`${ride.clientId}@client.orion.ci`, receipt.subject, receipt.body);
     }
     return { payment: result, rideStatus: ride.status, commission, emailSent: ride.status === 'paid' };

@@ -15,7 +15,12 @@ export interface DispatchContext {
   inQueueZone: (p: LatLng) => boolean;
   /** Filtre ETA (minutes) : chauffeur exclu si son temps d'approche dépasse ce seuil. */
   maxEtaMinutes?: number;
+  /** Micro-zonage : zone de prise en charge (id + standard minimal exigé). */
+  originZone?: { id: string; minStandard?: string } | null;
 }
+
+/** Rang des niveaux (standard minimal de secteur). */
+const TIER_RANK: Record<string, number> = { bronze: 0, argent: 1, or: 2, diamant: 3 };
 
 /** Vitesse d'approche urbaine présumée pour l'ETA chauffeur (km/h). */
 const APPROACH_SPEED_KMH = 28;
@@ -43,7 +48,7 @@ export class MatchingEngine {
     private readonly drivers: DriverStore,
     private readonly radiiMeters: number[] = [1500, 3000, 6000],
     /** Fourni par le conteneur — la stratégie courante est relue à CHAQUE course. */
-    private readonly dispatchCtx?: () => DispatchContext,
+    private readonly dispatchCtx?: (origin: LatLng) => DispatchContext,
   ) {}
 
   /**
@@ -57,7 +62,7 @@ export class MatchingEngine {
   }
 
   async findDriver(origin: LatLng, category?: string, rideDistanceMeters?: number): Promise<MatchResult | null> {
-    const ctx = this.dispatchCtx?.();
+    const ctx = this.dispatchCtx?.(origin);
     const strategy = ctx?.strategy ?? 'nearest';
     // Règles d'ÉQUITÉ (FIFO) : le rayon max est considéré d'emblée, sinon un chauffeur
     // qui attend depuis longtemps mais un peu plus loin ne serait jamais servi.
@@ -74,6 +79,13 @@ export class MatchingEngine {
         if (!driver || driver.availability !== 'online') continue;
         if (this.assignmentLocks.has(c.id)) continue; // déjà réservé (lock)
         if (!this.hasRangeFor(driver, rideDistanceMeters)) continue; // batterie insuffisante
+        // Cantonnement : un chauffeur épinglé à une zone n'est matché QUE dans celle-ci.
+        if (driver.zoneLockId && ctx?.originZone?.id !== driver.zoneLockId) continue;
+        // Standard minimal du secteur (Riviera Golf exige ≥ argent, Beverly Hills ≥ or…).
+        if (ctx?.originZone?.minStandard) {
+          const need = TIER_RANK[ctx.originZone.minStandard] ?? 0;
+          if ((TIER_RANK[driver.category] ?? 0) < need) continue;
+        }
         // Filtre ETA : au-delà du seuil (console), le client attendrait trop.
         if (ctx?.maxEtaMinutes !== undefined) {
           const etaMin = (c.distanceMeters / 1000 / APPROACH_SPEED_KMH) * 60;
