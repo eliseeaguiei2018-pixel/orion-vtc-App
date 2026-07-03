@@ -256,7 +256,8 @@ test('micro-zonage : standard minimal, frais de secteur, cantonnement, attente 1
   for (const s of ['driver_en_route', 'arrived', 'in_progress'] as const) {
     await app.inject({ method: 'POST', url: `/rides/${ride2.id}/transition`, payload: { to: s } });
   }
-  const wait = await app.inject({ method: 'POST', url: `/rides/${ride2.id}/wait`, payload: { minutes: 5 } });
+  // 5 min de courtoisie offertes (console Tarification) : on attend 10 min → 5 facturées.
+  const wait = await app.inject({ method: 'POST', url: `/rides/${ride2.id}/wait`, payload: { minutes: 10 } });
   assert.equal(wait.json().waitFee, 500);
   await app.inject({ method: 'POST', url: `/rides/${ride2.id}/transition`, payload: { to: 'completed' } });
   const pay = await app.inject({ method: 'POST', url: `/rides/${ride2.id}/pay`, payload: { method: 'cash' }, headers: { 'idempotency-key': 'pay-bh2' } });

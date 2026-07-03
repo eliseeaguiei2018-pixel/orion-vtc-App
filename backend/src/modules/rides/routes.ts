@@ -161,6 +161,16 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       container.matching.releaseLock(ride.driverId);
       container.drivers.setAvailability(ride.driverId, 'online');
     }
+    // Frais d'annulation progressifs : gratuits pendant le délai de grâce, facturés
+    // au-delà (matrice tarifaire console). Enregistrés comme ligne connue.
+    if (body.to === 'cancelled') {
+      const pr = container.settings.getPricing();
+      const ageMin = (Date.now() - Date.parse(ride.createdAt)) / 60_000;
+      if (ageMin > pr.cancelGraceMinutes && pr.cancelFee > 0) {
+        appendEvent(ride, 'cancel_fee', { amount: pr.cancelFee, afterMinutes: Math.round(ageMin) });
+        container.rides.persist(ride);
+      }
+    }
     // Anti-abus : annulations cumulées → avertissement automatique tous les 3.
     if (body.to === 'cancelled') {
       const warned = container.clients.incrementCancellations(ride.clientId);
@@ -255,10 +265,13 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       throw badRequest('L’attente ne se facture qu’en course (ou à l’arrivée)');
     }
     ride.waitMinutes = (ride.waitMinutes ?? 0) + Math.round(body.minutes);
-    const fee = ride.waitMinutes * container.settings.getOps().waitFeePerMin;
-    appendEvent(ride, 'wait', { minutes: Math.round(body.minutes), totalMinutes: ride.waitMinutes, fee });
+    // Minutes de courtoisie offertes avant facturation (console Tarification).
+    const freeWait = container.settings.getPricing().freeWaitMinutes;
+    const billable = Math.max(0, ride.waitMinutes - freeWait);
+    const fee = billable * container.settings.getOps().waitFeePerMin;
+    appendEvent(ride, 'wait', { minutes: Math.round(body.minutes), totalMinutes: ride.waitMinutes, billableMinutes: billable, fee });
     container.rides.persist(ride);
-    return { waitMinutes: ride.waitMinutes, waitFee: fee, perMinute: container.settings.getOps().waitFeePerMin };
+    return { waitMinutes: ride.waitMinutes, freeMinutes: freeWait, billableMinutes: billable, waitFee: fee, perMinute: container.settings.getOps().waitFeePerMin };
   });
 
   // Réclamation / litige ouvert par le client (objet perdu, trajet, facturation, comportement).

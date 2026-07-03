@@ -103,6 +103,8 @@ const pricing = {
   tvaRate: 0.05, feeRate: 0.1, insuranceRate: 0.02, trafficWeight: 0.6, stopFee: 250,
   multipliers: { bronze: 0.9, argent: 1.25, or: 1.7, diamant: 2.3 },
   bodySurcharge: { berline: 1, suv: 1.08 },
+  freeWaitMinutes: 5, cancelGraceMinutes: 2, cancelFee: 500, cleaningLight: 10000, cleaningMajor: 50000,
+  longPickupPerKm: 100, longPickupThresholdKm: 5,
 };
 
 const zones = [
@@ -114,7 +116,8 @@ const zones = [
   { id: 'yopougon', name: 'Yopougon', factor: 0.92, lat: 5.3456, lng: -4.0864, radiusKm: 6, active: true },
   { id: 'abobo', name: 'Abobo', factor: 0.92, lat: 5.4204, lng: -4.0159, radiusKm: 6, active: true },
   { id: 'aeroport', name: 'Aéroport (Port-Bouët)', factor: 1.1, lat: 5.2614, lng: -3.9268, radiusKm: 4, active: true },
-  { id: 'riviera-golf', name: 'Riviera Golf', factor: 1.15, lat: 5.3742, lng: -3.9721, radiusKm: 1.4, active: true, waitMaxMin: 5, driverBonus: 300, minStandard: 'argent', pickupFee: 200, dedicated: true },
+  { id: 'aeroport-forfait', name: 'Aéroport — Forfaits', factor: 1.1, lat: 5.2614, lng: -3.9268, radiusKm: 3, active: true, flatRates: [{ toZoneId: 'plateau', price: 15000 }, { toZoneId: 'cocody', price: 18000 }], emptyReturnFee: 0 },
+  { id: 'riviera-golf', name: 'Riviera Golf', factor: 1.15, lat: 5.3742, lng: -3.9721, radiusKm: 1.4, active: true, waitMaxMin: 5, driverBonus: 300, minStandard: 'argent', pickupFee: 200, dedicated: true, premiumFloor: 2500 },
   { id: 'deux-plateaux-vallon', name: 'Deux-Plateaux Vallon', factor: 1.1, lat: 5.3689, lng: -4.0004, radiusKm: 1.3, active: true, waitMaxMin: 5, driverBonus: 200, minStandard: 'argent', pickupFee: 150 },
   { id: 'cite-des-arts', name: 'Cocody Centre — Cité des Arts', factor: 1.08, lat: 5.3488, lng: -3.9962, radiusKm: 1.1, active: true, waitMaxMin: 6, driverBonus: 150, pickupFee: 100 },
   { id: 'cocody-danga', name: 'Cocody Danga', factor: 1.1, lat: 5.3391, lng: -4.0011, radiusKm: 1.0, active: true, waitMaxMin: 5, driverBonus: 200, minStandard: 'argent', pickupFee: 150 },

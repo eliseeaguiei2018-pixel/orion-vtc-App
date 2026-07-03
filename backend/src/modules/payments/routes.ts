@@ -67,8 +67,11 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
     const provider = container.payments.get(body.method as PaymentMethod);
     if (!provider) throw badRequest('Moyen de paiement indisponible');
 
-    // Total dû = PRIX FIXE verrouillé + attente facturée éventuelle (100 F/min, console).
-    const waitFee = (ride.waitMinutes ?? 0) * container.settings.getOps().waitFeePerMin;
+    // Total dû = PRIX FIXE verrouillé + attente facturée éventuelle. Les premières
+    // minutes (courtoisie, console) sont OFFERTES avant facturation.
+    const freeWait = container.settings.getPricing().freeWaitMinutes;
+    const billableWait = Math.max(0, (ride.waitMinutes ?? 0) - freeWait);
+    const waitFee = billableWait * container.settings.getOps().waitFeePerMin;
     const totalDue = ride.quote.amount + waitFee;
 
     const result = await container.idempotency.run(idempotencyKey(req), () =>
@@ -99,6 +102,15 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
         commission = container.wallet.creditRide(ride.driverId, ride.id, totalDue, rate);
         // Compteur de courses électriques (fidélité verte).
         if (drv && isElectric) { drv.electricRides = (drv.electricRides ?? 0) + 1; container.drivers.persist(drv.id); }
+        // Prime « prise en charge longue » : approche à vide au-delà du seuil → bonus chauffeur.
+        const accepted = ride.events.find((e) => e.type === 'accepted');
+        const etaSec = typeof accepted?.payload?.['etaSeconds'] === 'number' ? (accepted.payload['etaSeconds'] as number) : 0;
+        const approachKm = (etaSec / 3600) * 28;
+        const pr = container.settings.getPricing();
+        if (approachKm > pr.longPickupThresholdKm) {
+          const bonus = Math.round((approachKm - pr.longPickupThresholdKm) * pr.longPickupPerKm);
+          if (bonus > 0) container.wallet.credit(ride.driverId, bonus, 'adjustment', 'Prime prise en charge longue', ride.id);
+        }
         // Bonus de micro-secteur (fidélisation de l'offre dans les zones premium).
         const zone = container.settings.zoneForPoint(ride.origin);
         if (zone?.driverBonus) {

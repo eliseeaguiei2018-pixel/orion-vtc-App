@@ -28,6 +28,13 @@ export interface Zone {
   dedicated?: boolean;
   /** Surge MANUEL d'urgence (stade, concert…) forcé par la console — reste plafonné (cap vert). */
   surgeManual?: number;
+  /* --- Zones & tarifs (session 17) --- */
+  /** Forfaits plats vers d'autres zones (A→B) : remplace la tarification au km. */
+  flatRates?: { toZoneId: string; price: number }[];
+  /** Supplément retour à vide (F CFA) ajouté si la course se TERMINE dans cette zone périphérique. */
+  emptyReturnFee?: number;
+  /** Prix plancher majoré (F CFA) pour une course démarrant dans ce secteur premium. */
+  premiumFloor?: number;
 }
 
 /** Rang des niveaux pour le standard minimal de zone. */
@@ -181,7 +188,9 @@ export class SettingsService {
     private readonly opsRepo?: Repository<OpsRecord>,
   ) {
     const saved = repo?.get(PRICING_ID);
-    this.pricing = saved ? stripId(saved) : { ...DEFAULT_PRICING };
+    // Fusion avec les défauts : les enregistrements persistés avant l'ajout d'un
+    // champ (frais annexes, forfaits) restent valides.
+    this.pricing = saved ? { ...DEFAULT_PRICING, ...stripId(saved) } : { ...DEFAULT_PRICING };
     const savedSvc = servicesRepo?.get(SERVICES_ID);
     this.services = savedSvc
       ? { city: savedSvc.city, open: savedSvc.open, services: savedSvc.services, gateways: savedSvc.gateways ?? { ...DEFAULT_SERVICES.gateways } }
@@ -282,6 +291,24 @@ export class SettingsService {
   /** Facteur de prix de la zone de prise en charge (1 si hors zone). */
   zoneFactor(point: { lat: number; lng: number }): number {
     return this.zoneForPoint(point)?.factor ?? 1;
+  }
+
+  /**
+   * Règles tarifaires géographiques d'un trajet (session Zones & tarifs) :
+   *  - FORFAIT PLAT si la zone de départ a un tarif fixe vers la zone d'arrivée (A→B) ;
+   *  - SUPPLÉMENT retour à vide si l'arrivée est dans une zone périphérique ;
+   *  - PLANCHER premium majoré du secteur de départ.
+   */
+  tripPricing(origin: { lat: number; lng: number }, destination: { lat: number; lng: number }): { flatAmount?: number; extraFee: number; premiumFloor?: number } {
+    const from = this.zoneForPoint(origin);
+    const to = this.zoneForPoint(destination);
+    let flatAmount: number | undefined;
+    if (from?.flatRates && to) {
+      const match = from.flatRates.find((f) => f.toZoneId === to.id);
+      if (match) flatAmount = match.price;
+    }
+    const extraFee = to?.emptyReturnFee ?? 0;
+    return { flatAmount, extraFee, premiumFloor: from?.premiumFloor };
   }
 
   getServices(): ServicesConfig { return this.services; }

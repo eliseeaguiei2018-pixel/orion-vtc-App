@@ -1175,6 +1175,53 @@ export class AdminService {
     ]);
   }
 
+  /* ==================== SESSION TARIFICATION (S16) : shadow pricing ==================== */
+
+  /**
+   * SHADOW PRICING : rejoue les courses passées avec une grille tarifaire
+   * hypothétique (multiplicateurs) et compare le revenu réel au revenu simulé —
+   * sans impacter les utilisateurs.
+   */
+  shadowPricing(patch: { baseFactor?: number; perKmFactor?: number }) {
+    const bf = patch.baseFactor ?? 1;
+    const kf = patch.perKmFactor ?? 1;
+    const sample = this.c.rides.listAll().filter((r) => REVENUE.has(r.status)).slice(0, 200);
+    let real = 0, simulated = 0;
+    for (const r of sample) {
+      real += r.quote.amount;
+      const bd = r.quote.breakdown;
+      // Recompose un montant simulé : base ajustée + distance ajustée + reste inchangé.
+      const newBase = (bd.base ?? 0) * bf;
+      const newDist = (bd.distance ?? 0) * kf;
+      const delta = (newBase - (bd.base ?? 0)) + (newDist - (bd.distance ?? 0));
+      simulated += r.quote.amount + Math.round(delta * (1 + this.c.settings.getPricing().tvaRate + this.c.settings.getPricing().feeRate));
+    }
+    const impact = real > 0 ? Math.round(((simulated - real) / real) * 1000) / 10 : 0;
+    return { sampled: sample.length, realRevenue: Math.round(real), simulatedRevenue: Math.round(simulated), impactPercent: impact };
+  }
+
+  /**
+   * MATRICE TARIFAIRE PAR ZONE (Excel/CSV) : forfaits croisés A→B + règles
+   * géographiques (retour à vide, plancher premium, surge manuel).
+   */
+  zoneMatrixCsv(): string {
+    const clean = (v: unknown) => { let s = String(v ?? '').replace(/[",\n]/g, ' '); if (/^[=+\-@]/.test(s)) s = `'${s}`; return s; };
+    const zones = this.c.settings.getZones();
+    const byId = new Map(zones.map((z) => [z.id, z.name]));
+    const head = 'zone_depart,zone_arrivee,forfait_fcfa,facteur_zone,plancher_premium,retour_a_vide,surge_manuel,active';
+    const rows: string[] = [];
+    for (const z of zones) {
+      const flats = z.flatRates ?? [];
+      if (flats.length === 0) {
+        rows.push([z.name, '', '', z.factor, z.premiumFloor ?? '', z.emptyReturnFee ?? '', z.surgeManual ?? '', z.active ? 'oui' : 'non'].map(clean).join(','));
+      }
+      for (const f of flats) {
+        rows.push([z.name, byId.get(f.toZoneId) ?? f.toZoneId, f.price, z.factor, z.premiumFloor ?? '', z.emptyReturnFee ?? '', z.surgeManual ?? '', z.active ? 'oui' : 'non'].map(clean).join(','));
+      }
+    }
+    return [head, ...rows].join('\n');
+  }
+
   /** Positions vivantes de la flotte (carte de supervision). */
   async fleetLive() {
     const snap = await this.c.geo.snapshot();

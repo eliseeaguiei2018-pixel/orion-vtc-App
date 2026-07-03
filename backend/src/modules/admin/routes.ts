@@ -679,6 +679,14 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
           multipliers: z.object({
             bronze: num.optional(), argent: num.optional(), or: num.optional(), diamant: num.optional(),
           }).partial().optional(),
+          // Frais annexes & pénalités (session Tarification).
+          freeWaitMinutes: z.number().min(0).max(30).optional(),
+          cancelGraceMinutes: z.number().min(0).max(30).optional(),
+          cancelFee: z.number().min(0).max(50_000).optional(),
+          cleaningLight: z.number().min(0).max(100_000).optional(),
+          cleaningMajor: z.number().min(0).max(500_000).optional(),
+          longPickupPerKm: z.number().min(0).max(2000).optional(),
+          longPickupThresholdKm: z.number().min(0).max(50).optional(),
         }),
         req.body,
       );
@@ -713,6 +721,10 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         dedicated: z.boolean().optional(),
         // Surge MANUEL d'urgence (stade, concert…) — plafonné par le cap vert.
         surgeManual: z.number().min(1).max(2.5).optional(),
+        // Zones & tarifs (session 17) : forfaits A→B, retour à vide, plancher premium.
+        flatRates: z.array(z.object({ toZoneId: z.string().min(1).max(40), price: z.number().min(0).max(1_000_000) })).max(50).optional(),
+        emptyReturnFee: z.number().min(0).max(100_000).optional(),
+        premiumFloor: z.number().min(0).max(100_000).optional(),
       }), req.body);
       const zone = container.settings.upsertZone({ active: true, ...body });
       audit(req, 'zone.upsert', zone.id, { name: zone.name, factor: zone.factor });
@@ -811,6 +823,24 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       return admin.pricingMatrixCsv();
     });
 
+    // Shadow pricing : simule une nouvelle grille sur les courses passées (sans impact).
+    scoped.post('/admin/pricing/shadow', async (req) => {
+      require(req, 'pricing:read');
+      const body = parse(z.object({
+        baseFactor: z.number().min(0.1).max(5).optional(),
+        perKmFactor: z.number().min(0.1).max(5).optional(),
+      }), req.body ?? {});
+      return admin.shadowPricing(body);
+    });
+
+    // Matrice tarifaire PAR ZONE (forfaits A→B + règles géographiques) CSV.
+    scoped.get('/admin/zones/matrix.csv', async (req, reply) => {
+      require(req, 'pricing:read');
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header('content-disposition', 'attachment; filename="orion-matrice-zones.csv"');
+      return admin.zoneMatrixCsv();
+    });
+
     // Zones à forte demande (cellules) : demande vs offre + surge courant.
     scoped.get('/admin/demand', async (req) => {
       require(req, 'rides:read');
@@ -891,6 +921,22 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       container.rides.persist(ride);
       audit(req, `ride.force_${body.action}`, id);
       return { ride: { id: ride.id, status: ride.status } };
+    });
+
+    // Barème de nettoyage / dégradation appliqué à une course (crédité au chauffeur).
+    scoped.post('/admin/rides/:id/cleaning', async (req) => {
+      require(req, 'support:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ level: z.enum(['light', 'major']) }), req.body);
+      const ride = container.rides.get(id);
+      if (!ride) throw notFound('Course introuvable');
+      const pr = container.settings.getPricing();
+      const amount = body.level === 'major' ? pr.cleaningMajor : pr.cleaningLight;
+      if (ride.driverId) container.wallet.credit(ride.driverId, amount, 'adjustment', `Frais de nettoyage (${body.level})`, ride.id);
+      ride.events.push({ type: 'cleaning_fee', at: new Date().toISOString(), payload: { level: body.level, amount } });
+      container.rides.persist(ride);
+      audit(req, 'ride.cleaning', id, { level: body.level, amount });
+      return { amount, level: body.level };
     });
 
     // AJUSTEMENT DE DESTINATION EN VOL : mise à jour de l'arrivée depuis la

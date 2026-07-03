@@ -126,12 +126,17 @@ export function createContainer(): Container {
       const surgeRaw = ops.surgeEnabled ? await demand.surgeFor(req.origin) : 1;
       // Surge MANUEL d'urgence (zone dessinée dans la console) — toujours plafonné (cap vert).
       const surgeManual = settings.zoneForPoint(req.origin)?.surgeManual ?? 1;
+      // Règles géographiques du trajet : forfait plat A→B, retour à vide, plancher premium.
+      const trip = settings.tripPricing(req.origin, req.destination);
       return {
         trafficFactor: traffic.factor,
         trafficLevel: traffic.level,
         settings: settings.getPricing(),
         zoneFactor: settings.zoneFactor(req.origin),
         zonePickupFee: settings.zoneForPoint(req.origin)?.pickupFee ?? 0,
+        flatAmount: trip.flatAmount,
+        extraFee: trip.extraFee,
+        premiumFloor: trip.premiumFloor,
         surgeMultiplier: Math.min(Math.max(surgeRaw, surgeManual), ops.surgeCapGreen),
         promoDiscount: (subtotal: number) => promos.evaluate(req.promoCode, subtotal)?.discount ?? 0,
       };

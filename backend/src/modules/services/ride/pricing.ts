@@ -19,6 +19,19 @@ export interface PricingSettings {
   tvaRate: number; feeRate: number; insuranceRate: number; trafficWeight: number; stopFee: number;
   multipliers: Record<Tier, number>;
   bodySurcharge: Record<string, number>;
+  /* --- Frais annexes & pénalités (session Tarification S16) --- */
+  /** Minutes d'attente offertes à l'arrivée du chauffeur (courtoisie). */
+  freeWaitMinutes: number;
+  /** Délai d'annulation gratuite après la commande (minutes). */
+  cancelGraceMinutes: number;
+  /** Frais d'annulation appliqués au-delà du délai de grâce (F CFA). */
+  cancelFee: number;
+  /** Barème de nettoyage : salissure légère / majeure (F CFA). */
+  cleaningLight: number;
+  cleaningMajor: number;
+  /** Prime « prise en charge longue » : F CFA par km d'approche à vide au-delà du seuil. */
+  longPickupPerKm: number;
+  longPickupThresholdKm: number;
 }
 
 export const DEFAULT_PRICING: PricingSettings = {
@@ -29,6 +42,9 @@ export const DEFAULT_PRICING: PricingSettings = {
     or: FLEET.or.multiplier, diamant: FLEET.diamant.multiplier,
   },
   bodySurcharge: { berline: 1.0, suv: 1.08 },
+  freeWaitMinutes: 5, cancelGraceMinutes: 2, cancelFee: 500,
+  cleaningLight: 10_000, cleaningMajor: 50_000,
+  longPickupPerKm: 100, longPickupThresholdKm: 5,
 };
 
 /**
@@ -102,6 +118,12 @@ export interface PricingContext {
   zoneFactor?: number;
   /** Frais de prise en charge du micro-secteur (F CFA), intégrés au prix fixe. */
   zonePickupFee?: number;
+  /** Forfait plat (aéroport / hub A→B) : remplace la tarification au km/min. */
+  flatAmount?: number;
+  /** Supplément fixe ajouté au devis (retour à vide zone périphérique). */
+  extraFee?: number;
+  /** Prix plancher majoré du secteur premium (remplace minFare s'il est supérieur). */
+  premiumFloor?: number;
 }
 
 export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): PriceResult {
@@ -137,8 +159,13 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
   // Frais de prise en charge du micro-secteur (Riviera Golf, Zone 4…) : forfait
   // ajouté APRÈS les multiplicateurs — montant net, lisible, intégré au prix fixe.
   const pickupFee = Math.max(0, ctx.zonePickupFee ?? 0);
-  const raw = (base + distanceCost + timeCost + stopsCost) * trafficMult * zoneFactor * surge + pickupFee;
-  const floored = Math.max(raw, tariff.minFare);
+  const extraFee = Math.max(0, ctx.extraFee ?? 0); // retour à vide (zone périphérique)
+  // Forfait plat (hub aéroport / A→B) : remplace le calcul au km/min mais garde
+  // le surge/zone et les suppléments intégrés au prix fixe garanti.
+  const metered = (base + distanceCost + timeCost + stopsCost) * trafficMult * zoneFactor * surge + pickupFee;
+  const raw = (ctx.flatAmount && ctx.flatAmount > 0 ? ctx.flatAmount * surge : metered) + extraFee;
+  // Prix plancher : minFare, ou plancher premium majoré du secteur s'il est plus élevé.
+  const floored = Math.max(raw, tariff.minFare, ctx.premiumFloor ?? 0);
   // Remise : code promo (montant calculé) prioritaire, sinon taux de remise éventuel.
   const promo = ctx.promoDiscount ? ctx.promoDiscount(floored) : 0;
   const discount = Math.min(floored, promo > 0 ? promo : floored * discountRate);

@@ -97,7 +97,10 @@ export interface Pricing {
   baseFare: number; perKm: number; perMinute: number; minFare: number; avgSpeedKmh: number;
   tvaRate: number; feeRate: number; insuranceRate: number; trafficWeight: number; stopFee: number;
   multipliers: Record<string, number>; bodySurcharge: Record<string, number>;
+  freeWaitMinutes?: number; cancelGraceMinutes?: number; cancelFee?: number;
+  cleaningLight?: number; cleaningMajor?: number; longPickupPerKm?: number; longPickupThresholdKm?: number;
 }
+export interface ShadowPricing { sampled: number; realRevenue: number; simulatedRevenue: number; impactPercent: number }
 export interface Me { name: string; role: string; roleLabel: string; permissions: string[] }
 export interface Client { id: string; name?: string; phone?: string; status: string; rides: number; greenPoints?: number; vipTier?: string; noSurgeLock?: boolean; createdAt: string; lastSeenAt: string }
 export interface Promo { id: string; kind: 'percent' | 'amount'; value: number; active: boolean; uses: number; maxUses?: number; createdAt: string }
@@ -105,7 +108,7 @@ export interface ServicesConfig { city: string; open: boolean; services: Record<
 export interface Zone {
   id: string; name: string; factor: number; lat: number; lng: number; radiusKm: number; active: boolean;
   waitMaxMin?: number; driverBonus?: number; minStandard?: string; pickupFee?: number; dedicated?: boolean;
-  surgeManual?: number;
+  surgeManual?: number; flatRates?: { toZoneId: string; price: number }[]; emptyReturnFee?: number; premiumFloor?: number;
 }
 export interface SupportMsg { id: string; from: 'client' | 'agent'; author?: string; text: string; at: string }
 export interface Conversation { id: string; clientId: string; subject: string; status: string; priority?: number; csat?: number; assignee?: string; messages: SupportMsg[]; createdAt: string; updatedAt: string }
@@ -836,6 +839,12 @@ function Console({ onLogout }: { onLogout: () => void }) {
     alert(`Frais de no-show de ${fcfa(Number(fee))} prélevés sur ${id}.`);
   };
 
+  /* --- S16 Tarification : shadow pricing --- */
+  const shadowPricing = async (patch: { baseFactor: number; perKmFactor: number }): Promise<ShadowPricing | null> => {
+    if (!API) { const base = 1263500; const sim = Math.round(base * (0.5 * patch.baseFactor + 0.5 * patch.perKmFactor)); return { sampled: 60, realRevenue: base, simulatedRevenue: sim, impactPercent: Math.round(((sim - base) / base) * 1000) / 10 }; }
+    try { return await adminPost<ShadowPricing>('/admin/pricing/shadow', patch); } catch { return null; }
+  };
+
   /* --- S14 Finances : gateways, notes de frais --- */
   const toggleGateway = async (method: string, enabled: boolean) => {
     if (API) { try { await adminPost('/admin/finance/gateways', { method, enabled }); } catch { /* */ } }
@@ -1118,8 +1127,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'notify' && <NotifySection broadcasts={broadcasts} triggers={triggers} canWrite={can('notify:write')} onSend={sendBroadcast} onTrigger={runTrigger} />}
         {section === 'finance' && finance && <FinanceSection finance={finance} ops={ops} cashDebt={cashDebt} gateways={gateways} expenses={expenses} onExport={exportCsv} canExport={can('rides:read')} canWrite={can('pricing:write')} canGateway={can('services:write')} canApprove={can('treasury:request')} onSaveOps={saveOps} onToggleGateway={toggleGateway} onDecideExpense={decideExpense} onNewExpense={newExpense} onPayouts={() => void downloadCsv('/admin/payouts.csv', 'orion-payouts.csv', () => 'matricule,nom,solde')} />}
         {section === 'treasury' && <TreasurySection transfers={transfers} meName={me.name} liquidity={liquidity} amortization={amortization} canRequest={can('treasury:request')} canApprove={can('treasury:approve')} onRequest={requestTransfer} onDecide={decideTransfer} onExport={exportTreasuryCsv} onReportPdf={() => void downloadFile('/admin/treasury/report.pdf', 'orion-tresorerie-executif.pdf')} />}
-        {section === 'pricing' && pricing && <PricingEditor pricing={pricing} canWrite={can('pricing:write')} onSave={savePricing} />}
-        {section === 'zones' && <ZonesSection zones={zones} canWrite={can('pricing:write')} onSave={saveZone} onToggle={toggleZone} onDelete={deleteZone} onReset={resetZones} />}
+        {section === 'pricing' && pricing && <PricingEditor pricing={pricing} canWrite={can('pricing:write')} onSave={savePricing} onShadow={shadowPricing} onMatrixCsv={() => void downloadCsv('/admin/pricing/matrix.csv', 'orion-matrice-tarifaire.csv', () => 'zone,facteur_zone')} />}
+        {section === 'zones' && <ZonesSection zones={zones} canWrite={can('pricing:write')} onSave={saveZone} onToggle={toggleZone} onDelete={deleteZone} onReset={resetZones} onMatrixCsv={() => void downloadCsv('/admin/zones/matrix.csv', 'orion-matrice-zones.csv', () => 'zone_depart,zone_arrivee,forfait_fcfa')} />}
         {section === 'promos' && <PromosSection promos={promos} canWrite={can('promos:write')} onSave={savePromo} onToggle={togglePromo} onDelete={deletePromo} />}
         {section === 'services' && services && <ServicesSection config={services} canWrite={can('services:write')} onSave={saveServices} />}
         {section === 'audit' && <AuditSection entries={audit} />}
@@ -2088,7 +2097,20 @@ function ClientsSection({ clients, canWrite, onStatus, onOpen, meta, onPage, onV
 const slugify = (s: string) => s.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
 const pct = (f: number) => (f === 1 ? 'neutre' : `${f > 1 ? '+' : ''}${Math.round((f - 1) * 100)} %`);
 
-function ZonesSection({ zones, canWrite, onSave, onToggle, onDelete, onReset }: { zones: Zone[]; canWrite: boolean; onSave: (z: Zone) => void; onToggle: (id: string, active: boolean) => void; onDelete: (id: string) => void; onReset: () => void }) {
+function ZonesSection({ zones, canWrite, onSave, onToggle, onDelete, onReset, onMatrixCsv }: { zones: Zone[]; canWrite: boolean; onSave: (z: Zone) => void; onToggle: (id: string, active: boolean) => void; onDelete: (id: string) => void; onReset: () => void; onMatrixCsv: () => void }) {
+  const setFlatRate = (z: Zone) => {
+    const to = window.prompt(`Forfait plat depuis « ${z.name} » — id de la zone d'arrivée :`, zones.find((x) => x.id !== z.id)?.id ?? '');
+    if (!to) return;
+    const price = window.prompt('Prix du forfait (F CFA) :', '15000');
+    if (!price) return;
+    const flatRates = [...(z.flatRates ?? []).filter((f) => f.toZoneId !== to), { toZoneId: to, price: Number(price) }];
+    onSave({ ...z, flatRates });
+  };
+  const setEmptyReturn = (z: Zone) => {
+    const fee = window.prompt(`Frais de retour à vide vers « ${z.name} » (F CFA, périphérie) :`, String(z.emptyReturnFee ?? 2000));
+    if (fee === null) return;
+    onSave({ ...z, emptyReturnFee: Number(fee) || 0 });
+  };
   const [name, setName] = useState(''); const [factor, setFactor] = useState(1);
   const [lat, setLat] = useState(5.35); const [lng, setLng] = useState(-4.0); const [radiusKm, setRadiusKm] = useState(3);
   const add = () => {
@@ -2123,6 +2145,7 @@ function ZonesSection({ zones, canWrite, onSave, onToggle, onDelete, onReset }: 
           <h3>Zones tarifaires</h3>
           <div className="row" style={{ gap: 8, alignItems: 'center' }}>
             <span className="adm-muted">{zones.length}</span>
+            <button className="adm-btn xs" onClick={onMatrixCsv}>⬇ Matrice zones (Excel)</button>
             {canWrite && <button className="adm-btn xs" onClick={onReset}>Réinitialiser</button>}
           </div>
         </div>
@@ -2143,7 +2166,10 @@ function ZonesSection({ zones, canWrite, onSave, onToggle, onDelete, onReset }: 
                     {z.driverBonus ? <span className="adm-pill av-online" title="Bonus chauffeur">🎁 {z.driverBonus} F</span> : null}
                     {z.dedicated && <span className="adm-pill tr-approved" title="Flotte cantonnée">📌 Flotte dédiée</span>}
                     {z.surgeManual && z.surgeManual > 1 ? <span className="adm-pill tr-rejected" title="Surge manuel d'urgence">⚡ surge ×{z.surgeManual}</span> : null}
-                    {!z.waitMaxMin && !z.minStandard && !z.pickupFee && !z.driverBonus && !z.dedicated && !z.surgeManual && <span className="adm-muted">—</span>}
+                    {(z.flatRates ?? []).length > 0 ? <span className="adm-pill tr-approved" title="Forfaits A→B">🎫 {z.flatRates!.length} forfait(s)</span> : null}
+                    {z.emptyReturnFee ? <span className="adm-pill" title="Retour à vide">↩ {z.emptyReturnFee} F</span> : null}
+                    {z.premiumFloor ? <span className="adm-pill tr-pending" title="Plancher premium">⬆ {z.premiumFloor} F</span> : null}
+                    {!z.waitMaxMin && !z.minStandard && !z.pickupFee && !z.driverBonus && !z.dedicated && !z.surgeManual && !(z.flatRates ?? []).length && !z.emptyReturnFee && !z.premiumFloor && <span className="adm-muted">—</span>}
                   </div>
                 </td>
                 <td><span className={`adm-pill ${z.active ? 'av-online' : 'kyc-manual_review'}`}>{z.active ? 'Actif' : 'Inactif'}</span></td>
@@ -2156,7 +2182,9 @@ function ZonesSection({ zones, canWrite, onSave, onToggle, onDelete, onReset }: 
                       const v = Math.min(2.5, Math.max(1, Number(input) || 1));
                       onSave({ ...z, surgeManual: v });
                     }}>⚡ Surge</button>
-                    <button className="adm-btn xs" onClick={() => onToggle(z.id, !z.active)}>{z.active ? 'Désactiver' : 'Activer'}</button>
+                    <button className="adm-btn xs" title="Forfait plat A→B" onClick={() => setFlatRate(z)}>🎫 Forfait</button>
+                    <button className="adm-btn xs" title="Retour à vide (périphérie)" onClick={() => setEmptyReturn(z)}>↩ Retour</button>
+                    <button className={`adm-btn xs${z.active ? '' : ' solid'}`} title="Kill switch territorial" onClick={() => onToggle(z.id, !z.active)}>{z.active ? '⏻ Couper' : 'Activer'}</button>
                     <button className="adm-btn xs" onClick={() => onDelete(z.id)}>Suppr.</button>
                   </div></td>
                 )}
@@ -2591,10 +2619,17 @@ function exampleFare(p: Pricing, tier: string, km: number): number {
   return Math.round((subtotal * (1 + p.tvaRate + p.feeRate)) / 50) * 50;
 }
 
-function PricingEditor({ pricing, canWrite, onSave }: { pricing: Pricing; canWrite: boolean; onSave: (patch: Partial<Pricing>) => Promise<void> }) {
+function PricingEditor({ pricing, canWrite, onSave, onShadow, onMatrixCsv }: {
+  pricing: Pricing; canWrite: boolean; onSave: (patch: Partial<Pricing>) => Promise<void>;
+  onShadow: (p: { baseFactor: number; perKmFactor: number }) => Promise<ShadowPricing | null>;
+  onMatrixCsv: () => void;
+}) {
   const [form, setForm] = useState<Pricing>(pricing);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [shBase, setShBase] = useState(1.1);
+  const [shKm, setShKm] = useState(1);
+  const [shRes, setShRes] = useState<ShadowPricing | null>(null);
   useEffect(() => { setForm(pricing); }, [pricing]);
 
   const num = (k: keyof Pricing) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: Number(e.target.value) }));
@@ -2608,6 +2643,9 @@ function PricingEditor({ pricing, canWrite, onSave }: { pricing: Pricing; canWri
         avgSpeedKmh: form.avgSpeedKmh, tvaRate: form.tvaRate, feeRate: form.feeRate,
         insuranceRate: form.insuranceRate, trafficWeight: form.trafficWeight, stopFee: form.stopFee,
         multipliers: form.multipliers,
+        freeWaitMinutes: form.freeWaitMinutes, cancelGraceMinutes: form.cancelGraceMinutes, cancelFee: form.cancelFee,
+        cleaningLight: form.cleaningLight, cleaningMajor: form.cleaningMajor,
+        longPickupPerKm: form.longPickupPerKm, longPickupThresholdKm: form.longPickupThresholdKm,
       });
       setSaved(true); setTimeout(() => setSaved(false), 2500);
     } finally { setBusy(false); }
@@ -2649,6 +2687,45 @@ function PricingEditor({ pricing, canWrite, onSave }: { pricing: Pricing; canWri
             {saved && <span className="adm-live on" style={{ alignSelf: 'center' }}>✓ Enregistré — appliqué</span>}
           </div>
         )}
+      </div>
+
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Frais annexes & pénalités</h3></div>
+        <div className="price-grid">
+          <label className="price-field"><span>Attente offerte (min)</span><input type="number" min={0} max={30} value={form.freeWaitMinutes ?? 5} onChange={(e) => setForm((f) => ({ ...f, freeWaitMinutes: Number(e.target.value) }))} disabled={!canWrite} /></label>
+          <label className="price-field"><span>Annulation gratuite (min)</span><input type="number" min={0} max={30} value={form.cancelGraceMinutes ?? 2} onChange={(e) => setForm((f) => ({ ...f, cancelGraceMinutes: Number(e.target.value) }))} disabled={!canWrite} /></label>
+          <label className="price-field"><span>Frais d'annulation (F)</span><input type="number" min={0} step={100} value={form.cancelFee ?? 500} onChange={(e) => setForm((f) => ({ ...f, cancelFee: Number(e.target.value) }))} disabled={!canWrite} /></label>
+          <label className="price-field"><span>Nettoyage léger (F)</span><input type="number" min={0} step={1000} value={form.cleaningLight ?? 10000} onChange={(e) => setForm((f) => ({ ...f, cleaningLight: Number(e.target.value) }))} disabled={!canWrite} /></label>
+          <label className="price-field"><span>Nettoyage majeur (F)</span><input type="number" min={0} step={5000} value={form.cleaningMajor ?? 50000} onChange={(e) => setForm((f) => ({ ...f, cleaningMajor: Number(e.target.value) }))} disabled={!canWrite} /></label>
+          <label className="price-field"><span>Prise en charge longue (F/km)</span><input type="number" min={0} step={25} value={form.longPickupPerKm ?? 100} onChange={(e) => setForm((f) => ({ ...f, longPickupPerKm: Number(e.target.value) }))} disabled={!canWrite} /></label>
+          <label className="price-field"><span>Seuil approche longue (km)</span><input type="number" min={0} step={1} value={form.longPickupThresholdKm ?? 5} onChange={(e) => setForm((f) => ({ ...f, longPickupThresholdKm: Number(e.target.value) }))} disabled={!canWrite} /></label>
+        </div>
+        <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
+          Courtoisie d'attente offerte avant facturation, annulation progressive (gratuite dans le délai de grâce),
+          barèmes de nettoyage appliqués depuis les Litiges, et prime de prise en charge longue reversée au chauffeur.
+          Enregistrez ci-dessus pour appliquer.
+        </p>
+      </div>
+
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Shadow pricing (simulateur A/B)</h3><button className="adm-btn xs" onClick={onMatrixCsv}>⬇ Matrice tarifaire (Excel)</button></div>
+        <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <label className="price-field"><span>Facteur prise en charge ×</span><input type="number" step={0.05} value={shBase} onChange={(e) => setShBase(Number(e.target.value))} /></label>
+          <label className="price-field"><span>Facteur prix/km ×</span><input type="number" step={0.05} value={shKm} onChange={(e) => setShKm(Number(e.target.value))} /></label>
+          <button className="adm-btn solid" onClick={async () => setShRes(await onShadow({ baseFactor: shBase, perKmFactor: shKm }))}>▶ Simuler sur l'historique</button>
+        </div>
+        {shRes && (
+          <div className="adm-mini-kpis" style={{ marginTop: 12 }}>
+            <div className="adm-mini-kpi"><span>Courses rejouées</span><strong>{shRes.sampled}</strong></div>
+            <div className="adm-mini-kpi"><span>Revenu réel</span><strong>{fcfa(shRes.realRevenue)}</strong></div>
+            <div className="adm-mini-kpi"><span>Revenu simulé</span><strong>{fcfa(shRes.simulatedRevenue)}</strong></div>
+            <div className="adm-mini-kpi"><span>Impact</span><strong className={shRes.impactPercent >= 0 ? 'pos' : 'neg'}>{shRes.impactPercent > 0 ? '+' : ''}{shRes.impactPercent} %</strong></div>
+          </div>
+        )}
+        <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
+          Mesure l'impact d'une nouvelle grille sur les revenus <strong>sans impacter les utilisateurs</strong> (comparaison
+          avec ce que les clients ont réellement payé).
+        </p>
       </div>
 
       <div className="adm-card">
