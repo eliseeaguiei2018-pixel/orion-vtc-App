@@ -11,6 +11,7 @@ import {
   verifyTotp, registerSession, touchSession, revokeSession, listSessions,
 } from './auth.js';
 import { config } from '../../config/index.js';
+import { SOS_PRESETS } from '../safety/service.js';
 
 /** Rôles de direction : accès complet, 2FA exigible via ADMIN_REQUIRE_2FA. */
 const EXEC_ROLES = new Set(['ceo', 'dg', 'daa', 'coo', 'super_admin']);
@@ -93,7 +94,19 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
 
     const require = (req: FastifyRequest, perm: Permission): void => {
       const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
-      if (!can(account.role, perm)) throw forbidden(`Accès refusé (permission ${perm} requise)`);
+      if (!can(account.role, perm)) {
+        // SIGNALEMENT DIRECTION : toute tentative d'accès à une session non autorisée
+        // est enregistrée et notifiée au DG, au CFO et au DAA (alertes sécurité + audit).
+        container.security.record({
+          username: account.username, name: account.name, role: account.role,
+          permission: perm, path: req.url, ip: req.ip,
+        });
+        container.audit.log({
+          actor: account.name, role: account.role, action: 'access.denied',
+          details: { permission: perm, path: req.url },
+        });
+        throw forbidden('Vous n’avez pas le droit d’accéder à cette session sans autorisation de la direction. Cette tentative a été signalée à la direction (DG, CFO, DAA).');
+      }
     };
 
     // Journalise une action sensible (qui a fait quoi).
@@ -113,6 +126,28 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       };
     });
 
+    // Clic sur une session verrouillée dans la console : le refus est affiché à
+    // l'employé ET la tentative est signalée à la direction (DG, CFO, DAA).
+    scoped.post('/admin/access-denied', async (req) => {
+      const body = parse(z.object({ section: z.string().min(1).max(60) }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      container.security.record({
+        username: account.username, name: account.name, role: account.role,
+        section: body.section, path: req.url, ip: req.ip,
+      });
+      container.audit.log({ actor: account.name, role: account.role, action: 'access.denied', details: { section: body.section } });
+      return {
+        reported: true,
+        message: 'Vous n’avez pas le droit d’accéder à cette session sans autorisation de la direction. Cette tentative a été signalée à la direction (DG, CFO, DAA).',
+      };
+    });
+
+    // Boîte « Alertes sécurité » de la direction : qui a tenté d'accéder à quoi.
+    scoped.get('/admin/security-alerts', async (req) => {
+      require(req, 'security:read');
+      return { attempts: container.security.list(), total: container.security.count() };
+    });
+
     scoped.get('/admin/overview', async (req) => { require(req, 'overview:read'); return admin.overview(); });
 
     scoped.get('/admin/stats', async (req) => {
@@ -130,6 +165,14 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       reply.header('content-type', 'application/pdf');
       reply.header('content-disposition', 'attachment; filename="orion-bilan-carbone.pdf"');
       return admin.greenReportPdf();
+    });
+
+    // Export DATA ÉNERGIE (Excel) : km électriques, kWh estimés, coûts de recharge (OPEX).
+    scoped.get('/admin/green/energy.csv', async (req, reply) => {
+      require(req, 'overview:read');
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header('content-disposition', 'attachment; filename="orion-energie.csv"');
+      return admin.energyCsv();
     });
 
     // --- Intelligence & prédiction ---
@@ -170,6 +213,17 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       reply.header('content-type', 'text/csv; charset=utf-8');
       reply.header('content-disposition', `attachment; filename="facture-${id}-${month}.csv"`);
       return [`"Facture ORION — ${acc.name} — ${month}"`, head, ...rows, `"TOTAL",,,,"${total}"`].join('\n');
+    });
+
+    // Rapport ESG/RSE PDF : bilan carbone certifié des déplacements du client B2B.
+    scoped.get('/admin/corporate/:id/esg.pdf', async (req, reply) => {
+      require(req, 'finance:read');
+      const { id } = req.params as { id: string };
+      const pdf = admin.esgPdf(id);
+      if (!pdf) throw notFound('Compte entreprise introuvable');
+      reply.header('content-type', 'application/pdf');
+      reply.header('content-disposition', `attachment; filename="orion-esg-${id}.pdf"`);
+      return pdf;
     });
 
     // Facture réglée : réinitialise le crédit consommé (nouvelle période).
@@ -276,6 +330,163 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     // --- Supervision SAMU ---
     scoped.get('/admin/alerts', async (req) => { require(req, 'alerts:read'); return { alerts: container.safety.list() }; });
 
+    /** Dossier scellé : lecture réservée à la direction après clôture. */
+    const assertSealedAccess = (req: FastifyRequest, sealed?: boolean): void => {
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      if (sealed && !EXEC_ROLES.has(account.role)) {
+        throw forbidden('Dossier scellé — accès réservé à la direction');
+      }
+    };
+
+    // File de TRIAGE SAMU : niveaux rouge/orange/jaune + chrono SLA + détection
+    // automatique des déviations majeures / courses figées sur le réseau actif.
+    scoped.get('/admin/sos', async (req) => {
+      require(req, 'alerts:read');
+      for (const r of container.rides.listAll()) {
+        const anomaly = admin.rideAnomaly(r);
+        if (anomaly === 'detour') {
+          container.safety.raiseSystem({
+            kind: 'deviation', userId: r.clientId, rideId: r.id,
+            location: r.trace?.length ? r.trace[r.trace.length - 1]! : r.origin,
+            note: 'Déviation majeure inexpliquée (itinéraire réel très supérieur au prévu)',
+          });
+        } else if (anomaly === 'immobile') {
+          container.safety.raiseSystem({
+            kind: 'immobilisation', userId: r.clientId, rideId: r.id,
+            location: r.trace?.length ? r.trace[r.trace.length - 1]! : r.origin,
+            note: 'Véhicule anormalement immobilisé (course figée)',
+          });
+        }
+      }
+      const now = Date.now();
+      const alerts = container.safety.triage().map((a) => ({
+        ...a,
+        slaSeconds: Math.max(0, Math.round((now - Date.parse(a.createdAt)) / 1000)),
+      }));
+      return { alerts, presets: SOS_PRESETS };
+    });
+
+    // Prise en charge NOMINATIVE : verrou anti-doublon (un seul agent par crise).
+    scoped.post('/admin/sos/:id/claim', async (req, reply) => {
+      require(req, 'alerts:write');
+      const { id } = req.params as { id: string };
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const result = container.safety.claim(id, account.name);
+      if (!result) throw notFound('Alerte introuvable');
+      if (result === 'taken') {
+        reply.code(409);
+        return { error: 'Alerte déjà prise en charge par un autre agent (verrou nominatif).' };
+      }
+      audit(req, 'sos.claim', id, { level: result.level });
+      return { alert: result };
+    });
+
+    // Chat sécurisé DISCRET : messages pré-enregistrés ou libres vers l'usager.
+    scoped.post('/admin/sos/:id/message', async (req, reply) => {
+      require(req, 'alerts:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ text: z.string().min(1).max(300) }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const alert = container.safety.get(id);
+      if (!alert) throw notFound('Alerte introuvable');
+      if (alert.agent && alert.agent !== account.name) {
+        reply.code(403);
+        return { error: 'Crise gérée par un autre agent (prise en charge nominative).' };
+      }
+      if (!alert.agent) container.safety.claim(id, account.name);
+      const message = container.safety.postChat(id, { from: 'agent', author: account.name, text: body.text });
+      audit(req, 'sos.message', id);
+      return { message };
+    });
+
+    // Clôture : note de synthèse OBLIGATOIRE → dossier SCELLÉ numériquement.
+    scoped.post('/admin/sos/:id/close', async (req, reply) => {
+      require(req, 'alerts:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ note: z.string().min(10).max(2000) }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const result = container.safety.close(id, account.name, body.note);
+      if (!result) throw notFound('Alerte introuvable');
+      if (result === 'not_agent') {
+        reply.code(403);
+        return { error: 'Seul l’agent gestionnaire peut clore cette alerte.' };
+      }
+      audit(req, 'sos.close', id, { sealed: true });
+      return { alert: result };
+    });
+
+    // Dossier d'identification instantanée : véhicule, chauffeur, passager,
+    // batteries téléphone, itinéraire théorique vs réel, vitesse estimée.
+    scoped.get('/admin/sos/:id', async (req) => {
+      require(req, 'alerts:read');
+      const { id } = req.params as { id: string };
+      const alert = container.safety.get(id);
+      if (!alert) throw notFound('Alerte introuvable');
+      assertSealedAccess(req, alert.sealed);
+      const ride = alert.rideId ? container.rides.get(alert.rideId) : undefined;
+      const driver = ride?.driverId ? container.drivers.get(ride.driverId) : undefined;
+      const client = container.clients.get(ride?.clientId ?? alert.userId);
+      // Niveau de batterie des téléphones (remontée app ; valeur stable simulée à défaut).
+      const pseudoBatt = (s: string) => 30 + ([...s].reduce((a, c) => a + c.charCodeAt(0), 0) % 66);
+      const trace = ride?.trace ?? [];
+      let speedEstimateKmh: number | null = null;
+      if (trace.length >= 2) {
+        const { haversineMeters } = await import('../../core/geo.js');
+        speedEstimateKmh = Math.round(haversineMeters(trace[trace.length - 2]!, trace[trace.length - 1]!) * 3.6);
+      }
+      return {
+        alert,
+        presets: SOS_PRESETS,
+        ride: ride ? {
+          id: ride.id, status: ride.status, origin: ride.origin, destination: ride.destination,
+          trace, createdAt: ride.createdAt,
+        } : null,
+        vehicle: driver ? {
+          plate: driver.vehiclePlate ?? driver.matricule, model: driver.vehicleModel ?? 'n/c',
+          color: driver.vehicleColor ?? 'n/c', engine: driver.engine ?? 'electric',
+        } : null,
+        driver: driver ? {
+          id: driver.id, name: driver.name, matricule: driver.matricule, phone: driver.phone ?? null,
+          licenseNo: driver.licenseNo ?? null, birthDate: driver.birthDate ?? null,
+          phoneBatteryPct: pseudoBatt(driver.id), batteryPct: driver.batteryPct ?? null,
+        } : null,
+        passenger: {
+          id: ride?.clientId ?? alert.userId,
+          name: client?.name ?? null, phone: client?.phone ?? null,
+          phoneBatteryPct: pseudoBatt(ride?.clientId ?? alert.userId),
+          lastRides: container.rides.listByClient(ride?.clientId ?? alert.userId).slice(0, 5)
+            .map((r) => ({ id: r.id, status: r.status, createdAt: r.createdAt })),
+        },
+        telemetry: { speedEstimateKmh, points: trace.length, refreshSeconds: 1 },
+        emergencyNumbers: { samu: '185', police: '170', pompiers: '180' },
+      };
+    });
+
+    // RAPPORT DE RÉQUISITION PDF (procureur / police) — horodaté, certifié.
+    scoped.get('/admin/sos/:id/report.pdf', async (req, reply) => {
+      require(req, 'alerts:read');
+      const { id } = req.params as { id: string };
+      const alert = container.safety.get(id);
+      if (!alert) throw notFound('Alerte introuvable');
+      assertSealedAccess(req, alert.sealed);
+      audit(req, 'sos.report', id);
+      reply.header('content-type', 'application/pdf');
+      reply.header('content-disposition', `attachment; filename="orion-requisition-${id.slice(0, 8)}.pdf"`);
+      return admin.sosReportPdf(alert);
+    });
+
+    // Logs bruts de télémétrie (CSV) — analyse enquêteurs / assurances.
+    scoped.get('/admin/sos/:id/telemetry.csv', async (req, reply) => {
+      require(req, 'alerts:read');
+      const { id } = req.params as { id: string };
+      const alert = container.safety.get(id);
+      if (!alert) throw notFound('Alerte introuvable');
+      assertSealedAccess(req, alert.sealed);
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header('content-disposition', `attachment; filename="orion-telemetrie-${id.slice(0, 8)}.csv"`);
+      return admin.sosTelemetryCsv(alert);
+    });
+
     scoped.post('/admin/alerts/:id/status', async (req) => {
       require(req, 'alerts:write');
       const { id } = req.params as { id: string };
@@ -333,6 +544,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         minStandard: z.enum(['bronze', 'argent', 'or', 'diamant']).optional(),
         pickupFee: z.number().min(0).max(10_000).optional(),
         dedicated: z.boolean().optional(),
+        // Surge MANUEL d'urgence (stade, concert…) — plafonné par le cap vert.
+        surgeManual: z.number().min(1).max(2.5).optional(),
       }), req.body);
       const zone = container.settings.upsertZone({ active: true, ...body });
       audit(req, 'zone.upsert', zone.id, { name: zone.name, factor: zone.factor });
@@ -377,10 +590,52 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         surgeEnabled: z.boolean().optional(),
         surgeCapGreen: z.number().min(1).max(2).optional(),
         waitFeePerMin: z.number().min(0).max(1000).optional(),
+        // Rayons évolutifs + mode d'offre + pondération scoring + priorisation verte.
+        radiusKm: z.number().min(0.5).max(10).optional(),
+        radiusMaxKm: z.number().min(1).max(20).optional(),
+        offerMode: z.enum(['cascade', 'broadcast']).optional(),
+        weightRating: z.number().min(0).max(10).optional(),
+        weightIdle: z.number().min(0).max(10).optional(),
+        greenPriority: z.boolean().optional(),
+        // Surge : seuil de déclenchement + lissage du retour à la normale.
+        surgeThreshold: z.number().min(1.1).max(3).optional(),
+        surgeSmoothingMin: z.number().min(0).max(30).optional(),
+        // Plafond de remboursement support + incitations heures creuses (verte).
+        refundCap: z.number().min(0).max(100_000).optional(),
+        offPeakBonus: z.number().min(0).max(5000).optional(),
+        offPeakStart: z.number().int().min(0).max(23).optional(),
+        offPeakEnd: z.number().int().min(0).max(23).optional(),
       }), req.body);
       const ops = container.settings.updateOps(body);
       audit(req, 'dispatch.update', undefined, body);
       return { ops };
+    });
+
+    // SHADOW MODE : simule une configuration hypothétique sur les courses passées
+    // (taux de matching, ETA moyen) sans toucher au réseau réel.
+    scoped.post('/admin/dispatch/simulate', async (req) => {
+      require(req, 'rides:read');
+      const body = parse(z.object({
+        maxEtaMinutes: z.number().min(2).max(30).optional(),
+        radiusMaxKm: z.number().min(1).max(20).optional(),
+      }), req.body ?? {});
+      return admin.simulateDispatch(body);
+    });
+
+    // Documentation technique PDF : paramètres algorithmiques actifs (audit / investisseurs).
+    scoped.get('/admin/dispatch/config.pdf', async (req, reply) => {
+      require(req, 'rides:read');
+      reply.header('content-type', 'application/pdf');
+      reply.header('content-disposition', 'attachment; filename="orion-config-dispatch.pdf"');
+      return admin.dispatchConfigPdf();
+    });
+
+    // Matrice tarifaire Excel/CSV (grille complète pour le business plan).
+    scoped.get('/admin/pricing/matrix.csv', async (req, reply) => {
+      require(req, 'pricing:read');
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header('content-disposition', 'attachment; filename="orion-matrice-tarifaire.csv"');
+      return admin.pricingMatrixCsv();
     });
 
     // Zones à forte demande (cellules) : demande vs offre + surge courant.
@@ -440,6 +695,111 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       return { ride: { id: ride.id, status: ride.status, driverId: next, driverName: d?.name ?? null, matricule: d?.matricule ?? null } };
     });
 
+    // CLÔTURE FORCÉE : termine ou annule manuellement une course bloquée
+    // (bug réseau app chauffeur, course figée) — sans frais, tracée à l'audit.
+    scoped.post('/admin/rides/:id/force', async (req, reply) => {
+      require(req, 'rides:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ action: z.enum(['complete', 'cancel']) }), req.body);
+      const ride = container.rides.get(id);
+      if (!ride) throw notFound('Course introuvable');
+      const TERMINAL = new Set(['completed', 'paid', 'rated', 'cancelled']);
+      if (TERMINAL.has(ride.status)) {
+        reply.code(409);
+        return { error: `Course déjà terminée (statut « ${ride.status} »)` };
+      }
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      ride.status = body.action === 'complete' ? 'completed' : 'cancelled';
+      ride.events.push({ type: `force_${body.action}`, at: new Date().toISOString(), payload: { by: account.name } });
+      if (ride.driverId) {
+        container.matching.releaseLock(ride.driverId);
+        container.drivers.setAvailability(ride.driverId, 'online');
+      }
+      container.rides.persist(ride);
+      audit(req, `ride.force_${body.action}`, id);
+      return { ride: { id: ride.id, status: ride.status } };
+    });
+
+    // AJUSTEMENT DE DESTINATION EN VOL : mise à jour de l'arrivée depuis la
+    // console, devis recalculé proportionnellement (plancher minFare respecté).
+    scoped.put('/admin/rides/:id/destination', async (req, reply) => {
+      require(req, 'rides:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({
+        lat: z.number().min(-90).max(90),
+        lng: z.number().min(-180).max(180),
+      }), req.body);
+      const ride = container.rides.get(id);
+      if (!ride) throw notFound('Course introuvable');
+      const ACTIVE = new Set(['accepted', 'driver_en_route', 'arrived', 'in_progress']);
+      if (!ACTIVE.has(ride.status)) {
+        reply.code(409);
+        return { error: `Destination modifiable uniquement en course (statut « ${ride.status} »)` };
+      }
+      const { haversineMeters } = await import('../../core/geo.js');
+      const oldDist = ride.quote.distanceMeters || haversineMeters(ride.origin, ride.destination) || 1;
+      const newDist = Math.max(200, Math.round(haversineMeters(ride.origin, body)));
+      const oldAmount = ride.quote.amount;
+      const minFare = container.settings.getPricing().minFare;
+      const newAmount = Math.max(minFare, Math.round(oldAmount * newDist / oldDist));
+      ride.destination = { lat: body.lat, lng: body.lng };
+      ride.quote.distanceMeters = newDist;
+      ride.quote.amount = newAmount;
+      ride.events.push({ type: 'destination_changed', at: new Date().toISOString(), payload: { oldAmount, newAmount, newDist } });
+      container.rides.persist(ride);
+      audit(req, 'ride.destination', id, { oldAmount, newAmount });
+      return { ride: { id: ride.id, destination: ride.destination, amount: newAmount } };
+    });
+
+    // --- Réservations à l'avance (calendrier + monitoring de ponctualité) ---
+    scoped.get('/admin/reservations', async (req) => {
+      require(req, 'rides:read');
+      const now = Date.now();
+      const reservations = container.reservations.list().map((r) => {
+        const driver = r.driverId ? container.drivers.get(r.driverId) : undefined;
+        const minutesToGo = Math.round((Date.parse(r.scheduledFor) - now) / 60_000);
+        // Alerte préventive 30 min avant : pas de chauffeur prêt → risque de retard.
+        const punctualityAlert = (r.status === 'planifiee' || r.status === 'assignee')
+          && minutesToGo <= 30 && minutesToGo > -60
+          && (!driver || driver.availability !== 'online');
+        return { ...r, driverName: driver?.name ?? null, minutesToGo, punctualityAlert };
+      });
+      return { reservations };
+    });
+
+    scoped.post('/admin/reservations/:id/assign', async (req, reply) => {
+      require(req, 'rides:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ driverId: z.string().optional() }), req.body ?? {});
+      const r = container.reservations.get(id);
+      if (!r) throw notFound('Réservation introuvable');
+      let driverId = body.driverId ?? null;
+      if (driverId) {
+        const d = container.drivers.get(driverId);
+        if (!d) throw notFound('Chauffeur introuvable');
+      } else {
+        const match = await container.matching.findDriver(r.origin, r.category, undefined, r.clientId);
+        if (match) { driverId = match.driverId; container.matching.releaseLock(match.driverId); }
+      }
+      if (!driverId) {
+        reply.code(409);
+        return { error: 'Aucun chauffeur disponible pour cette réservation' };
+      }
+      const updated = container.reservations.assign(id, driverId);
+      audit(req, 'reservation.assign', id, { driverId });
+      const d = container.drivers.get(driverId);
+      return { reservation: { ...updated!, driverName: d?.name ?? null } };
+    });
+
+    scoped.post('/admin/reservations/:id/cancel', async (req) => {
+      require(req, 'rides:write');
+      const { id } = req.params as { id: string };
+      const r = container.reservations.setStatus(id, 'annulee');
+      if (!r) throw notFound('Réservation introuvable');
+      audit(req, 'reservation.cancel', id);
+      return { reservation: r };
+    });
+
     // Fiche complète d'une course (instruction de litige : tracé GPS + tarification + événements).
     scoped.get('/admin/rides/:id', async (req) => {
       require(req, 'rides:read');
@@ -454,11 +814,52 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     scoped.get('/admin/quality', async (req) => {
       require(req, 'drivers:read');
       const ops = container.settings.getOps();
-      const drivers = container.drivers.list()
-        .map((d) => ({ id: d.id, name: d.name, matricule: d.matricule, category: d.category, rating: d.ratingAvg, trips: d.ratingCount, warnings: d.warnings ?? 0, kycStatus: d.kycStatus, below: d.ratingCount >= 5 && d.ratingAvg < ops.minRating }))
+      const all = container.drivers.list();
+      const drivers = all
+        .map((d) => ({ id: d.id, name: d.name, matricule: d.matricule, category: d.category, rating: d.ratingAvg, trips: d.ratingCount, warnings: d.warnings ?? 0, kycStatus: d.kycStatus, vip: d.vip ?? false, below: d.ratingCount >= 5 && d.ratingAvg < ops.minRating }))
         .sort((a, b) => a.rating - b.rating)
         .slice(0, 100);
-      return { threshold: ops.minRating, autoWarn: ops.autoWarn, drivers };
+      // PROGRAMME VIP / TOP DRIVER : top 5 % de la flotte (note, volume significatif).
+      const eligible = all.filter((d) => d.ratingCount >= 20).sort((a, b) => b.ratingAvg - a.ratingAvg);
+      const top = eligible.slice(0, Math.max(1, Math.ceil(eligible.length * 0.05)))
+        .map((d) => ({ id: d.id, name: d.name, matricule: d.matricule, rating: d.ratingAvg, trips: d.ratingCount, vip: d.vip ?? false }));
+      return { threshold: ops.minRating, autoWarn: ops.autoWarn, drivers, top };
+    });
+
+    // Courbe CSAT 7 jours + taux d'acceptation / d'annulation du réseau.
+    scoped.get('/admin/quality/csat', async (req) => { require(req, 'drivers:read'); return admin.qualityCsat(); });
+
+    // Statut TOP DRIVER (VIP) : priorité dispatch + commission réduite (affichage).
+    scoped.post('/admin/drivers/:id/vip', async (req) => {
+      require(req, 'drivers:write');
+      const { id } = req.params as { id: string };
+      assertManagerScope(req, id);
+      const body = parse(z.object({ vip: z.boolean() }), req.body);
+      const d = container.drivers.get(id);
+      if (!d) throw notFound('Chauffeur introuvable');
+      d.vip = body.vip;
+      container.drivers.persist(id);
+      audit(req, 'driver.vip', id, { vip: body.vip });
+      return { driver: { id: d.id, vip: d.vip } };
+    });
+
+    // Matrice de performance (Excel) : corrélation notes ↔ chiffre d'affaires.
+    scoped.get('/admin/quality.csv', async (req, reply) => {
+      require(req, 'drivers:read');
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header('content-disposition', 'attachment; filename="orion-matrice-qualite.csv"');
+      return admin.qualityCsv();
+    });
+
+    // Bilan qualité individuel PDF (entretien RH / gestionnaire de flotte).
+    scoped.get('/admin/drivers/:id/quality.pdf', async (req, reply) => {
+      require(req, 'drivers:read');
+      const { id } = req.params as { id: string };
+      const pdf = admin.driverQualityPdf(id);
+      if (!pdf) throw notFound('Chauffeur introuvable');
+      reply.header('content-type', 'application/pdf');
+      reply.header('content-disposition', `attachment; filename="orion-qualite-${id.slice(0, 8)}.pdf"`);
+      return pdf;
     });
 
     // Cantonnement : épingle un chauffeur à une zone (null = libère). La zone
@@ -497,7 +898,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       return { disputes: container.disputes.list(), open: container.disputes.openCount() };
     });
 
-    scoped.post('/admin/disputes/:id/status', async (req) => {
+    scoped.post('/admin/disputes/:id/status', async (req, reply) => {
       require(req, 'support:write');
       const { id } = req.params as { id: string };
       const body = parse(z.object({
@@ -506,6 +907,13 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         refund: z.number().min(0).max(1_000_000).optional(),
       }), req.body);
       const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      // PLAFOND D'AUTORISATION : au-delà du plafond console, seul un superviseur
+      // (direction / treasury:approve) peut valider le remboursement → escalade.
+      const cap = container.settings.getOps().refundCap;
+      if (body.status === 'resolved' && (body.refund ?? 0) > cap && !can(account.role, 'treasury:approve')) {
+        reply.code(403);
+        return { error: `Remboursement supérieur au plafond agent (${cap} F CFA) — escalade au Superviseur Support requise.` };
+      }
       const dispute = container.disputes.decide(id, body.status, account.name, body.resolution, body.refund);
       if (!dispute) throw notFound('Litige introuvable');
       // Remboursement éventuel → crédité sur le portefeuille client (traçable).
@@ -690,7 +1098,39 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     });
 
     // --- Support & chat (côté agent) ---
-    scoped.get('/admin/support', async (req) => { require(req, 'support:read'); return { conversations: container.support.list() }; });
+    // Boîte de réception INTELLIGENTE : tri par priorité (objet oublié > facturation
+    // > général) puis ancienneté ; indicateurs SLA/CSAT + macros en un clic.
+    scoped.get('/admin/support', async (req) => {
+      require(req, 'support:read');
+      return { conversations: container.support.inbox(), stats: container.support.stats() };
+    });
+
+    scoped.get('/admin/support/stats', async (req) => { require(req, 'support:read'); return container.support.stats(); });
+
+    scoped.get('/admin/support/macros', async (req) => {
+      require(req, 'support:read');
+      const { SUPPORT_MACROS } = await import('../support/service.js');
+      return { macros: SUPPORT_MACROS };
+    });
+
+    // Code promotionnel PERSONNALISÉ de dédommagement (usage unique, expiration courte),
+    // notifié directement dans l'app du passager.
+    scoped.post('/admin/promos/compensation', async (req) => {
+      require(req, 'promos:write');
+      const body = parse(z.object({
+        clientId: z.string().min(1).max(80),
+        percent: z.number().min(5).max(50),
+        days: z.number().int().min(1).max(30).default(7),
+      }), req.body);
+      const promo = container.promos.compensation(body);
+      container.notifications.notify(
+        { clientId: body.clientId },
+        'Un geste commercial ORION 💚',
+        `Nous sommes désolés pour ce désagrément. Votre code ${promo.id} (-${promo.value} %) est valable ${body.days} jours sur votre prochaine course.`,
+      );
+      audit(req, 'promo.compensation', promo.id, { clientId: body.clientId, percent: promo.value });
+      return { promo };
+    });
 
     scoped.post('/admin/support/:id/reply', async (req) => {
       require(req, 'support:write');
@@ -734,10 +1174,100 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         audience: z.enum(['clients', 'drivers', 'all']),
         title: z.string().min(1).max(120),
         body: z.string().min(1).max(1000),
+        // Studio multicanal + hyper-ciblage + planification.
+        channel: z.enum(['push', 'sms', 'email']).optional(),
+        segment: z.enum(['tous', 'nouveaux', 'vip', 'green', 'inactifs']).optional(),
+        zoneId: z.string().max(40).optional(),
+        scheduledAt: z.string().datetime().optional(),
       }), req.body);
-      const a = container.notifications.broadcast({ ...body, author: account.name });
-      audit(req, 'broadcast', a.id, { audience: a.audience, title: a.title });
+      // Taille de l'audience ciblée (segments comportementaux) → stats de campagne.
+      const clients = container.clients.list();
+      const THIRTY_D = 30 * 86_400_000;
+      let audienceCount = body.audience === 'drivers' ? container.drivers.list().length : clients.length;
+      if (body.audience !== 'drivers') {
+        if (body.segment === 'nouveaux') audienceCount = clients.filter((c) => c.rides === 0).length;
+        if (body.segment === 'vip') audienceCount = clients.filter((c) => c.rides >= 10).length;
+        if (body.segment === 'green') audienceCount = clients.filter((c) => (c.greenPoints ?? 0) > 0).length;
+        if (body.segment === 'inactifs') audienceCount = clients.filter((c) => Date.now() - Date.parse(c.lastSeenAt) > THIRTY_D).length;
+      }
+      const a = container.notifications.broadcast({ ...body, author: account.name, audienceCount });
+      audit(req, 'broadcast', a.id, { audience: a.audience, channel: a.channel, segment: a.segment, title: a.title });
       return { announcement: a };
+    });
+
+    // DÉCLENCHEURS AUTOMATISÉS : batterie < 15 % → borne la plus proche ;
+    // win-back 30 jours ; incitation recharge heures creuses.
+    scoped.get('/admin/notify/triggers', async (req) => {
+      require(req, 'notify:read');
+      const { CHARGING_STATIONS } = await import('./service.js');
+      const { haversineMeters } = await import('../../core/geo.js');
+      const ops = container.settings.getOps();
+      const snap = await container.geo.snapshot();
+      const posOf = (id: string) => snap.find((e) => e.id === id);
+      const lowBattery = container.drivers.list()
+        .filter((d) => (d.engine ?? 'electric') === 'electric' && d.batteryPct !== undefined && d.batteryPct < 15)
+        .map((d) => {
+          const pos = posOf(d.id);
+          const station = pos
+            ? [...CHARGING_STATIONS].sort((s1, s2) =>
+                haversineMeters(pos, s1) - haversineMeters(pos, s2))[0]
+            : CHARGING_STATIONS[0];
+          return { id: d.id, name: d.name, matricule: d.matricule, batteryPct: d.batteryPct, station: station?.name ?? null };
+        });
+      const THIRTY_D = 30 * 86_400_000;
+      const winback = container.clients.list()
+        .filter((c) => c.rides >= 1 && Date.now() - Date.parse(c.lastSeenAt) > THIRTY_D)
+        .slice(0, 20)
+        .map((c) => ({ id: c.id, name: c.name ?? null, rides: c.rides, lastSeenAt: c.lastSeenAt }));
+      return {
+        lowBattery, winback,
+        offPeak: { start: ops.offPeakStart, end: ops.offPeakEnd, bonus: ops.offPeakBonus },
+      };
+    });
+
+    scoped.post('/admin/notify/triggers/run', async (req) => {
+      require(req, 'notify:write');
+      const body = parse(z.object({ trigger: z.enum(['battery', 'winback']) }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      if (body.trigger === 'battery') {
+        const { CHARGING_STATIONS } = await import('./service.js');
+        const low = container.drivers.list()
+          .filter((d) => (d.engine ?? 'electric') === 'electric' && d.batteryPct !== undefined && d.batteryPct < 15);
+        for (const d of low) {
+          container.notifications.notify(
+            { driverId: d.id },
+            'Batterie faible — borne partenaire 🔌',
+            `Votre batterie est à ${d.batteryPct} %. Borne recommandée : ${CHARGING_STATIONS[0]?.name}. Bonus heures creuses : ${container.settings.getOps().offPeakBonus} F.`,
+          );
+        }
+        const a = container.notifications.broadcast({
+          audience: 'drivers', channel: 'push', segment: 'green', author: account.name,
+          title: 'Alerte flotte verte (auto)', body: 'Guidage borne envoyé aux véhicules < 15 % de batterie.',
+          audienceCount: low.length,
+        });
+        audit(req, 'notify.trigger', a.id, { trigger: 'battery', sent: low.length });
+        return { sent: low.length, announcement: a };
+      }
+      // Win-back : code court + notification aux clients silencieux depuis 30 jours.
+      const THIRTY_D = 30 * 86_400_000;
+      const silent = container.clients.list()
+        .filter((c) => c.rides >= 1 && Date.now() - Date.parse(c.lastSeenAt) > THIRTY_D)
+        .slice(0, 50);
+      const promo = container.promos.compensation({ percent: 15, days: 7, prefix: 'RETOUR' });
+      for (const c of silent) {
+        container.notifications.notify(
+          { clientId: c.id },
+          'Vous nous manquez 💚',
+          `Revenez rouler vert : code ${promo.id} (-15 %) valable 7 jours sur votre prochaine course ORION.`,
+        );
+      }
+      const a = container.notifications.broadcast({
+        audience: 'clients', channel: 'sms', segment: 'inactifs', author: account.name,
+        title: 'Campagne win-back (auto)', body: `Code ${promo.id} envoyé aux clients inactifs depuis 30 jours.`,
+        audienceCount: silent.length,
+      });
+      audit(req, 'notify.trigger', a.id, { trigger: 'winback', sent: silent.length, code: promo.id });
+      return { sent: silent.length, code: promo.id, announcement: a };
     });
 
     // --- Journal d'audit ---

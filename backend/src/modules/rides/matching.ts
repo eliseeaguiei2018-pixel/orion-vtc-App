@@ -17,6 +17,13 @@ export interface DispatchContext {
   maxEtaMinutes?: number;
   /** Micro-zonage : zone de prise en charge (id + standard minimal exigé). */
   originZone?: { id: string; minStandard?: string } | null;
+  /** Rayons de recherche évolutifs (m) — pilotés par la console (radiusKm → radiusMaxKm). */
+  radiiMeters?: number[];
+  /** Pondération du scoring d'attribution (0 = distance pure, comportement historique). */
+  weightRating?: number;
+  weightIdle?: number;
+  /** Priorisation écologique absolue : l'électrique passe d'abord à ETA comparable. */
+  greenPriority?: boolean;
 }
 
 /** Rang des niveaux (standard minimal de secteur). */
@@ -42,6 +49,8 @@ interface Candidate { id: string; distanceMeters: number; driver: Driver }
  */
 export class MatchingEngine {
   private readonly assignmentLocks = new Set<string>();
+  /** Désappariement (qualité) : paires client|chauffeur plus jamais mises en relation. */
+  private readonly blockedPairs = new Set<string>();
 
   constructor(
     private readonly geo: GeoIndex,
@@ -61,13 +70,23 @@ export class MatchingEngine {
     return driver.batteryPct >= neededPct;
   }
 
-  async findDriver(origin: LatLng, category?: string, rideDistanceMeters?: number): Promise<MatchResult | null> {
+  /** Après une note 1–2★, ces deux usagers ne seront plus jamais mis en relation. */
+  blockPair(clientId: string, driverId: string): void {
+    this.blockedPairs.add(`${clientId}|${driverId}`);
+  }
+
+  isBlockedPair(clientId: string, driverId: string): boolean {
+    return this.blockedPairs.has(`${clientId}|${driverId}`);
+  }
+
+  async findDriver(origin: LatLng, category?: string, rideDistanceMeters?: number, clientId?: string): Promise<MatchResult | null> {
     const ctx = this.dispatchCtx?.(origin);
     const strategy = ctx?.strategy ?? 'nearest';
+    const baseRadii = ctx?.radiiMeters?.length ? ctx.radiiMeters : this.radiiMeters;
     // Règles d'ÉQUITÉ (FIFO) : le rayon max est considéré d'emblée, sinon un chauffeur
     // qui attend depuis longtemps mais un peu plus loin ne serait jamais servi.
     const fifo = strategy === 'longest_idle' || (strategy === 'zone_queue' && ctx?.inQueueZone(origin) === true);
-    const radii = fifo ? [this.radiiMeters[this.radiiMeters.length - 1]!] : this.radiiMeters;
+    const radii = fifo ? [baseRadii[baseRadii.length - 1]!] : baseRadii;
 
     for (const radius of radii) {
       const nearby = await this.geo.nearby(origin, radius, 20);
@@ -79,6 +98,8 @@ export class MatchingEngine {
         if (!driver || driver.availability !== 'online') continue;
         if (this.assignmentLocks.has(c.id)) continue; // déjà réservé (lock)
         if (!this.hasRangeFor(driver, rideDistanceMeters)) continue; // batterie insuffisante
+        // Désappariement qualité : jamais réapparier après une note 1–2★.
+        if (clientId && this.blockedPairs.has(`${clientId}|${c.id}`)) continue;
         // Cantonnement : un chauffeur épinglé à une zone n'est matché QUE dans celle-ci.
         if (driver.zoneLockId && ctx?.originZone?.id !== driver.zoneLockId) continue;
         // Standard minimal du secteur (Riviera Golf exige ≥ argent, Beverly Hills ≥ or…).
@@ -95,7 +116,7 @@ export class MatchingEngine {
       }
       if (candidates.length === 0) continue;
 
-      const chosen = this.pick(candidates, fifo);
+      const chosen = this.pick(candidates, fifo, ctx);
       this.assignmentLocks.add(chosen.id);
       return {
         driverId: chosen.id,
@@ -107,12 +128,26 @@ export class MatchingEngine {
   }
 
   /** Applique la règle d'attribution configurée (console → OpsConfig). */
-  private pick(candidates: Candidate[], fifo: boolean): Candidate {
+  private pick(candidates: Candidate[], fifo: boolean, ctx?: DispatchContext): Candidate {
     if (fifo) {
       // FIFO : le plus ancien en attente d'abord (équité de revenus).
       return [...candidates].sort((a, b) => (a.driver.idleSince ?? '9999').localeCompare(b.driver.idleSince ?? '9999'))[0]!;
     }
-    return [...candidates].sort((a, b) => a.distanceMeters - b.distanceMeters)[0]!;
+    // SCORING PONDÉRÉ (console) : distance de base, moins des bonus note / ancienneté
+    // d'attente / motorisation propre. Poids à 0 → distance pure (comportement historique).
+    const wr = ctx?.weightRating ?? 0;
+    const wi = ctx?.weightIdle ?? 0;
+    const score = (c: Candidate): number => {
+      const etaMin = (c.distanceMeters / 1000 / APPROACH_SPEED_KMH) * 60;
+      const idleMin = c.driver.idleSince ? Math.max(0, (Date.now() - Date.parse(c.driver.idleSince)) / 60_000) : 0;
+      let s = etaMin;
+      s -= wr * (c.driver.ratingAvg - 4.5) * 2;                 // privilégie un 4.9 face à un 4.2
+      s -= wi * Math.min(idleMin, 120) / 30;                    // favorise le chauffeur inactif (lissage revenus)
+      if (ctx?.greenPriority && (c.driver.engine ?? 'electric') === 'electric') s -= 2; // priorité écologique absolue
+      if (c.driver.vip) s -= 0.5;                               // Top Driver : priorité dispatch
+      return s;
+    };
+    return [...candidates].sort((a, b) => score(a) - score(b))[0]!;
   }
 
   /** Libère le verrou (refus, timeout, ou fin de course). */

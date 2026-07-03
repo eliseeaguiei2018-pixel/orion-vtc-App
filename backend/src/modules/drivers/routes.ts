@@ -88,13 +88,31 @@ export async function greenTelemetryRoutes(app: import('fastify').FastifyInstanc
     const body = parse(z.object({
       engine: z.enum(['electric', 'hybrid']).optional(),
       batteryPct: z.number().min(0).max(100).optional(),
+      /** Santé de la batterie (SoH %) — dégradation long terme, planification maintenance. */
+      batteryHealthPct: z.number().min(0).max(100).optional(),
     }), req.body);
     const d = container.drivers.get(id);
     if (!d) throw notFound('Chauffeur introuvable');
     if (body.engine) d.engine = body.engine;
     if (body.batteryPct !== undefined) d.batteryPct = Math.round(body.batteryPct);
+    if (body.batteryHealthPct !== undefined) d.batteryHealthPct = Math.round(body.batteryHealthPct);
     container.drivers.persist(id);
-    return { ok: true, engine: d.engine ?? null, batteryPct: d.batteryPct ?? null };
+    return { ok: true, engine: d.engine ?? null, batteryPct: d.batteryPct ?? null, batteryHealthPct: d.batteryHealthPct ?? null };
+  });
+
+  /**
+   * Position dans la file d'attente FIFO (zones denses type aéroport) :
+   * « Vous êtes 12ᵉ sur 45 » — ordre strict d'ancienneté d'attente.
+   */
+  app.get('/drivers/:id/queue', async (req) => {
+    const { id } = req.params as { id: string };
+    const { notFound } = await import('../../core/errors.js');
+    if (!container.drivers.get(id)) throw notFound('Chauffeur introuvable');
+    const online = container.drivers.list()
+      .filter((d) => d.availability === 'online')
+      .sort((a, b) => (a.idleSince ?? '9999').localeCompare(b.idleSince ?? '9999'));
+    const idx = online.findIndex((d) => d.id === id);
+    return { inQueue: idx >= 0, position: idx >= 0 ? idx + 1 : null, total: online.length };
   });
 
   // Dossier véhicule (CRM flotte) : modèle + expiration d'assurance.
@@ -106,11 +124,22 @@ export async function greenTelemetryRoutes(app: import('fastify').FastifyInstanc
     const body = parse(z.object({
       vehicleModel: z.string().min(2).max(60).optional(),
       insuranceExpiry: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      /* Dossier d'identification (transmission SAMU / police). */
+      phone: z.string().min(6).max(20).optional(),
+      licenseNo: z.string().min(3).max(30).optional(),
+      birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      vehiclePlate: z.string().min(3).max(15).optional(),
+      vehicleColor: z.string().min(3).max(20).optional(),
     }), req.body);
     const d = container.drivers.get(id);
     if (!d) throw notFound('Chauffeur introuvable');
     if (body.vehicleModel) d.vehicleModel = body.vehicleModel;
     if (body.insuranceExpiry) d.insuranceExpiry = body.insuranceExpiry;
+    if (body.phone) d.phone = body.phone;
+    if (body.licenseNo) d.licenseNo = body.licenseNo;
+    if (body.birthDate) d.birthDate = body.birthDate;
+    if (body.vehiclePlate) d.vehiclePlate = body.vehiclePlate;
+    if (body.vehicleColor) d.vehicleColor = body.vehicleColor;
     container.drivers.persist(id);
     return { ok: true };
   });

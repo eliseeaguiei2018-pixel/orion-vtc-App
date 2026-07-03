@@ -41,4 +41,13 @@ export async function supportClientRoutes(app: FastifyInstance, container: Conta
     if (!msg) throw notFound('Conversation introuvable');
     return { message: msg };
   });
+
+  // Satisfaction post-résolution (CSAT 1–5) — alimente les indicateurs des agents.
+  app.post('/support/:id/csat', async (req) => {
+    const { id } = req.params as { id: string };
+    const body = parse(z.object({ stars: z.number().int().min(1).max(5) }), req.body);
+    const conv = container.support.rateCsat(id, body.stars);
+    if (!conv) throw notFound('Conversation introuvable');
+    return { conversation: { id: conv.id, csat: conv.csat } };
+  });
 }

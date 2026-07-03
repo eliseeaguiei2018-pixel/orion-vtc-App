@@ -16,6 +16,8 @@ export interface Client {
   cancellations?: number;
   /** Avertissements automatiques (annulations abusives : 1 par palier de 3). */
   warnings?: number;
+  /** Points Carbone (fidélisation verte) : 1 point par km 100 % électrique payé. */
+  greenPoints?: number;
   createdAt: string;
   lastSeenAt: string;
 }
@@ -59,6 +61,14 @@ export class ClientStore {
     }
     this.repo?.put(c);
     return warned;
+  }
+
+  /** Crédite des Points Carbone (course 100 % électrique payée). */
+  addGreenPoints(id: string, points: number): number {
+    const c = this.touch(id);
+    c.greenPoints = (c.greenPoints ?? 0) + Math.max(0, Math.round(points));
+    this.repo?.put(c);
+    return c.greenPoints;
   }
 
   get(id: string): Client | undefined { return this.clients.get(id); }

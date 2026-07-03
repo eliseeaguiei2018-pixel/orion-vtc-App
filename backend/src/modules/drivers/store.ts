@@ -30,6 +30,16 @@ export interface Driver {
   insuranceExpiry?: string;
   /** Module éco-conduite validé (vidéo + QCM ≥ 80 %). */
   trained?: boolean;
+  /** Top Driver (top 5 %) : statut privilégié (priorité dispatch, commission réduite). */
+  vip?: boolean;
+  /** Santé de la batterie (SoH %) — suivi de dégradation long terme (flotte verte). */
+  batteryHealthPct?: number;
+  /* --- Dossier d'identification (transmission SAMU / police) --- */
+  phone?: string;
+  licenseNo?: string;
+  birthDate?: string;
+  vehiclePlate?: string;
+  vehicleColor?: string;
 }
 
 /** Génère un matricule ORION lisible, ex. ORION-CI-4821. */

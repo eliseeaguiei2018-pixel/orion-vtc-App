@@ -10,6 +10,10 @@ export interface Promo {
   active: boolean;
   uses: number;
   maxUses?: number;    // 0/undefined = illimité
+  /** Date d'expiration (ISO) — codes de dédommagement / win-back à durée courte. */
+  expiresAt?: string;
+  /** Code réservé à un client précis (dédommagement personnalisé). */
+  clientId?: string;
   createdAt: string;
 }
 
@@ -26,7 +30,7 @@ export class PromoService {
     return [...this.promos.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
-  upsert(input: { code: string; kind: PromoKind; value: number; maxUses?: number; active?: boolean }): Promo {
+  upsert(input: { code: string; kind: PromoKind; value: number; maxUses?: number; active?: boolean; expiresAt?: string; clientId?: string }): Promo {
     const id = norm(input.code);
     const existing = this.promos.get(id);
     const promo: Promo = {
@@ -36,11 +40,29 @@ export class PromoService {
       active: input.active ?? existing?.active ?? true,
       uses: existing?.uses ?? 0,
       maxUses: input.maxUses ?? existing?.maxUses,
+      expiresAt: input.expiresAt ?? existing?.expiresAt,
+      clientId: input.clientId ?? existing?.clientId,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
     };
     this.promos.set(id, promo);
     this.repo?.put(promo);
     return promo;
+  }
+
+  /**
+   * Code de DÉDOMMAGEMENT personnalisé (support) : code unique, usage unique,
+   * date d'expiration courte, réservé au client compensé.
+   */
+  compensation(input: { clientId?: string; percent: number; days: number; prefix?: string }): Promo {
+    const code = `${input.prefix ?? 'DESOLE'}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    return this.upsert({
+      code,
+      kind: 'percent',
+      value: Math.min(50, Math.max(5, Math.round(input.percent))),
+      maxUses: 1,
+      clientId: input.clientId,
+      expiresAt: new Date(Date.now() + Math.min(30, Math.max(1, input.days)) * 86_400_000).toISOString(),
+    });
   }
 
   setActive(code: string, active: boolean): Promo | undefined {
@@ -63,6 +85,7 @@ export class PromoService {
     const p = this.promos.get(norm(code));
     if (!p || !p.active) return null;
     if (p.maxUses && p.uses >= p.maxUses) return null;
+    if (p.expiresAt && Date.parse(p.expiresAt) < Date.now()) return null; // code expiré
     const discount = p.kind === 'percent'
       ? Math.round(subtotal * Math.min(100, Math.max(0, p.value)) / 100)
       : Math.min(subtotal, Math.max(0, p.value));

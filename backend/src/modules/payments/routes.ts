@@ -99,6 +99,11 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
         // La notation restant optionnelle, on ne bloque pas le chauffeur dessus.
         container.matching.releaseLock(ride.driverId);
         container.drivers.setAvailability(ride.driverId, 'online');
+        // Points Carbone (fidélisation verte) : 1 point par km 100 % électrique payé.
+        const drv = container.drivers.get(ride.driverId);
+        if ((drv?.engine ?? 'electric') === 'electric') {
+          container.clients.addGreenPoints(ride.clientId, Math.max(1, Math.round((ride.quote.distanceMeters ?? 0) / 1000)));
+        }
       }
       // ORION Assurance : enregistre la cotisation 2% si activée.
       const ins = ride.quote.breakdown.insurance;

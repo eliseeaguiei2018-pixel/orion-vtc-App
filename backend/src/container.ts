@@ -29,6 +29,8 @@ import { DisputeService, type Dispute } from './modules/disputes/service.js';
 import { DemandService } from './modules/rides/demand.js';
 import { TeamService, type Team } from './modules/teams/service.js';
 import { CorporateService, type CorporateAccount } from './modules/corporate/service.js';
+import { SecurityAlertsService } from './modules/admin/security.js';
+import { ReservationService, type Reservation } from './modules/reservations/service.js';
 import type { Ride } from './modules/rides/store.js';
 import type { LedgerEntry } from './modules/wallet/service.js';
 import type { Subscription } from './modules/subscriptions/service.js';
@@ -67,6 +69,10 @@ export interface Container {
   demand: DemandService;
   teams: TeamService;
   corporate: CorporateService;
+  /** Alertes sécurité interne : tentatives d'accès non autorisé (signalées à la direction). */
+  security: SecurityAlertsService;
+  /** Réservations à l'avance (courses planifiées). */
+  reservations: ReservationService;
 }
 
 export function createContainer(): Container {
@@ -77,11 +83,21 @@ export function createContainer(): Container {
   // Dispatch : la règle d'attribution (console) est relue à chaque course.
   const matching = new MatchingEngine(geo, drivers, undefined, (origin) => {
     const z = settings.zoneForPoint(origin);
+    const ops = settings.getOps();
     return {
-      strategy: settings.getOps().strategy,
+      strategy: ops.strategy,
       inQueueZone: (p) => Boolean(settings.zoneForPoint(p)),
-      maxEtaMinutes: settings.getOps().maxEtaMinutes,
+      maxEtaMinutes: ops.maxEtaMinutes,
       originZone: z ? { id: z.id, minStandard: z.minStandard } : null,
+      // Rayons évolutifs pilotés depuis la console (initial → intermédiaire → max).
+      radiiMeters: [
+        ops.radiusKm * 1000,
+        Math.max(ops.radiusKm, (ops.radiusKm + ops.radiusMaxKm) / 2) * 1000,
+        Math.max(ops.radiusKm, ops.radiusMaxKm) * 1000,
+      ],
+      weightRating: ops.weightRating,
+      weightIdle: ops.weightIdle,
+      greenPriority: ops.greenPriority,
     };
   });
 
@@ -102,13 +118,15 @@ export function createContainer(): Container {
       demand.record(req.origin);
       const ops = settings.getOps();
       const surgeRaw = ops.surgeEnabled ? await demand.surgeFor(req.origin) : 1;
+      // Surge MANUEL d'urgence (zone dessinée dans la console) — toujours plafonné (cap vert).
+      const surgeManual = settings.zoneForPoint(req.origin)?.surgeManual ?? 1;
       return {
         trafficFactor: traffic.factor,
         trafficLevel: traffic.level,
         settings: settings.getPricing(),
         zoneFactor: settings.zoneFactor(req.origin),
         zonePickupFee: settings.zoneForPoint(req.origin)?.pickupFee ?? 0,
-        surgeMultiplier: Math.min(surgeRaw, ops.surgeCapGreen),
+        surgeMultiplier: Math.min(Math.max(surgeRaw, surgeManual), ops.surgeCapGreen),
         promoDiscount: (subtotal: number) => promos.evaluate(req.promoCode, subtotal)?.discount ?? 0,
       };
     }),
@@ -148,6 +166,8 @@ export function createContainer(): Container {
     support: new SupportService(realtime),
     notifications: new NotificationService(realtime),
     audit: new AuditService(),
+    security: new SecurityAlertsService(),
+    reservations: new ReservationService(createRepository<Reservation>('reservations')),
   };
 }
 

@@ -17,9 +17,41 @@ const fleet: FleetUnit[] = [
 ];
 
 const alerts: Alert[] = [
-  { id: 'a1', kind: 'crash', status: 'dispatched', userId: 'client-8842', location: { lat: 5.348, lng: -4.002 }, zoneName: 'Adjamé', impactG: 6.2, dispatchedTo: ['185', '170'], createdAt: iso(2), note: 'Accident détecté automatiquement (capteurs)' },
-  { id: 'a2', kind: 'sos', status: 'acknowledged', userId: 'client-1190', location: { lat: 5.335, lng: -3.99 }, zoneName: 'Cocody', dispatchedTo: ['185', '170'], createdAt: iso(9), note: 'SOS déclenché par le client' },
-  { id: 'a3', kind: 'sos', status: 'resolved', userId: 'client-4521', location: { lat: 5.31, lng: -4.01 }, zoneName: 'Treichville', dispatchedTo: ['185'], createdAt: iso(41) },
+  { id: 'a1', kind: 'crash', level: 'rouge', status: 'dispatched', source: 'systeme', userId: 'client-8842', location: { lat: 5.348, lng: -4.002 }, zoneName: 'Adjamé', impactG: 6.2, dispatchedTo: ['185', '170'], createdAt: iso(2), slaSeconds: 122, note: 'Accident détecté automatiquement (capteurs)' },
+  { id: 'a2', kind: 'sos', level: 'rouge', status: 'acknowledged', source: 'client', agent: 'Aya (SAMU)', userId: 'client-1190', location: { lat: 5.335, lng: -3.99 }, zoneName: 'Cocody', dispatchedTo: ['185', '170'], createdAt: iso(9), slaSeconds: 540, note: 'SOS déclenché par le client', chat: [{ from: 'agent', author: 'Aya (SAMU)', text: 'Êtes-vous en danger ? Répondez par Oui ou Non.', at: iso(8) }, { from: 'usager', text: 'Non, fausse manip', at: iso(7) }] },
+  { id: 'a4', kind: 'deviation', level: 'orange', status: 'dispatched', source: 'systeme', userId: 'client-3312', location: { lat: 5.34, lng: -4.005 }, zoneName: 'Plateau', dispatchedTo: ['185', '170'], createdAt: iso(4), slaSeconds: 240, note: 'Déviation majeure inexpliquée (itinéraire réel très supérieur au prévu)' },
+  { id: 'a5', kind: 'immobilisation', level: 'jaune', status: 'raised', source: 'systeme', userId: 'client-7781', location: { lat: 5.30, lng: -3.99 }, zoneName: 'Marcory', dispatchedTo: ['185'], createdAt: iso(6), slaSeconds: 360, note: 'Véhicule anormalement immobilisé (course figée)' },
+  { id: 'a3', kind: 'sos', level: 'rouge', status: 'resolved', source: 'client', agent: 'Ben (SAMU)', sealed: true, closingNote: 'Fausse alerte confirmée par le passager, aucune menace. Course reprise normalement.', userId: 'client-4521', location: { lat: 5.31, lng: -4.01 }, zoneName: 'Treichville', dispatchedTo: ['185'], createdAt: iso(41) },
+];
+const sosPresets = [
+  'Êtes-vous en danger ? Répondez par Oui ou Non.',
+  'Les secours sont prévenus. Restez calme, nous suivons votre position.',
+  'Pouvez-vous parler librement ?',
+  'Restez dans le véhicule si vous êtes en sécurité, sinon éloignez-vous.',
+];
+/** Dossier SAMU d'une alerte (démo). */
+function sosDossier(id: string) {
+  const a = alerts.find((x) => x.id === id) ?? alerts[0]!;
+  const o = { lat: 5.325, lng: -4.02 }, dst = { lat: 5.36, lng: -3.985 };
+  const trace: { lat: number; lng: number }[] = [];
+  for (let i = 0; i <= 30; i++) {
+    const t = i / 30;
+    trace.push({ lat: o.lat + (dst.lat - o.lat) * t + Math.sin(t * 7) * 0.006, lng: o.lng + (dst.lng - o.lng) * t + Math.cos(t * 5) * 0.005 });
+  }
+  return {
+    alert: a, presets: sosPresets,
+    ride: { id: 'r-sos-' + a.id, status: 'in_progress', origin: o, destination: dst, trace, createdAt: a.createdAt },
+    vehicle: { plate: '4821 CI 01', model: 'BYD Dolphin 2024', color: 'Blanc nacré', engine: 'electric' },
+    driver: { id: 'd2', name: 'Awa Diomandé', matricule: 'ORION-CI-2210', phone: '+225 07 11 22 33 44', licenseNo: 'CI-2019-448210', birthDate: '1990-05-14', phoneBatteryPct: 68, batteryPct: 57 },
+    passenger: { id: a.userId, name: 'Awa Koffi', phone: '+225 07 08 09 10 11', phoneBatteryPct: 41, lastRides: [{ id: 'r1', status: 'rated', createdAt: iso(60) }, { id: 'r2', status: 'paid', createdAt: iso(300) }] },
+    telemetry: { speedEstimateKmh: 54, points: trace.length, refreshSeconds: 1 },
+    emergencyNumbers: { samu: '185', police: '170', pompiers: '180' },
+  };
+}
+/** Alertes sécurité interne (tentatives d'accès non autorisé) — démo. */
+const security = [
+  { id: 's1', username: 'jean.support', name: 'Jean (Support)', role: 'support', section: 'treasury', ip: '154.12.9.90', at: iso(12), notified: ['DG', 'CFO', 'DAA'] },
+  { id: 's2', username: 'awa.ops', name: 'Awa (Dispatch)', role: 'ops', permission: 'finance:read', path: '/admin/finance', ip: '154.12.9.87', at: iso(140), notified: ['DG', 'CFO', 'DAA'] },
 ];
 
 const rides: RideRow[] = [
@@ -92,11 +124,63 @@ const me = {
   name: 'PDG ORION',
   role: 'ceo',
   roleLabel: 'CEO — Président Directeur Général',
-  permissions: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'services:write', 'support:read', 'support:write', 'finance:read', 'treasury:read', 'treasury:request', 'treasury:approve', 'sessions:read', 'sessions:write', 'teams:read', 'teams:write', 'search:read', 'notify:read', 'notify:write', 'audit:read', 'roles:read'],
+  permissions: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'services:write', 'support:read', 'support:write', 'finance:read', 'treasury:read', 'treasury:request', 'treasury:approve', 'sessions:read', 'sessions:write', 'teams:read', 'teams:write', 'search:read', 'notify:read', 'notify:write', 'audit:read', 'security:read', 'roles:read'],
 };
 
 /** Réglages dispatch & qualité (démo). */
-const ops = { strategy: 'nearest', minRating: 4.5, autoWarn: true, maxEtaMinutes: 7, offerTimeoutSec: 12, surgeEnabled: true, surgeCapGreen: 1.3, waitFeePerMin: 100 };
+const ops = {
+  strategy: 'nearest', minRating: 4.5, autoWarn: true, maxEtaMinutes: 7, offerTimeoutSec: 12,
+  surgeEnabled: true, surgeCapGreen: 1.3, waitFeePerMin: 100,
+  radiusKm: 1.5, radiusMaxKm: 6, offerMode: 'cascade', weightRating: 0, weightIdle: 0, greenPriority: false,
+  surgeThreshold: 1.3, surgeSmoothingMin: 10, refundCap: 5000, offPeakBonus: 500, offPeakStart: 22, offPeakEnd: 6,
+};
+/** Support : indicateurs SLA/CSAT + macros (démo). */
+const supportStats = { open: 2, resolvedToday: 5, avgFirstReplyMin: 3.4, csat: 4.6 };
+const macros = [
+  { title: 'Objet oublié', text: 'Nous avons contacté votre chauffeur au sujet de l’objet oublié. Votre objet vous sera restitué sans frais.' },
+  { title: 'Procédure d’annulation', text: 'Vous pouvez annuler sans frais tant que le chauffeur n’est pas arrivé au point de rendez-vous.' },
+  { title: 'Erreur de facturation', text: 'Après vérification du trajet GPS et du devis verrouillé, la différence sera recréditée sous 24 h.' },
+  { title: 'Prix fixe garanti', text: 'Le prix affiché avant la course est FIXE et garanti : trafic déjà intégré, aucun supplément surprise.' },
+];
+/** Déclencheurs automatisés (démo). */
+const triggers = {
+  lowBattery: [
+    { id: 'd5', name: 'Mamadou Bamba', matricule: 'ORION-CI-9034', batteryPct: 14, station: 'Borne Cocody — Riviera 2' },
+    { id: 'd8', name: 'Serge Aka', matricule: 'ORION-CI-4820', batteryPct: 11, station: 'Borne Plateau — Rue du Commerce' },
+  ],
+  winback: [
+    { id: 'client-2793', name: 'Sékou Traoré', rides: 28, lastSeenAt: iso(60 * 24 * 33) },
+    { id: 'client-2427', name: 'Nadia Cissé', rides: 15, lastSeenAt: iso(60 * 24 * 41) },
+  ],
+  offPeak: { start: 22, end: 6, bonus: 500 },
+};
+/** Courbe CSAT 7 jours + taux (démo). */
+const csat = {
+  series: Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(); d.setUTCDate(d.getUTCDate() - (6 - i));
+    return { date: d.toISOString().slice(0, 10), avg: Math.round((4.5 + Math.sin(i) * 0.25) * 100) / 100, count: 40 + i * 6 };
+  }),
+  csat7d: 4.82, acceptRate: 94, cancelRate: 6,
+};
+/** Top drivers (VIP top 5 %) — démo. */
+const qualityTop = [
+  { id: 'd3', name: 'Aïcha Touré', matricule: 'ORION-CI-1207', rating: 4.95, trips: 1284, vip: true },
+  { id: 'd7', name: 'Fatou Koné', matricule: 'ORION-CI-7788', rating: 4.93, trips: 1102, vip: false },
+];
+/** Réservations à l'avance (démo). */
+const reservations = [
+  { id: 'rs-01', clientId: 'client-8842', origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.26, lng: -3.93 }, category: 'or', scheduledFor: iso(-90), status: 'assignee', driverName: 'Serge Aka', minutesToGo: 90, punctualityAlert: false, createdAt: iso(600) },
+  { id: 'rs-02', clientId: 'client-1190', origin: { lat: 5.36, lng: -3.98 }, destination: { lat: 5.26, lng: -3.93 }, category: 'diamant', scheduledFor: iso(-20), status: 'planifiee', minutesToGo: 20, punctualityAlert: true, createdAt: iso(400) },
+  { id: 'rs-03', clientId: 'client-3345', origin: { lat: 5.33, lng: -4.01 }, destination: { lat: 5.35, lng: -4.02 }, category: 'argent', scheduledFor: iso(-60 * 12), status: 'planifiee', minutesToGo: 720, punctualityAlert: false, createdAt: iso(200) },
+];
+/** Shadow mode (démo). */
+function simulate(patch: { maxEtaMinutes?: number; radiusMaxKm?: number }) {
+  const wider = (patch.radiusMaxKm ?? 6) > 6 || (patch.maxEtaMinutes ?? 7) > 7;
+  return {
+    current: { sampled: 60, matched: 52, matchRate: 87, avgEtaMin: 4.6 },
+    proposed: { sampled: 60, matched: wider ? 57 : 50, matchRate: wider ? 95 : 83, avgEtaMin: wider ? 5.8 : 4.2 },
+  };
+}
 
 /** Modération des notes (démo) : dérivée de la flotte, avec deux cas sous le seuil. */
 function quality() {
@@ -104,9 +188,9 @@ function quality() {
     id: d.id, name: d.name, matricule: d.matricule, category: d.category,
     rating: i === 2 ? 4.12 : i === 8 ? 4.38 : d.rating, trips: d.trips,
     warnings: i === 2 ? 2 : i === 8 ? 1 : 0, kycStatus: d.kycStatus,
-    below: i === 2 || i === 8,
+    vip: d.id === 'd3', below: i === 2 || i === 8,
   })).sort((a, b) => a.rating - b.rating);
-  return { threshold: 4.5, autoWarn: true, drivers: rows };
+  return { threshold: 4.5, autoWarn: true, drivers: rows, top: qualityTop };
 }
 
 /** Litiges de démonstration. */
@@ -147,15 +231,20 @@ const green = {
   co2SavedKg: 18425, co2SavedTons: 18.43, kmElectric: 128400, kmHybrid: 21500,
   electricShare: 86, hybridShare: 14,
   fleet: {
-    electric: 8, hybrid: 2, lowBattery: 1,
+    electric: 8, hybrid: 2, lowBattery: 1, avgSoh: 89,
     batteries: [
-      { id: 'd1', name: 'Konan Yao', matricule: 'ORION-CI-1042', batteryPct: 84, availability: 'online' },
-      { id: 'd2', name: 'Awa Diomandé', matricule: 'ORION-CI-2210', batteryPct: 57, availability: 'on_trip' },
-      { id: 'd3', name: 'Aïcha Touré', matricule: 'ORION-CI-1207', batteryPct: 92, availability: 'online' },
-      { id: 'd5', name: 'Mamadou Bamba', matricule: 'ORION-CI-9034', batteryPct: 14, availability: 'online' },
-      { id: 'd7', name: 'Fatou Koné', matricule: 'ORION-CI-7788', batteryPct: 66, availability: 'on_trip' },
+      { id: 'd1', name: 'Konan Yao', matricule: 'ORION-CI-1042', batteryPct: 84, batteryHealthPct: 94, availability: 'online' },
+      { id: 'd2', name: 'Awa Diomandé', matricule: 'ORION-CI-2210', batteryPct: 57, batteryHealthPct: 88, availability: 'on_trip' },
+      { id: 'd3', name: 'Aïcha Touré', matricule: 'ORION-CI-1207', batteryPct: 92, batteryHealthPct: 96, availability: 'online' },
+      { id: 'd5', name: 'Mamadou Bamba', matricule: 'ORION-CI-9034', batteryPct: 14, batteryHealthPct: 79, availability: 'online' },
+      { id: 'd7', name: 'Fatou Koné', matricule: 'ORION-CI-7788', batteryPct: 66, batteryHealthPct: 91, availability: 'on_trip' },
     ],
   },
+  topGreenClients: [
+    { id: 'client-8842', name: 'Awa Koffi', greenPoints: 1284 },
+    { id: 'client-1190', name: 'Jean Brou', greenPoints: 642 },
+    { id: 'client-2793', name: 'Sékou Traoré', greenPoints: 511 },
+  ],
   chargingStations: [
     { id: 'cs-plateau', name: 'Borne Plateau — Rue du Commerce', lat: 5.3236, lng: -4.0187, fast: true },
     { id: 'cs-cocody', name: 'Borne Cocody — Riviera 2', lat: 5.3601, lng: -3.9788, fast: true },
@@ -368,4 +457,9 @@ function clientDetail(id: string, rows: Client[]): ClientDetail {
   };
 }
 
-export const DEMO = { overview, stats, alerts, fleet, rides, drivers, pricing, zones, me, clients, promos, services, support, audit, finance, broadcasts, treasury, sessions, search, driverDetail, clientDetail, ops, quality, disputes, rideForensic, green, teams, predict, conversion, churn, corporate };
+export const DEMO = {
+  overview, stats, alerts, fleet, rides, drivers, pricing, zones, me, clients, promos, services, support, audit,
+  finance, broadcasts, treasury, sessions, search, driverDetail, clientDetail, ops, quality, disputes, rideForensic,
+  green, teams, predict, conversion, churn, corporate,
+  sos: alerts, sosPresets, sosDossier, security, supportStats, macros, triggers, reservations, csat, qualityTop, simulate,
+};

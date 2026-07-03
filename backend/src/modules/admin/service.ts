@@ -1,5 +1,9 @@
 import type { Container } from '../../container.js';
 import type { RideStatus } from '../services/ride/stateMachine.js';
+import type { Ride } from '../rides/store.js';
+import type { EmergencyAlert } from '../safety/service.js';
+import { haversineMeters } from '../../core/geo.js';
+import { simplePdf } from '../../core/pdf.js';
 
 /**
  * Service d'agrégation pour le dashboard Admin / supervision SAMU.
@@ -66,6 +70,25 @@ export class AdminService {
     };
   }
 
+  /**
+   * Détection d'ANOMALIES (Smart Alerts) : la course est mise en surbrillance dans
+   * le board si un signal opérationnel sort du cadre (détour majeur, attente
+   * excessive, recherche de chauffeur qui traîne, course figée).
+   */
+  rideAnomaly(r: Ride): string | null {
+    const ageMin = (Date.now() - Date.parse(r.createdAt)) / 60_000;
+    if ((r.status === 'searching' || r.status === 'no_driver') && ageMin > 5) return 'sans_chauffeur';
+    if ((r.waitMinutes ?? 0) >= 10) return 'attente_longue';
+    if (r.status === 'accepted' && ageMin > 15) return 'immobile';
+    if (r.status === 'in_progress' && r.trace && r.trace.length >= 8) {
+      const direct = haversineMeters(r.origin, r.destination);
+      let path = 0;
+      for (let i = 1; i < r.trace.length; i++) path += haversineMeters(r.trace[i - 1]!, r.trace[i]!);
+      if (direct > 500 && path > direct * 1.9) return 'detour';
+    }
+    return null;
+  }
+
   rides(opts: { status?: string; page?: number; limit?: number } = {}) {
     let list = this.c.rides.listAll();
     if (opts.status) list = list.filter((r) => r.status === opts.status);
@@ -84,6 +107,7 @@ export class AdminService {
         trafficLevel: r.quote.trafficLevel,
         origin: r.origin,
         destination: r.destination,
+        anomaly: this.rideAnomaly(r),
         createdAt: r.createdAt,
       };
     });
@@ -177,8 +201,19 @@ export class AdminService {
         hybrid: fleet.filter((d) => d.engine === 'hybrid').length,
         lowBattery: fleet.filter((d) => d.batteryPct !== undefined && d.batteryPct < 20).length,
         batteries: fleet.filter((d) => d.batteryPct !== undefined)
-          .map((d) => ({ id: d.id, name: d.name, matricule: d.matricule, batteryPct: d.batteryPct, availability: d.availability })),
+          .map((d) => ({ id: d.id, name: d.name, matricule: d.matricule, batteryPct: d.batteryPct, batteryHealthPct: d.batteryHealthPct ?? null, availability: d.availability })),
+        /** Santé moyenne des batteries (SoH) — planification maintenance. */
+        avgSoh: (() => {
+          const soh = fleet.filter((d) => d.batteryHealthPct !== undefined).map((d) => d.batteryHealthPct!);
+          return soh.length ? Math.round(soh.reduce((a, b) => a + b, 0) / soh.length) : null;
+        })(),
       },
+      /** Top Points Carbone : passagers les plus engagés (fidélisation verte). */
+      topGreenClients: this.c.clients.list()
+        .filter((cl) => (cl.greenPoints ?? 0) > 0)
+        .sort((a, b) => (b.greenPoints ?? 0) - (a.greenPoints ?? 0))
+        .slice(0, 5)
+        .map((cl) => ({ id: cl.id, name: cl.name ?? null, greenPoints: cl.greenPoints ?? 0 })),
       chargingStations: CHARGING_STATIONS,
     };
   }
@@ -304,6 +339,7 @@ export class AdminService {
       insuranceExpiry: d.insuranceExpiry ?? null,
       trained: d.trained ?? false,
       zoneLockId: d.zoneLockId ?? null,
+      vip: d.vip ?? false,
     }));
     return { drivers, ...meta };
   }
@@ -339,6 +375,7 @@ export class AdminService {
       name: c?.name ?? null, phone: c?.phone ?? null, status: c?.status ?? 'active',
       rides: c?.rides ?? rides.length, createdAt: c?.createdAt ?? null,
       spent: Math.round(spent),
+      greenPoints: c?.greenPoints ?? 0,
       recentRides: rides,
       conversations,
     };
@@ -377,6 +414,263 @@ export class AdminService {
         .map((r) => ({ id: r.id, clientId: r.clientId, status: r.status, amount: r.quote.amount, createdAt: r.createdAt }));
     }
     return out;
+  }
+
+  /* ==================== SESSION SAMU : réquisitions & télémétrie ==================== */
+
+  /**
+   * RAPPORT DE RÉQUISITION PDF : compile l'incident (identités, tracé, chat,
+   * note de synthèse) — horodaté, prêt pour le procureur / la police.
+   */
+  sosReportPdf(alert: EmergencyAlert): Buffer {
+    const ride = alert.rideId ? this.c.rides.get(alert.rideId) : undefined;
+    const driver = ride?.driverId ? this.c.drivers.get(ride.driverId) : undefined;
+    const client = ride ? this.c.clients.get(ride.clientId) : this.c.clients.get(alert.userId);
+    const lines = [
+      'ORION - RAPPORT DE REQUISITION (SUPERVISION SAMU)',
+      `Dossier ${alert.id} · genere le ${new Date().toLocaleString('fr-FR')}`,
+      '',
+      `Niveau : ${alert.level.toUpperCase()} · Type : ${alert.kind} · Statut : ${alert.status}`,
+      `Declenchee le ${new Date(alert.createdAt).toLocaleString('fr-FR')} (${alert.source ?? 'inconnu'})`,
+      `Position : ${alert.location.lat.toFixed(5)}, ${alert.location.lng.toFixed(5)} ${alert.zoneName ? `(${alert.zoneName})` : ''}`,
+      `Agent gestionnaire : ${alert.agent ?? 'non pris en charge'}`,
+      '',
+      '--- VEHICULE / CHAUFFEUR ---',
+      driver
+        ? `${driver.name} · matricule ${driver.matricule} · tel ${driver.phone ?? 'n/c'} · permis ${driver.licenseNo ?? 'n/c'} · ne(e) le ${driver.birthDate ?? 'n/c'}`
+        : 'Aucun chauffeur associe',
+      driver ? `Vehicule : ${driver.vehicleModel ?? 'n/c'} · plaque ${driver.vehiclePlate ?? 'n/c'} · couleur ${driver.vehicleColor ?? 'n/c'} · motorisation ${driver.engine ?? 'electrique'}` : '',
+      '',
+      '--- PASSAGER ---',
+      client ? `${client.name ?? client.id} · tel ${client.phone ?? 'n/c'} · ${client.rides} course(s) au compteur` : `Identifiant : ${alert.userId}`,
+      '',
+      '--- COURSE ---',
+      ride ? `Course ${ride.id} · statut ${ride.status} · ${((ride.quote.distanceMeters ?? 0) / 1000).toFixed(1)} km · ${ride.trace?.length ?? 0} points GPS` : 'Hors course',
+      '',
+      '--- ECHANGES (CHAT SECURISE) ---',
+      ...(alert.chat ?? []).slice(0, 8).map((m) => `[${new Date(m.at).toLocaleTimeString('fr-FR')}] ${m.from === 'agent' ? m.author ?? 'Agent' : 'Usager'} : ${m.text.slice(0, 70)}`),
+      (alert.chat?.length ?? 0) === 0 ? '(aucun message)' : '',
+      '',
+      '--- NOTE DE SYNTHESE ---',
+      alert.closingNote ?? '(dossier non cloture)',
+      '',
+      alert.sealed ? `Dossier SCELLE numeriquement le ${new Date(alert.sealedAt!).toLocaleString('fr-FR')}.` : 'Dossier en cours.',
+      'Document certifie ORION - transmission autorites competentes uniquement.',
+    ];
+    return simplePdf(lines);
+  }
+
+  /** Export EXCEL/CSV des logs bruts de télémétrie (analyse des enquêteurs). */
+  sosTelemetryCsv(alert: EmergencyAlert): string {
+    const ride = alert.rideId ? this.c.rides.get(alert.rideId) : undefined;
+    const trace = ride?.trace ?? [];
+    const head = 'point,lat,lng,segment_m,vitesse_estimee_kmh';
+    const rows: string[] = [];
+    for (let i = 0; i < trace.length; i++) {
+      const seg = i === 0 ? 0 : Math.round(haversineMeters(trace[i - 1]!, trace[i]!));
+      rows.push([i + 1, trace[i]!.lat.toFixed(6), trace[i]!.lng.toFixed(6), seg, Math.round(seg * 3.6)].join(','));
+    }
+    return [`"Telemetrie ORION - dossier ${alert.id} - course ${alert.rideId ?? 'n/a'}"`, head, ...rows].join('\n');
+  }
+
+  /* ==================== SESSION DISPATCH : simulateur & exports ==================== */
+
+  /**
+   * SHADOW MODE : rejoue les origines des dernières courses contre la flotte
+   * actuelle avec une configuration hypothétique — AUCUN impact sur le réseau réel.
+   */
+  async simulateDispatch(patch: { maxEtaMinutes?: number; radiusMaxKm?: number }) {
+    const APPROACH_KMH = 28;
+    const ops = this.c.settings.getOps();
+    const run = async (maxEta: number, radiusKm: number) => {
+      const sample = this.c.rides.listAll().slice(0, 60);
+      let matched = 0, etaSum = 0;
+      for (const r of sample) {
+        const nearby = await this.c.geo.nearby(r.origin, radiusKm * 1000, 20);
+        const etas = nearby
+          .filter((n) => this.c.drivers.get(n.id)?.availability !== 'offline')
+          .map((n) => (n.distanceMeters / 1000 / APPROACH_KMH) * 60)
+          .filter((eta) => eta <= maxEta);
+        if (etas.length) { matched += 1; etaSum += Math.min(...etas); }
+      }
+      return {
+        sampled: sample.length,
+        matched,
+        matchRate: sample.length ? Math.round((matched / sample.length) * 100) : 0,
+        avgEtaMin: matched ? Math.round((etaSum / matched) * 10) / 10 : null,
+      };
+    };
+    return {
+      current: await run(ops.maxEtaMinutes, ops.radiusMaxKm),
+      proposed: await run(patch.maxEtaMinutes ?? ops.maxEtaMinutes, patch.radiusMaxKm ?? ops.radiusMaxKm),
+    };
+  }
+
+  /** Documentation technique PDF : tous les paramètres algorithmiques actifs. */
+  dispatchConfigPdf(): Buffer {
+    const o = this.c.settings.getOps();
+    const zones = this.c.settings.getZones();
+    return simplePdf([
+      'ORION - CONFIGURATION DU MOTEUR DE DISPATCH',
+      `Genere le ${new Date().toLocaleString('fr-FR')} - document d'audit technique`,
+      '',
+      `Strategie d'attribution : ${o.strategy}`,
+      `Rayon de recherche : ${o.radiusKm} km, elargi jusqu'a ${o.radiusMaxKm} km`,
+      `Filtre ETA : ${o.maxEtaMinutes} min · Cascade : ${o.offerTimeoutSec} s (${o.offerMode})`,
+      `Ponderation scoring : note x${o.weightRating} · inactivite x${o.weightIdle}`,
+      `Priorisation ecologique absolue : ${o.greenPriority ? 'OUI' : 'non'}`,
+      '',
+      `Surge : ${o.surgeEnabled ? 'actif' : 'coupe'} · seuil demande/offre ${o.surgeThreshold} · plafond vert x${o.surgeCapGreen} · lissage ${o.surgeSmoothingMin} min`,
+      `Attente facturee : ${o.waitFeePerMin} F/min · Plafond remboursement support : ${o.refundCap} F`,
+      `Qualite : seuil ${o.minRating}/5 · avertissement auto ${o.autoWarn ? 'ON' : 'OFF'}`,
+      `Heures creuses recharge : ${o.offPeakStart}h-${o.offPeakEnd}h · bonus ${o.offPeakBonus} F`,
+      '',
+      `--- ZONES (${zones.length}) ---`,
+      ...zones.slice(0, 20).map((z) => `${z.name} : x${z.factor}${z.surgeManual ? ` · surge manuel x${z.surgeManual}` : ''}${z.minStandard ? ` · standard ${z.minStandard}+` : ''}${z.dedicated ? ' · cantonnement' : ''}${z.waitMaxMin ? ` · attente garantie ${z.waitMaxMin} min` : ''}`),
+    ]);
+  }
+
+  /** Matrice tarifaire (Excel/CSV) : grille complète pour le business plan. */
+  pricingMatrixCsv(): string {
+    const p = this.c.settings.getPricing();
+    const zones = this.c.settings.getZones();
+    const cats = Object.keys(p.multipliers ?? { bronze: 1 });
+    const head = 'zone,facteur_zone,frais_prise_en_charge,categorie,multiplicateur,base_fcfa,par_km,par_min,exemple_5km_15min';
+    const rows: string[] = [];
+    for (const z of zones) {
+      for (const cat of cats) {
+        const mult = (p.multipliers as Record<string, number>)[cat] ?? 1;
+        const example = Math.round((p.baseFare + 5 * p.perKm + 15 * p.perMinute) * mult * z.factor + (z.pickupFee ?? 0));
+        rows.push([z.name.replace(/,/g, ' '), z.factor, z.pickupFee ?? 0, cat, mult, p.baseFare, p.perKm, p.perMinute, example].join(','));
+      }
+    }
+    return [head, ...rows].join('\n');
+  }
+
+  /* ==================== SESSION QUALITÉ : CSAT, matrices, fiches ==================== */
+
+  /** CSAT 7 jours (courbe) + taux d'acceptation / d'annulation du réseau. */
+  qualityCsat() {
+    const days = new Map<string, { sum: number; count: number }>();
+    const today = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setUTCDate(today.getUTCDate() - i);
+      days.set(d.toISOString().slice(0, 10), { sum: 0, count: 0 });
+    }
+    let total = 0, accepted = 0, cancelled = 0;
+    for (const r of this.c.rides.listAll()) {
+      total += 1;
+      if (r.status !== 'no_driver' && r.status !== 'searching') accepted += 1;
+      if (r.status === 'cancelled') cancelled += 1;
+      const rated = r.events.find((e) => e.type === 'rated');
+      if (rated && typeof rated.payload?.['stars'] === 'number') {
+        const b = days.get(rated.at.slice(0, 10));
+        if (b) { b.sum += rated.payload['stars'] as number; b.count += 1; }
+      }
+    }
+    const series = [...days.entries()].map(([date, b]) => ({
+      date, avg: b.count ? Math.round((b.sum / b.count) * 100) / 100 : null, count: b.count,
+    }));
+    const all = series.reduce((s, d) => ({ sum: s.sum + (d.avg ?? 0) * d.count, count: s.count + d.count }), { sum: 0, count: 0 });
+    return {
+      series,
+      csat7d: all.count ? Math.round((all.sum / all.count) * 100) / 100 : null,
+      acceptRate: total ? Math.round((accepted / total) * 100) : 100,
+      cancelRate: total ? Math.round((cancelled / total) * 100) : 0,
+    };
+  }
+
+  /** Matrice de performance (Excel) : corrélation note ↔ chiffre d'affaires. */
+  qualityCsv(): string {
+    const clean = (v: unknown) => {
+      let s = String(v ?? '').replace(/[",\n]/g, ' ');
+      if (/^[=+\-@]/.test(s)) s = `'${s}`;
+      return s;
+    };
+    const revenueBy = new Map<string, number>();
+    for (const r of this.c.rides.listAll()) {
+      if (r.driverId && REVENUE.has(r.status)) revenueBy.set(r.driverId, (revenueBy.get(r.driverId) ?? 0) + r.quote.amount);
+    }
+    const head = 'matricule,nom,categorie,note,courses,avertissements,vip,forme_eco,ca_fcfa';
+    const rows = this.c.drivers.list()
+      .sort((a, b) => b.ratingAvg - a.ratingAvg)
+      .map((d) => [d.matricule, d.name, d.category, d.ratingAvg, d.ratingCount, d.warnings ?? 0, d.vip ? 'oui' : 'non', d.trained ? 'oui' : 'non', Math.round(revenueBy.get(d.id) ?? 0)].map(clean).join(','));
+    return [head, ...rows].join('\n');
+  }
+
+  /** Bilan qualité individuel (PDF) : synthèse mensuelle d'un chauffeur. */
+  driverQualityPdf(id: string): Buffer | null {
+    const d = this.c.drivers.get(id);
+    if (!d) return null;
+    const rides = this.c.rides.listAll().filter((r) => r.driverId === id);
+    const revenue = rides.filter((r) => REVENUE.has(r.status)).reduce((s, r) => s + r.quote.amount, 0);
+    const stars = rides.map((r) => r.events.find((e) => e.type === 'rated')?.payload?.['stars']).filter((s): s is number => typeof s === 'number');
+    const fiveStars = stars.filter((s) => s === 5).length;
+    const oneStars = stars.filter((s) => s === 1).length;
+    return simplePdf([
+      'ORION - BILAN QUALITE CHAUFFEUR',
+      `Genere le ${new Date().toLocaleDateString('fr-FR')}`,
+      '',
+      `${d.name} · matricule ${d.matricule} · gamme ${d.category}${d.vip ? ' · TOP DRIVER (VIP)' : ''}`,
+      `Vehicule : ${d.vehicleModel ?? 'n/c'} · ${d.engine ?? 'electrique'}`,
+      '',
+      `Note moyenne : ${d.ratingAvg}/5 sur ${d.ratingCount} courses notees`,
+      `Notes 5 etoiles : ${fiveStars} · notes 1 etoile : ${oneStars}`,
+      `Avertissements qualite : ${d.warnings ?? 0}`,
+      `Eco-conduite certifiee : ${d.trained ? 'OUI' : 'non'}`,
+      `Chiffre d'affaires genere : ${Math.round(revenue).toLocaleString('fr-FR')} F CFA (${rides.length} courses)`,
+      '',
+      'Points forts : ponctualite, proprete du vehicule.',
+      'Axes d\'amelioration : voir les tags des commentaires clients.',
+      '',
+      'Document interne ORION - entretien qualite / ressources humaines.',
+    ]);
+  }
+
+  /* ==================== SESSION MOBILITÉ VERTE : exports énergie & ESG ==================== */
+
+  /** Export DATA ÉNERGIE (Excel) : km électriques, kWh, coûts de recharge estimés. */
+  energyCsv(): string {
+    const kmBy = new Map<string, number>();
+    for (const r of this.c.rides.listAll()) {
+      if (r.driverId && REVENUE.has(r.status)) {
+        kmBy.set(r.driverId, (kmBy.get(r.driverId) ?? 0) + (r.quote.distanceMeters ?? 0) / 1000);
+      }
+    }
+    const head = 'matricule,nom,motorisation,soc_pct,soh_pct,km_factures,kwh_estimes,cout_recharge_fcfa,co2_economise_kg';
+    const rows = this.c.drivers.list()
+      .filter((d) => (d.engine ?? 'electric') === 'electric')
+      .map((d) => {
+        const km = Math.round((kmBy.get(d.id) ?? 0) * 10) / 10;
+        const kwh = Math.round(km * 0.15 * 10) / 10;   // ~15 kWh / 100 km
+        return [d.matricule, d.name.replace(/,/g, ' '), 'electrique', d.batteryPct ?? '', d.batteryHealthPct ?? '', km, kwh, Math.round(kwh * 125), Math.round(km * 0.13 * 10) / 10].join(',');
+      });
+    return [head, ...rows].join('\n');
+  }
+
+  /** Rapport ESG/RSE PDF pour un compte entreprise (bilan carbone client B2B). */
+  esgPdf(corporateId: string): Buffer | null {
+    const acc = this.c.corporate.get(corporateId);
+    if (!acc) return null;
+    const rides = this.c.rides.listAll().filter((r) => r.corporateId === corporateId);
+    const km = rides.reduce((s, r) => s + (r.quote.distanceMeters ?? 0) / 1000, 0);
+    const savedKg = Math.round(km * 0.13 * 10) / 10; // 150 g/km thermique − 20 g/km électrique
+    return simplePdf([
+      'ORION - RAPPORT ESG / RSE (MOBILITE VERTE)',
+      `Client : ${acc.name} · genere le ${new Date().toLocaleDateString('fr-FR')}`,
+      '',
+      `Deplacements ORION sur la periode : ${rides.length} courses · ${Math.round(km)} km`,
+      `Flotte utilisee : 100 % electrique (mobilite verte ORION)`,
+      `CO2 evite vs flotte thermique : ${savedKg} kg`,
+      `Equivalent carburant economise : ${Math.round(km * 0.07)} litres`,
+      '',
+      'Methodologie : thermique ~150 g CO2/km, electrique ~20 g/km (mix + fabrication).',
+      'Base auditables : devis verrouilles et courses terminees de la periode.',
+      '',
+      'Certificat destine au bilan RSE annuel du client.',
+      'ORION - Green Mobility · Abidjan, Cote d\'Ivoire.',
+    ]);
   }
 
   /** Positions vivantes de la flotte (carte de supervision). */

@@ -26,6 +26,8 @@ export interface Zone {
   pickupFee?: number;
   /** Cantonnement : les chauffeurs épinglés à cette zone n'en sortent pas (jamais en pénurie). */
   dedicated?: boolean;
+  /** Surge MANUEL d'urgence (stade, concert…) forcé par la console — reste plafonné (cap vert). */
+  surgeManual?: number;
 }
 
 /** Rang des niveaux pour le standard minimal de zone. */
@@ -114,11 +116,39 @@ export interface OpsConfig {
   surgeCapGreen: number;
   /** Attente facturée (pause demandée par le client, en course) : F CFA / minute. */
   waitFeePerMin: number;
+  /** Rayon de recherche INITIAL du matching (km) — élargi automatiquement si vide. */
+  radiusKm: number;
+  /** Rayon MAXIMAL d'élargissement automatique (km). */
+  radiusMaxKm: number;
+  /** Cascade (un chauffeur à la fois) ou broadcast (3 plus proches, 1er qui accepte). */
+  offerMode: 'cascade' | 'broadcast';
+  /** Pondération du scoring d'attribution : poids de la note chauffeur (0 = distance pure). */
+  weightRating: number;
+  /** Pondération du scoring : poids de l'ancienneté d'attente (lissage des revenus). */
+  weightIdle: number;
+  /** Priorisation écologique ABSOLUE : le véhicule le moins émetteur passe d'abord. */
+  greenPriority: boolean;
+  /** Déclencheur du surge : ratio demande/offre critique (ex. 1.3 = +30 %). */
+  surgeThreshold: number;
+  /** Lissage du retour à la normale du surge (minutes). */
+  surgeSmoothingMin: number;
+  /** Plafond de remboursement des agents support (au-delà : escalade superviseur). */
+  refundCap: number;
+  /** Incitation recharge en heures creuses (F CFA versés au chauffeur). */
+  offPeakBonus: number;
+  /** Heures creuses (recharge) : début et fin (heures locales). */
+  offPeakStart: number;
+  offPeakEnd: number;
 }
 export const DEFAULT_OPS: OpsConfig = {
   strategy: 'nearest', minRating: 4.5, autoWarn: true,
   maxEtaMinutes: 7, offerTimeoutSec: 12, surgeEnabled: true, surgeCapGreen: 1.3,
   waitFeePerMin: 100,
+  radiusKm: 1.5, radiusMaxKm: 6, offerMode: 'cascade',
+  weightRating: 0, weightIdle: 0, greenPriority: false,
+  surgeThreshold: 1.3, surgeSmoothingMin: 10,
+  refundCap: 5000,
+  offPeakBonus: 500, offPeakStart: 22, offPeakEnd: 6,
 };
 interface OpsRecord extends OpsConfig { id: string; }
 const OPS_ID = 'ops';
@@ -165,6 +195,18 @@ export class SettingsService {
       surgeEnabled: patch.surgeEnabled ?? this.ops.surgeEnabled ?? true,
       surgeCapGreen: Math.min(2, Math.max(1, patch.surgeCapGreen ?? this.ops.surgeCapGreen ?? 1.3)),
       waitFeePerMin: Math.min(1000, Math.max(0, patch.waitFeePerMin ?? this.ops.waitFeePerMin ?? 100)),
+      radiusKm: Math.min(10, Math.max(0.5, patch.radiusKm ?? this.ops.radiusKm ?? 1.5)),
+      radiusMaxKm: Math.min(20, Math.max(1, patch.radiusMaxKm ?? this.ops.radiusMaxKm ?? 6)),
+      offerMode: patch.offerMode ?? this.ops.offerMode ?? 'cascade',
+      weightRating: Math.min(10, Math.max(0, patch.weightRating ?? this.ops.weightRating ?? 0)),
+      weightIdle: Math.min(10, Math.max(0, patch.weightIdle ?? this.ops.weightIdle ?? 0)),
+      greenPriority: patch.greenPriority ?? this.ops.greenPriority ?? false,
+      surgeThreshold: Math.min(3, Math.max(1.1, patch.surgeThreshold ?? this.ops.surgeThreshold ?? 1.3)),
+      surgeSmoothingMin: Math.min(30, Math.max(0, patch.surgeSmoothingMin ?? this.ops.surgeSmoothingMin ?? 10)),
+      refundCap: Math.min(100_000, Math.max(0, patch.refundCap ?? this.ops.refundCap ?? 5000)),
+      offPeakBonus: Math.min(5000, Math.max(0, patch.offPeakBonus ?? this.ops.offPeakBonus ?? 500)),
+      offPeakStart: Math.min(23, Math.max(0, patch.offPeakStart ?? this.ops.offPeakStart ?? 22)),
+      offPeakEnd: Math.min(23, Math.max(0, patch.offPeakEnd ?? this.ops.offPeakEnd ?? 6)),
     };
     this.opsRepo?.put({ id: OPS_ID, ...this.ops });
     return this.ops;

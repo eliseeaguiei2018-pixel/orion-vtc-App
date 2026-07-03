@@ -42,6 +42,8 @@ export type Permission =
   | 'search:read'
   | 'notify:read' | 'notify:write'
   | 'audit:read'
+  /** Alertes sécurité interne (tentatives d'accès non autorisé) — direction uniquement. */
+  | 'security:read'
   | 'roles:read';
 
 const ALL: Permission[] = [
@@ -50,7 +52,7 @@ const ALL: Permission[] = [
   'promos:read', 'promos:write', 'services:read', 'services:write', 'support:read', 'support:write',
   'finance:read', 'treasury:read', 'treasury:request', 'treasury:approve',
   'sessions:read', 'sessions:write', 'teams:read', 'teams:write', 'search:read',
-  'notify:read', 'notify:write', 'audit:read', 'roles:read',
+  'notify:read', 'notify:write', 'audit:read', 'security:read', 'roles:read',
 ];
 
 /** Matrice rôle → permissions (couches d'accès selon le poste). */
@@ -61,7 +63,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   daa: ALL,
   coo: ALL,
   // CFO : pilotage financier complet + DEMANDE de virement — jamais l'approbation.
-  cfo: ['overview:read', 'rides:read', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'finance:read', 'treasury:read', 'treasury:request', 'search:read', 'notify:read', 'audit:read', 'roles:read'],
+  cfo: ['overview:read', 'rides:read', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'finance:read', 'treasury:read', 'treasury:request', 'search:read', 'notify:read', 'audit:read', 'security:read', 'roles:read'],
   // Gestionnaire de flotte : validation chauffeurs (KYC), véhicules, surveillance dispatch.
   fleet_manager: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'alerts:read', 'teams:read', 'teams:write', 'search:read', 'notify:read'],
   // Analyste financier : accès RESTREINT en lecture — exports, factures, paiements chauffeurs.

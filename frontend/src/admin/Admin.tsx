@@ -12,12 +12,49 @@ export interface Overview {
   generatedAt: string;
 }
 export interface Alert {
-  id: string; kind: 'sos' | 'crash'; status: string; rideId?: string; userId: string;
+  id: string; kind: string; status: string; rideId?: string; userId: string;
   location: { lat: number; lng: number }; zoneName?: string; impactG?: number;
   dispatchedTo: string[]; createdAt: string; note?: string;
+  /* --- Session SAMU : triage, prise en charge nominative, chat, scellement --- */
+  level?: 'rouge' | 'orange' | 'jaune';
+  source?: string;
+  agent?: string;
+  chat?: SosChat[];
+  closingNote?: string;
+  sealed?: boolean;
+  slaSeconds?: number;
 }
+export interface SosChat { from: 'agent' | 'usager'; author?: string; text: string; at: string }
+export interface SosDossier {
+  alert: Alert; presets: string[];
+  ride: { id: string; status: string; origin: { lat: number; lng: number }; destination: { lat: number; lng: number }; trace: { lat: number; lng: number }[]; createdAt: string } | null;
+  vehicle: { plate: string; model: string; color: string; engine: string } | null;
+  driver: { id: string; name: string; matricule: string; phone: string | null; licenseNo: string | null; birthDate: string | null; phoneBatteryPct: number; batteryPct: number | null } | null;
+  passenger: { id: string; name: string | null; phone: string | null; phoneBatteryPct: number; lastRides: { id: string; status: string; createdAt: string }[] };
+  telemetry: { speedEstimateKmh: number | null; points: number; refreshSeconds: number };
+  emergencyNumbers: Record<string, string>;
+}
+export interface SecurityAttempt {
+  id: string; username?: string; name: string; role: string;
+  permission?: string; section?: string; path?: string; ip?: string; at: string; notified: string[];
+}
+export interface Reservation {
+  id: string; clientId: string; origin: { lat: number; lng: number }; destination: { lat: number; lng: number };
+  category: string; scheduledFor: string; status: string; driverId?: string; driverName?: string | null;
+  minutesToGo?: number; punctualityAlert?: boolean; createdAt: string;
+}
+export interface SupportStats { open: number; resolvedToday: number; avgFirstReplyMin: number | null; csat: number | null }
+export interface Macro { title: string; text: string }
+export interface Triggers {
+  lowBattery: { id: string; name: string; matricule: string; batteryPct?: number; station: string | null }[];
+  winback: { id: string; name: string | null; rides: number; lastSeenAt: string }[];
+  offPeak: { start: number; end: number; bonus: number };
+}
+export interface CsatReport { series: { date: string; avg: number | null; count: number }[]; csat7d: number | null; acceptRate: number; cancelRate: number }
+export interface QualityTop { id: string; name: string; matricule: string; rating: number; trips: number; vip: boolean }
+export interface SimResult { sampled: number; matched: number; matchRate: number; avgEtaMin: number | null }
 export interface FleetUnit { id: string; lat: number; lng: number; name: string; matricule: string | null; category: string; availability: string; }
-export interface RideRow { id: string; clientId: string; driverName: string | null; matricule: string | null; status: string; amount: number; currency: string; trafficLevel: string; createdAt: string; }
+export interface RideRow { id: string; clientId: string; driverName: string | null; matricule: string | null; status: string; amount: number; currency: string; trafficLevel: string; anomaly?: string | null; createdAt: string; }
 export interface DriverRow { id: string; name: string; matricule: string; category: string; kycStatus: string; availability: string; rating: number; trips: number; balance: number; }
 export interface Pricing {
   baseFare: number; perKm: number; perMinute: number; minFare: number; avgSpeedKmh: number;
@@ -25,18 +62,23 @@ export interface Pricing {
   multipliers: Record<string, number>; bodySurcharge: Record<string, number>;
 }
 export interface Me { name: string; role: string; roleLabel: string; permissions: string[] }
-export interface Client { id: string; name?: string; phone?: string; status: string; rides: number; createdAt: string; lastSeenAt: string }
+export interface Client { id: string; name?: string; phone?: string; status: string; rides: number; greenPoints?: number; createdAt: string; lastSeenAt: string }
 export interface Promo { id: string; kind: 'percent' | 'amount'; value: number; active: boolean; uses: number; maxUses?: number; createdAt: string }
 export interface ServicesConfig { city: string; open: boolean; services: Record<string, boolean> }
 export interface Zone {
   id: string; name: string; factor: number; lat: number; lng: number; radiusKm: number; active: boolean;
   waitMaxMin?: number; driverBonus?: number; minStandard?: string; pickupFee?: number; dedicated?: boolean;
+  surgeManual?: number;
 }
 export interface SupportMsg { id: string; from: 'client' | 'agent'; author?: string; text: string; at: string }
-export interface Conversation { id: string; clientId: string; subject: string; status: string; assignee?: string; messages: SupportMsg[]; createdAt: string; updatedAt: string }
+export interface Conversation { id: string; clientId: string; subject: string; status: string; priority?: number; csat?: number; assignee?: string; messages: SupportMsg[]; createdAt: string; updatedAt: string }
 export interface AuditEntry { id: string; at: string; actor: string; role: string; action: string; target?: string; details?: Record<string, unknown> }
 export interface Finance { currency: string; gmv: number; revenue: number; commission: number; earnings: number; payouts: number; byTier: Record<string, { count: number; revenue: number }> }
-export interface Announcement { id: string; audience: string; title: string; body: string; author: string; at: string }
+export interface Announcement {
+  id: string; audience: string; title: string; body: string; author: string; at: string;
+  channel?: 'push' | 'sms' | 'email'; segment?: string; zoneId?: string; scheduledAt?: string;
+  stats?: { sent: number; delivered: number; opened: number; clicked: number; rides: number };
+}
 export interface StatsDay { date: string; rides: number; revenue: number; cancelled: number }
 export interface Stats { currency: string; days: number; series: StatsDay[]; totals: { rides: number; revenue: number; cancelled: number } }
 export interface Transfer {
@@ -58,6 +100,10 @@ export interface OpsConfig {
   strategy: 'nearest' | 'longest_idle' | 'zone_queue'; minRating: number; autoWarn: boolean;
   maxEtaMinutes: number; offerTimeoutSec: number; surgeEnabled: boolean; surgeCapGreen: number;
   waitFeePerMin: number;
+  radiusKm: number; radiusMaxKm: number; offerMode: 'cascade' | 'broadcast';
+  weightRating: number; weightIdle: number; greenPriority: boolean;
+  surgeThreshold: number; surgeSmoothingMin: number;
+  refundCap: number; offPeakBonus: number; offPeakStart: number; offPeakEnd: number;
 }
 export interface Team {
   id: string; name: string; managerUsername: string; managerName?: string; driverIds: string[]; createdAt: string;
@@ -66,7 +112,8 @@ export interface Team {
 export interface GreenReport {
   co2SavedKg: number; co2SavedTons: number; kmElectric: number; kmHybrid: number;
   electricShare: number; hybridShare: number;
-  fleet: { electric: number; hybrid: number; lowBattery: number; batteries: { id: string; name: string; matricule: string; batteryPct?: number; availability: string }[] };
+  fleet: { electric: number; hybrid: number; lowBattery: number; batteries: { id: string; name: string; matricule: string; batteryPct?: number; batteryHealthPct?: number | null; availability: string }[]; avgSoh?: number | null };
+  topGreenClients?: { id: string; name: string | null; greenPoints: number }[];
   chargingStations?: { id: string; name: string; lat: number; lng: number; fast: boolean }[];
 }
 export interface PredictCell { cell: string; lat: number; lng: number; expected: number; supply: number; gap: number }
@@ -78,7 +125,7 @@ export interface ChurnReport {
 export interface CorporateAccount {
   id: string; name: string; contactEmail?: string; creditLimit: number; balanceUsed: number; active: boolean; createdAt: string;
 }
-export interface QualityRow { id: string; name: string; matricule: string; category: string; rating: number; trips: number; warnings: number; kycStatus: string; below: boolean }
+export interface QualityRow { id: string; name: string; matricule: string; category: string; rating: number; trips: number; warnings: number; kycStatus: string; vip?: boolean; below: boolean }
 export interface Dispute {
   id: string; rideId: string; clientId: string; kind: string; description: string;
   status: 'open' | 'investigating' | 'resolved' | 'rejected';
@@ -249,7 +296,7 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'roles';
+type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles';
 const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'overview', label: 'Vue d’ensemble', perm: 'overview:read', icon: '📊' },
   { id: 'alerts', label: 'Supervision SAMU', perm: 'alerts:read', icon: '🚨' },
@@ -273,6 +320,7 @@ const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'services', label: 'Services & ville', perm: 'services:read', icon: '🧩' },
   { id: 'audit', label: 'Journal', perm: 'audit:read', icon: '📜' },
   { id: 'sessions', label: 'Sessions actives', perm: 'sessions:read', icon: '🖥️' },
+  { id: 'security', label: 'Alertes sécurité', perm: 'security:read', icon: '🛑' },
   { id: 'roles', label: 'Rôles & accès', perm: 'roles:read', icon: '🛡️' },
 ];
 
@@ -313,6 +361,16 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [conversion, setConversion] = useState<ConversionCell[]>([]);
   const [churn, setChurn] = useState<ChurnReport | null>(null);
   const [corporate, setCorporate] = useState<CorporateAccount[]>([]);
+  const [sosSel, setSosSel] = useState<SosDossier | null>(null);
+  const [security, setSecurity] = useState<SecurityAttempt[]>([]);
+  const [supportStats, setSupportStats] = useState<SupportStats | null>(null);
+  const [macros, setMacros] = useState<Macro[]>([]);
+  const [triggers, setTriggers] = useState<Triggers | null>(null);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [csat, setCsat] = useState<CsatReport | null>(null);
+  const [qTop, setQTop] = useState<QualityTop[]>([]);
+  /** Modale « accès refusé » : session verrouillée, tentative signalée à la direction. */
+  const [denied, setDenied] = useState<string | null>(null);
   const [muted, setMuted] = useState(() => localStorage.getItem('orion.admin.muted') === '1');
   const [theme, setTheme] = useState<AdmTheme>(savedTheme);
   const [ridesPage, setRidesPage] = useState(1);
@@ -324,7 +382,11 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [clientsMeta, setClientsMeta] = useState<PageMeta>(emptyMeta);
 
   const loadDemo = useCallback(() => {
-    setMe(DEMO.me); setOv(DEMO.overview); setStats(DEMO.stats(statsDays)); setAlerts(DEMO.alerts); setFleet(DEMO.fleet);
+    setMe(DEMO.me); setOv(DEMO.overview); setStats(DEMO.stats(statsDays)); setAlerts(DEMO.sos as Alert[]); setFleet(DEMO.fleet);
+    setSecurity(DEMO.security as SecurityAttempt[]);
+    setSupportStats(DEMO.supportStats); setMacros(DEMO.macros);
+    setTriggers(DEMO.triggers as Triggers); setReservations(DEMO.reservations as Reservation[]);
+    setCsat(DEMO.csat as CsatReport); setQTop(DEMO.qualityTop as QualityTop[]);
     const dr = pageSlice(DEMO.rides, ridesPage); setRides(dr.items); setRidesMeta(dr.meta);
     const dd = pageSlice(DEMO.drivers, driversPage); setDrivers(dd.items); setDriversMeta(dd.meta);
     const dc = pageSlice(DEMO.clients, clientsPage); setClients(dc.items); setClientsMeta(dc.meta);
@@ -349,7 +411,12 @@ function Console({ onLogout }: { onLogout: () => void }) {
       setMe(meRes); setLive(true);
       const has = (p: string) => meRes.permissions.includes(p);
       if (has('overview:read')) { setOv(await adminGet<Overview>('/admin/overview')); setStats(await adminGet<Stats>(`/admin/stats?days=${statsDays}`)); }
-      if (has('alerts:read')) setAlerts((await adminGet<{ alerts: Alert[] }>('/admin/alerts')).alerts);
+      if (has('alerts:read')) {
+        // Session SAMU : file de triage (niveaux + SLA). Les messages pré-enregistrés
+        // sont renvoyés avec le dossier d'une alerte (SosDrawer).
+        setAlerts((await adminGet<{ alerts: Alert[] }>('/admin/sos')).alerts);
+      }
+      if (has('security:read')) setSecurity((await adminGet<{ attempts: SecurityAttempt[] }>('/admin/security-alerts')).attempts);
       if (has('drivers:read')) {
         setFleet((await adminGet<{ fleet: FleetUnit[] }>('/admin/fleet/live')).fleet);
         const d = await adminGet<{ drivers: DriverRow[] } & PageMeta>(`/admin/drivers?page=${driversPage}&limit=${PAGE_SIZE}`);
@@ -366,7 +433,11 @@ function Console({ onLogout }: { onLogout: () => void }) {
       }
       if (has('promos:read')) setPromos((await adminGet<{ promos: Promo[] }>('/admin/promos')).promos);
       if (has('services:read')) setServices((await adminGet<{ config: ServicesConfig }>('/admin/services')).config);
-      if (has('support:read')) setSupport((await adminGet<{ conversations: Conversation[] }>('/admin/support')).conversations);
+      if (has('support:read')) {
+        const sp = await adminGet<{ conversations: Conversation[]; stats?: SupportStats }>('/admin/support');
+        setSupport(sp.conversations); if (sp.stats) setSupportStats(sp.stats);
+        setMacros((await adminGet<{ macros: Macro[] }>('/admin/support/macros')).macros);
+      }
       if (has('finance:read')) setFinance(await adminGet<Finance>('/admin/finance'));
       if (has('treasury:read')) setTransfers((await adminGet<{ transfers: Transfer[] }>('/admin/treasury')).transfers);
       if (has('sessions:read')) { const s = await adminGet<{ sessions: ActiveSession[]; self: string | null }>('/admin/sessions'); setSessions(s.sessions); setSelfSession(s.self); }
@@ -379,7 +450,13 @@ function Console({ onLogout }: { onLogout: () => void }) {
       }
       if (has('overview:read')) setChurn(await adminGet<ChurnReport>('/admin/churn'));
       if (has('finance:read')) setCorporate((await adminGet<{ accounts: CorporateAccount[] }>('/admin/corporate')).accounts);
-      if (has('drivers:read')) setQuality(await adminGet<{ threshold: number; autoWarn: boolean; drivers: QualityRow[] }>('/admin/quality'));
+      if (has('drivers:read')) {
+        const q = await adminGet<{ threshold: number; autoWarn: boolean; drivers: QualityRow[]; top?: QualityTop[] }>('/admin/quality');
+        setQuality(q); setQTop(q.top ?? []);
+        setCsat(await adminGet<CsatReport>('/admin/quality/csat'));
+      }
+      if (has('notify:read')) setTriggers(await adminGet<Triggers>('/admin/notify/triggers'));
+      if (has('rides:read')) setReservations((await adminGet<{ reservations: Reservation[] }>('/admin/reservations')).reservations);
       if (has('support:read')) setDisputes((await adminGet<{ disputes: Dispute[] }>('/admin/disputes')).disputes);
       if (has('notify:read')) setBroadcasts((await adminGet<{ announcements: Announcement[] }>('/admin/broadcasts')).announcements);
       if (has('audit:read')) setAudit((await adminGet<{ entries: AuditEntry[] }>('/admin/audit')).entries);
@@ -416,9 +493,48 @@ function Console({ onLogout }: { onLogout: () => void }) {
     if ('Notification' in window && Notification.permission === 'default') void Notification.requestPermission();
   }, []);
 
-  const setAlertStatus = async (id: string, status: string) => {
-    if (!API) { setAlerts((xs) => xs.map((a) => (a.id === id ? { ...a, status } : a))); return; }
-    try { const { alert } = await adminPost<{ alert: Alert }>(`/admin/alerts/${id}/status`, { status }); setAlerts((xs) => xs.map((a) => (a.id === alert.id ? alert : a))); } catch { /* ignore */ }
+  /** Téléchargement authentifié d'un fichier serveur (PDF/CSV) via la session JWT. */
+  const downloadFile = async (path: string, filename: string) => {
+    if (!API) { alert('Disponible avec le backend connecté — le document est généré côté serveur.'); return; }
+    try {
+      const res = await fetch(API + path, { headers: H() });
+      if (res.status === 401) { onUnauthorized(); return; }
+      if (!res.ok) { alert('Document indisponible (accès réservé ?).'); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob); const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
+    } catch { /* réseau */ }
+  };
+
+  /* --------------- Session SAMU : triage, prise en charge, clôture --------------- */
+  const claimSos = async (id: string) => {
+    if (!API) { setAlerts((xs) => xs.map((a) => (a.id === id ? { ...a, agent: me?.name, status: 'acknowledged' } : a))); return; }
+    try { await adminPost(`/admin/sos/${id}/claim`); void refresh(); }
+    catch { alert('Alerte déjà prise en charge par un autre agent (verrou nominatif).'); }
+  };
+  const openSos = async (id: string) => {
+    if (!API) { setSosSel(DEMO.sosDossier(id) as SosDossier); return; }
+    try { setSosSel(await adminGet<SosDossier>(`/admin/sos/${id}`)); }
+    catch { alert('Dossier scellé — accès réservé à la direction.'); }
+  };
+  const sosMessage = async (id: string, text: string) => {
+    if (API) { try { await adminPost(`/admin/sos/${id}/message`, { text }); } catch { alert('Crise gérée par un autre agent.'); return; } }
+    const msg: SosChat = { from: 'agent', author: me?.name, text, at: new Date().toISOString() };
+    setSosSel((s) => (s && s.alert.id === id ? { ...s, alert: { ...s.alert, chat: [...(s.alert.chat ?? []), msg] } } : s));
+  };
+  const closeSos = async (id: string, note: string) => {
+    if (API) {
+      try { await adminPost(`/admin/sos/${id}/close`, { note }); }
+      catch { alert('Clôture refusée : note de synthèse trop courte, ou vous n’êtes pas l’agent gestionnaire.'); return; }
+    }
+    setAlerts((xs) => xs.map((a) => (a.id === id ? { ...a, status: 'resolved', sealed: true, closingNote: note } : a)));
+    setSosSel(null);
+  };
+
+  /* ------ Accès non autorisé : refus affiché + signalement direction ------ */
+  const openLocked = async (sectionId: string, label: string) => {
+    if (API) { try { await adminPost('/admin/access-denied', { section: sectionId }); } catch { /* déjà signalé côté serveur */ } }
+    setDenied(`Vous n’avez pas le droit d’accéder à la session « ${label} » sans autorisation de la direction. Cette tentative vient d’être signalée à la direction (DG, CFO, DAA).`);
   };
 
   const savePricing = async (patch: Partial<Pricing>) => {
@@ -481,10 +597,75 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setSupport((xs) => xs.map((c) => (c.id === convId ? { ...c, status } : c)));
   };
 
-  const sendBroadcast = async (a: { audience: string; title: string; body: string }) => {
-    const local: Announcement = { id: Math.random().toString(36).slice(2, 8), author: me?.name ?? 'Admin', at: new Date().toISOString(), ...a };
+  const sendBroadcast = async (a: { audience: string; title: string; body: string; channel?: string; segment?: string; scheduledAt?: string }) => {
+    const local: Announcement = {
+      id: Math.random().toString(36).slice(2, 8), author: me?.name ?? 'Admin', at: new Date().toISOString(),
+      ...a, channel: (a.channel as Announcement['channel']) ?? 'push',
+      stats: { sent: 1240, delivered: 1203, opened: 662, clicked: 199, rides: 53 },
+    };
     if (API) { try { const { announcement } = await adminPost<{ announcement: Announcement }>('/admin/broadcast', a); setBroadcasts((xs) => [announcement, ...xs]); return; } catch { /* */ } }
     setBroadcasts((xs) => [local, ...xs]);
+  };
+
+  // Déclencheurs automatisés (batterie < 15 %, win-back 30 j).
+  const runTrigger = async (trigger: 'battery' | 'winback') => {
+    if (!API) { alert(trigger === 'battery' ? 'Guidage borne envoyé aux véhicules < 15 % (démo).' : 'Campagne win-back envoyée avec un code RETOUR-XXXX (démo).'); return; }
+    try {
+      const r = await adminPost<{ sent: number; code?: string }>('/admin/notify/triggers/run', { trigger });
+      alert(`${r.sent} notification(s) envoyée(s)${r.code ? ` · code ${r.code}` : ''}.`);
+      void refresh();
+    } catch { /* */ }
+  };
+
+  // Code promotionnel personnalisé de dédommagement (support).
+  const compensate = async (clientId: string, percent: number) => {
+    if (!API) { alert(`Code DESOLE-${Math.random().toString(36).slice(2, 6).toUpperCase()} (-${percent} %) envoyé à ${clientId} (démo).`); return; }
+    try {
+      const { promo } = await adminPost<{ promo: { id: string } }>('/admin/promos/compensation', { clientId, percent, days: 7 });
+      alert(`Code ${promo.id} (-${percent} %, 7 jours) envoyé dans l’app de ${clientId}.`);
+    } catch { /* */ }
+  };
+
+  // Clôture forcée / ajustement de destination en vol (centre d'intervention manuelle).
+  const forceRide = async (id: string, action: 'complete' | 'cancel') => {
+    if (!API) { setRides((xs) => xs.map((r) => (r.id === id ? { ...r, status: action === 'complete' ? 'completed' : 'cancelled' } : r))); return; }
+    try { await adminPost(`/admin/rides/${id}/force`, { action }); void refresh(); } catch { /* déjà terminée */ }
+  };
+  const changeDestination = async (id: string) => {
+    const input = window.prompt('Nouvelle destination — latitude, longitude :', '5.3600, -3.9850');
+    if (!input) return;
+    const [lat, lng] = input.split(',').map((s) => Number(s.trim()));
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) { alert('Coordonnées invalides.'); return; }
+    if (!API) { alert('Destination mise à jour, devis recalculé (démo).'); return; }
+    try {
+      const r = await adminPut<{ ride: { amount: number } }>(`/admin/rides/${id}/destination`, { lat, lng });
+      alert(`Destination mise à jour — nouveau prix fixe : ${fcfa(r.ride.amount)}.`);
+      void refresh();
+    } catch { alert('Destination modifiable uniquement en course active.'); }
+  };
+
+  // Réservations à l'avance : assignation / annulation.
+  const assignReservation = async (id: string) => {
+    if (!API) { setReservations((xs) => xs.map((r) => (r.id === id ? { ...r, status: 'assignee', driverName: 'Serge Aka', punctualityAlert: false } : r))); return; }
+    try { await adminPost(`/admin/reservations/${id}/assign`); void refresh(); }
+    catch { alert('Aucun chauffeur disponible pour cette réservation.'); }
+  };
+  const cancelReservation = async (id: string) => {
+    if (API) { try { await adminPost(`/admin/reservations/${id}/cancel`); } catch { /* */ } }
+    setReservations((xs) => xs.map((r) => (r.id === id ? { ...r, status: 'annulee' } : r)));
+  };
+
+  // Programme VIP / Top Driver (priorité dispatch + commission réduite).
+  const setVip = async (id: string, vip: boolean) => {
+    if (API) { try { await adminPost(`/admin/drivers/${id}/vip`, { vip }); } catch { /* */ } }
+    setQTop((xs) => xs.map((t) => (t.id === id ? { ...t, vip } : t)));
+  };
+
+  // Shadow mode : simulation d'une configuration hypothétique de dispatch.
+  const simulate = async (patch: { maxEtaMinutes?: number; radiusMaxKm?: number }): Promise<{ current: SimResult; proposed: SimResult } | null> => {
+    if (!API) return DEMO.simulate(patch);
+    try { return await adminPost<{ current: SimResult; proposed: SimResult }>('/admin/dispatch/simulate', patch); }
+    catch { return null; }
   };
 
   /** Télécharge un CSV : via l'API (avec session JWT) ou généré localement (démo). */
@@ -670,7 +851,6 @@ function Console({ onLogout }: { onLogout: () => void }) {
   if (!me || !ov) return <div className="adm-loading">Chargement de la console…</div>;
 
   const can = (p: string) => me.permissions.includes(p);
-  const nav = NAV.filter((n) => can(n.perm));
   const openAlerts = alerts.filter((a) => a.status !== 'resolved' && a.status !== 'cancelled');
 
   return (
@@ -683,12 +863,22 @@ function Console({ onLogout }: { onLogout: () => void }) {
           <div><strong>ORION</strong><span className="adm-sub">Centre de contrôle</span></div>
         </div>
         <nav className="adm-nav">
-          {nav.map((n) => (
-            <button key={n.id} className={`adm-navi${section === n.id ? ' on' : ''}`} onClick={() => setSection(n.id)}>
-              <span className="adm-navi-ico">{n.icon}</span> {n.label}
-              {n.id === 'alerts' && openAlerts.length > 0 && <span className="adm-navi-badge">{openAlerts.length}</span>}
-            </button>
-          ))}
+          {NAV.map((n) => {
+            const allowed = can(n.perm);
+            return (
+              <button
+                key={n.id}
+                className={`adm-navi${section === n.id ? ' on' : ''}${allowed ? '' : ' locked'}`}
+                title={allowed ? undefined : 'Session non autorisée pour votre rôle'}
+                onClick={() => { if (allowed) setSection(n.id); else void openLocked(n.id, n.label); }}
+              >
+                <span className="adm-navi-ico">{n.icon}</span> {n.label}
+                {allowed && n.id === 'alerts' && openAlerts.length > 0 && <span className="adm-navi-badge">{openAlerts.length}</span>}
+                {allowed && n.id === 'security' && security.length > 0 && <span className="adm-navi-badge">{security.length}</span>}
+                {!allowed && <span className="adm-navi-lock" aria-hidden>🔒</span>}
+              </button>
+            );
+          })}
         </nav>
         <div className="adm-side-foot">
           <div className="adm-role"><span className="adm-role-dot" /> {me.roleLabel}</div>
@@ -722,19 +912,24 @@ function Console({ onLogout }: { onLogout: () => void }) {
         </header>
 
         {section === 'overview' && <OverviewSection ov={ov} fleet={fleet} openAlerts={openAlerts} stats={stats} statsDays={statsDays} onStatsDays={setStatsDays} />}
-        {section === 'alerts' && <AlertsSection alerts={alerts} fleet={fleet} openAlerts={openAlerts} canWrite={can('alerts:write')} onStatus={setAlertStatus} />}
-        {section === 'support' && <SupportSection convs={support} canWrite={can('support:write')} onReply={supportReply} onStatus={supportSetStatus} />}
-        {section === 'rides' && <RidesSection rides={rides} meta={ridesMeta} onPage={setRidesPage} canWrite={can('rides:write')} onReassign={reassignRide} onOpen={openForensic} />}
-        {section === 'dispatch' && ops && <DispatchSection ops={ops} onSave={saveOps} />}
-        {section === 'quality' && quality && <QualitySection q={quality} canWrite={can('drivers:write')} onWarn={warnDriver} onSuspend={(id) => driverAction(id, 'kyc', 'suspended')} onSaveOps={saveOps} />}
+        {section === 'alerts' && <SamuSection alerts={alerts} fleet={fleet} openAlerts={openAlerts} canWrite={can('alerts:write')} onClaim={claimSos} onOpen={openSos} />}
+        {section === 'support' && <SupportSection convs={support} stats={supportStats} macros={macros} canWrite={can('support:write')} canPromo={can('promos:write')} onReply={supportReply} onStatus={supportSetStatus} onCompensate={compensate} />}
+        {section === 'rides' && (
+          <>
+            <RidesSection rides={rides} meta={ridesMeta} onPage={setRidesPage} canWrite={can('rides:write')} onReassign={reassignRide} onOpen={openForensic} onForce={forceRide} onDest={changeDestination} />
+            <ReservationsCard reservations={reservations} canWrite={can('rides:write')} onAssign={assignReservation} onCancel={cancelReservation} />
+          </>
+        )}
+        {section === 'dispatch' && ops && <DispatchSection ops={ops} onSave={saveOps} onSimulate={simulate} onConfigPdf={() => void downloadFile('/admin/dispatch/config.pdf', 'orion-config-dispatch.pdf')} onMatrixCsv={() => void downloadFile('/admin/pricing/matrix.csv', 'orion-matrice-tarifaire.csv')} />}
+        {section === 'quality' && quality && <QualitySection q={quality} csat={csat} top={qTop} canWrite={can('drivers:write')} onWarn={warnDriver} onSuspend={(id) => driverAction(id, 'kyc', 'suspended')} onSaveOps={saveOps} onVip={setVip} onMatrixCsv={() => void downloadFile('/admin/quality.csv', 'orion-matrice-qualite.csv')} onDriverPdf={(id) => void downloadFile(`/admin/drivers/${id}/quality.pdf`, `orion-qualite-${id.slice(0, 8)}.pdf`)} />}
         {section === 'disputes' && <DisputesSection disputes={disputes} canWrite={can('support:write')} onDecide={decideDispute} onOpenRide={openForensic} />}
-        {section === 'green' && green && <GreenSection g={green} onPdf={() => void downloadCarbonPdf()} />}
+        {section === 'green' && green && <GreenSection g={green} ops={ops} onPdf={() => void downloadCarbonPdf()} onEnergyCsv={() => void downloadCsv('/admin/green/energy.csv', 'orion-energie.csv', () => 'matricule,nom,motorisation,km_factures,kwh_estimes')} />}
         {section === 'teams' && <TeamsSection teams={teams} allDrivers={drivers} canWrite={can('teams:write')} onSave={saveTeam} onDelete={deleteTeam} />}
         {section === 'intel' && <IntelSection predict={predict} conversion={conversion} churn={churn} canNotify={can('notify:write')} onReengage={reengage} />}
-        {section === 'b2b' && <CorporateSection accounts={corporate} canWrite={can('treasury:request')} canSettle={can('treasury:approve')} onSave={saveCorporate} onSettle={settleCorporate} onInvoice={exportInvoice} />}
+        {section === 'b2b' && <CorporateSection accounts={corporate} canWrite={can('treasury:request')} canSettle={can('treasury:approve')} onSave={saveCorporate} onSettle={settleCorporate} onInvoice={exportInvoice} onEsg={(id) => void downloadFile(`/admin/corporate/${id}/esg.pdf`, `orion-esg-${id}.pdf`)} />}
         {section === 'drivers' && <DriversSection drivers={drivers} canWrite={can('drivers:write')} onAction={driverAction} onOpen={openDriver} meta={driversMeta} onPage={setDriversPage} />}
         {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} onOpen={openClient} meta={clientsMeta} onPage={setClientsPage} />}
-        {section === 'notify' && <NotifySection broadcasts={broadcasts} canWrite={can('notify:write')} onSend={sendBroadcast} />}
+        {section === 'notify' && <NotifySection broadcasts={broadcasts} triggers={triggers} canWrite={can('notify:write')} onSend={sendBroadcast} onTrigger={runTrigger} />}
         {section === 'finance' && finance && <FinanceSection finance={finance} onExport={exportCsv} canExport={can('rides:read')} />}
         {section === 'treasury' && <TreasurySection transfers={transfers} meName={me.name} canRequest={can('treasury:request')} canApprove={can('treasury:approve')} onRequest={requestTransfer} onDecide={decideTransfer} onExport={exportTreasuryCsv} />}
         {section === 'pricing' && pricing && <PricingEditor pricing={pricing} canWrite={can('pricing:write')} onSave={savePricing} />}
@@ -743,12 +938,33 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'services' && services && <ServicesSection config={services} canWrite={can('services:write')} onSave={saveServices} />}
         {section === 'audit' && <AuditSection entries={audit} />}
         {section === 'sessions' && <SessionsSection sessions={sessions} self={selfSession} canWrite={can('sessions:write')} onRevoke={revokeSess} />}
+        {section === 'security' && <SecuritySection attempts={security} />}
         {section === 'roles' && <RolesSection me={me} />}
       </main>
 
       {driverSel && <DriverDrawer d={driverSel} onClose={() => setDriverSel(null)} />}
       {clientSel && <ClientDrawer c={clientSel} onClose={() => setClientSel(null)} onOpenSupport={() => { setClientSel(null); setSection('support'); }} />}
       {forensic && <ForensicDrawer f={forensic} onClose={() => setForensic(null)} />}
+      {sosSel && (
+        <SosDrawer
+          d={sosSel}
+          canWrite={can('alerts:write')}
+          onClose={() => setSosSel(null)}
+          onMessage={sosMessage}
+          onCloseAlert={closeSos}
+          onPdf={(id) => void downloadFile(`/admin/sos/${id}/report.pdf`, `orion-requisition-${id.slice(0, 8)}.pdf`)}
+          onCsv={(id) => void downloadFile(`/admin/sos/${id}/telemetry.csv`, `orion-telemetrie-${id.slice(0, 8)}.csv`)}
+        />
+      )}
+      {denied && (
+        <div className="adm-denied-wrap" onClick={() => setDenied(null)}>
+          <div className="adm-denied" onClick={(e) => e.stopPropagation()}>
+            <h3>⛔ Accès refusé</h3>
+            <p>{denied}</p>
+            <button className="adm-btn solid" onClick={() => setDenied(null)}>J’ai compris</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -811,53 +1027,267 @@ function TrendsChart({ stats, statsDays, onStatsDays }: { stats: Stats; statsDay
   );
 }
 
-function AlertsSection({ alerts, fleet, openAlerts, canWrite, onStatus }: { alerts: Alert[]; fleet: FleetUnit[]; openAlerts: Alert[]; canWrite: boolean; onStatus: (id: string, s: string) => void }) {
+/* --------------------- Session SAMU (« dark room ») ------------------- */
+const SOS_KIND: Record<string, string> = {
+  sos: '🆘 SOS', crash: '🚨 Accident', deviation: '🧭 Déviation d’itinéraire',
+  immobilisation: '⏸ Immobilisation anormale', mot_sensible: '⚠️ Mot sensible (avis)',
+};
+const LEVEL_META: Record<string, { label: string; cls: string }> = {
+  rouge: { label: 'ROUGE', cls: 'lvl-rouge' },
+  orange: { label: 'ORANGE', cls: 'lvl-orange' },
+  jaune: { label: 'JAUNE', cls: 'lvl-jaune' },
+};
+/** Chronomètre SLA : temps écoulé depuis le déclenchement (mm:ss / h min). */
+const sla = (a: Alert) => {
+  const s = a.slaSeconds ?? Math.max(0, Math.round((Date.now() - Date.parse(a.createdAt)) / 1000));
+  if (s < 3600) return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  return `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min`;
+};
+
+function SamuSection({ alerts, fleet, openAlerts, canWrite, onClaim, onOpen }: {
+  alerts: Alert[]; fleet: FleetUnit[]; openAlerts: Alert[]; canWrite: boolean;
+  onClaim: (id: string) => void; onOpen: (id: string) => void;
+}) {
   return (
-    <div className="adm-grid2">
-      <div className="adm-card"><div className="adm-card-h"><h3>Carte des alertes</h3><span className="adm-muted">SAMU 185 · Police 170</span></div><SupervisionMap fleet={fleet} alerts={openAlerts} /></div>
-      <div className="adm-card">
-        <div className="adm-card-h"><h3>File d'alertes</h3></div>
-        <div className="adm-alert-list">
-          {alerts.length === 0 && <p className="adm-empty">Aucune alerte. Tout est calme. ✅</p>}
-          {alerts.map((a) => (
-            <div key={a.id} className={`adm-alert ${a.status}`}>
-              <div className="adm-alert-top">
-                <span className={`adm-tag ${a.kind}`}>{a.kind === 'crash' ? '🚨 Accident' : '🆘 SOS'}</span>
-                <span className="adm-alert-zone">{a.zoneName ?? 'Zone inconnue'}{a.impactG ? ` · ${a.impactG}g` : ''}</span>
-                <span className={`adm-status ${a.status}`}>{statusLabel(a.status)}</span>
-              </div>
-              <div className="adm-alert-meta">Client {a.userId.slice(0, 8)} · {new Date(a.createdAt).toLocaleTimeString('fr-FR')} · SAMU {a.dispatchedTo.join(', ')}</div>
-              {canWrite && a.status !== 'resolved' && a.status !== 'cancelled' && (
-                <div className="adm-alert-actions">
-                  <button className="adm-btn xs" onClick={() => onStatus(a.id, 'acknowledged')}>Prendre en charge</button>
-                  <button className="adm-btn xs solid" onClick={() => onStatus(a.id, 'resolved')}>Résolue</button>
+    <div className="samu-room">
+      <div className="adm-card samu-head">
+        <p className="adm-muted" style={{ margin: 0 }}>
+          <strong>Centre de tri (triage)</strong> — interface épurée, sans donnée marketing ni financière.
+          Niveaux : <span className="adm-pill lvl-rouge">ROUGE</span> SOS pressé · <span className="adm-pill lvl-orange">ORANGE</span> déviation
+          majeure · <span className="adm-pill lvl-jaune">JAUNE</span> immobilisation anormale. La <strong>prise en charge est
+          nominative</strong> : accepter une alerte la verrouille pour les autres agents. La clôture exige une
+          <strong> note de synthèse</strong> ; le dossier est ensuite <strong>scellé</strong> (lecture direction uniquement).
+        </p>
+      </div>
+      <div className="adm-grid2">
+        <div className="adm-card"><div className="adm-card-h"><h3>Carte tactique</h3><span className="adm-muted">SAMU 185 · Police 170 · Pompiers 180</span></div><SupervisionMap fleet={fleet} alerts={openAlerts} /></div>
+        <div className="adm-card">
+          <div className="adm-card-h"><h3>File de triage</h3><span className="adm-muted">{openAlerts.length} ouverte(s)</span></div>
+          <div className="adm-alert-list">
+            {alerts.length === 0 && <p className="adm-empty">Aucune alerte. Tout est calme. ✅</p>}
+            {alerts.map((a) => {
+              const open = a.status !== 'resolved' && a.status !== 'cancelled';
+              const lvl = LEVEL_META[a.level ?? 'rouge']!;
+              return (
+                <div key={a.id} className={`adm-alert ${a.status}${open ? ` ${lvl.cls}` : ''}`}>
+                  <div className="adm-alert-top">
+                    <span className={`adm-pill ${lvl.cls}`}>{lvl.label}</span>
+                    <span className={`adm-tag ${a.kind}`}>{SOS_KIND[a.kind] ?? a.kind}</span>
+                    {open && <span className="samu-sla mono" title="Temps écoulé depuis le déclenchement (SLA)">⏱ {sla(a)}</span>}
+                    <span className={`adm-status ${a.status}`}>{a.sealed ? '🔏 Scellée' : statusLabel(a.status)}</span>
+                  </div>
+                  <div className="adm-alert-meta">
+                    {a.zoneName ?? 'Zone inconnue'}{a.impactG ? ` · impact ${a.impactG} g` : ''} · usager {a.userId.slice(0, 10)}
+                    {a.agent ? <> · <strong>pris en charge : {a.agent}</strong></> : ' · non assignée'}
+                  </div>
+                  <div className="adm-alert-actions">
+                    {canWrite && open && !a.agent && <button className="adm-btn xs solid" onClick={() => onClaim(a.id)}>Accepter l’alerte</button>}
+                    <button className="adm-btn xs" onClick={() => onOpen(a.id)}>{a.sealed ? 'Dossier scellé' : 'Ouvrir le dossier'}</button>
+                  </div>
                 </div>
-              )}
-            </div>
-          ))}
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-const REASSIGNABLE = new Set(['searching', 'no_driver', 'accepted', 'driver_en_route', 'arrived']);
+/* -------- Dossier SAMU : identification, télémétrie, chat, clôture ----- */
+function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf, onCsv }: {
+  d: SosDossier; canWrite: boolean; onClose: () => void;
+  onMessage: (id: string, text: string) => void;
+  onCloseAlert: (id: string, note: string) => void;
+  onPdf: (id: string) => void; onCsv: (id: string) => void;
+}) {
+  const [text, setText] = useState('');
+  const [note, setNote] = useState('');
+  const a = d.alert;
+  const lvl = LEVEL_META[a.level ?? 'rouge']!;
+  const pts = d.ride?.trace && d.ride.trace.length > 1 ? d.ride.trace : d.ride ? [d.ride.origin, d.ride.destination] : [];
+  const open = a.status !== 'resolved' && a.status !== 'cancelled';
+  return (
+    <Drawer title={`Dossier ${a.id.slice(0, 8)}`} sub={`${SOS_KIND[a.kind] ?? a.kind} · niveau ${a.level ?? 'rouge'}`} onClose={onClose}>
+      <div className="adm-drawer-tags">
+        <span className={`adm-pill ${lvl.cls}`}>{lvl.label}</span>
+        <span className="adm-pill">⏱ SLA {sla(a)}</span>
+        {a.agent && <span className="adm-pill av-online">Agent : {a.agent}</span>}
+        {a.sealed && <span className="adm-pill tr-rejected">🔏 Scellé</span>}
+      </div>
 
-function RidesSection({ rides, meta, onPage, canWrite, onReassign, onOpen }: { rides: RideRow[]; meta: PageMeta; onPage: (p: number) => void; canWrite: boolean; onReassign: (id: string) => void; onOpen: (id: string) => void }) {
+      <h4 className="adm-drawer-sec">Fiche véhicule (à dicter à la police)</h4>
+      {d.vehicle ? (
+        <div className="samu-plate">
+          <div className="samu-plate-no mono">{d.vehicle.plate}</div>
+          <div className="adm-muted">{d.vehicle.model} · {d.vehicle.color} · {d.vehicle.engine === 'electric' ? '⚡ 100 % Électrique (batterie haute tension)' : d.vehicle.engine === 'hybrid' ? 'Hybride (batterie haute tension)' : 'Thermique'}</div>
+        </div>
+      ) : <p className="adm-muted">Aucun véhicule associé.</p>}
+
+      <h4 className="adm-drawer-sec">Chauffeur & passager</h4>
+      <div className="adm-mini-kpis">
+        <div className="adm-mini-kpi"><span>Chauffeur</span><strong>{d.driver?.name ?? '—'}</strong></div>
+        <div className="adm-mini-kpi"><span>Tél. / permis</span><strong style={{ fontSize: 12 }}>{d.driver?.phone ?? 'n/c'} · {d.driver?.licenseNo ?? 'n/c'}</strong></div>
+        <div className="adm-mini-kpi"><span>📱 Batterie chauffeur</span><strong>{d.driver ? `${d.driver.phoneBatteryPct} %` : '—'}</strong></div>
+        <div className="adm-mini-kpi"><span>📱 Batterie passager</span><strong>{d.passenger.phoneBatteryPct} %</strong></div>
+      </div>
+      <p className="adm-muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
+        Passager : {d.passenger.name ?? d.passenger.id} · {d.passenger.phone ?? 'tél. n/c'} · {d.passenger.lastRides.length} trajets récents
+        {d.passenger.lastRides.length < 2 ? ' — ⚠ compte récent (vérifier fraude)' : ''}
+      </p>
+
+      <h4 className="adm-drawer-sec">Télémétrie live (rafraîchie chaque seconde)</h4>
+      <div className="adm-mini-kpis">
+        <div className="adm-mini-kpi"><span>Vitesse estimée</span><strong>{d.telemetry.speedEstimateKmh ?? '—'} km/h</strong></div>
+        <div className="adm-mini-kpi"><span>Points GPS</span><strong>{d.telemetry.points}</strong></div>
+        <div className="adm-mini-kpi"><span>Position</span><strong style={{ fontSize: 12 }}>{a.location.lat.toFixed(4)}, {a.location.lng.toFixed(4)}</strong></div>
+      </div>
+      {pts.length > 1 && d.ride && (
+        <>
+          <p className="adm-muted" style={{ fontSize: 12, margin: '8px 0 4px' }}>Itinéraire théorique (gris) vs réel (rouge) :</p>
+          <SosTrace ride={d.ride} />
+        </>
+      )}
+
+      <h4 className="adm-drawer-sec">Liaison secours</h4>
+      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+        {Object.entries(d.emergencyNumbers).map(([k, v]) => (
+          <span key={k} className="adm-pill lvl-rouge">📞 {k.toUpperCase()} {v}</span>
+        ))}
+      </div>
+
+      <h4 className="adm-drawer-sec">Chat sécurisé discret</h4>
+      <div className="adm-chat" style={{ maxHeight: 160 }}>
+        {(a.chat ?? []).length === 0 && <p className="adm-muted" style={{ fontSize: 12 }}>Aucun message. Utilisez un message pré-enregistré — silencieux côté usager.</p>}
+        {(a.chat ?? []).map((m, i) => (
+          <div key={i} className={`adm-bubble ${m.from === 'agent' ? 'agent' : 'client'}`}>
+            <div className="adm-bubble-txt">{m.text}</div>
+            <div className="adm-bubble-meta">{m.from === 'agent' ? m.author ?? 'Agent' : 'Usager'} · {new Date(m.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+          </div>
+        ))}
+      </div>
+      {canWrite && open && (
+        <>
+          <div className="row" style={{ gap: 6, flexWrap: 'wrap', margin: '8px 0' }}>
+            {d.presets.map((p) => (
+              <button key={p} className="adm-btn xs" onClick={() => onMessage(a.id, p)}>{p}</button>
+            ))}
+          </div>
+          <div className="adm-chat-input">
+            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Message libre (discret)…" onKeyDown={(e) => { if (e.key === 'Enter' && text.trim()) { onMessage(a.id, text.trim()); setText(''); } }} />
+            <button className="adm-btn solid" onClick={() => { if (text.trim()) { onMessage(a.id, text.trim()); setText(''); } }}>Envoyer</button>
+          </div>
+        </>
+      )}
+
+      <h4 className="adm-drawer-sec">Réquisitions légales</h4>
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <button className="adm-btn xs solid" onClick={() => onPdf(a.id)}>⬇ Rapport de réquisition (PDF)</button>
+        <button className="adm-btn xs" onClick={() => onCsv(a.id)}>⬇ Télémétrie brute (CSV)</button>
+      </div>
+
+      {canWrite && open && (
+        <>
+          <h4 className="adm-drawer-sec">Clôture (note de synthèse OBLIGATOIRE)</h4>
+          <textarea className="adm-select" rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Résumé factuel de l’incident, actions menées, issue… (10 caractères min.)" />
+          <button className="adm-btn solid" style={{ marginTop: 8 }} disabled={note.trim().length < 10} onClick={() => onCloseAlert(a.id, note.trim())}>
+            🔏 Clore & sceller le dossier
+          </button>
+          <p className="adm-muted" style={{ fontSize: 11, marginTop: 6 }}>Après scellement, le dossier n’est plus lisible que par la direction.</p>
+        </>
+      )}
+      {a.closingNote && <p className="adm-muted" style={{ fontSize: 12, marginTop: 8 }}>Note de synthèse : {a.closingNote}</p>}
+    </Drawer>
+  );
+}
+
+/** Itinéraire théorique (gris, ligne droite) vs réel (rouge, trace GPS). */
+function SosTrace({ ride }: { ride: NonNullable<SosDossier['ride']> }) {
+  const pts = ride.trace.length > 1 ? ride.trace : [ride.origin, ride.destination];
+  const all = [...pts, ride.origin, ride.destination];
+  const lats = all.map((p) => p.lat), lngs = all.map((p) => p.lng);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats), minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+  const W = 380, H = 180, PAD = 14;
+  const sx = (lng: number) => PAD + ((lng - minLng) / Math.max(1e-6, maxLng - minLng)) * (W - PAD * 2);
+  const sy = (lat: number) => H - PAD - ((lat - minLat) / Math.max(1e-6, maxLat - minLat)) * (H - PAD * 2);
+  const real = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${sx(p.lng).toFixed(1)},${sy(p.lat).toFixed(1)}`).join(' ');
+  return (
+    <svg className="adm-trace" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Itinéraire théorique vs réel">
+      <rect x="0" y="0" width={W} height={H} rx="10" className="adm-trace-bg" />
+      <line x1={sx(ride.origin.lng)} y1={sy(ride.origin.lat)} x2={sx(ride.destination.lng)} y2={sy(ride.destination.lat)} className="samu-theoretical" />
+      <path d={real} className="samu-real" />
+      <circle cx={sx(ride.origin.lng)} cy={sy(ride.origin.lat)} r="5" className="adm-trace-a" />
+      <circle cx={sx(ride.destination.lng)} cy={sy(ride.destination.lat)} r="5" className="adm-trace-b" />
+    </svg>
+  );
+}
+
+/* ------- Alertes sécurité interne (tentatives d'accès non autorisé) ------- */
+function SecuritySection({ attempts }: { attempts: SecurityAttempt[] }) {
+  return (
+    <>
+      <div className="adm-card">
+        <p className="adm-muted" style={{ margin: 0 }}>
+          Chaque fois qu'un employé tente d'ouvrir une <strong>session qui ne lui est pas autorisée</strong>,
+          le refus lui est notifié et la tentative est <strong>signalée ici à la direction (DG, CFO, DAA)</strong>,
+          en plus du journal d'audit. Boîte réservée à la direction.
+        </p>
+      </div>
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Tentatives d'accès non autorisé</h3><span className="adm-muted">{attempts.length}</span></div>
+        {attempts.length === 0 && <p className="adm-empty">Aucune tentative signalée. ✅</p>}
+        <table className="adm-table">
+          <thead><tr><th>Quand</th><th>Employé</th><th>Rôle</th><th>Session / permission visée</th><th>IP</th><th>Notifiés</th></tr></thead>
+          <tbody>
+            {attempts.map((s) => (
+              <tr key={s.id}>
+                <td className="adm-muted">{new Date(s.at).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+                <td>{s.name}{s.username && <div className="mono adm-muted" style={{ fontSize: 11 }}>{s.username}</div>}</td>
+                <td className="cap">{s.role}</td>
+                <td className="mono">{s.section ?? s.permission ?? s.path ?? '—'}</td>
+                <td className="mono">{s.ip ?? '—'}</td>
+                <td><span className="adm-pill tr-pending">{s.notified.join(' · ')}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+const REASSIGNABLE = new Set(['searching', 'no_driver', 'accepted', 'driver_en_route', 'arrived']);
+const ACTIVE_RIDE = new Set(['accepted', 'driver_en_route', 'arrived', 'in_progress']);
+const ANOMALY_LABEL: Record<string, string> = {
+  detour: '🔴 Détour majeur', attente_longue: '🟠 Attente longue',
+  sans_chauffeur: '🟠 Sans chauffeur', immobile: '🔴 Immobile',
+};
+
+function RidesSection({ rides, meta, onPage, canWrite, onReassign, onOpen, onForce, onDest }: {
+  rides: RideRow[]; meta: PageMeta; onPage: (p: number) => void; canWrite: boolean;
+  onReassign: (id: string) => void; onOpen: (id: string) => void;
+  onForce: (id: string, action: 'complete' | 'cancel') => void; onDest: (id: string) => void;
+}) {
   return (
     <div className="adm-card">
-      <div className="adm-card-h"><h3>Courses</h3><span className="adm-muted">{meta.total} · cliquer = fiche (tracé GPS, tarif)</span></div>
+      <div className="adm-card-h"><h3>Courses (radar temps réel)</h3><span className="adm-muted">{meta.total} · anomalies en surbrillance · cliquer = fiche (tracé GPS, tarif)</span></div>
       <table className="adm-table">
-        <thead><tr><th>Course</th><th>Chauffeur</th><th>Statut</th><th>Trafic</th><th className="r">Montant</th>{canWrite && <th>Actions</th>}</tr></thead>
+        <thead><tr><th>Course</th><th>Chauffeur</th><th>Statut</th><th>Anomalie</th><th>Trafic</th><th className="r">Montant</th>{canWrite && <th>Interventions</th>}</tr></thead>
         <tbody>
           {rides.map((r) => (
-            <tr key={r.id} className="adm-row-click" onClick={() => onOpen(r.id)}>
+            <tr key={r.id} className={`adm-row-click${r.anomaly ? ' anomaly' : ''}`} onClick={() => onOpen(r.id)}>
               <td className="mono">{r.id.slice(0, 8)}</td><td>{r.driverName ?? '—'}</td>
               <td><span className={`adm-pill s-${r.status}`}>{rideStatusLabel(r.status)}</span></td>
+              <td>{r.anomaly ? <span className="adm-pill tr-rejected">{ANOMALY_LABEL[r.anomaly] ?? r.anomaly}</span> : <span className="adm-muted">—</span>}</td>
               <td>{trafficLabel(r.trafficLevel)}</td><td className="r">{fcfa(r.amount)}</td>
               {canWrite && (
                 <td onClick={(e) => e.stopPropagation()}>
-                  {REASSIGNABLE.has(r.status) && <button className="adm-btn xs" onClick={() => onReassign(r.id)}>Réassigner</button>}
+                  <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                    {REASSIGNABLE.has(r.status) && <button className="adm-btn xs" title="Réaffectation d'urgence" onClick={() => onReassign(r.id)}>Réassigner</button>}
+                    {ACTIVE_RIDE.has(r.status) && <button className="adm-btn xs" title="Ajuster la destination en vol (devis recalculé)" onClick={() => onDest(r.id)}>Dest.</button>}
+                    {ACTIVE_RIDE.has(r.status) && <button className="adm-btn xs" title="Clôture forcée (bug réseau)" onClick={() => onForce(r.id, 'complete')}>Terminer</button>}
+                    {(ACTIVE_RIDE.has(r.status) || r.status === 'searching' || r.status === 'no_driver') && <button className="adm-btn xs" title="Annulation sans frais" onClick={() => onForce(r.id, 'cancel')}>Annuler</button>}
+                  </div>
                 </td>
               )}
             </tr>
@@ -869,6 +1299,55 @@ function RidesSection({ rides, meta, onPage, canWrite, onReassign, onOpen }: { r
   );
 }
 
+/* --------------- Réservations à l'avance (courses planifiées) ---------- */
+const RES_STATUS: Record<string, { label: string; cls: string }> = {
+  planifiee: { label: 'Planifiée', cls: 'tr-pending' },
+  assignee: { label: 'Chauffeur assigné', cls: 'tr-approved' },
+  lancee: { label: 'Lancée', cls: 'av-online' },
+  annulee: { label: 'Annulée', cls: 'tr-rejected' },
+};
+function ReservationsCard({ reservations, canWrite, onAssign, onCancel }: {
+  reservations: Reservation[]; canWrite: boolean;
+  onAssign: (id: string) => void; onCancel: (id: string) => void;
+}) {
+  const upcoming = reservations.filter((r) => r.status !== 'annulee');
+  return (
+    <div className="adm-card">
+      <div className="adm-card-h">
+        <h3>Réservations à l'avance</h3>
+        <span className="adm-muted">{upcoming.length} planifiée(s) · alerte de ponctualité à H-30 si aucun chauffeur prêt</span>
+      </div>
+      {reservations.length === 0 && <p className="adm-empty">Aucune réservation. Les clients planifient depuis l'app (aéroport, hôtels, rendez-vous).</p>}
+      {reservations.length > 0 && (
+        <table className="adm-table">
+          <thead><tr><th>Réf.</th><th>Client</th><th>Prise en charge</th><th>Gamme</th><th>Statut</th><th>Chauffeur</th><th>Ponctualité</th>{canWrite && <th>Actions</th>}</tr></thead>
+          <tbody>
+            {reservations.map((r) => (
+              <tr key={r.id}>
+                <td className="mono">{r.id}</td>
+                <td>{r.clientId}</td>
+                <td>{new Date(r.scheduledFor).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  {typeof r.minutesToGo === 'number' && r.minutesToGo > 0 && <div className="adm-muted" style={{ fontSize: 11 }}>dans {r.minutesToGo >= 60 ? `${Math.round(r.minutesToGo / 60)} h` : `${r.minutesToGo} min`}</div>}
+                </td>
+                <td className="cap">{r.category}</td>
+                <td><span className={`adm-pill ${RES_STATUS[r.status]?.cls ?? ''}`}>{RES_STATUS[r.status]?.label ?? r.status}</span></td>
+                <td>{r.driverName ?? '—'}</td>
+                <td>{r.punctualityAlert ? <span className="adm-pill tr-rejected">⚠ Risque de retard</span> : <span className="adm-pill av-online">OK</span>}</td>
+                {canWrite && (
+                  <td><div className="row" style={{ gap: 6 }}>
+                    {(r.status === 'planifiee' || r.punctualityAlert) && <button className="adm-btn xs solid" onClick={() => onAssign(r.id)}>Assigner</button>}
+                    {r.status !== 'annulee' && <button className="adm-btn xs" onClick={() => onCancel(r.id)}>Annuler</button>}
+                  </div></td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 /* ---------------------- Dispatch & affectation ------------------------ */
 const STRATEGIES: { id: OpsConfig['strategy']; label: string; desc: string }[] = [
   { id: 'nearest', label: 'Le plus proche', desc: 'Minimise l’attente du client. Recommandé en ville.' },
@@ -876,7 +1355,19 @@ const STRATEGIES: { id: OpsConfig['strategy']; label: string; desc: string }[] =
   { id: 'zone_queue', label: 'File d’attente par zone', desc: 'FIFO dans les zones denses (aéroport, gares) — plus proche ailleurs.' },
 ];
 
-function DispatchSection({ ops, onSave }: { ops: OpsConfig; onSave: (p: Partial<OpsConfig>) => void }) {
+function DispatchSection({ ops, onSave, onSimulate, onConfigPdf, onMatrixCsv }: {
+  ops: OpsConfig; onSave: (p: Partial<OpsConfig>) => void;
+  onSimulate: (p: { maxEtaMinutes?: number; radiusMaxKm?: number }) => Promise<{ current: SimResult; proposed: SimResult } | null>;
+  onConfigPdf: () => void; onMatrixCsv: () => void;
+}) {
+  const [simEta, setSimEta] = useState(ops.maxEtaMinutes);
+  const [simRadius, setSimRadius] = useState(ops.radiusMaxKm);
+  const [simRes, setSimRes] = useState<{ current: SimResult; proposed: SimResult } | null>(null);
+  const [simBusy, setSimBusy] = useState(false);
+  const runSim = async () => {
+    setSimBusy(true);
+    try { setSimRes(await onSimulate({ maxEtaMinutes: simEta, radiusMaxKm: simRadius })); } finally { setSimBusy(false); }
+  };
   return (
     <>
       <div className="adm-card">
@@ -898,21 +1389,52 @@ function DispatchSection({ ops, onSave }: { ops: OpsConfig; onSave: (p: Partial<
         </div>
       </div>
       <div className="adm-card">
-        <div className="adm-card-h"><h3>Filtre ETA & cascade d'attribution</h3></div>
+        <div className="adm-card-h"><h3>Rayon de recherche & cascade d'attribution</h3></div>
         <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <label className="price-field"><span>Rayon initial (km)</span>
+            <input type="number" min={0.5} max={10} step={0.5} value={ops.radiusKm} onChange={(e) => onSave({ radiusKm: Number(e.target.value) })} />
+          </label>
+          <label className="price-field"><span>Rayon max (élargissement auto, km)</span>
+            <input type="number" min={1} max={20} step={0.5} value={ops.radiusMaxKm} onChange={(e) => onSave({ radiusMaxKm: Number(e.target.value) })} />
+          </label>
           <label className="price-field"><span>ETA max chauffeur (minutes)</span>
             <input type="number" min={2} max={30} value={ops.maxEtaMinutes} onChange={(e) => onSave({ maxEtaMinutes: Number(e.target.value) })} />
           </label>
           <label className="price-field"><span>Délai d'acceptation (10–15 s)</span>
             <input type="number" min={10} max={15} value={ops.offerTimeoutSec} onChange={(e) => onSave({ offerTimeoutSec: Number(e.target.value) })} />
           </label>
+          <label className="price-field"><span>Mode d'offre</span>
+            <select className="adm-select" value={ops.offerMode} onChange={(e) => onSave({ offerMode: e.target.value as OpsConfig['offerMode'] })}>
+              <option value="cascade">Cascade (un chauffeur à la fois)</option>
+              <option value="broadcast">Broadcast (3 plus proches, 1er qui accepte)</option>
+            </select>
+          </label>
           <label className="price-field"><span>Attente facturée (F / min)</span>
             <input type="number" min={0} max={1000} step={25} value={ops.waitFeePerMin} onChange={(e) => onSave({ waitFeePerMin: Number(e.target.value) })} />
           </label>
         </div>
         <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
-          Un chauffeur au-delà de l'ETA max n'est jamais proposé. En cascade : le meilleur profil reçoit l'offre ;
-          sans réponse dans le délai, elle bascule au suivant (branché à l'app chauffeur).
+          La recherche démarre au rayon initial et s'élargit automatiquement jusqu'au rayon max si personne
+          n'accepte. Au-delà de l'ETA max, un chauffeur n'est jamais proposé.
+        </p>
+      </div>
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Pondération du scoring (au-delà de la distance)</h3></div>
+        <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <label className="price-field"><span>Poids de la note (0 = distance pure)</span>
+            <input type="number" min={0} max={10} value={ops.weightRating} onChange={(e) => onSave({ weightRating: Number(e.target.value) })} />
+          </label>
+          <label className="price-field"><span>Poids de l'inactivité (lissage revenus)</span>
+            <input type="number" min={0} max={10} value={ops.weightIdle} onChange={(e) => onSave({ weightIdle: Number(e.target.value) })} />
+          </label>
+          <label className="row" style={{ gap: 8, alignItems: 'center', paddingBottom: 8 }}>
+            <button className={`adm-toggle${ops.greenPriority ? ' on' : ''}`} onClick={() => onSave({ greenPriority: !ops.greenPriority })}><span /></button>
+            <span style={{ fontSize: 13 }}>🌱 Priorisation écologique absolue (le moins émetteur d'abord)</span>
+          </label>
+        </div>
+        <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
+          Exemple : avec un poids de note élevé, un chauffeur 4.9/5 l'emporte sur un 4.2/5 un peu plus proche.
+          Le poids d'inactivité favorise un chauffeur en attente depuis 45 min (équité de revenus).
         </p>
       </div>
       <div className="adm-card">
@@ -922,14 +1444,75 @@ function DispatchSection({ ops, onSave }: { ops: OpsConfig; onSave: (p: Partial<
             <button className={`adm-toggle${ops.surgeEnabled ? ' on' : ''}`} onClick={() => onSave({ surgeEnabled: !ops.surgeEnabled })}><span /></button>
             <span style={{ fontSize: 13 }}>{ops.surgeEnabled ? 'Activé' : 'Désactivé'}</span>
           </label>
+          <label className="price-field"><span>Seuil demande/offre ×</span>
+            <input type="number" min={1.1} max={3} step={0.1} value={ops.surgeThreshold} onChange={(e) => onSave({ surgeThreshold: Number(e.target.value) })} />
+          </label>
           <label className="price-field"><span>Plafond vert (incitation) ×</span>
             <input type="number" min={1} max={2} step={0.1} value={ops.surgeCapGreen} onChange={(e) => onSave({ surgeCapGreen: Number(e.target.value) })} />
+          </label>
+          <label className="price-field"><span>Lissage retour normale (min)</span>
+            <input type="number" min={0} max={30} value={ops.surgeSmoothingMin} onChange={(e) => onSave({ surgeSmoothingMin: Number(e.target.value) })} />
           </label>
         </div>
         <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
           La carte est découpée en cellules (~800 m). Si la demande y dépasse l'offre de 30 % → ×1.3 ; du double → ×1.5.
-          Le multiplicateur est <strong>plafonné sur la flotte électrique</strong> : prix stable pour le choix vert,
-          et toujours intégré AVANT le verrouillage — le prix affiché reste le prix payé.
+          Le multiplicateur est <strong>plafonné sur la flotte électrique</strong> et intégré AVANT le verrouillage —
+          le prix affiché reste le prix payé. Un <strong>surge manuel d'urgence</strong> se force zone par zone
+          (section Zones &amp; tarifs, champ « surge manuel » — stade, concert…).
+        </p>
+      </div>
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Plafond support & heures creuses (verte)</h3></div>
+        <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <label className="price-field"><span>Plafond remboursement agent (F)</span>
+            <input type="number" min={0} max={100000} step={500} value={ops.refundCap} onChange={(e) => onSave({ refundCap: Number(e.target.value) })} />
+          </label>
+          <label className="price-field"><span>Bonus recharge heures creuses (F)</span>
+            <input type="number" min={0} max={5000} step={50} value={ops.offPeakBonus} onChange={(e) => onSave({ offPeakBonus: Number(e.target.value) })} />
+          </label>
+          <label className="price-field"><span>Début heures creuses (h)</span>
+            <input type="number" min={0} max={23} value={ops.offPeakStart} onChange={(e) => onSave({ offPeakStart: Number(e.target.value) })} />
+          </label>
+          <label className="price-field"><span>Fin heures creuses (h)</span>
+            <input type="number" min={0} max={23} value={ops.offPeakEnd} onChange={(e) => onSave({ offPeakEnd: Number(e.target.value) })} />
+          </label>
+        </div>
+        <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
+          Au-delà du plafond, un remboursement exige l'escalade au Superviseur Support (imposé par le serveur).
+        </p>
+      </div>
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Simulateur d'algorithme (shadow mode)</h3><span className="adm-muted">aucun impact sur le réseau réel</span></div>
+        <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <label className="price-field"><span>ETA max testé (min)</span>
+            <input type="number" min={2} max={30} value={simEta} onChange={(e) => setSimEta(Number(e.target.value))} />
+          </label>
+          <label className="price-field"><span>Rayon max testé (km)</span>
+            <input type="number" min={1} max={20} value={simRadius} onChange={(e) => setSimRadius(Number(e.target.value))} />
+          </label>
+          <button className="adm-btn solid" onClick={() => void runSim()} disabled={simBusy}>{simBusy ? 'Simulation…' : '▶ Simuler sur l’historique'}</button>
+        </div>
+        {simRes && (
+          <table className="adm-table sm" style={{ marginTop: 12 }}>
+            <thead><tr><th>Configuration</th><th className="r">Courses rejouées</th><th className="r">Matchées</th><th className="r">Taux</th><th className="r">ETA moyen</th></tr></thead>
+            <tbody>
+              <tr><td>Actuelle</td><td className="r">{simRes.current.sampled}</td><td className="r">{simRes.current.matched}</td><td className="r">{simRes.current.matchRate} %</td><td className="r">{simRes.current.avgEtaMin ?? '—'} min</td></tr>
+              <tr><td><strong>Proposée</strong></td><td className="r">{simRes.proposed.sampled}</td><td className="r">{simRes.proposed.matched}</td>
+                <td className={`r ${simRes.proposed.matchRate >= simRes.current.matchRate ? 'pos' : 'neg'}`}><strong>{simRes.proposed.matchRate} %</strong></td>
+                <td className="r">{simRes.proposed.avgEtaMin ?? '—'} min</td></tr>
+            </tbody>
+          </table>
+        )}
+      </div>
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Exports professionnels</h3></div>
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+          <button className="adm-btn xs solid" onClick={onConfigPdf}>⬇ Documentation technique (PDF)</button>
+          <button className="adm-btn xs" onClick={onMatrixCsv}>⬇ Matrice tarifaire (Excel/CSV)</button>
+        </div>
+        <p className="adm-muted" style={{ margin: '8px 0 0', fontSize: 12 }}>
+          Paramètres algorithmiques compilés pour audit technique / investisseurs ; grille tarifaire complète
+          (zones × gammes) prête pour la modélisation du business plan.
         </p>
       </div>
     </>
@@ -937,19 +1520,57 @@ function DispatchSection({ ops, onSave }: { ops: OpsConfig; onSave: (p: Partial<
 }
 
 /* ------------------------- Qualité & notes ---------------------------- */
-function QualitySection({ q, canWrite, onWarn, onSuspend, onSaveOps }: {
+function QualitySection({ q, csat, top, canWrite, onWarn, onSuspend, onSaveOps, onVip, onMatrixCsv, onDriverPdf }: {
   q: { threshold: number; autoWarn: boolean; drivers: QualityRow[] };
+  csat: CsatReport | null; top: QualityTop[];
   canWrite: boolean; onWarn: (id: string) => void; onSuspend: (id: string) => void; onSaveOps: (p: Partial<OpsConfig>) => void;
+  onVip: (id: string, vip: boolean) => void; onMatrixCsv: () => void; onDriverPdf: (id: string) => void;
 }) {
   const below = q.drivers.filter((d) => d.below).length;
+  const maxCsat = 5;
   return (
     <>
       <section className="adm-kpis">
-        <Kpi label="Seuil qualité" value={`★ ${q.threshold.toFixed(1)}`} sub="note moyenne minimale" tone="green" />
-        <Kpi label="Sous le seuil" value={String(below)} sub="chauffeurs à surveiller" tone={below ? 'danger' : 'muted'} />
-        <Kpi label="Avertissement auto" value={q.autoWarn ? 'Activé' : 'Coupé'} sub="dès la 5e note sous le seuil" tone="teal" />
-        <Kpi label="Chauffeurs suivis" value={String(q.drivers.length)} sub="classés par note croissante" tone="mint" />
+        <Kpi label="CSAT 7 jours" value={csat?.csat7d != null ? `★ ${csat.csat7d.toFixed(2)}` : '—'} sub="satisfaction plateforme" tone="green" />
+        <Kpi label="Taux d'acceptation" value={csat ? `${csat.acceptRate} %` : '—'} sub="fiabilité du réseau" tone="teal" />
+        <Kpi label="Taux d'annulation" value={csat ? `${csat.cancelRate} %` : '—'} sub="à contenir < 15 %" tone={csat && csat.cancelRate > 15 ? 'danger' : 'mint'} />
+        <Kpi label="Sous le seuil" value={String(below)} sub={`seuil ★ ${q.threshold.toFixed(1)} · avert. auto ${q.autoWarn ? 'ON' : 'OFF'}`} tone={below ? 'danger' : 'muted'} />
       </section>
+      {csat && (
+        <div className="adm-card">
+          <div className="adm-card-h"><h3>Courbe CSAT · 7 jours</h3><span className="adm-muted">détecte une dégradation soudaine de la qualité</span></div>
+          <div className="adm-chart" style={{ '--cols': csat.series.length } as CSSProperties}>
+            {csat.series.map((d) => (
+              <div key={d.date} className="adm-chart-col" title={`${d.date} · ${d.avg != null ? `★ ${d.avg}` : 'aucune note'} (${d.count})`}>
+                <div className="adm-chart-bars">
+                  <span className="adm-bar rides" style={{ height: `${((d.avg ?? 0) / maxCsat) * 100}%` }} />
+                </div>
+                <span className="adm-chart-x">{new Date(d.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="adm-card">
+        <div className="adm-card-h">
+          <h3>Programme VIP / Top Driver (top 5 %)</h3>
+          <button className="adm-btn xs" onClick={onMatrixCsv}>⬇ Matrice de performance (Excel)</button>
+        </div>
+        {top.length === 0 && <p className="adm-empty">Pas encore assez de volume (≥ 20 courses notées) pour identifier le top 5 %.</p>}
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+          {top.map((t) => (
+            <div key={t.id} className="adm-role-card" style={{ minWidth: 220 }}>
+              <div className="row between"><strong>🏆 {t.name}</strong>{t.vip && <span className="adm-pill av-online">VIP</span>}</div>
+              <p className="adm-muted" style={{ margin: '4px 0', fontSize: 12 }}>★ {t.rating.toFixed(2)} · {t.trips} courses · <span className="mono">{t.matricule}</span></p>
+              {canWrite && (
+                <button className={`adm-btn xs${t.vip ? '' : ' solid'}`} onClick={() => onVip(t.id, !t.vip)}>
+                  {t.vip ? 'Retirer le statut VIP' : 'Attribuer statut VIP (priorité + commission réduite)'}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
       {canWrite && (
         <div className="adm-card">
           <div className="adm-card-h"><h3>Réglages qualité</h3></div>
@@ -971,7 +1592,7 @@ function QualitySection({ q, canWrite, onWarn, onSuspend, onSaveOps }: {
           <tbody>
             {q.drivers.map((d) => (
               <tr key={d.id}>
-                <td>{d.name}</td><td className="mono">{d.matricule}</td>
+                <td>{d.name}{d.vip && <span className="adm-pill av-online" style={{ marginLeft: 6 }}>VIP</span>}</td><td className="mono">{d.matricule}</td>
                 <td className={`r ${d.below ? 'neg' : ''}`}>★ {d.rating.toFixed(2)}</td>
                 <td className="r">{d.trips}</td>
                 <td className="r">{d.warnings > 0 ? <span className="adm-pill tr-pending">{d.warnings}</span> : '—'}</td>
@@ -980,6 +1601,7 @@ function QualitySection({ q, canWrite, onWarn, onSuspend, onSaveOps }: {
                   <td><div className="row" style={{ gap: 6 }}>
                     <button className="adm-btn xs" onClick={() => onWarn(d.id)}>Avertir</button>
                     {d.kycStatus !== 'suspended' && d.below && <button className="adm-btn xs" onClick={() => onSuspend(d.id)}>Suspendre</button>}
+                    <button className="adm-btn xs" title="Bilan qualité individuel (PDF)" onClick={() => onDriverPdf(d.id)}>PDF</button>
                   </div></td>
                 )}
               </tr>
@@ -1214,12 +1836,20 @@ function ZonesSection({ zones, canWrite, onSave, onToggle, onDelete, onReset }: 
                     {z.pickupFee ? <span className="adm-pill" title="Frais de prise en charge">+{z.pickupFee} F</span> : null}
                     {z.driverBonus ? <span className="adm-pill av-online" title="Bonus chauffeur">🎁 {z.driverBonus} F</span> : null}
                     {z.dedicated && <span className="adm-pill tr-approved" title="Flotte cantonnée">📌 Flotte dédiée</span>}
-                    {!z.waitMaxMin && !z.minStandard && !z.pickupFee && !z.driverBonus && !z.dedicated && <span className="adm-muted">—</span>}
+                    {z.surgeManual && z.surgeManual > 1 ? <span className="adm-pill tr-rejected" title="Surge manuel d'urgence">⚡ surge ×{z.surgeManual}</span> : null}
+                    {!z.waitMaxMin && !z.minStandard && !z.pickupFee && !z.driverBonus && !z.dedicated && !z.surgeManual && <span className="adm-muted">—</span>}
                   </div>
                 </td>
                 <td><span className={`adm-pill ${z.active ? 'av-online' : 'kyc-manual_review'}`}>{z.active ? 'Actif' : 'Inactif'}</span></td>
                 {canWrite && (
                   <td><div className="row" style={{ gap: 6 }}>
+                    <button className="adm-btn xs" title="Surge manuel d'urgence (stade, concert…)" onClick={() => {
+                      const cur = z.surgeManual ?? 1;
+                      const input = window.prompt(`Surge manuel pour « ${z.name} » (1 = aucun, max 2.5, plafonné par le cap vert) :`, String(cur));
+                      if (input === null) return;
+                      const v = Math.min(2.5, Math.max(1, Number(input) || 1));
+                      onSave({ ...z, surgeManual: v });
+                    }}>⚡ Surge</button>
                     <button className="adm-btn xs" onClick={() => onToggle(z.id, !z.active)}>{z.active ? 'Désactiver' : 'Activer'}</button>
                     <button className="adm-btn xs" onClick={() => onDelete(z.id)}>Suppr.</button>
                   </div></td>
@@ -1297,47 +1927,90 @@ function ServicesSection({ config, canWrite, onSave }: { config: ServicesConfig;
   );
 }
 
-function SupportSection({ convs, canWrite, onReply, onStatus }: { convs: Conversation[]; canWrite: boolean; onReply: (id: string, text: string) => void; onStatus: (id: string, s: string) => void }) {
+const PRIORITY_META: Record<number, { label: string; cls: string }> = {
+  1: { label: 'P1 · Objet oublié', cls: 'tr-rejected' },
+  2: { label: 'P2 · Facturation', cls: 'tr-pending' },
+  3: { label: 'P3 · Général', cls: 'av-online' },
+};
+
+function SupportSection({ convs, stats, macros, canWrite, canPromo, onReply, onStatus, onCompensate }: {
+  convs: Conversation[]; stats: SupportStats | null; macros: Macro[];
+  canWrite: boolean; canPromo: boolean;
+  onReply: (id: string, text: string) => void; onStatus: (id: string, s: string) => void;
+  onCompensate: (clientId: string, percent: number) => void;
+}) {
   const [sel, setSel] = useState<string | null>(convs[0]?.id ?? null);
   const [text, setText] = useState('');
+  const [compPct, setCompPct] = useState(20);
   const conv = convs.find((c) => c.id === sel) ?? convs[0] ?? null;
   return (
-    <div className="adm-grid2">
-      <div className="adm-card" style={{ maxHeight: 640, overflow: 'auto' }}>
-        <div className="adm-card-h"><h3>Conversations</h3><span className="adm-muted">{convs.length}</span></div>
-        <div className="stack" style={{ gap: 6 }}>
-          {convs.length === 0 && <p className="adm-empty">Aucune conversation.</p>}
-          {convs.map((c) => (
-            <button key={c.id} className={`adm-conv${conv?.id === c.id ? ' on' : ''}`} onClick={() => setSel(c.id)}>
-              <div className="row between"><strong>{c.subject}</strong><span className={`adm-pill s-${c.status === 'open' ? 'searching' : c.status === 'pending' ? 'in_progress' : 'completed'}`}>{convStatus(c.status)}</span></div>
-              <div className="adm-muted" style={{ fontSize: 12 }}>{c.clientId} · {c.messages.length} msg</div>
-            </button>
-          ))}
+    <>
+      {stats && (
+        <section className="adm-kpis">
+          <Kpi label="Tickets ouverts" value={String(stats.open)} sub="boîte triée par priorité puis ancienneté" tone={stats.open ? 'teal' : 'muted'} />
+          <Kpi label="1re réponse (moy.)" value={stats.avgFirstReplyMin != null ? `${stats.avgFirstReplyMin} min` : '—'} sub="SLA de première réponse" tone="green" />
+          <Kpi label="Résolus aujourd'hui" value={String(stats.resolvedToday)} sub="tickets clos dans la journée" tone="mint" />
+          <Kpi label="CSAT post-résolution" value={stats.csat != null ? `★ ${stats.csat}` : '—'} sub="satisfaction après traitement" tone="teal" />
+        </section>
+      )}
+      <div className="adm-grid2">
+        <div className="adm-card" style={{ maxHeight: 640, overflow: 'auto' }}>
+          <div className="adm-card-h"><h3>File d'attente intelligente</h3><span className="adm-muted">{convs.length} · P1 objet oublié &gt; P2 facturation &gt; P3 général</span></div>
+          <div className="stack" style={{ gap: 6 }}>
+            {convs.length === 0 && <p className="adm-empty">Aucune conversation.</p>}
+            {convs.map((c) => (
+              <button key={c.id} className={`adm-conv${conv?.id === c.id ? ' on' : ''}`} onClick={() => setSel(c.id)}>
+                <div className="row between">
+                  <strong>{c.subject}</strong>
+                  <span className="row" style={{ gap: 4 }}>
+                    {c.priority && <span className={`adm-pill ${PRIORITY_META[c.priority]?.cls ?? ''}`}>{PRIORITY_META[c.priority]?.label ?? `P${c.priority}`}</span>}
+                    <span className={`adm-pill s-${c.status === 'open' ? 'searching' : c.status === 'pending' ? 'in_progress' : 'completed'}`}>{convStatus(c.status)}</span>
+                  </span>
+                </div>
+                <div className="adm-muted" style={{ fontSize: 12 }}>{c.clientId} · {c.messages.length} msg{c.csat ? ` · CSAT ★ ${c.csat}` : ''}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="adm-card" style={{ display: 'flex', flexDirection: 'column', maxHeight: 640 }}>
+          {conv ? (
+            <>
+              <div className="adm-card-h"><h3>{conv.subject}</h3><span className="adm-muted">{conv.clientId}</span></div>
+              <div className="adm-chat">
+                {conv.messages.map((m) => (
+                  <div key={m.id} className={`adm-bubble ${m.from}`}>
+                    <div className="adm-bubble-txt">{m.text}</div>
+                    <div className="adm-bubble-meta">{m.from === 'agent' ? (m.author ?? 'Agent') : 'Client'} · {new Date(m.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+                  </div>
+                ))}
+              </div>
+              {canWrite && macros.length > 0 && (
+                <div className="row" style={{ gap: 6, flexWrap: 'wrap', margin: '8px 0' }}>
+                  {macros.map((m) => (
+                    <button key={m.title} className="adm-btn xs" title={m.text} onClick={() => onReply(conv.id, m.text)}>⚡ {m.title}</button>
+                  ))}
+                </div>
+              )}
+              {canWrite && (
+                <div className="adm-chat-input">
+                  <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Répondre au client…" onKeyDown={(e) => { if (e.key === 'Enter' && text.trim()) { onReply(conv.id, text.trim()); setText(''); } }} />
+                  <button className="adm-btn solid" onClick={() => { if (text.trim()) { onReply(conv.id, text.trim()); setText(''); } }}>Envoyer</button>
+                  <button className="adm-btn ghost" onClick={() => onStatus(conv.id, 'closed')}>Clore</button>
+                </div>
+              )}
+              {canPromo && (
+                <div className="row" style={{ gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+                  <span className="adm-muted" style={{ fontSize: 12 }}>Geste commercial :</span>
+                  <input className="adm-inline-input" style={{ width: 70 }} type="number" min={5} max={50} value={compPct} onChange={(e) => setCompPct(Number(e.target.value))} />
+                  <span className="adm-muted" style={{ fontSize: 12 }}>%</span>
+                  <button className="adm-btn xs solid" onClick={() => onCompensate(conv.clientId, compPct)}>🎟 Code de dédommagement (7 j, usage unique)</button>
+                </div>
+              )}
+            </>
+          ) : <p className="adm-empty">Sélectionne une conversation.</p>}
         </div>
       </div>
-      <div className="adm-card" style={{ display: 'flex', flexDirection: 'column', maxHeight: 640 }}>
-        {conv ? (
-          <>
-            <div className="adm-card-h"><h3>{conv.subject}</h3><span className="adm-muted">{conv.clientId}</span></div>
-            <div className="adm-chat">
-              {conv.messages.map((m) => (
-                <div key={m.id} className={`adm-bubble ${m.from}`}>
-                  <div className="adm-bubble-txt">{m.text}</div>
-                  <div className="adm-bubble-meta">{m.from === 'agent' ? (m.author ?? 'Agent') : 'Client'} · {new Date(m.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
-                </div>
-              ))}
-            </div>
-            {canWrite && (
-              <div className="adm-chat-input">
-                <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Répondre au client…" onKeyDown={(e) => { if (e.key === 'Enter' && text.trim()) { onReply(conv.id, text.trim()); setText(''); } }} />
-                <button className="adm-btn solid" onClick={() => { if (text.trim()) { onReply(conv.id, text.trim()); setText(''); } }}>Envoyer</button>
-                <button className="adm-btn ghost" onClick={() => onStatus(conv.id, 'closed')}>Clore</button>
-              </div>
-            )}
-          </>
-        ) : <p className="adm-empty">Sélectionne une conversation.</p>}
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -1361,32 +2034,116 @@ function AuditSection({ entries }: { entries: AuditEntry[] }) {
 }
 const convStatus = (s: string) => ({ open: 'Ouverte', pending: 'En attente', closed: 'Close' }[s] ?? s);
 
-function NotifySection({ broadcasts, canWrite, onSend }: { broadcasts: Announcement[]; canWrite: boolean; onSend: (a: { audience: string; title: string; body: string }) => void }) {
+const CHANNEL_META: Record<string, string> = { push: '📲 Push', sms: '✉️ SMS', email: '📧 E-mail' };
+const SEGMENT_LABEL: Record<string, string> = { tous: 'Tous', nouveaux: 'Nouveaux inscrits sans course', vip: 'Utilisateurs VIP', green: 'Adeptes 100 % électrique', inactifs: 'Inactifs 30 jours' };
+
+function NotifySection({ broadcasts, triggers, canWrite, onSend, onTrigger }: {
+  broadcasts: Announcement[]; triggers: Triggers | null; canWrite: boolean;
+  onSend: (a: { audience: string; title: string; body: string; channel?: string; segment?: string; scheduledAt?: string }) => void;
+  onTrigger: (t: 'battery' | 'winback') => void;
+}) {
   const [audience, setAudience] = useState('clients'); const [title, setTitle] = useState(''); const [body, setBody] = useState('');
+  const [channel, setChannel] = useState('push'); const [segment, setSegment] = useState('tous'); const [scheduledAt, setScheduledAt] = useState('');
   const audLabel = (a: string) => ({ clients: 'Clients', drivers: 'Chauffeurs', all: 'Tous' }[a] ?? a);
+  const send = () => {
+    if (!title.trim() || !body.trim()) return;
+    onSend({
+      audience, title: title.trim(), body: body.trim(), channel, segment,
+      ...(scheduledAt ? { scheduledAt: new Date(scheduledAt).toISOString() } : {}),
+    });
+    setTitle(''); setBody(''); setScheduledAt('');
+  };
   return (
     <>
       {canWrite && (
         <div className="adm-card">
-          <div className="adm-card-h"><h3>Nouvelle annonce</h3><span className="adm-muted">Diffusée en temps réel</span></div>
+          <div className="adm-card-h"><h3>Studio de création multicanal</h3><span className="adm-muted">Push · SMS · E-mail — ciblage comportemental</span></div>
           <div className="price-grid">
+            <label className="price-field"><span>Canal</span>
+              <select className="adm-select" value={channel} onChange={(e) => setChannel(e.target.value)}>
+                <option value="push">📲 Push in-app (immédiat)</option>
+                <option value="sms">✉️ SMS (critique / hors-ligne)</option>
+                <option value="email">📧 E-mail (newsletters, bilans)</option>
+              </select>
+            </label>
             <label className="price-field"><span>Destinataires</span>
               <select className="adm-select" value={audience} onChange={(e) => setAudience(e.target.value)}><option value="clients">Clients</option><option value="drivers">Chauffeurs</option><option value="all">Tous</option></select>
             </label>
-            <label className="price-field" style={{ gridColumn: 'span 2' }}><span>Titre</span><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex. Wi-Fi gratuit à bord" /></label>
+            <label className="price-field"><span>Segment (hyper-ciblage)</span>
+              <select className="adm-select" value={segment} onChange={(e) => setSegment(e.target.value)}>
+                {Object.entries(SEGMENT_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </label>
+            <label className="price-field"><span>Planification (optionnel)</span>
+              <input type="datetime-local" className="adm-select" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+            </label>
           </div>
-          <label className="price-field" style={{ marginTop: 12 }}><span>Message</span><textarea className="adm-select" rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Votre message aux utilisateurs…" /></label>
-          <button className="adm-btn solid" style={{ marginTop: 12 }} onClick={() => { if (title.trim() && body.trim()) { onSend({ audience, title: title.trim(), body: body.trim() }); setTitle(''); setBody(''); } }}>📣 Diffuser</button>
+          <label className="price-field" style={{ marginTop: 12 }}><span>Titre</span><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex. Wi-Fi gratuit à bord" /></label>
+          <label className="price-field" style={{ marginTop: 12 }}><span>Message — balises : [Prénom], [Destination_Favorite]</span><textarea className="adm-select" rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Bonjour [Prénom], voici 10 % de réduction pour votre prochain trajet vers [Destination_Favorite]…" /></label>
+          <button className="adm-btn solid" style={{ marginTop: 12 }} onClick={send}>📣 {scheduledAt ? 'Programmer la campagne' : 'Diffuser maintenant'}</button>
+        </div>
+      )}
+      {triggers && (
+        <div className="adm-card">
+          <div className="adm-card-h"><h3>Déclencheurs automatisés</h3><span className="adm-muted">scénarios exécutés sans intervention</span></div>
+          <div className="row" style={{ gap: 18, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <div style={{ flex: 1, minWidth: 260 }}>
+              <div className="row between" style={{ marginBottom: 6 }}>
+                <strong style={{ fontSize: 13 }}>🔋 Batterie &lt; 15 % → borne partenaire ({triggers.lowBattery.length})</strong>
+                {canWrite && triggers.lowBattery.length > 0 && <button className="adm-btn xs solid" onClick={() => onTrigger('battery')}>Envoyer le guidage</button>}
+              </div>
+              <ul className="adm-conv-list">
+                {triggers.lowBattery.map((d) => (
+                  <li key={d.id}><span>{d.name} · {d.batteryPct} %</span><span className="adm-muted" style={{ fontSize: 11 }}>{d.station ?? '—'}</span></li>
+                ))}
+                {triggers.lowBattery.length === 0 && <li><span className="adm-muted">Aucun véhicule sous 15 %. ✅</span></li>}
+              </ul>
+            </div>
+            <div style={{ flex: 1, minWidth: 260 }}>
+              <div className="row between" style={{ marginBottom: 6 }}>
+                <strong style={{ fontSize: 13 }}>💚 Win-back — inactifs 30 j ({triggers.winback.length})</strong>
+                {canWrite && <button className="adm-btn xs solid" onClick={() => onTrigger('winback')}>Envoyer code retour</button>}
+              </div>
+              <ul className="adm-conv-list">
+                {triggers.winback.map((c) => (
+                  <li key={c.id}><span>{c.name ?? c.id} · {c.rides} courses</span><span className="adm-muted">{ago(c.lastSeenAt)}</span></li>
+                ))}
+                {triggers.winback.length === 0 && <li><span className="adm-muted">Aucun client silencieux. ✅</span></li>}
+              </ul>
+            </div>
+          </div>
+          <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
+            Heures creuses recharge : {triggers.offPeak.start} h → {triggers.offPeak.end} h · bonus {triggers.offPeak.bonus} F
+            (réglable dans Dispatch). Alerte météo/surge : les chauffeurs hors ligne sont prévenus quand la
+            tarification dynamique s'active sur leur zone.
+          </p>
         </div>
       )}
       <div className="adm-card">
-        <div className="adm-card-h"><h3>Annonces envoyées</h3><span className="adm-muted">{broadcasts.length}</span></div>
+        <div className="adm-card-h"><h3>Campagnes envoyées</h3><span className="adm-muted">{broadcasts.length} · délivrabilité / ouverture / clics / courses générées</span></div>
         <div className="stack" style={{ gap: 8 }}>
           {broadcasts.length === 0 && <p className="adm-empty">Aucune annonce.</p>}
           {broadcasts.map((a) => (
             <div key={a.id} className="adm-role-card">
-              <div className="row between"><strong>{a.title}</strong><span className="adm-pill av-online">{audLabel(a.audience)}</span></div>
+              <div className="row between" style={{ flexWrap: 'wrap', gap: 6 }}>
+                <strong>{a.title}</strong>
+                <span className="row" style={{ gap: 4, flexWrap: 'wrap' }}>
+                  <span className="adm-pill">{CHANNEL_META[a.channel ?? 'push']}</span>
+                  <span className="adm-pill av-online">{audLabel(a.audience)}</span>
+                  {a.segment && a.segment !== 'tous' && <span className="adm-pill tr-pending">{SEGMENT_LABEL[a.segment] ?? a.segment}</span>}
+                  {a.scheduledAt && Date.parse(a.scheduledAt) > Date.now() && <span className="adm-pill tr-pending">🕒 programmée</span>}
+                </span>
+              </div>
               <p className="adm-muted" style={{ margin: '4px 0', fontSize: 13 }}>{a.body}</p>
+              {a.stats && a.stats.sent > 0 && (
+                <div className="row" style={{ gap: 10, flexWrap: 'wrap', fontSize: 12 }}>
+                  <span>📤 {a.stats.sent} envoyés</span>
+                  <span>✅ {a.stats.delivered} délivrés</span>
+                  <span>👁 {a.stats.opened} ouverts ({a.stats.sent ? Math.round((a.stats.opened / a.stats.sent) * 100) : 0} %)</span>
+                  <span>🖱 {a.stats.clicked} clics</span>
+                  <span className="pos">🚗 {a.stats.rides} courses générées</span>
+                </div>
+              )}
               <span className="adm-muted" style={{ fontSize: 11 }}>{a.author} · {new Date(a.at).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
             </div>
           ))}
@@ -1665,33 +2422,50 @@ function TreasurySection({ transfers, meName, canRequest, canApprove, onRequest,
 }
 
 /* --------------------------- Mobilité verte --------------------------- */
-function GreenSection({ g, onPdf }: { g: GreenReport; onPdf: () => void }) {
+function GreenSection({ g, ops, onPdf, onEnergyCsv }: { g: GreenReport; ops: OpsConfig | null; onPdf: () => void; onEnergyCsv: () => void }) {
   const co2 = g.co2SavedTons >= 1 ? `${g.co2SavedTons.toLocaleString('fr-FR')} t` : `${g.co2SavedKg.toLocaleString('fr-FR')} kg`;
   return (
     <>
       <section className="adm-kpis">
         <Kpi label="CO2 économisé" value={co2} sub="vs flotte thermique équivalente" tone="green" />
         <Kpi label="Trajets 100 % électriques" value={`${g.electricShare} %`} sub={`${g.kmElectric.toLocaleString('fr-FR')} km parcourus`} tone="mint" />
-        <Kpi label="Trajets hybrides" value={`${g.hybridShare} %`} sub={`${g.kmHybrid.toLocaleString('fr-FR')} km parcourus`} tone="teal" />
+        <Kpi label="Santé batteries (SoH)" value={g.fleet.avgSoh != null ? `${g.fleet.avgSoh} %` : '—'} sub="dégradation moyenne — maintenance" tone="teal" />
         <Kpi label="Batteries faibles" value={String(g.fleet.lowBattery)} sub="véhicules < 20 % (exclus du dispatch si insuffisant)" tone={g.fleet.lowBattery ? 'danger' : 'muted'} />
       </section>
       <div className="adm-card">
         <p className="adm-muted" style={{ margin: 0 }}>
           Hypothèses : thermique ~150 g CO2/km · électrique ~20 g/km · hybride ~90 g/km (courses terminées).
           L'algorithme <strong>écarte automatiquement</strong> du dispatch tout électrique dont la batterie ne couvre
-          pas la course demandée (~1 %/km + réserve 10 %).
+          pas la course demandée (~1 %/km + réserve 10 %). Incitation heures creuses{ops ? ` (${ops.offPeakStart} h → ${ops.offPeakEnd} h, bonus ${ops.offPeakBonus} F)` : ''} pour lisser les coûts d'électricité.
         </p>
       </div>
       <div className="adm-card">
         <div className="adm-card-h">
-          <h3>Bilan carbone</h3>
-          <button className="adm-btn xs solid" onClick={onPdf}>⬇ Certificat CO2 (PDF)</button>
+          <h3>Rapports & exports</h3>
+          <div className="row" style={{ gap: 8 }}>
+            <button className="adm-btn xs solid" onClick={onPdf}>⬇ Certificat CO2 (PDF)</button>
+            <button className="adm-btn xs" onClick={onEnergyCsv}>⬇ Data énergie (Excel/CSV)</button>
+          </div>
         </div>
         <p className="adm-muted" style={{ margin: 0, fontSize: 12 }}>
-          Certificat d'économie de CO2 généré côté serveur — communication institutionnelle et dossiers de
-          subventions écologiques.
+          Certificat d'économie de CO2 (communication institutionnelle, subventions) et export OPEX
+          (km électriques, kWh estimés, coûts de recharge) pour le business plan. Les rapports ESG par
+          client entreprise sont dans la session Entreprises (B2B).
         </p>
       </div>
+      {(g.topGreenClients ?? []).length > 0 && (
+        <div className="adm-card">
+          <div className="adm-card-h"><h3>Fidélisation verte — Points Carbone</h3><span className="adm-muted">passagers les plus engagés</span></div>
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+            {g.topGreenClients!.map((c) => (
+              <span key={c.id} className="adm-pill av-online" title={c.id}>🌿 {c.name ?? c.id} · {c.greenPoints.toLocaleString('fr-FR')} pts</span>
+            ))}
+          </div>
+          <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
+            1 point par kilomètre 100 % électrique payé. Les paliers d'échange (réductions) se configurent avec les codes promo.
+          </p>
+        </div>
+      )}
       {(g.chargingStations ?? []).length > 0 && (
         <div className="adm-card">
           <div className="adm-card-h"><h3>Bornes de recharge partenaires</h3><span className="adm-muted">{g.chargingStations!.length} bornes · Abidjan</span></div>
@@ -1709,23 +2483,28 @@ function GreenSection({ g, onPdf }: { g: GreenReport; onPdf: () => void }) {
         </div>
       )}
       <div className="adm-card">
-        <div className="adm-card-h"><h3>Télémétrie batteries (SoC)</h3><span className="adm-muted">{g.fleet.electric} électriques · {g.fleet.hybrid} hybrides</span></div>
+        <div className="adm-card-h"><h3>Télémétrie batteries (SoC & SoH)</h3><span className="adm-muted">{g.fleet.electric} électriques · {g.fleet.hybrid} hybrides · vert &gt; 50 % · orange 20–50 % · rouge &lt; 20 %</span></div>
         {g.fleet.batteries.length === 0 && <p className="adm-empty">Aucune télémétrie remontée (app chauffeur → POST /drivers/:id/telemetry).</p>}
         <table className="adm-table">
-          <thead><tr><th>Véhicule</th><th>Matricule</th><th>État</th><th style={{ width: '40%' }}>Batterie</th></tr></thead>
+          <thead><tr><th>Véhicule</th><th>Matricule</th><th>État</th><th style={{ width: '34%' }}>Charge (SoC)</th><th className="r">Santé (SoH)</th></tr></thead>
           <tbody>
-            {g.fleet.batteries.map((b) => (
-              <tr key={b.id}>
-                <td>{b.name}</td><td className="mono">{b.matricule}</td>
-                <td><span className={`adm-pill av-${b.availability}`}>{availLabel(b.availability)}</span></td>
-                <td>
-                  <div className="adm-batt">
-                    <div className={`adm-batt-fill${(b.batteryPct ?? 0) < 20 ? ' low' : ''}`} style={{ width: `${b.batteryPct ?? 0}%` }} />
-                    <span className="adm-batt-label">{b.batteryPct ?? 0} %</span>
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {g.fleet.batteries.map((b) => {
+              const soc = b.batteryPct ?? 0;
+              const socCls = soc < 20 ? ' low' : soc < 50 ? ' mid' : '';
+              return (
+                <tr key={b.id}>
+                  <td>{b.name}</td><td className="mono">{b.matricule}</td>
+                  <td><span className={`adm-pill av-${b.availability}`}>{availLabel(b.availability)}</span></td>
+                  <td>
+                    <div className="adm-batt">
+                      <div className={`adm-batt-fill${socCls}`} style={{ width: `${soc}%` }} />
+                      <span className="adm-batt-label">{soc} %</span>
+                    </div>
+                  </td>
+                  <td className={`r ${b.batteryHealthPct != null && b.batteryHealthPct < 80 ? 'neg' : ''}`}>{b.batteryHealthPct != null ? `${b.batteryHealthPct} %` : '—'}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -1809,10 +2588,10 @@ function IntelSection({ predict, conversion, churn, canNotify, onReengage }: {
 }
 
 /* ------------------------ Comptes Entreprises (B2B) ------------------- */
-function CorporateSection({ accounts, canWrite, canSettle, onSave, onSettle, onInvoice }: {
+function CorporateSection({ accounts, canWrite, canSettle, onSave, onSettle, onInvoice, onEsg }: {
   accounts: CorporateAccount[]; canWrite: boolean; canSettle: boolean;
   onSave: (i: { id?: string; name: string; contactEmail?: string; creditLimit: number }) => void;
-  onSettle: (id: string) => void; onInvoice: (id: string) => void;
+  onSettle: (id: string) => void; onInvoice: (id: string) => void; onEsg: (id: string) => void;
 }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -1858,8 +2637,9 @@ function CorporateSection({ accounts, canWrite, canSettle, onSave, onSettle, onI
                       <span className="adm-batt-label">{pctUsed} %</span>
                     </div>
                   </td>
-                  <td><div className="row" style={{ gap: 6 }}>
+                  <td><div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                     <button className="adm-btn xs" onClick={() => onInvoice(a.id)}>⬇ Facture</button>
+                    <button className="adm-btn xs" title="Rapport ESG / RSE (bilan carbone certifié)" onClick={() => onEsg(a.id)}>⬇ ESG</button>
                     {canSettle && a.balanceUsed > 0 && <button className="adm-btn xs solid" onClick={() => onSettle(a.id)}>Régler</button>}
                   </div></td>
                 </tr>
@@ -2023,6 +2803,7 @@ function RolesSection({ me }: { me: Me }) {
       <p className="adm-muted" style={{ marginTop: 14, fontSize: 12 }}>
         Les comptes se configurent côté serveur (ADMIN_USERS, mots de passe hachés — <code>npm run hash-password</code>).
         Seuls les rôles de direction (CEO, DG, DAA, COO) peuvent approuver un virement : la double validation est imposée par le serveur, pas seulement par l'interface.
+        Toute tentative d'accès à une session non autorisée est <strong>refusée à l'employé et signalée à la direction</strong> (DG, CFO, DAA) — voir la session « Alertes sécurité ».
       </p>
     </div>
   );

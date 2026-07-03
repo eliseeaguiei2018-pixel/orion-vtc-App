@@ -19,6 +19,15 @@ const createSchema = z.object({
 
 const transitionSchema = z.object({ to: z.custom<RideStatus>() });
 
+/** Analyse sémantique légère des commentaires : mots-clés → tags automatiques. */
+const COMMENT_TAGS: Record<string, string> = {
+  propre: '#Propreté', sale: '#Propreté', odeur: '#Odeur', retard: '#Retard',
+  musique: '#MusiqueForte', danger: '#ConduiteDangereuse', vite: '#ConduiteDangereuse',
+  frein: '#ConduiteDangereuse', aimable: '#Courtoisie', poli: '#Courtoisie',
+};
+/** Mots critiques → alerte de priorité absolue (équipe sécurité) + blocage préventif. */
+const SENSITIVE_WORDS = ['accident', 'alcool', 'harcèlement', 'harcelement', 'vol', 'arme', 'drogue', 'agression'];
+
 const idempotencyKey = (req: FastifyRequest): string | undefined => {
   const h = req.headers['idempotency-key'];
   return Array.isArray(h) ? h[0] : h;
@@ -71,8 +80,9 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       appendEvent(created, 'created', { amount: quote.amount, currency: quote.currency });
       if (body.trustedContact) appendEvent(created, 'shared', { contact: body.trustedContact.name });
 
-      // Matching : recherche d'un chauffeur disponible à proximité.
-      const match = await container.matching.findDriver(created.origin, quote.category, quote.distanceMeters);
+      // Matching : recherche d'un chauffeur disponible à proximité
+      // (les paires désappariées après une note 1–2★ sont exclues).
+      const match = await container.matching.findDriver(created.origin, quote.category, quote.distanceMeters, body.clientId);
       if (match) {
         rideStateMachine.assertTransition(created.status, 'accepted');
         created.status = 'accepted';
@@ -199,6 +209,37 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       container.matching.releaseLock(driver.id);
       container.drivers.setAvailability(driver.id, 'online');
     }
+
+    // Désappariement automatique : après une note 1–2★, ces deux usagers
+    // ne seront plus JAMAIS mis en relation par l'algorithme.
+    if (body.stars <= 2 && ride.driverId) {
+      container.matching.blockPair(ride.clientId, ride.driverId);
+      appendEvent(ride, 'unmatched', { clientId: ride.clientId, driverId: ride.driverId });
+    }
+
+    // Analyse sémantique du commentaire : tags automatiques + mots sensibles.
+    if (body.comment) {
+      const lc = body.comment.toLowerCase();
+      const tags = [...new Set(Object.entries(COMMENT_TAGS).filter(([w]) => lc.includes(w)).map(([, t]) => t))];
+      if (tags.length) appendEvent(ride, 'comment_tags', { tags });
+      const hit = SENSITIVE_WORDS.find((w) => lc.includes(w));
+      if (hit && driver) {
+        // Alerte de priorité ABSOLUE (équipe sécurité) + blocage PRÉVENTIF du
+        // chauffeur le temps de l'investigation.
+        driver.kycStatus = 'suspended';
+        await container.drivers.goOffline(driver.id);
+        container.matching.releaseLock(driver.id);
+        container.safety.raiseSystem({
+          kind: 'mot_sensible', userId: ride.clientId, location: ride.destination, rideId: ride.id,
+          note: `Mot sensible « ${hit} » dans un avis : ${body.comment.slice(0, 140)}`,
+        });
+        container.audit.log({
+          actor: 'Système ORION', role: 'super_admin', action: 'driver.preventive_block',
+          target: driver.id, details: { word: hit, rideId: ride.id },
+        });
+      }
+      container.rides.persist(ride);
+    }
     return { ride };
   });
 
@@ -234,5 +275,50 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     const dispute = container.disputes.open({ rideId: id, ...body });
     reply.code(201);
     return { dispute };
+  });
+
+  // Bouton « Urgence » de l'app (client OU chauffeur) : alerte SOS niveau ROUGE
+  // liée à la course — apparaît immédiatement dans la file de triage SAMU.
+  app.post('/rides/:id/sos', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = parse(z.object({
+      by: z.enum(['client', 'chauffeur']),
+      note: z.string().max(300).optional(),
+    }), req.body);
+    const ride = container.rides.get(id);
+    if (!ride) throw notFound('Course introuvable');
+    const location = ride.trace?.length ? ride.trace[ride.trace.length - 1]! : ride.origin;
+    const alert = container.safety.raiseSos({
+      userId: body.by === 'chauffeur' ? (ride.driverId ?? ride.clientId) : ride.clientId,
+      location, rideId: id, note: body.note, source: body.by,
+    });
+    appendEvent(ride, 'sos', { alertId: alert.id, by: body.by });
+    container.rides.persist(ride);
+    reply.code(201);
+    return { alert: { id: alert.id, level: alert.level, status: alert.status } };
+  });
+
+  // Réservation à l'avance (aéroport, hôtel, rendez-vous) — au moins 15 min avant.
+  app.post('/reservations', async (req, reply) => {
+    const body = parse(z.object({
+      clientId: z.string().min(1).max(80),
+      origin: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }),
+      destination: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }),
+      category: z.string().min(2).max(20).default('bronze'),
+      scheduledFor: z.string().datetime(),
+      favoriteDriverId: z.string().optional(),
+    }), req.body);
+    if (Date.parse(body.scheduledFor) < Date.now() + 15 * 60_000) {
+      throw badRequest('Une réservation se planifie au moins 15 minutes à l’avance');
+    }
+    container.clients.touch(body.clientId);
+    const reservation = container.reservations.create(body);
+    reply.code(201);
+    return { reservation };
+  });
+
+  app.get('/clients/:clientId/reservations', async (req) => {
+    const { clientId } = req.params as { clientId: string };
+    return { reservations: container.reservations.listByClient(clientId) };
   });
 }

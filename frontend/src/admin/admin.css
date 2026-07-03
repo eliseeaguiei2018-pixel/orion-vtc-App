@@ -282,3 +282,42 @@ html[data-adm-theme='light'] .adm-trace-bg { fill: #0b1f14; }
 .adm-batt-fill { height: 100%; background: linear-gradient(90deg, var(--a-green2), var(--a-green)); border-radius: 999px; transition: width .3s; }
 .adm-batt-fill.low { background: linear-gradient(90deg, #b3111f, var(--a-danger)); }
 .adm-batt-label { position: absolute; inset: 0; display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+
+/* --- Cahier des charges : sessions enrichies (SAMU, sécurité, anomalies) --- */
+
+/* Navigation : sessions verrouillées (non autorisées) */
+.adm-navi.locked { opacity: .5; }
+.adm-navi.locked:hover { opacity: .75; }
+.adm-navi-lock { margin-left: auto; font-size: 11px; }
+
+/* Modale « accès refusé » */
+.adm-denied-wrap { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(4,10,7,0.68); backdrop-filter: blur(3px); padding: 20px; }
+.adm-denied { max-width: 460px; background: var(--a-panel); border: 1px solid var(--a-danger); border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 30px 80px rgba(0,0,0,0.5); }
+.adm-denied h3 { margin: 0 0 10px; color: var(--a-danger); font-size: 19px; }
+.adm-denied p { margin: 0 0 18px; color: var(--a-text); font-size: 14px; line-height: 1.5; }
+
+/* Session SAMU — « dark room » à fort contraste */
+.samu-room .samu-head { border-color: rgba(255,84,104,0.35); }
+html[data-adm-theme='dark'] .samu-room .adm-card { background: #0a0d0b; }
+.samu-sla { color: var(--a-amber); font-weight: 700; font-size: 12px; }
+.adm-pill.lvl-rouge { background: rgba(217,32,56,0.22); color: #ff6b7d; border: 1px solid rgba(217,32,56,0.5); font-weight: 800; }
+.adm-pill.lvl-orange { background: rgba(230,126,34,0.20); color: #f0913f; border: 1px solid rgba(230,126,34,0.45); font-weight: 800; }
+.adm-pill.lvl-jaune { background: rgba(214,178,7,0.18); color: #d9c23a; border: 1px solid rgba(214,178,7,0.42); font-weight: 800; }
+.adm-alert.lvl-rouge { border-left: 4px solid var(--a-danger); }
+.adm-alert.lvl-orange { border-left: 4px solid #e67e22; }
+.adm-alert.lvl-jaune { border-left: 4px solid #d6b207; }
+
+/* Plaque d'immatriculation (dictée police) */
+.samu-plate { text-align: center; padding: 10px; background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 12px; }
+.samu-plate-no { font-size: 26px; font-weight: 800; letter-spacing: 2px; color: var(--a-text); }
+
+/* Itinéraire théorique (gris) vs réel (rouge) */
+.samu-theoretical { stroke: #7d8b83; stroke-width: 2; stroke-dasharray: 6 5; }
+.samu-real { fill: none; stroke: #ff5468; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 5px rgba(255,84,104,0.5)); }
+
+/* Courses : ligne en anomalie (surbrillance) */
+.adm-row-click.anomaly { background: rgba(217,32,56,0.10); }
+.adm-row-click.anomaly:hover { background: rgba(217,32,56,0.16); }
+
+/* Jauge SoC : palier orange (20–50 %) */
+.adm-batt-fill.mid { background: linear-gradient(90deg, #a8641f, #e67e22); }
