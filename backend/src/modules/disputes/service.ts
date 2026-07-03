@@ -11,6 +11,9 @@ import type { Repository } from '../../core/db/repository.js';
 export type DisputeKind = 'objet_perdu' | 'trajet' | 'facturation' | 'comportement';
 export type DisputeStatus = 'open' | 'investigating' | 'resolved' | 'rejected';
 
+/** Catégorie d'ESCALADE (litiges N2/N3) — niveau de risque financier/légal. */
+export type EscalationKind = 'sinistre' | 'chargeback' | 'harcelement' | 'degradation';
+
 export interface Dispute {
   id: string;
   rideId: string;
@@ -23,6 +26,15 @@ export interface Dispute {
   resolution?: string;
   refund?: number;       // FCFA remboursés (0 = aucun)
   decidedAt?: string;
+  /* --- Escalade N2/N3 (session Litiges) --- */
+  /** Catégorie d'escalade si le dossier est passé en niveau expert. */
+  escalation?: EscalationKind;
+  /** Verrou du dossier (claim lock) : un seul expert gestionnaire. */
+  lockedBy?: string;
+  /** Quarantaine préventive active (comptes suspendus, fonds gelés). */
+  quarantined?: boolean;
+  /** Notes d'investigation horodatées. */
+  notes?: { author: string; text: string; at: string }[];
 }
 
 export class DisputeService {
@@ -46,6 +58,39 @@ export class DisputeService {
 
   get(id: string): Dispute | undefined {
     return this.disputes.get(id);
+  }
+
+  /**
+   * Escalade N2/N3 + VERROU du dossier (claim lock) : le premier expert qui ouvre
+   * le dossier le verrouille à son nom. 'locked' si déjà pris par un autre.
+   */
+  escalate(id: string, kind: EscalationKind, expert: string): Dispute | 'locked' | null {
+    const d = this.disputes.get(id);
+    if (!d) return null;
+    if (d.lockedBy && d.lockedBy !== expert) return 'locked';
+    d.escalation = kind;
+    d.lockedBy = expert;
+    if (d.status === 'open') d.status = 'investigating';
+    this.repo?.put(d);
+    return d;
+  }
+
+  /** Active/lève la quarantaine préventive (gel des comptes/fonds). */
+  setQuarantine(id: string, on: boolean): Dispute | null {
+    const d = this.disputes.get(id);
+    if (!d) return null;
+    d.quarantined = on;
+    this.repo?.put(d);
+    return d;
+  }
+
+  /** Ajoute une note d'investigation (réservée à l'expert gestionnaire). */
+  addNote(id: string, author: string, text: string): Dispute | null {
+    const d = this.disputes.get(id);
+    if (!d) return null;
+    (d.notes ??= []).push({ author, text, at: new Date().toISOString() });
+    this.repo?.put(d);
+    return d;
   }
 
   /** Passage en instruction / résolution / rejet, avec note et remboursement éventuel. */

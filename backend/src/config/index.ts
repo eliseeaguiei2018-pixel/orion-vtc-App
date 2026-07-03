@@ -71,6 +71,8 @@ const schema = z.object({
   // Si "true" : la 2FA (TOTP) devient OBLIGATOIRE pour les comptes de direction
   // (ceo, dg, daa, coo, super_admin) — connexion refusée si le compte n'a pas de secret.
   ADMIN_REQUIRE_2FA: z.string().default('false').transform((v) => v.toLowerCase() === 'true'),
+  // Verrouillage auto d'une session après N minutes d'inactivité (écran laissé allumé).
+  ADMIN_INACTIVITY_MINUTES: z.coerce.number().int().positive().default(15),
 
   // Persistance : 'memory' (volatile, défaut/tests) ou 'sqlite' (durable, fichier local).
   // En production : 'postgres' via la même interface Repository (cf. docs).

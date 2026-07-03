@@ -182,6 +182,51 @@ function simulate(patch: { maxEtaMinutes?: number; radiusMaxKm?: number }) {
   };
 }
 
+/* --- S8 Équipes / RH (démo) --- */
+const staffKpis = [
+  { actor: 'Jean (Support)', role: 'support', total: 42, support: 38, moderation: 2, finance: 0, promos: 2, lastAt: iso(4) },
+  { actor: 'Awa (Dispatch)', role: 'ops', total: 31, support: 6, moderation: 19, finance: 0, promos: 6, lastAt: iso(1) },
+  { actor: 'Koffi (Qualité)', role: 'ops', total: 24, support: 3, moderation: 21, finance: 0, promos: 0, lastAt: iso(9) },
+];
+const shifts = [
+  { id: 'sh1', username: 'awa.ops', name: 'Awa (Dispatch)', date: new Date().toISOString().slice(0, 10), slot: 'nuit', zoneId: 'cocody', createdAt: iso(120) },
+  { id: 'sh2', username: 'jean.support', name: 'Jean (Support)', date: new Date().toISOString().slice(0, 10), slot: 'matin', createdAt: iso(120) },
+  { id: 'sh3', username: 'koffi.q', name: 'Koffi (Qualité)', date: new Date().toISOString().slice(0, 10), slot: 'soir', zoneId: 'riviera-golf', createdAt: iso(120) },
+];
+const maintenance = [
+  { id: 'mt1', driverId: 'd5', kind: 'batterie_soh', title: 'Baisse anormale de capacité batterie (SoH 79 %)', status: 'ouvert', assignee: undefined, createdAt: iso(60) },
+  { id: 'mt2', driverId: 'd1', kind: 'controle_technique', title: 'Contrôle technique requis dans 15 jours', status: 'assigne', assignee: 'Agent X', createdAt: iso(300) },
+  { id: 'mt3', driverId: 'd3', kind: 'nettoyage', title: 'Nettoyage intérieur après incident', status: 'resolu', createdAt: iso(900) },
+];
+function squadPnl(_teamId: string) {
+  return { vehicles: 3, active: 2, grounded: 1, activityRate: 67, revenue: 842500, rides: 128, roi: 42 };
+}
+
+/* --- S9 IA (démo) --- */
+const fraud = {
+  ghostRides: [
+    { clientId: 'client-collusion', driverId: 'd8', driverName: 'Serge Aka', count: 7 },
+    { clientId: 'client-2214', driverId: 'd2', driverName: 'Awa Diomandé', count: 4 },
+  ],
+  gpsSpoof: [
+    { rideId: 'r55aa120e', driverId: 'd5', jumpMeters: 3400 },
+  ],
+  txRisk: [
+    { id: 'client-4521', name: 'Fatou N’Dri', cancellations: 5, warnings: 1 },
+  ],
+};
+const elasticity = [
+  { cell: '743:-556', lat: 5.3496, lng: -4.0032, sessions: 220, rate: 70, recommended: 1.5 },
+  { cell: '737:-554', lat: 5.3064, lng: -3.9888, sessions: 145, rate: 26, recommended: 1 },
+  { cell: '742:-561', lat: 5.3424, lng: -4.0392, sessions: 98, rate: 48, recommended: 1.25 },
+];
+function copilot(q: string) {
+  const s = q.toLowerCase();
+  if (/électr|electr|thermi/.test(s)) return { query: q, answer: '86 % des trajets sont 100 % électriques (128 400 km), 14 % hybrides. CO2 évité : 18 425 kg. Revenu total encaissé : 1 263 500 F CFA.', data: null };
+  if (/flotte|chauffeur/.test(s)) return { query: q, answer: '10 chauffeurs (8 en ligne, 4 en course). 12 courses actives.', data: null };
+  return { query: q, answer: 'GMV 1 263 500 F CFA · revenu encaissé 1 263 500 F CFA · commission ORION 227 430 F CFA.', data: null };
+}
+
 /** Modération des notes (démo) : dérivée de la flotte, avec deux cas sous le seuil. */
 function quality() {
   const rows = drivers.map((d, i) => ({
@@ -196,8 +241,8 @@ function quality() {
 /** Litiges de démonstration. */
 const disputes = [
   { id: 'lt-01a', rideId: 'r55aa120e', clientId: 'client-3345', kind: 'objet_perdu', description: 'Téléphone Samsung oublié sur la banquette arrière, coque bleue.', status: 'open', createdAt: iso(35) },
-  { id: 'lt-02b', rideId: 'r7c3390fd', clientId: 'client-9902', kind: 'facturation', description: 'Débité 2 650 F sur Wave ET Orange Money pour la même course.', status: 'investigating', createdAt: iso(160), decidedBy: undefined },
-  { id: 'lt-03c', rideId: 'r10a2f9c1', clientId: 'client-8842', kind: 'trajet', description: 'Le chauffeur a fait un détour par Adjamé, trajet plus long qu’annoncé.', status: 'resolved', resolution: 'Tracé GPS vérifié : détour imposé par un axe fermé. Geste commercial.', refund: 500, decidedBy: 'PDG ORION', createdAt: iso(60 * 26), decidedAt: iso(60 * 24) },
+  { id: 'lt-02b', rideId: 'r7c3390fd', clientId: 'client-9902', kind: 'facturation', description: 'Débité 2 650 F sur Wave ET Orange Money pour la même course. Le client conteste auprès de sa banque (carte volée).', status: 'investigating', escalation: 'chargeback', lockedBy: 'Expert Litiges A', quarantined: true, notes: [{ author: 'Expert Litiges A', text: 'Device fingerprint concordant, IP habituelle. Bonne foi douteuse.', at: iso(120) }], createdAt: iso(160), decidedBy: undefined },
+  { id: 'lt-03c', rideId: 'r10a2f9c1', clientId: 'client-8842', kind: 'comportement', description: 'Dégradation du véhicule (siège taché). Photos à l’appui du chauffeur.', status: 'investigating', escalation: 'degradation', lockedBy: 'Expert Litiges B', createdAt: iso(60 * 26) },
 ];
 
 /** Fiche d'instruction d'une course (démo) : tracé GPS synthétique + tarif. */
@@ -294,8 +339,9 @@ const churn = {
 
 /** Comptes entreprises (démo). */
 const corporate = [
-  { id: 'hotel-ivoire', name: 'Hôtel Ivoire', contactEmail: 'compta@hotelivoire.ci', creditLimit: 1_500_000, balanceUsed: 842_500, active: true, createdAt: iso(60 * 24 * 45) },
-  { id: 'sgci-siege', name: 'SGCI — Siège', contactEmail: 'achats@sgci.ci', creditLimit: 3_000_000, balanceUsed: 1_120_000, active: true, createdAt: iso(60 * 24 * 30) },
+  { id: 'hotel-ivoire', name: 'Hôtel Ivoire', contactEmail: 'compta@hotelivoire.ci', nif: 'CI-778120', creditLimit: 1_500_000, balanceUsed: 842_500, active: true, kickbackRate: 0.05, members: ['client-8842', 'client-1190'], createdAt: iso(60 * 24 * 45) },
+  { id: 'sgci-siege', name: 'SGCI — Siège', contactEmail: 'achats@sgci.ci', nif: 'CI-004521', creditLimit: 3_000_000, balanceUsed: 1_120_000, active: true, policy: { hourStart: 7, hourEnd: 20, zoneIds: ['plateau', 'cocody'], maxTier: 'or' }, members: ['client-2214', 'client-3345', 'client-9902'], createdAt: iso(60 * 24 * 30) },
+  { id: 'sgci-rh', name: 'SGCI — Département RH', parentId: 'sgci-siege', creditLimit: 500_000, balanceUsed: 88_000, active: true, createdAt: iso(60 * 24 * 20) },
   { id: 'ambassade-fr', name: 'Ambassade de France', contactEmail: 'intendance@amba-fr.ci', creditLimit: 800_000, balanceUsed: 96_000, active: true, createdAt: iso(60 * 24 * 12) },
 ];
 
@@ -462,4 +508,5 @@ export const DEMO = {
   finance, broadcasts, treasury, sessions, search, driverDetail, clientDetail, ops, quality, disputes, rideForensic,
   green, teams, predict, conversion, churn, corporate,
   sos: alerts, sosPresets, sosDossier, security, supportStats, macros, triggers, reservations, csat, qualityTop, simulate,
+  staffKpis, shifts, maintenance, squadPnl, fraud, elasticity, copilot,
 };

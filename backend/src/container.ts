@@ -31,6 +31,7 @@ import { TeamService, type Team } from './modules/teams/service.js';
 import { CorporateService, type CorporateAccount } from './modules/corporate/service.js';
 import { SecurityAlertsService } from './modules/admin/security.js';
 import { ReservationService, type Reservation } from './modules/reservations/service.js';
+import { StaffService } from './modules/staff/service.js';
 import type { Ride } from './modules/rides/store.js';
 import type { LedgerEntry } from './modules/wallet/service.js';
 import type { Subscription } from './modules/subscriptions/service.js';
@@ -73,6 +74,8 @@ export interface Container {
   security: SecurityAlertsService;
   /** Réservations à l'avance (courses planifiées). */
   reservations: ReservationService;
+  /** Personnel interne : shifts, pointage, maintenance, squads (session Équipes). */
+  staff: StaffService;
 }
 
 export function createContainer(): Container {
@@ -168,6 +171,7 @@ export function createContainer(): Container {
     audit: new AuditService(),
     security: new SecurityAlertsService(),
     reservations: new ReservationService(createRepository<Reservation>('reservations')),
+    staff: new StaffService(createRepository('staff_shifts'), createRepository('staff_tickets')),
   };
 }
 

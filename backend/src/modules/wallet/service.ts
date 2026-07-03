@@ -41,6 +41,8 @@ export function computeCommission(gross: number, rate = config.PLATFORM_COMMISSI
 
 export class WalletService {
   private readonly ledger = new Map<string, LedgerEntry[]>();
+  /** Comptes gelés (mise en quarantaine litige) : aucun retrait possible. */
+  private readonly frozen = new Set<string>();
 
   constructor(private readonly repo?: Repository<LedgerEntry>) {
     // Réhydratation : regroupe les écritures persistées par chauffeur.
@@ -95,8 +97,14 @@ export class WalletService {
     return { earnings: Math.round(earnings), commission: Math.round(commission), payouts: Math.round(payouts) };
   }
 
-  /** Demande de retrait vers mobile money. Refuse si solde insuffisant. */
+  /* --- Quarantaine (litige) : gel/dégel des fonds, blocage des retraits --- */
+  freeze(ownerId: string): void { this.frozen.add(ownerId); }
+  unfreeze(ownerId: string): void { this.frozen.delete(ownerId); }
+  isFrozen(ownerId: string): boolean { return this.frozen.has(ownerId); }
+
+  /** Demande de retrait vers mobile money. Refuse si solde insuffisant ou compte gelé. */
   requestPayout(driverId: string, amount: number): LedgerEntry {
+    if (this.frozen.has(driverId)) throw badRequest('Compte gelé (mise en quarantaine — litige en cours)');
     if (amount <= 0) throw badRequest('Montant de retrait invalide');
     if (amount > this.balance(driverId)) throw badRequest('Solde insuffisant');
     return this.push({ driverId, type: 'payout', amount: -amount, note: 'Retrait mobile money' });

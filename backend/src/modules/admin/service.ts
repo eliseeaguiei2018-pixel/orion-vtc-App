@@ -16,6 +16,16 @@ const ACTIVE: ReadonlySet<RideStatus> = new Set([
 const REVENUE: ReadonlySet<RideStatus> = new Set(['completed', 'paid', 'rated']);
 const ALERT_OPEN = new Set(['raised', 'dispatched', 'acknowledged']);
 
+/** Formatage court F CFA pour les documents générés (PDF/textes). */
+const fcfaLite = (n: number): string => `${Math.round(n).toLocaleString('fr-FR')} F CFA`;
+
+/** Garages partenaires agréés (dont habilitation électrique haute tension). */
+export const GARAGES = [
+  { id: 'gar-cocody', name: 'Garage ORION Cocody (agréé VE)', electric: true, zone: 'Cocody' },
+  { id: 'gar-marcory', name: 'Garage Partenaire Marcory', electric: false, zone: 'Marcory' },
+  { id: 'gar-yopougon', name: 'Garage Yopougon Auto (agréé VE)', electric: true, zone: 'Yopougon' },
+];
+
 /** Bornes de recharge partenaires (Abidjan) — affichées sur la carte console. */
 export const CHARGING_STATIONS = [
   { id: 'cs-plateau', name: 'Borne Plateau — Rue du Commerce', lat: 5.3236, lng: -4.0187, fast: true },
@@ -670,6 +680,298 @@ export class AdminService {
       '',
       'Certificat destine au bilan RSE annuel du client.',
       'ORION - Green Mobility · Abidjan, Cote d\'Ivoire.',
+    ]);
+  }
+
+  /* ==================== SESSION ÉQUIPES : productivité & anomalies internes ==================== */
+
+  /**
+   * PRODUCTIVITÉ INTERNE (KPIs employés) dérivée du journal d'audit : nombre
+   * d'actions par employé sur les dernières 24 h, réparties par nature.
+   */
+  staffProductivity() {
+    const since = Date.now() - 86_400_000;
+    const byActor = new Map<string, { actor: string; role: string; total: number; support: number; moderation: number; finance: number; promos: number; lastAt: string }>();
+    for (const e of this.c.audit.list(1000)) {
+      if (Date.parse(e.at) < since) continue;
+      const k = e.actor;
+      const row = byActor.get(k) ?? { actor: e.actor, role: e.role, total: 0, support: 0, moderation: 0, finance: 0, promos: 0, lastAt: e.at };
+      row.total += 1;
+      if (e.action.startsWith('support.') || e.action.startsWith('dispute.')) row.support += 1;
+      if (e.action.startsWith('driver.') || e.action.startsWith('client.')) row.moderation += 1;
+      if (e.action.startsWith('treasury.') || e.action.startsWith('corporate.') || e.action.startsWith('pricing.')) row.finance += 1;
+      if (e.action.startsWith('promo.')) row.promos += 1;
+      if (e.at > row.lastAt) row.lastAt = e.at;
+      byActor.set(k, row);
+    }
+    return [...byActor.values()].sort((a, b) => b.total - a.total);
+  }
+
+  /**
+   * ANOMALIES DE COMPORTEMENT DU PERSONNEL (fraude interne) : un employé qui émet
+   * un volume inhabituel de codes promo, ou modère/consulte un volume anormal de
+   * dossiers dans la même heure → à signaler à la direction.
+   */
+  staffAnomalies() {
+    const hourAgo = Date.now() - 3_600_000;
+    const promoBy = new Map<string, number>();
+    const modBy = new Map<string, number>();
+    for (const e of this.c.audit.list(1000)) {
+      if (Date.parse(e.at) < hourAgo) continue;
+      if (e.action.startsWith('promo.')) promoBy.set(e.actor, (promoBy.get(e.actor) ?? 0) + 1);
+      if (e.action === 'client.status' || e.action.startsWith('driver.')) modBy.set(e.actor, (modBy.get(e.actor) ?? 0) + 1);
+    }
+    const out: { actor: string; reason: string; count: number }[] = [];
+    for (const [actor, n] of promoBy) if (n >= 5) out.push({ actor, reason: 'Volume inhabituel de codes promo (1 h)', count: n });
+    for (const [actor, n] of modBy) if (n >= 20) out.push({ actor, reason: 'Volume inhabituel de dossiers modérés (1 h)', count: n });
+    return out;
+  }
+
+  /** Matrice des heures (Excel/CSV) : planning + pointage, alimente l'OPEX salarial. */
+  staffHoursCsv(shifts: { username: string; name: string; date: string; slot: string; zoneId?: string }[]): string {
+    const clean = (v: unknown) => { let s = String(v ?? '').replace(/[",\n]/g, ' '); if (/^[=+\-@]/.test(s)) s = `'${s}`; return s; };
+    const head = 'employe,identifiant,date,tranche,zone';
+    const rows = shifts.map((s) => [s.name, s.username, s.date, s.slot, s.zoneId ?? ''].map(clean).join(','));
+    return [head, ...rows].join('\n');
+  }
+
+  /** Micro P&L d'une sous-flotte (squad manager) : CA, immobilisation, ROI. */
+  squadPnl(driverIds: string[]) {
+    const drivers = driverIds.map((id) => this.c.drivers.get(id)).filter((d): d is NonNullable<typeof d> => Boolean(d));
+    let revenue = 0, rides = 0;
+    for (const r of this.c.rides.listAll()) {
+      if (r.driverId && driverIds.includes(r.driverId) && REVENUE.has(r.status)) { revenue += r.quote.amount; rides += 1; }
+    }
+    const active = drivers.filter((d) => d.availability !== 'offline').length;
+    const grounded = drivers.filter((d) => d.kycStatus === 'suspended').length; // immobilisés
+    const activityRate = drivers.length ? Math.round((active / drivers.length) * 100) : 0;
+    // ROI simplifié : revenu net estimé rapporté à un coût d'immobilisation fictif.
+    const estCost = drivers.length * 5000 + grounded * 3000;
+    return {
+      vehicles: drivers.length, active, grounded, activityRate,
+      revenue: Math.round(revenue), rides,
+      roi: estCost ? Math.round(((revenue - estCost) / estCost) * 100) : 0,
+    };
+  }
+
+  /** Fiche d'évaluation mensuelle d'un employé (PDF). */
+  staffEvalPdf(username: string) {
+    const prod = this.staffProductivity().find((p) => p.actor.toLowerCase().includes(username.toLowerCase()) || p.actor === username);
+    return simplePdf([
+      'ORION - FICHE D EVALUATION EMPLOYE',
+      `Employe : ${username} · genere le ${new Date().toLocaleDateString('fr-FR')}`,
+      '',
+      `Actions enregistrees (24 h) : ${prod?.total ?? 0}`,
+      `- Support / litiges : ${prod?.support ?? 0}`,
+      `- Moderation (chauffeurs/clients) : ${prod?.moderation ?? 0}`,
+      `- Operations financieres : ${prod?.finance ?? 0}`,
+      `- Codes promo emis : ${prod?.promos ?? 0}`,
+      `Derniere activite : ${prod ? new Date(prod.lastAt).toLocaleString('fr-FR') : 'n/c'}`,
+      '',
+      'Assiduite et statistiques issues du journal d audit (traçabilite immuable).',
+      'Document RH interne ORION.',
+    ]);
+  }
+
+  /* ==================== SESSION IA : anti-fraude, élasticité, copilote ==================== */
+
+  /**
+   * MOTEUR ANTI-FRAUDE : détecte les courses fantômes (collusion chauffeur/passager),
+   * le spoofing GPS (téléportation dans le tracé) et un risque transactionnel simple.
+   */
+  fraudSignals() {
+    const rides = this.c.rides.listAll();
+    // Collusion / ghost rides : mêmes paires (client, chauffeur) répétées.
+    const pairCount = new Map<string, { clientId: string; driverId: string; count: number }>();
+    for (const r of rides) {
+      if (!r.driverId) continue;
+      const k = `${r.clientId}|${r.driverId}`;
+      const row = pairCount.get(k) ?? { clientId: r.clientId, driverId: r.driverId, count: 0 };
+      row.count += 1;
+      pairCount.set(k, row);
+    }
+    const ghostRides = [...pairCount.values()].filter((p) => p.count >= 3)
+      .map((p) => ({ ...p, driverName: this.c.drivers.get(p.driverId)?.name ?? null }))
+      .sort((a, b) => b.count - a.count).slice(0, 10);
+
+    // Spoofing GPS : saut de position irréaliste entre deux points (> 2 km d'un coup).
+    const gpsSpoof: { rideId: string; driverId: string | null; jumpMeters: number }[] = [];
+    for (const r of rides) {
+      if (!r.trace || r.trace.length < 2) continue;
+      let maxJump = 0;
+      for (let i = 1; i < r.trace.length; i++) maxJump = Math.max(maxJump, haversineMeters(r.trace[i - 1]!, r.trace[i]!));
+      if (maxJump > 2000) gpsSpoof.push({ rideId: r.id, driverId: r.driverId ?? null, jumpMeters: Math.round(maxJump) });
+    }
+    gpsSpoof.sort((a, b) => b.jumpMeters - a.jumpMeters);
+
+    // Risque transactionnel : clients avec un fort taux d'annulation (card testing / abus).
+    const txRisk = this.c.clients.list()
+      .filter((c) => (c.cancellations ?? 0) >= 3)
+      .map((c) => ({ id: c.id, name: c.name ?? null, cancellations: c.cancellations ?? 0, warnings: c.warnings ?? 0 }))
+      .slice(0, 10);
+
+    return { ghostRides, gpsSpoof: gpsSpoof.slice(0, 10), txRisk };
+  }
+
+  /**
+   * ÉLASTICITÉ-PRIX (surge neural simplifié) : à partir de la conversion par
+   * cellule, recommande un multiplicateur qui maximise le revenu sans casser le
+   * taux de conversion. Zone à forte conversion + forte demande → léger surge.
+   */
+  elasticity() {
+    return this.c.demand.conversion(12).map((cell) => {
+      let recommended = 1;
+      if (cell.sessions >= 5) {
+        if (cell.rate >= 60) recommended = 1.5;
+        else if (cell.rate >= 40) recommended = 1.25;
+        else recommended = 1; // conversion faible : ne pas majorer (ferait fuir)
+      }
+      return { cell: cell.cell, lat: cell.lat, lng: cell.lng, sessions: cell.sessions, rate: cell.rate, recommended };
+    });
+  }
+
+  /**
+   * COPILOTE (génératif, heuristique) : synthèse courte d'un litige, ou réponse à
+   * une requête en langage naturel simple (« CA électrique vs thermique »).
+   */
+  copilotSummary(disputeId: string): string | null {
+    const d = this.c.disputes.get(disputeId);
+    if (!d) return null;
+    const ride = this.c.rides.get(d.rideId);
+    const km = ride ? Math.round((ride.quote.distanceMeters ?? 0) / 1000) : 0;
+    const kindLabel: Record<string, string> = { objet_perdu: 'objet oublié', trajet: 'contestation de trajet', facturation: 'erreur de facturation', comportement: 'comportement' };
+    return `Litige ${kindLabel[d.kind] ?? d.kind} sur la course ${d.rideId.slice(0, 8)} (${km} km, ${ride ? fcfaLite(ride.quote.amount) : 'n/c'}). `
+      + `Statut : ${d.status}${d.escalation ? ` · escaladé (${d.escalation})` : ''}${d.refund ? ` · remboursement ${fcfaLite(d.refund)}` : ''}. `
+      + `${d.description.slice(0, 120)}`;
+  }
+
+  copilotQuery(q: string) {
+    const s = q.toLowerCase();
+    if (/électr|electr|thermi|hybrid/.test(s)) {
+      const g = this.green();
+      const fin = this.finance();
+      return {
+        query: q,
+        answer: `Sur la période : ${g.electricShare} % des trajets sont 100 % électriques (${g.kmElectric.toLocaleString('fr-FR')} km), ${g.hybridShare} % hybrides. `
+          + `CO2 évité : ${g.co2SavedKg} kg. Revenu total encaissé : ${fcfaLite(fin.revenue)}.`,
+        data: { electricShare: g.electricShare, hybridShare: g.hybridShare, co2SavedKg: g.co2SavedKg, revenue: fin.revenue },
+      };
+    }
+    if (/chiffre|revenu|ca\b|commission|gmv/.test(s)) {
+      const fin = this.finance();
+      return { query: q, answer: `GMV ${fcfaLite(fin.gmv)} · revenu encaissé ${fcfaLite(fin.revenue)} · commission ORION ${fcfaLite(fin.commission)} · TVA collectée ${fcfaLite(fin.taxes)}.`, data: fin };
+    }
+    if (/chauffeur|driver|flotte/.test(s)) {
+      const ov = this.overview();
+      return { query: q, answer: `${ov.drivers.total} chauffeurs (${ov.drivers.online} en ligne, ${ov.drivers.onTrip} en course). ${ov.rides.active} courses actives.`, data: ov.drivers };
+    }
+    return { query: q, answer: 'Reformulez : essayez « CA électrique vs thermique », « chiffre d’affaires du mois », « état de la flotte ».', data: null };
+  }
+
+  /* ==================== SESSION LITIGES : chargeback, sinistres, pertes ==================== */
+
+  /** Perte d'exploitation journalière moyenne d'un véhicule (indemnisation sinistre). */
+  lossOfUse(driverId: string): { dailyAvg: number; days: number } {
+    const rides = this.c.rides.listAll().filter((r) => r.driverId === driverId && REVENUE.has(r.status));
+    if (rides.length === 0) return { dailyAvg: 0, days: 0 };
+    const days = new Set(rides.map((r) => r.createdAt.slice(0, 10)));
+    const total = rides.reduce((s, r) => s + r.quote.amount, 0);
+    return { dailyAvg: Math.round(total / Math.max(1, days.size)), days: days.size };
+  }
+
+  /** Dossier de contestation bancaire (chargeback) — Evidence Package PDF (normes Visa/MC). */
+  chargebackPackPdf(disputeId: string): Buffer | null {
+    const d = this.c.disputes.get(disputeId);
+    if (!d) return null;
+    const ride = this.c.rides.get(d.rideId);
+    const client = this.c.clients.get(d.clientId);
+    const trips = this.c.rides.listByClient(d.clientId);
+    return simplePdf([
+      'ORION - DOSSIER DE CONTESTATION (CHARGEBACK / EVIDENCE PACKAGE)',
+      `Dossier ${d.id} · genere le ${new Date().toLocaleString('fr-FR')}`,
+      'Format destine a la banque acquereuse (normes Visa / Mastercard).',
+      '',
+      `Course contestee : ${d.rideId} · ${ride ? new Date(ride.createdAt).toLocaleString('fr-FR') : 'n/c'}`,
+      `Montant : ${ride ? fcfaLite(ride.quote.amount) : 'n/c'}`,
+      `Depart : ${ride ? `${ride.origin.lat.toFixed(4)}, ${ride.origin.lng.toFixed(4)}` : 'n/c'}`,
+      `Arrivee : ${ride ? `${ride.destination.lat.toFixed(4)}, ${ride.destination.lng.toFixed(4)}` : 'n/c'}`,
+      '',
+      '--- PREUVES DE CONCORDANCE ---',
+      `Client : ${client?.name ?? d.clientId} · ${client?.phone ?? 'tel n/c'}`,
+      `Historique : ${trips.length} course(s) sur le compte (comportement habituel).`,
+      `Courses terminees dans la meme zone : ${trips.filter((t) => ride && haversineMeters(t.destination, ride.destination) < 1500).length} (habitude de deplacement).`,
+      `Points GPS enregistres pour la course : ${ride?.trace?.length ?? 0} (tracee reelle).`,
+      '',
+      'Conclusion : les elements ci-dessus etablissent la realite de la course et',
+      'la concordance avec les habitudes du titulaire du compte. ORION demande le',
+      'rejet de la contestation et la restitution des fonds.',
+    ]);
+  }
+
+  /** Dossier d'instruction légal complet (PDF) — bout en bout, format juridique. */
+  legalDossierPdf(disputeId: string): Buffer | null {
+    const d = this.c.disputes.get(disputeId);
+    if (!d) return null;
+    const ride = this.c.rides.get(d.rideId);
+    const driver = ride?.driverId ? this.c.drivers.get(ride.driverId) : undefined;
+    return simplePdf([
+      'ORION - DOSSIER D INSTRUCTION (LITIGE)',
+      `Dossier ${d.id} · genere le ${new Date().toLocaleString('fr-FR')} · horodate`,
+      '',
+      `Categorie : ${d.escalation ?? d.kind} · statut ${d.status}`,
+      `Expert gestionnaire : ${d.lockedBy ?? 'non verrouille'}`,
+      `Quarantaine : ${d.quarantined ? 'ACTIVE (comptes suspendus, fonds geles)' : 'non'}`,
+      '',
+      '--- COURSE ---',
+      `Reference : ${d.rideId} · ${ride ? new Date(ride.createdAt).toLocaleString('fr-FR') : 'n/c'}`,
+      `Chauffeur : ${driver ? `${driver.name} (${driver.matricule})` : 'n/c'}`,
+      `Client : ${d.clientId}`,
+      `Distance : ${ride ? Math.round((ride.quote.distanceMeters ?? 0) / 1000) : 0} km · ${ride?.trace?.length ?? 0} points GPS`,
+      '',
+      '--- FAITS ---',
+      d.description,
+      '',
+      '--- NOTES D INVESTIGATION ---',
+      ...((d.notes ?? []).slice(0, 10).map((n) => `[${new Date(n.at).toLocaleString('fr-FR')}] ${n.author} : ${n.text.slice(0, 90)}`)),
+      (d.notes?.length ?? 0) === 0 ? '(aucune note)' : '',
+      '',
+      `Resolution : ${d.resolution ?? 'en cours'}${d.refund ? ` · remboursement ${fcfaLite(d.refund)}` : ''}`,
+      'Document a valeur probante - production devant juridiction competente.',
+    ]);
+  }
+
+  /** Matrice financière des pertes (Excel/CSV) : remboursements, fraudes, indemnisations. */
+  lossMatrixCsv(): string {
+    const clean = (v: unknown) => { let s = String(v ?? '').replace(/[",\n]/g, ' '); if (/^[=+\-@]/.test(s)) s = `'${s}`; return s; };
+    const head = 'dossier,categorie,statut,client,course,remboursement_fcfa,quarantaine';
+    const rows = this.c.disputes.list().map((d) => [d.id, d.escalation ?? d.kind, d.status, d.clientId, d.rideId, d.refund ?? 0, d.quarantined ? 'oui' : 'non'].map(clean).join(','));
+    const totalRefund = this.c.disputes.list().reduce((s, d) => s + (d.refund ?? 0), 0);
+    return [head, ...rows, `"TOTAL",,,,,"${totalRefund}",`].join('\n');
+  }
+
+  /* ==================== SESSION B2B : facture consolidée & kickbacks ==================== */
+
+  /** Facture consolidée mensuelle (PDF) : toutes les courses d'un compte + TVA. */
+  consolidatedInvoicePdf(corporateId: string, month: string): Buffer | null {
+    const acc = this.c.corporate.get(corporateId);
+    if (!acc) return null;
+    const rides = this.c.rides.listAll().filter((r) => r.corporateId === corporateId && r.createdAt.startsWith(month));
+    const total = rides.reduce((s, r) => s + r.quote.amount, 0);
+    const tva = rides.reduce((s, r) => s + (r.quote.breakdown?.tva ?? 0), 0);
+    const kickback = this.c.corporate.kickback(corporateId, total);
+    return simplePdf([
+      'ORION - FACTURE CONSOLIDEE B2B',
+      `${acc.name} · ${acc.nif ? `NIF ${acc.nif} · ` : ''}${month}`,
+      acc.billingAddress ? `Adresse : ${acc.billingAddress}` : '',
+      `Genere le ${new Date().toLocaleDateString('fr-FR')}`,
+      '',
+      `Nombre de courses : ${rides.length}`,
+      `Montant total TTC : ${fcfaLite(total)}`,
+      `dont TVA : ${fcfaLite(Math.round(tva))}`,
+      kickback ? `Retrocommission d apport d affaires (${Math.round((acc.kickbackRate ?? 0) * 100)} %) : ${fcfaLite(kickback)}` : '',
+      '',
+      'Detail ligne par ligne fourni en annexe Excel (export CSV).',
+      'Document comptable ORION - pret pour integration ERP.',
     ]);
   }
 

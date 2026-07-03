@@ -168,6 +168,22 @@ export function registerSession(s: Omit<ActiveSession, 'lastSeenAt'>): void {
   sessions.set(s.id, { ...s, lastSeenAt: s.createdAt });
 }
 
+/**
+ * Session INACTIVE si aucune activité depuis N minutes (écran laissé allumé) :
+ * la session est révoquée automatiquement et son jeton refusé (RBAC S8).
+ * Vérifié AVANT de rafraîchir lastSeenAt.
+ */
+export function isSessionInactive(id: string): boolean {
+  const s = sessions.get(id);
+  if (!s || s.revoked) return Boolean(s?.revoked);
+  const idleMs = Date.now() - Date.parse(s.lastSeenAt);
+  if (idleMs > config.ADMIN_INACTIVITY_MINUTES * 60_000) {
+    s.revoked = true; // verrouillage auto (l'employé doit se reconnecter)
+    return true;
+  }
+  return false;
+}
+
 /** Met à jour la dernière activité (appelée à chaque requête authentifiée). */
 export function touchSession(id: string, ip?: string): void {
   const s = sessions.get(id);

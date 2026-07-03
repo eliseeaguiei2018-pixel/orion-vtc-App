@@ -7,6 +7,19 @@ import type { Repository } from '../../core/db/repository.js';
  * société sans paiement immédiat ; le crédit est réservé à la commande, puis la
  * facture consolidée du mois est émise et réglée (settle).
  */
+/** Politique de déplacement (contrôle de l'usage du budget transport). */
+export interface TravelPolicy {
+  /** Jours autorisés (0 = dimanche … 6 = samedi). Vide = tous. */
+  days?: number[];
+  /** Heures autorisées (locales) : de hourStart à hourEnd inclus. */
+  hourStart?: number;
+  hourEnd?: number;
+  /** Zones autorisées (ids de zones console) ; vide = toutes. */
+  zoneIds?: string[];
+  /** Gamme maximale autorisée pour les employés standard. */
+  maxTier?: 'bronze' | 'argent' | 'or' | 'diamant';
+}
+
 export interface CorporateAccount {
   id: string;            // code société (saisi à la commande)
   name: string;
@@ -15,6 +28,18 @@ export interface CorporateAccount {
   balanceUsed: number;   // crédit consommé sur la période en cours
   active: boolean;
   createdAt: string;
+  /* --- CRM B2B avancé (session Entreprises) --- */
+  /** Numéro d'identification fiscale (facturation). */
+  nif?: string;
+  billingAddress?: string;
+  /** Compte parent (entité mère) — filiales/départements rattachés. */
+  parentId?: string;
+  /** Politique de déplacement (restrictions horaires/zones/gammes). */
+  policy?: TravelPolicy;
+  /** Rétrocommission d'apport d'affaires (kickback %) reversée au partenaire (hôtel). */
+  kickbackRate?: number;
+  /** Employés rattachés (import de masse) — ids clients ORION. */
+  members?: string[];
 }
 
 export class CorporateService {
@@ -24,7 +49,10 @@ export class CorporateService {
     for (const a of repo?.all() ?? []) this.accounts.set(a.id, a);
   }
 
-  upsert(input: { id?: string; name: string; contactEmail?: string; creditLimit: number; active?: boolean }): CorporateAccount {
+  upsert(input: {
+    id?: string; name: string; contactEmail?: string; creditLimit: number; active?: boolean;
+    nif?: string; billingAddress?: string; parentId?: string; policy?: TravelPolicy; kickbackRate?: number;
+  }): CorporateAccount {
     const id = (input.id ?? input.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24) + '-' + randomUUID().slice(0, 4));
     const existing = this.accounts.get(id);
     const acc: CorporateAccount = {
@@ -35,10 +63,63 @@ export class CorporateService {
       balanceUsed: existing?.balanceUsed ?? 0,
       active: input.active ?? existing?.active ?? true,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
+      nif: input.nif ?? existing?.nif,
+      billingAddress: input.billingAddress ?? existing?.billingAddress,
+      parentId: input.parentId ?? existing?.parentId,
+      policy: input.policy ?? existing?.policy,
+      kickbackRate: input.kickbackRate ?? existing?.kickbackRate,
+      members: existing?.members ?? [],
     };
     this.accounts.set(id, acc);
     this.repo?.put(acc);
     return acc;
+  }
+
+  /** Filiales / départements rattachés à une entité mère. */
+  children(parentId: string): CorporateAccount[] {
+    return this.list().filter((a) => a.parentId === parentId);
+  }
+
+  /**
+   * Import de masse : rattache une liste d'employés (ids clients ORION) au compte.
+   * Renvoie le compte mis à jour + le nombre de nouveaux membres.
+   */
+  importMembers(id: string, memberIds: string[]): { account: CorporateAccount; added: number } | null {
+    const acc = this.accounts.get(id);
+    if (!acc) return null;
+    const set = new Set(acc.members ?? []);
+    const before = set.size;
+    for (const m of memberIds) if (m.trim()) set.add(m.trim());
+    acc.members = [...set];
+    this.repo?.put(acc);
+    return { account: acc, added: set.size - before };
+  }
+
+  /**
+   * Vérifie la POLITIQUE de déplacement au moment d'une commande société :
+   * horaires, jours et zone autorisés. Renvoie null si conforme, sinon le motif.
+   */
+  checkPolicy(id: string, ctx: { at?: Date; zoneId?: string }): string | null {
+    const acc = this.accounts.get(id);
+    if (!acc?.policy) return null;
+    const p = acc.policy;
+    const now = ctx.at ?? new Date();
+    if (p.days && p.days.length && !p.days.includes(now.getDay())) return 'Jour non autorisé par la politique entreprise';
+    if (p.hourStart !== undefined && p.hourEnd !== undefined) {
+      const h = now.getHours();
+      if (h < p.hourStart || h > p.hourEnd) return 'Hors des heures autorisées par la politique entreprise';
+    }
+    if (p.zoneIds && p.zoneIds.length && ctx.zoneId && !p.zoneIds.includes(ctx.zoneId)) {
+      return 'Zone non autorisée par la politique entreprise';
+    }
+    return null;
+  }
+
+  /** Rétrocommission d'apport d'affaires due au partenaire sur une base de CA. */
+  kickback(id: string, revenue: number): number {
+    const acc = this.accounts.get(id);
+    if (!acc?.kickbackRate) return 0;
+    return Math.round(revenue * acc.kickbackRate);
   }
 
   get(id: string): CorporateAccount | undefined {

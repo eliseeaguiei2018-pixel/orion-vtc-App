@@ -53,6 +53,24 @@ export interface Triggers {
 export interface CsatReport { series: { date: string; avg: number | null; count: number }[]; csat7d: number | null; acceptRate: number; cancelRate: number }
 export interface QualityTop { id: string; name: string; matricule: string; rating: number; trips: number; vip: boolean }
 export interface SimResult { sampled: number; matched: number; matchRate: number; avgEtaMin: number | null }
+/* --- S8 Équipes / RH --- */
+export interface StaffKpi { actor: string; role: string; total: number; support: number; moderation: number; finance: number; promos: number; lastAt: string }
+export interface Shift { id: string; username: string; name: string; date: string; slot: 'matin' | 'soir' | 'nuit'; zoneId?: string; createdAt: string }
+export interface MaintenanceTicket { id: string; driverId: string; kind: string; title: string; status: string; teamId?: string; assignee?: string; dueDate?: string; createdAt: string }
+export interface SquadPnl { vehicles: number; active: number; grounded: number; activityRate: number; revenue: number; rides: number; roi: number }
+export interface TeamMessage { id: string; teamId: string; author: string; text: string; at: string }
+/* --- S9 IA --- */
+export interface FraudReport {
+  ghostRides: { clientId: string; driverId: string; driverName: string | null; count: number }[];
+  gpsSpoof: { rideId: string; driverId: string | null; jumpMeters: number }[];
+  txRisk: { id: string; name: string | null; cancellations: number; warnings: number }[];
+}
+export interface ElasticityCell { cell: string; lat: number; lng: number; sessions: number; rate: number; recommended: number }
+export interface CopilotAnswer { query: string; answer: string; data: unknown }
+/* --- S10 B2B --- */
+export interface TravelPolicy { days?: number[]; hourStart?: number; hourEnd?: number; zoneIds?: string[]; maxTier?: string }
+/* --- S11 Litiges --- */
+export interface Garage { id: string; name: string; electric: boolean; zone: string }
 export interface FleetUnit { id: string; lat: number; lng: number; name: string; matricule: string | null; category: string; availability: string; }
 export interface RideRow { id: string; clientId: string; driverName: string | null; matricule: string | null; status: string; amount: number; currency: string; trafficLevel: string; anomaly?: string | null; createdAt: string; }
 export interface DriverRow { id: string; name: string; matricule: string; category: string; kycStatus: string; availability: string; rating: number; trips: number; balance: number; }
@@ -124,12 +142,14 @@ export interface ChurnReport {
 }
 export interface CorporateAccount {
   id: string; name: string; contactEmail?: string; creditLimit: number; balanceUsed: number; active: boolean; createdAt: string;
+  nif?: string; billingAddress?: string; parentId?: string; policy?: TravelPolicy; kickbackRate?: number; members?: string[];
 }
 export interface QualityRow { id: string; name: string; matricule: string; category: string; rating: number; trips: number; warnings: number; kycStatus: string; vip?: boolean; below: boolean }
 export interface Dispute {
   id: string; rideId: string; clientId: string; kind: string; description: string;
   status: 'open' | 'investigating' | 'resolved' | 'rejected';
   createdAt: string; decidedBy?: string; resolution?: string; refund?: number; decidedAt?: string;
+  escalation?: string; lockedBy?: string; quarantined?: boolean; notes?: { author: string; text: string; at: string }[];
 }
 export interface RideForensic {
   ride: {
@@ -369,6 +389,13 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [csat, setCsat] = useState<CsatReport | null>(null);
   const [qTop, setQTop] = useState<QualityTop[]>([]);
+  // S8 Équipes / RH
+  const [staffKpis, setStaffKpis] = useState<StaffKpi[]>([]);
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [maintenance, setMaintenance] = useState<MaintenanceTicket[]>([]);
+  // S9 IA
+  const [fraud, setFraud] = useState<FraudReport | null>(null);
+  const [elasticity, setElasticity] = useState<ElasticityCell[]>([]);
   /** Modale « accès refusé » : session verrouillée, tentative signalée à la direction. */
   const [denied, setDenied] = useState<string | null>(null);
   const [muted, setMuted] = useState(() => localStorage.getItem('orion.admin.muted') === '1');
@@ -387,6 +414,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setSupportStats(DEMO.supportStats); setMacros(DEMO.macros);
     setTriggers(DEMO.triggers as Triggers); setReservations(DEMO.reservations as Reservation[]);
     setCsat(DEMO.csat as CsatReport); setQTop(DEMO.qualityTop as QualityTop[]);
+    setStaffKpis(DEMO.staffKpis as StaffKpi[]); setShifts(DEMO.shifts as Shift[]); setMaintenance(DEMO.maintenance as MaintenanceTicket[]);
+    setFraud(DEMO.fraud as FraudReport); setElasticity(DEMO.elasticity as ElasticityCell[]);
     const dr = pageSlice(DEMO.rides, ridesPage); setRides(dr.items); setRidesMeta(dr.meta);
     const dd = pageSlice(DEMO.drivers, driversPage); setDrivers(dd.items); setDriversMeta(dd.meta);
     const dc = pageSlice(DEMO.clients, clientsPage); setClients(dc.items); setClientsMeta(dc.meta);
@@ -443,10 +472,17 @@ function Console({ onLogout }: { onLogout: () => void }) {
       if (has('sessions:read')) { const s = await adminGet<{ sessions: ActiveSession[]; self: string | null }>('/admin/sessions'); setSessions(s.sessions); setSelfSession(s.self); }
       if (has('rides:read')) setOps((await adminGet<{ ops: OpsConfig }>('/admin/dispatch')).ops);
       if (has('overview:read')) setGreen(await adminGet<GreenReport>('/admin/green'));
-      if (has('teams:read')) setTeams((await adminGet<{ teams: Team[] }>('/admin/teams')).teams);
+      if (has('teams:read')) {
+        setTeams((await adminGet<{ teams: Team[] }>('/admin/teams')).teams);
+        setStaffKpis((await adminGet<{ staff: StaffKpi[] }>('/admin/staff/productivity')).staff);
+        setShifts((await adminGet<{ shifts: Shift[] }>('/admin/shifts')).shifts);
+        setMaintenance((await adminGet<{ tickets: MaintenanceTicket[] }>('/admin/maintenance')).tickets);
+      }
       if (has('rides:read')) {
         setPredict(await adminGet<{ hour: number; cells: PredictCell[] }>('/admin/predict'));
         setConversion((await adminGet<{ cells: ConversionCell[] }>('/admin/conversion')).cells);
+        setFraud(await adminGet<FraudReport>('/admin/fraud'));
+        setElasticity((await adminGet<{ cells: ElasticityCell[] }>('/admin/elasticity')).cells);
       }
       if (has('overview:read')) setChurn(await adminGet<ChurnReport>('/admin/churn'));
       if (has('finance:read')) setCorporate((await adminGet<{ accounts: CorporateAccount[] }>('/admin/corporate')).accounts);
@@ -666,6 +702,65 @@ function Console({ onLogout }: { onLogout: () => void }) {
     if (!API) return DEMO.simulate(patch);
     try { return await adminPost<{ current: SimResult; proposed: SimResult }>('/admin/dispatch/simulate', patch); }
     catch { return null; }
+  };
+
+  /* --- S8 Équipes / RH : shifts, maintenance, micro-broadcast, P&L --- */
+  const assignShift = async (input: { username: string; name: string; date: string; slot: string; zoneId?: string }) => {
+    if (API) { try { await adminPut('/admin/shifts', input); void refresh(); return; } catch { /* */ } }
+    setShifts((xs) => [...xs, { id: Math.random().toString(36).slice(2, 8), createdAt: new Date().toISOString(), ...input } as Shift]);
+  };
+  const removeShift = async (id: string) => {
+    if (API) await adminDel(`/admin/shifts/${id}`);
+    setShifts((xs) => xs.filter((s) => s.id !== id));
+  };
+  const openMaintenance = async (input: { driverId: string; kind: string; title: string; teamId?: string }) => {
+    if (API) { try { await adminPost('/admin/maintenance', input); void refresh(); return; } catch { /* */ } }
+    setMaintenance((xs) => [{ id: Math.random().toString(36).slice(2, 8), status: 'ouvert', createdAt: new Date().toISOString(), ...input } as MaintenanceTicket, ...xs]);
+  };
+  const resolveMaintenance = async (id: string) => {
+    if (API) { try { await adminPost(`/admin/maintenance/${id}/resolve`); } catch { /* */ } }
+    setMaintenance((xs) => xs.map((t) => (t.id === id ? { ...t, status: 'resolu' } : t)));
+  };
+  const microBroadcast = async (teamId: string, title: string, body: string) => {
+    if (!API) { alert(`Micro-broadcast envoyé à la flotte de l'équipe (démo).`); return; }
+    try { const r = await adminPost<{ sent: number }>(`/admin/teams/${teamId}/broadcast`, { title, body }); alert(`${r.sent} chauffeur(s) de la flotte notifié(s).`); }
+    catch { /* */ }
+  };
+  const loadSquadPnl = async (teamId: string): Promise<SquadPnl | null> => {
+    if (!API) return DEMO.squadPnl(teamId);
+    try { return (await adminGet<{ pnl: SquadPnl }>(`/admin/teams/${teamId}/pnl`)).pnl; } catch { return null; }
+  };
+
+  /* --- S9 IA : copilote conversationnel --- */
+  const askCopilot = async (q: string): Promise<CopilotAnswer | null> => {
+    if (!API) return DEMO.copilot(q);
+    try { return await adminPost<CopilotAnswer>('/admin/copilot', { q }); } catch { return null; }
+  };
+
+  /* --- S10 B2B : import de masse, web booker --- */
+  const importMembers = async (id: string, memberIds: string[]) => {
+    if (!API) { alert(`${memberIds.length} collaborateur(s) importé(s) (démo).`); return; }
+    try { const r = await adminPost<{ added: number }>(`/admin/corporate/${id}/members`, { memberIds }); alert(`${r.added} nouveau(x) collaborateur(s) rattaché(s).`); void refresh(); }
+    catch { /* */ }
+  };
+  const webBook = async (id: string, input: { guestName: string; origin: { lat: number; lng: number }; destination: { lat: number; lng: number }; category: string }) => {
+    if (!API) { alert(`Course conciergerie réservée pour ${input.guestName} (démo). SMS de suivi GPS + plaque envoyé.`); return; }
+    try { const r = await adminPost<{ booking: { amount: number } }>(`/admin/corporate/${id}/book`, input); alert(`Course réservée pour ${input.guestName} — ${fcfa(r.booking.amount)}. SMS de suivi envoyé.`); void refresh(); }
+    catch { alert('Réservation refusée (politique entreprise ou crédit dépassé).'); }
+  };
+
+  /* --- S11 Litiges : escalade, quarantaine, notes --- */
+  const escalateDispute = async (id: string, kind: string) => {
+    if (API) { try { await adminPost(`/admin/disputes/${id}/escalate`, { kind }); void refresh(); return; } catch { alert('Dossier déjà verrouillé par un autre expert.'); return; } }
+    setDisputes((xs) => xs.map((d) => (d.id === id ? { ...d, escalation: kind, lockedBy: me?.name, status: 'investigating' } : d)));
+  };
+  const quarantineDispute = async (id: string, on: boolean) => {
+    if (API) { try { await adminPost(`/admin/disputes/${id}/quarantine`, { on }); void refresh(); return; } catch { /* */ } }
+    setDisputes((xs) => xs.map((d) => (d.id === id ? { ...d, quarantined: on } : d)));
+  };
+  const noteDispute = async (id: string, text: string) => {
+    if (API) { try { await adminPost(`/admin/disputes/${id}/note`, { text }); void refresh(); return; } catch { alert('Note réservée à l’expert gestionnaire.'); return; } }
+    setDisputes((xs) => xs.map((d) => (d.id === id ? { ...d, notes: [...(d.notes ?? []), { author: me?.name ?? 'Expert', text, at: new Date().toISOString() }] } : d)));
   };
 
   /** Télécharge un CSV : via l'API (avec session JWT) ou généré localement (démo). */
@@ -922,11 +1017,11 @@ function Console({ onLogout }: { onLogout: () => void }) {
         )}
         {section === 'dispatch' && ops && <DispatchSection ops={ops} onSave={saveOps} onSimulate={simulate} onConfigPdf={() => void downloadFile('/admin/dispatch/config.pdf', 'orion-config-dispatch.pdf')} onMatrixCsv={() => void downloadFile('/admin/pricing/matrix.csv', 'orion-matrice-tarifaire.csv')} />}
         {section === 'quality' && quality && <QualitySection q={quality} csat={csat} top={qTop} canWrite={can('drivers:write')} onWarn={warnDriver} onSuspend={(id) => driverAction(id, 'kyc', 'suspended')} onSaveOps={saveOps} onVip={setVip} onMatrixCsv={() => void downloadFile('/admin/quality.csv', 'orion-matrice-qualite.csv')} onDriverPdf={(id) => void downloadFile(`/admin/drivers/${id}/quality.pdf`, `orion-qualite-${id.slice(0, 8)}.pdf`)} />}
-        {section === 'disputes' && <DisputesSection disputes={disputes} canWrite={can('support:write')} onDecide={decideDispute} onOpenRide={openForensic} />}
+        {section === 'disputes' && <DisputesSection disputes={disputes} canWrite={can('support:write')} onDecide={decideDispute} onOpenRide={openForensic} onEscalate={escalateDispute} onQuarantine={quarantineDispute} onNote={noteDispute} onChargeback={(id) => void downloadFile(`/admin/disputes/${id}/chargeback.pdf`, `orion-chargeback-${id}.pdf`)} onDossier={(id) => void downloadFile(`/admin/disputes/${id}/dossier.pdf`, `orion-dossier-${id}.pdf`)} onLossCsv={() => void downloadCsv('/admin/disputes.csv', 'orion-pertes.csv', () => 'dossier,categorie,statut')} />}
         {section === 'green' && green && <GreenSection g={green} ops={ops} onPdf={() => void downloadCarbonPdf()} onEnergyCsv={() => void downloadCsv('/admin/green/energy.csv', 'orion-energie.csv', () => 'matricule,nom,motorisation,km_factures,kwh_estimes')} />}
-        {section === 'teams' && <TeamsSection teams={teams} allDrivers={drivers} canWrite={can('teams:write')} onSave={saveTeam} onDelete={deleteTeam} />}
-        {section === 'intel' && <IntelSection predict={predict} conversion={conversion} churn={churn} canNotify={can('notify:write')} onReengage={reengage} />}
-        {section === 'b2b' && <CorporateSection accounts={corporate} canWrite={can('treasury:request')} canSettle={can('treasury:approve')} onSave={saveCorporate} onSettle={settleCorporate} onInvoice={exportInvoice} onEsg={(id) => void downloadFile(`/admin/corporate/${id}/esg.pdf`, `orion-esg-${id}.pdf`)} />}
+        {section === 'teams' && <TeamsSection teams={teams} allDrivers={drivers} staffKpis={staffKpis} shifts={shifts} maintenance={maintenance} canWrite={can('teams:write')} onSave={saveTeam} onDelete={deleteTeam} onShift={assignShift} onRemoveShift={removeShift} onMaintenance={openMaintenance} onResolveMaintenance={resolveMaintenance} onBroadcast={microBroadcast} onPnl={loadSquadPnl} onHoursCsv={() => void downloadCsv('/admin/staff/hours.csv', 'orion-heures.csv', () => 'employe,identifiant,date,tranche,zone')} onEvalPdf={(u) => void downloadFile(`/admin/staff/${u}/eval.pdf`, `orion-eval-${u}.pdf`)} />}
+        {section === 'intel' && <IntelSection predict={predict} conversion={conversion} churn={churn} fraud={fraud} elasticity={elasticity} canNotify={can('notify:write')} onReengage={reengage} onCopilot={askCopilot} />}
+        {section === 'b2b' && <CorporateSection accounts={corporate} canWrite={can('treasury:request')} canSettle={can('treasury:approve')} canBook={can('rides:write')} onSave={saveCorporate} onSettle={settleCorporate} onInvoice={exportInvoice} onEsg={(id) => void downloadFile(`/admin/corporate/${id}/esg.pdf`, `orion-esg-${id}.pdf`)} onInvoicePdf={(id) => void downloadFile(`/admin/corporate/${id}/invoice.pdf`, `facture-${id}.pdf`)} onImport={importMembers} onBook={webBook} />}
         {section === 'drivers' && <DriversSection drivers={drivers} canWrite={can('drivers:write')} onAction={driverAction} onOpen={openDriver} meta={driversMeta} onPage={setDriversPage} />}
         {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} onOpen={openClient} meta={clientsMeta} onPage={setClientsPage} />}
         {section === 'notify' && <NotifySection broadcasts={broadcasts} triggers={triggers} canWrite={can('notify:write')} onSend={sendBroadcast} onTrigger={runTrigger} />}
@@ -1622,26 +1717,39 @@ const DISPUTE_STATUS: Record<string, { label: string; cls: string }> = {
   rejected: { label: 'Rejeté', cls: 'tr-rejected' },
 };
 
-function DisputesSection({ disputes, canWrite, onDecide, onOpenRide }: {
+const ESCALATION_LABEL: Record<string, string> = { sinistre: '🚑 Sinistre/Accident', chargeback: '💳 Fraude bancaire', harcelement: '⚠️ Harcèlement/Agression', degradation: '🔧 Dégradation véhicule' };
+
+function DisputesSection({ disputes, canWrite, onDecide, onOpenRide, onEscalate, onQuarantine, onNote, onChargeback, onDossier, onLossCsv }: {
   disputes: Dispute[]; canWrite: boolean;
   onDecide: (id: string, s: 'investigating' | 'resolved' | 'rejected', resolution?: string, refund?: number) => void;
   onOpenRide: (rideId: string) => void;
+  onEscalate: (id: string, kind: string) => void;
+  onQuarantine: (id: string, on: boolean) => void;
+  onNote: (id: string, text: string) => void;
+  onChargeback: (id: string) => void; onDossier: (id: string) => void; onLossCsv: () => void;
 }) {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [refunds, setRefunds] = useState<Record<string, number>>({});
+  const [invNote, setInvNote] = useState<Record<string, string>>({});
   const open = disputes.filter((d) => d.status === 'open' || d.status === 'investigating');
   return (
     <>
       <div className="adm-card">
         <p className="adm-muted" style={{ margin: 0 }}>
-          Réclamations clients : objets trouvés, contestations de trajet, erreurs de facturation, comportements.
-          Cliquer sur la <strong>réf. course</strong> ouvre la fiche d'instruction : <strong>tracé GPS</strong> de la
-          course, tarification appliquée et événements horodatés. Un remboursement est crédité sur le
-          portefeuille client et journalisé.
+          Litiges N1 (support) et <strong>escalades N2/N3</strong> : sinistres, fraude bancaire (chargeback),
+          harcèlement, dégradation. L'ouverture d'un dossier le <strong>verrouille à l'expert</strong> (claim lock).
+          La <strong>quarantaine préventive</strong> gèle les comptes et les fonds le temps de l'investigation.
+          Cliquer sur la <strong>réf. course</strong> ouvre le tracé GPS (replay) et la tarification.
         </p>
       </div>
       <div className="adm-card">
-        <div className="adm-card-h"><h3>Litiges</h3><span className="adm-muted">{open.length} en cours · {disputes.length} au total</span></div>
+        <div className="adm-card-h">
+          <h3>Litiges</h3>
+          <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+            <span className="adm-muted">{open.length} en cours · {disputes.length} au total</span>
+            <button className="adm-btn xs" onClick={onLossCsv}>⬇ Matrice des pertes (CSV)</button>
+          </div>
+        </div>
         {disputes.length === 0 && <p className="adm-empty">Aucun litige. ✅</p>}
         <div className="stack" style={{ gap: 10 }}>
           {disputes.map((d) => (
@@ -1650,13 +1758,41 @@ function DisputesSection({ disputes, canWrite, onDecide, onOpenRide }: {
                 <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   <strong>{DISPUTE_KIND[d.kind] ?? d.kind}</strong>
                   <span className={`adm-pill ${DISPUTE_STATUS[d.status]?.cls}`}>{DISPUTE_STATUS[d.status]?.label}</span>
+                  {d.escalation && <span className="adm-pill tr-rejected">{ESCALATION_LABEL[d.escalation] ?? d.escalation}</span>}
+                  {d.lockedBy && <span className="adm-pill tr-pending" title="Dossier verrouillé (claim lock)">🔒 {d.lockedBy}</span>}
+                  {d.quarantined && <span className="adm-pill tr-rejected" title="Quarantaine active">❄️ Quarantaine</span>}
                   <button className="adm-btn xs mono" onClick={() => onOpenRide(d.rideId)}>📍 {d.rideId.slice(0, 8)}</button>
                   <span className="adm-muted mono" style={{ fontSize: 11 }}>{d.clientId}</span>
                 </div>
                 <span className="adm-muted" style={{ fontSize: 12 }}>{new Date(d.createdAt).toLocaleString('fr-FR')}</span>
               </div>
               <p style={{ margin: '8px 0', fontSize: 13 }}>{d.description}</p>
+              {(d.notes ?? []).length > 0 && (
+                <ul className="adm-conv-list" style={{ marginBottom: 8 }}>
+                  {(d.notes ?? []).map((n, i) => <li key={i}><span>{n.author} : {n.text}</span><span className="adm-muted">{new Date(n.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span></li>)}
+                </ul>
+              )}
               {d.resolution && <p className="adm-muted" style={{ margin: '0 0 8px', fontSize: 12 }}>Résolution : {d.resolution}{d.refund ? ` · remboursé ${fcfa(d.refund)}` : ''} — {d.decidedBy}</p>}
+              {canWrite && (
+                <div className="row" style={{ gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
+                  {!d.escalation && Object.entries(ESCALATION_LABEL).map(([k, label]) => (
+                    <button key={k} className="adm-btn xs" onClick={() => onEscalate(d.id, k)} title={`Escalader N2/N3 : ${label}`}>{label}</button>
+                  ))}
+                  {d.escalation && (
+                    <>
+                      <button className={`adm-btn xs${d.quarantined ? ' solid' : ''}`} onClick={() => onQuarantine(d.id, !d.quarantined)}>{d.quarantined ? 'Lever la quarantaine' : '❄️ Mettre en quarantaine'}</button>
+                      <button className="adm-btn xs" onClick={() => onChargeback(d.id)}>⬇ Chargeback (PDF)</button>
+                      <button className="adm-btn xs" onClick={() => onDossier(d.id)}>⬇ Dossier légal (PDF)</button>
+                    </>
+                  )}
+                </div>
+              )}
+              {canWrite && d.escalation && (
+                <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
+                  <input className="adm-inline-input" placeholder="Note d'investigation…" value={invNote[d.id] ?? ''} onChange={(e) => setInvNote((n) => ({ ...n, [d.id]: e.target.value }))} />
+                  <button className="adm-btn xs" onClick={() => { if ((invNote[d.id] ?? '').trim()) { onNote(d.id, invNote[d.id]!.trim()); setInvNote((n) => ({ ...n, [d.id]: '' })); } }}>Ajouter la note</button>
+                </div>
+              )}
               {canWrite && (d.status === 'open' || d.status === 'investigating') && (
                 <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                   {d.status === 'open' && <button className="adm-btn xs" onClick={() => onDecide(d.id, 'investigating')}>Instruire</button>}
@@ -2513,12 +2649,90 @@ function GreenSection({ g, ops, onPdf, onEnergyCsv }: { g: GreenReport; ops: Ops
 }
 
 /* ---------------------- Intelligence & prédiction --------------------- */
-function IntelSection({ predict, conversion, churn, canNotify, onReengage }: {
+function IntelSection({ predict, conversion, churn, fraud, elasticity, canNotify, onReengage, onCopilot }: {
   predict: { hour: number; cells: PredictCell[] } | null; conversion: ConversionCell[];
-  churn: ChurnReport | null; canNotify: boolean; onReengage: () => void;
+  churn: ChurnReport | null; fraud: FraudReport | null; elasticity: ElasticityCell[];
+  canNotify: boolean; onReengage: () => void;
+  onCopilot: (q: string) => Promise<CopilotAnswer | null>;
 }) {
+  const [cq, setCq] = useState('');
+  const [ans, setAns] = useState<CopilotAnswer | null>(null);
+  const [thinking, setThinking] = useState(false);
+  const ask = async () => { if (!cq.trim()) return; setThinking(true); try { setAns(await onCopilot(cq.trim())); } finally { setThinking(false); } };
   return (
     <>
+      {/* Copilote génératif */}
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>🤖 Copilote d'administration</h3><span className="adm-muted">assistant génératif — questions en langage naturel</span></div>
+        <div className="adm-chat-input">
+          <input value={cq} onChange={(e) => setCq(e.target.value)} placeholder="Ex. « CA électrique vs thermique », « état de la flotte »…" onKeyDown={(e) => { if (e.key === 'Enter') void ask(); }} />
+          <button className="adm-btn solid" onClick={() => void ask()} disabled={thinking}>{thinking ? '…' : 'Demander'}</button>
+        </div>
+        {ans && <div className="adm-role-card" style={{ marginTop: 10 }}><p style={{ margin: 0, fontSize: 14 }}>{ans.answer}</p></div>}
+        <div className="row" style={{ gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+          {['CA électrique vs thermique', 'chiffre d’affaires du mois', 'état de la flotte'].map((s) => (
+            <button key={s} className="adm-btn xs" onClick={() => { setCq(s); }}>{s}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Moteur anti-fraude */}
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>🛡️ Détection de fraude</h3><span className="adm-muted">courses fantômes · spoofing GPS · risque transactionnel</span></div>
+        <div className="row" style={{ gap: 18, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <p className="adm-muted" style={{ margin: '0 0 6px', fontSize: 12 }}>Courses fantômes / collusion ({fraud?.ghostRides.length ?? 0})</p>
+            <ul className="adm-conv-list">
+              {(fraud?.ghostRides ?? []).map((g, i) => (
+                <li key={i}><span>{g.driverName ?? g.driverId.slice(0, 8)} ↔ {g.clientId.slice(0, 12)}</span><span className="adm-pill tr-rejected">{g.count} courses</span></li>
+              ))}
+              {(fraud?.ghostRides.length ?? 0) === 0 && <li><span className="adm-muted">Aucune collusion détectée ✅</span></li>}
+            </ul>
+          </div>
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <p className="adm-muted" style={{ margin: '0 0 6px', fontSize: 12 }}>Spoofing GPS (téléportation) ({fraud?.gpsSpoof.length ?? 0})</p>
+            <ul className="adm-conv-list">
+              {(fraud?.gpsSpoof ?? []).map((s, i) => (
+                <li key={i}><span className="mono">{s.rideId.slice(0, 10)}</span><span className="adm-pill tr-rejected">saut {(s.jumpMeters / 1000).toFixed(1)} km</span></li>
+              ))}
+              {(fraud?.gpsSpoof.length ?? 0) === 0 && <li><span className="adm-muted">Aucun spoofing détecté ✅</span></li>}
+            </ul>
+          </div>
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <p className="adm-muted" style={{ margin: '0 0 6px', fontSize: 12 }}>Risque transactionnel ({fraud?.txRisk.length ?? 0})</p>
+            <ul className="adm-conv-list">
+              {(fraud?.txRisk ?? []).map((c) => (
+                <li key={c.id}><span>{c.name ?? c.id}</span><span className="adm-pill tr-pending">{c.cancellations} annul.</span></li>
+              ))}
+              {(fraud?.txRisk.length ?? 0) === 0 && <li><span className="adm-muted">Aucun compte à risque ✅</span></li>}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* Élasticité-prix */}
+      {elasticity.length > 0 && (
+        <div className="adm-card">
+          <div className="adm-card-h"><h3>📈 Élasticité-prix (surge neural)</h3><span className="adm-muted">multiplicateur recommandé par cellule</span></div>
+          <table className="adm-table">
+            <thead><tr><th>Cellule</th><th className="r">Sessions</th><th className="r">Conversion</th><th className="r">Multiplicateur optimal</th></tr></thead>
+            <tbody>
+              {elasticity.map((c) => (
+                <tr key={c.cell}>
+                  <td className="mono">{c.lat.toFixed(3)}, {c.lng.toFixed(3)}</td>
+                  <td className="r">{c.sessions}</td>
+                  <td className={`r ${c.rate < 30 ? 'neg' : 'pos'}`}>{c.rate} %</td>
+                  <td className="r"><span className={`adm-pill ${c.recommended > 1 ? 'tr-pending' : 'av-online'}`}>×{c.recommended.toFixed(2)}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="adm-muted" style={{ margin: '8px 0 0', fontSize: 12 }}>
+            L'IA maximise le revenu SANS casser la conversion : une zone à faible conversion n'est jamais majorée
+            (elle ferait fuir les clients), une zone à forte conversion supporte un léger surge.
+          </p>
+        </div>
+      )}
       <div className="adm-card">
         <div className="adm-card-h"><h3>Heatmap prédictive</h3><span className="adm-muted">demande attendue vers {predict ? `${String(predict.hour).padStart(2, '0')}h` : '—'} (moyenne historique)</span></div>
         {(!predict || predict.cells.length === 0) && <p className="adm-empty">Pas encore assez d'historique pour prédire — les cellules apparaîtront avec l'activité.</p>}
@@ -2588,14 +2802,29 @@ function IntelSection({ predict, conversion, churn, canNotify, onReengage }: {
 }
 
 /* ------------------------ Comptes Entreprises (B2B) ------------------- */
-function CorporateSection({ accounts, canWrite, canSettle, onSave, onSettle, onInvoice, onEsg }: {
-  accounts: CorporateAccount[]; canWrite: boolean; canSettle: boolean;
-  onSave: (i: { id?: string; name: string; contactEmail?: string; creditLimit: number }) => void;
+function CorporateSection({ accounts, canWrite, canSettle, canBook, onSave, onSettle, onInvoice, onEsg, onInvoicePdf, onImport, onBook }: {
+  accounts: CorporateAccount[]; canWrite: boolean; canSettle: boolean; canBook: boolean;
+  onSave: (i: { id?: string; name: string; contactEmail?: string; creditLimit: number; nif?: string; kickbackRate?: number }) => void;
   onSettle: (id: string) => void; onInvoice: (id: string) => void; onEsg: (id: string) => void;
+  onInvoicePdf: (id: string) => void;
+  onImport: (id: string, memberIds: string[]) => void;
+  onBook: (id: string, input: { guestName: string; origin: { lat: number; lng: number }; destination: { lat: number; lng: number }; category: string }) => void;
 }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [limit, setLimit] = useState(500_000);
+  const [nif, setNif] = useState('');
+  const [kickback, setKickback] = useState(0);
+  const doImport = (id: string) => {
+    const raw = window.prompt('Import de masse — identifiants clients ORION séparés par des virgules :', 'client-1, client-2, client-3');
+    if (!raw) return;
+    onImport(id, raw.split(',').map((s) => s.trim()).filter(Boolean));
+  };
+  const doBook = (id: string) => {
+    const guestName = window.prompt('Web Booker (conciergerie) — prénom du client :', '');
+    if (!guestName) return;
+    onBook(id, { guestName, origin: { lat: 5.3596, lng: -3.9903 }, destination: { lat: 5.2614, lng: -3.9268 }, category: 'or' });
+  };
   return (
     <>
       <div className="adm-card">
@@ -2611,10 +2840,16 @@ function CorporateSection({ accounts, canWrite, canSettle, onSave, onSettle, onI
           <div className="adm-card-h"><h3>Nouveau compte entreprise</h3></div>
           <div className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <label className="price-field"><span>Raison sociale</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Hôtel Ivoire" /></label>
+            <label className="price-field"><span>NIF (fiscal)</span><input value={nif} onChange={(e) => setNif(e.target.value)} placeholder="CI-123456" /></label>
             <label className="price-field"><span>E-mail de facturation</span><input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="compta@hotel.ci" /></label>
             <label className="price-field"><span>Ligne de crédit (F / mois)</span><input type="number" min={0} step={50000} value={limit} onChange={(e) => setLimit(Number(e.target.value))} /></label>
-            <button className="adm-btn solid" onClick={() => { if (name.trim()) { onSave({ name: name.trim(), contactEmail: email.trim() || undefined, creditLimit: limit }); setName(''); setEmail(''); } }}>Créer</button>
+            <label className="price-field"><span>Rétrocommission (%)</span><input type="number" min={0} max={50} value={kickback} onChange={(e) => setKickback(Number(e.target.value))} /></label>
+            <button className="adm-btn solid" onClick={() => { if (name.trim()) { onSave({ name: name.trim(), contactEmail: email.trim() || undefined, creditLimit: limit, nif: nif.trim() || undefined, kickbackRate: kickback ? kickback / 100 : undefined }); setName(''); setEmail(''); setNif(''); setKickback(0); } }}>Créer</button>
           </div>
+          <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
+            Filiales/départements, politiques de déplacement (horaires/zones/gammes), import de masse des
+            collaborateurs, web booker conciergerie et rétrocommission d'apport d'affaires (kickback).
+          </p>
         </div>
       )}
       <div className="adm-card">
@@ -2627,7 +2862,14 @@ function CorporateSection({ accounts, canWrite, canSettle, onSave, onSettle, onI
               const pctUsed = a.creditLimit ? Math.min(100, Math.round((a.balanceUsed / a.creditLimit) * 100)) : 0;
               return (
                 <tr key={a.id}>
-                  <td>{a.name}<div className="adm-muted" style={{ fontSize: 11 }}>{a.contactEmail ?? '—'}</div></td>
+                  <td>{a.name}
+                    <div className="adm-muted" style={{ fontSize: 11 }}>{a.contactEmail ?? '—'}{a.nif ? ` · NIF ${a.nif}` : ''}{a.parentId ? ` · filiale de ${a.parentId}` : ''}</div>
+                    <div className="row" style={{ gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
+                      {a.kickbackRate ? <span className="adm-pill av-online" title="Rétrocommission">↩ {Math.round(a.kickbackRate * 100)} %</span> : null}
+                      {(a.members?.length ?? 0) > 0 ? <span className="adm-pill">👥 {a.members!.length}</span> : null}
+                      {a.policy ? <span className="adm-pill tr-pending" title="Politique de déplacement active">🔒 politique</span> : null}
+                    </div>
+                  </td>
                   <td className="mono">{a.id}</td>
                   <td className="r">{fcfa(a.balanceUsed)}</td>
                   <td className="r">{fcfa(a.creditLimit)}</td>
@@ -2638,7 +2880,10 @@ function CorporateSection({ accounts, canWrite, canSettle, onSave, onSettle, onI
                     </div>
                   </td>
                   <td><div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                    <button className="adm-btn xs" onClick={() => onInvoice(a.id)}>⬇ Facture</button>
+                    {canBook && <button className="adm-btn xs" title="Web Booker (conciergerie)" onClick={() => doBook(a.id)}>🛎 Booker</button>}
+                    {canWrite && <button className="adm-btn xs" title="Import de masse des collaborateurs" onClick={() => doImport(a.id)}>👥 Import</button>}
+                    <button className="adm-btn xs" onClick={() => onInvoice(a.id)}>⬇ CSV</button>
+                    <button className="adm-btn xs" title="Facture consolidée PDF" onClick={() => onInvoicePdf(a.id)}>⬇ Facture</button>
                     <button className="adm-btn xs" title="Rapport ESG / RSE (bilan carbone certifié)" onClick={() => onEsg(a.id)}>⬇ ESG</button>
                     {canSettle && a.balanceUsed > 0 && <button className="adm-btn xs solid" onClick={() => onSettle(a.id)}>Régler</button>}
                   </div></td>
@@ -2653,29 +2898,121 @@ function CorporateSection({ accounts, canWrite, canSettle, onSave, onSettle, onI
 }
 
 /* --------------------------- Équipes & managers ----------------------- */
-function TeamsSection({ teams, allDrivers, canWrite, onSave, onDelete }: {
-  teams: Team[]; allDrivers: DriverRow[]; canWrite: boolean;
+const SLOT_LABEL: Record<string, string> = { matin: '🌅 Matin', soir: '🌇 Soir', nuit: '🌙 Nuit' };
+const MAINT_LABEL: Record<string, string> = { controle_technique: 'Contrôle technique', batterie_soh: 'Batterie (SoH)', reparation: 'Réparation', nettoyage: 'Nettoyage', assurance: 'Assurance' };
+
+function TeamsSection({ teams, allDrivers, staffKpis, shifts, maintenance, canWrite, onSave, onDelete, onShift, onRemoveShift, onMaintenance, onResolveMaintenance, onBroadcast, onPnl, onHoursCsv, onEvalPdf }: {
+  teams: Team[]; allDrivers: DriverRow[]; staffKpis: StaffKpi[]; shifts: Shift[]; maintenance: MaintenanceTicket[]; canWrite: boolean;
   onSave: (i: { id?: string; name: string; managerUsername: string; managerName?: string; driverIds?: string[] }) => void;
   onDelete: (id: string) => void;
+  onShift: (i: { username: string; name: string; date: string; slot: string; zoneId?: string }) => void;
+  onRemoveShift: (id: string) => void;
+  onMaintenance: (i: { driverId: string; kind: string; title: string; teamId?: string }) => void;
+  onResolveMaintenance: (id: string) => void;
+  onBroadcast: (teamId: string, title: string, body: string) => void;
+  onPnl: (teamId: string) => Promise<SquadPnl | null>;
+  onHoursCsv: () => void; onEvalPdf: (username: string) => void;
 }) {
   const [name, setName] = useState('');
   const [managerUsername, setManagerUsername] = useState('');
   const [managerName, setManagerName] = useState('');
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [pnl, setPnl] = useState<Record<string, SquadPnl>>({});
+  const [shiftForm, setShiftForm] = useState({ username: '', name: '', date: new Date().toISOString().slice(0, 10), slot: 'matin', zoneId: '' });
+  const [maintForm, setMaintForm] = useState({ driverId: '', kind: 'controle_technique', title: '' });
   const chosen = Object.keys(selected).filter((k) => selected[k]);
   const submit = () => {
     if (!name.trim() || !managerUsername.trim()) return;
     onSave({ name: name.trim(), managerUsername: managerUsername.trim(), managerName: managerName.trim() || undefined, driverIds: chosen });
     setName(''); setManagerUsername(''); setManagerName(''); setSelected({});
   };
+  const showPnl = async (teamId: string) => { const p = await onPnl(teamId); if (p) setPnl((x) => ({ ...x, [teamId]: p })); };
+  const broadcast = (teamId: string) => {
+    const title = window.prompt('Titre du micro-broadcast (flotte de l’équipe) :', 'Inspection propreté');
+    if (!title) return;
+    const body = window.prompt('Message :', 'Inspection de propreté obligatoire ce vendredi.');
+    if (!body) return;
+    onBroadcast(teamId, title, body);
+  };
   return (
     <>
       <div className="adm-card">
         <p className="adm-muted" style={{ margin: 0 }}>
-          Chaque équipe est dirigée par un <strong>chef d'équipe</strong> (compte console, rôle « manager »)
-          et se voit affilier une <strong>flotte de chauffeurs</strong>. Le manager ne voit et n'agit que sur
-          SA flotte — la portée est imposée par le serveur, pas par l'affichage.
+          Session <strong>coffre-fort RH</strong> (direction / responsables RH). Gère le <strong>personnel interne</strong>
+          (agents, répartiteurs, auditeurs) et les <strong>squads</strong> managers (équipe d'agents + flotte confiée).
+          Verrouillage auto des sessions après inactivité, traçabilité intégrale et micro-P&amp;L par sous-flotte.
         </p>
+      </div>
+
+      {/* Productivité interne (KPIs employés) */}
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Productivité interne (24 h)</h3><button className="adm-btn xs" onClick={onHoursCsv}>⬇ Matrice des heures (CSV)</button></div>
+        {staffKpis.length === 0 && <p className="adm-empty">Aucune activité employée enregistrée sur 24 h.</p>}
+        {staffKpis.length > 0 && (
+          <table className="adm-table">
+            <thead><tr><th>Employé</th><th>Rôle</th><th className="r">Actions</th><th className="r">Support</th><th className="r">Modération</th><th className="r">Finance</th><th className="r">Promos</th><th>Fiche</th></tr></thead>
+            <tbody>
+              {staffKpis.map((s) => (
+                <tr key={s.actor}>
+                  <td>{s.actor}</td><td className="cap">{s.role}</td>
+                  <td className="r"><strong>{s.total}</strong></td><td className="r">{s.support}</td><td className="r">{s.moderation}</td><td className="r">{s.finance}</td><td className="r">{s.promos}</td>
+                  <td><button className="adm-btn xs" onClick={() => onEvalPdf(s.actor)}>⬇ PDF</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Astreintes 24/7 */}
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Astreintes 24/7 & affectation territoriale</h3><span className="adm-muted">{shifts.length} créneaux</span></div>
+        {canWrite && (
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 10 }}>
+            <label className="price-field"><span>Identifiant</span><input value={shiftForm.username} onChange={(e) => setShiftForm((f) => ({ ...f, username: e.target.value }))} placeholder="awa.ops" /></label>
+            <label className="price-field"><span>Nom</span><input value={shiftForm.name} onChange={(e) => setShiftForm((f) => ({ ...f, name: e.target.value }))} placeholder="Awa (Dispatch)" /></label>
+            <label className="price-field"><span>Date</span><input type="date" value={shiftForm.date} onChange={(e) => setShiftForm((f) => ({ ...f, date: e.target.value }))} /></label>
+            <label className="price-field"><span>Tranche</span><select className="adm-select" value={shiftForm.slot} onChange={(e) => setShiftForm((f) => ({ ...f, slot: e.target.value }))}><option value="matin">Matin</option><option value="soir">Soir</option><option value="nuit">Nuit</option></select></label>
+            <label className="price-field"><span>Zone (optionnel)</span><input value={shiftForm.zoneId} onChange={(e) => setShiftForm((f) => ({ ...f, zoneId: e.target.value }))} placeholder="cocody" /></label>
+            <button className="adm-btn solid" onClick={() => { if (shiftForm.username && shiftForm.name) { onShift({ ...shiftForm, zoneId: shiftForm.zoneId || undefined }); setShiftForm((f) => ({ ...f, username: '', name: '' })); } }}>Planifier</button>
+          </div>
+        )}
+        <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+          {shifts.map((s) => (
+            <span key={s.id} className="adm-pill" title={s.date}>{SLOT_LABEL[s.slot] ?? s.slot} · {s.name}{s.zoneId ? ` · ${s.zoneId}` : ''}{canWrite && <button className="adm-x" onClick={() => onRemoveShift(s.id)}>✕</button>}</span>
+          ))}
+          {shifts.length === 0 && <span className="adm-muted">Aucun créneau planifié.</span>}
+        </div>
+      </div>
+
+      {/* Tickets de maintenance véhicules */}
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Maintenance des véhicules (logistique flotte)</h3><span className="adm-muted">{maintenance.filter((t) => t.status !== 'resolu').length} ouvert(s)</span></div>
+        {canWrite && (
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 10 }}>
+            <label className="price-field"><span>Véhicule (chauffeur)</span>
+              <select className="adm-select" value={maintForm.driverId} onChange={(e) => setMaintForm((f) => ({ ...f, driverId: e.target.value }))}>
+                <option value="">—</option>
+                {allDrivers.map((d) => <option key={d.id} value={d.id}>{d.name} ({d.matricule})</option>)}
+              </select>
+            </label>
+            <label className="price-field"><span>Type</span><select className="adm-select" value={maintForm.kind} onChange={(e) => setMaintForm((f) => ({ ...f, kind: e.target.value }))}>{Object.entries(MAINT_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+            <label className="price-field" style={{ minWidth: 240 }}><span>Intitulé</span><input value={maintForm.title} onChange={(e) => setMaintForm((f) => ({ ...f, title: e.target.value }))} placeholder="Contrôle technique requis dans 15 jours" /></label>
+            <button className="adm-btn solid" onClick={() => { if (maintForm.driverId && maintForm.title.trim()) { onMaintenance(maintForm); setMaintForm((f) => ({ ...f, title: '' })); } }}>Créer le ticket</button>
+          </div>
+        )}
+        {maintenance.length === 0 && <p className="adm-empty">Aucun ticket de maintenance.</p>}
+        <div className="stack" style={{ gap: 6 }}>
+          {maintenance.map((t) => (
+            <div key={t.id} className="row between" style={{ padding: '8px 10px', background: 'var(--a-panel2)', borderRadius: 8 }}>
+              <div><strong style={{ fontSize: 13 }}>{MAINT_LABEL[t.kind] ?? t.kind}</strong> · {t.title}<div className="adm-muted mono" style={{ fontSize: 11 }}>{t.driverId.slice(0, 8)}{t.assignee ? ` · agent ${t.assignee}` : ''}</div></div>
+              <div className="row" style={{ gap: 6 }}>
+                <span className={`adm-pill ${t.status === 'resolu' ? 'av-online' : 'tr-pending'}`}>{t.status}</span>
+                {canWrite && t.status !== 'resolu' && <button className="adm-btn xs" onClick={() => onResolveMaintenance(t.id)}>Résoudre</button>}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
       {canWrite && (
         <div className="adm-card">
@@ -2707,8 +3044,20 @@ function TeamsSection({ teams, allDrivers, canWrite, onSave, onDelete }: {
                   <strong>{t.name}</strong>
                   <div className="adm-muted" style={{ fontSize: 12 }}>Manager : {t.managerName ?? t.managerUsername} <span className="mono">({t.managerUsername})</span> · {t.driverIds.length} chauffeur{t.driverIds.length > 1 ? 's' : ''}</div>
                 </div>
-                {canWrite && <button className="adm-btn xs" onClick={() => onDelete(t.id)}>Dissoudre</button>}
+                <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                  <button className="adm-btn xs" onClick={() => void showPnl(t.id)}>📊 Micro P&L</button>
+                  {canWrite && <button className="adm-btn xs" onClick={() => broadcast(t.id)}>📣 Micro-broadcast</button>}
+                  {canWrite && <button className="adm-btn xs" onClick={() => onDelete(t.id)}>Dissoudre</button>}
+                </div>
               </div>
+              {pnl[t.id] && (
+                <div className="adm-mini-kpis" style={{ marginTop: 8 }}>
+                  <div className="adm-mini-kpi"><span>CA flotte</span><strong>{fcfa(pnl[t.id]!.revenue)}</strong></div>
+                  <div className="adm-mini-kpi"><span>Taux d'activité</span><strong>{pnl[t.id]!.activityRate} %</strong></div>
+                  <div className="adm-mini-kpi"><span>Immobilisés</span><strong>{pnl[t.id]!.grounded}</strong></div>
+                  <div className="adm-mini-kpi"><span>ROI estimé</span><strong className={pnl[t.id]!.roi >= 0 ? 'pos' : 'neg'}>{pnl[t.id]!.roi} %</strong></div>
+                </div>
+              )}
               {(t.drivers ?? []).length > 0 && (
                 <div className="row" style={{ gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
                   {(t.drivers ?? []).map((d) => (

@@ -8,7 +8,7 @@ import { can, resolveAccount, ROLE_PERMISSIONS, ROLE_LABEL, type AdminAccount, t
 import {
   authenticate, issueToken, verifyToken, bearerToken,
   lockedFor, recordLoginFailure, clearLoginFailures,
-  verifyTotp, registerSession, touchSession, revokeSession, listSessions,
+  verifyTotp, registerSession, touchSession, revokeSession, listSessions, isSessionInactive,
 } from './auth.js';
 import { config } from '../../config/index.js';
 import { SOS_PRESETS } from '../safety/service.js';
@@ -88,6 +88,10 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       const verified = verifyToken(jwt);
       const account = verified ?? resolveAccount(req.headers['x-admin-token'] as string | undefined);
       if (!account) throw unauthorized('Session invalide ou expirée');
+      // Verrouillage auto après inactivité (écran laissé allumé — sécurité RBAC).
+      if (verified?.jti && isSessionInactive(verified.jti)) {
+        throw unauthorized('Session verrouillée pour inactivité — reconnecte-toi');
+      }
       if (verified?.jti) touchSession(verified.jti, req.ip); // trace d'activité (sessions actives)
       (req as FastifyRequest & { admin: AdminAccount }).admin = account;
     });
@@ -191,10 +195,173 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         contactEmail: z.string().email().optional(),
         creditLimit: z.number().min(0).max(1_000_000_000),
         active: z.boolean().optional(),
+        // CRM B2B avancé : filiales, NIF, politique de déplacement, rétrocommission.
+        nif: z.string().max(40).optional(),
+        billingAddress: z.string().max(200).optional(),
+        parentId: z.string().max(40).optional(),
+        kickbackRate: z.number().min(0).max(0.5).optional(),
+        policy: z.object({
+          days: z.array(z.number().int().min(0).max(6)).optional(),
+          hourStart: z.number().int().min(0).max(23).optional(),
+          hourEnd: z.number().int().min(0).max(23).optional(),
+          zoneIds: z.array(z.string()).optional(),
+          maxTier: z.enum(['bronze', 'argent', 'or', 'diamant']).optional(),
+        }).optional(),
       }), req.body);
       const account = container.corporate.upsert(body);
       audit(req, 'corporate.upsert', account.id, { name: account.name, creditLimit: account.creditLimit });
       return { account };
+    });
+
+    // Filiales / départements rattachés à une entité mère.
+    scoped.get('/admin/corporate/:id/children', async (req) => {
+      require(req, 'finance:read');
+      const { id } = req.params as { id: string };
+      return { children: container.corporate.children(id) };
+    });
+
+    // Import de masse des collaborateurs (Excel/CSV → ids clients ORION).
+    scoped.post('/admin/corporate/:id/members', async (req) => {
+      require(req, 'treasury:request');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ memberIds: z.array(z.string().min(1)).max(5000) }), req.body);
+      const result = container.corporate.importMembers(id, body.memberIds);
+      if (!result) throw notFound('Compte entreprise introuvable');
+      audit(req, 'corporate.import', id, { added: result.added });
+      return { account: result.account, added: result.added };
+    });
+
+    // Web Booker / conciergerie : le réceptionniste commande une course pour un invité.
+    scoped.post('/admin/corporate/:id/book', async (req, reply) => {
+      require(req, 'rides:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({
+        guestName: z.string().min(1).max(80),
+        origin: z.object({ lat: z.number(), lng: z.number() }),
+        destination: z.object({ lat: z.number(), lng: z.number() }),
+        category: z.string().min(2).max(20).default('bronze'),
+      }), req.body);
+      const acc = container.corporate.get(id);
+      if (!acc) throw notFound('Compte entreprise introuvable');
+      // Politique de déplacement : vérifiée au moment de la commande.
+      const zone = container.settings.zoneForPoint(body.origin);
+      const denied = container.corporate.checkPolicy(id, { zoneId: zone?.id });
+      if (denied) { reply.code(409); return { error: denied }; }
+      // Devis serveur puis course imputée à la ligne de crédit société.
+      const quote = await container.registry.get('ride').estimate({
+        origin: body.origin, destination: body.destination, category: body.category,
+      });
+      const charged = container.corporate.charge(id, quote.amount);
+      if (charged === 'inactive') { reply.code(409); return { error: 'Compte entreprise suspendu' }; }
+      if (charged === 'over_limit') { reply.code(409); return { error: 'Ligne de crédit entreprise dépassée' }; }
+      const clientId = `guest:${body.guestName}:${Math.random().toString(36).slice(2, 6)}`;
+      container.clients.touch(clientId, { name: body.guestName });
+      audit(req, 'corporate.book', id, { guest: body.guestName, amount: quote.amount });
+      reply.code(201);
+      return { booking: { clientId, guestName: body.guestName, amount: quote.amount, currency: quote.currency, shareHint: 'SMS de suivi GPS + plaque envoyé au client' } };
+    });
+
+    // Facture consolidée mensuelle (PDF).
+    scoped.get('/admin/corporate/:id/invoice.pdf', async (req, reply) => {
+      require(req, 'finance:read');
+      const { id } = req.params as { id: string };
+      const q = parse(z.object({ month: z.string().regex(/^\d{4}-\d{2}$/).optional() }), req.query);
+      const month = q.month ?? new Date().toISOString().slice(0, 7);
+      const pdf = admin.consolidatedInvoicePdf(id, month);
+      if (!pdf) throw notFound('Compte entreprise introuvable');
+      reply.header('content-type', 'application/pdf');
+      reply.header('content-disposition', `attachment; filename="facture-${id}-${month}.pdf"`);
+      return pdf;
+    });
+
+    /* ===================== SESSION LITIGES (S11) : N2/N3 ===================== */
+
+    // Escalade + verrou du dossier (claim lock) à un expert.
+    scoped.post('/admin/disputes/:id/escalate', async (req, reply) => {
+      require(req, 'support:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ kind: z.enum(['sinistre', 'chargeback', 'harcelement', 'degradation']) }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const result = container.disputes.escalate(id, body.kind, account.name);
+      if (!result) throw notFound('Litige introuvable');
+      if (result === 'locked') { reply.code(409); return { error: 'Dossier déjà verrouillé par un autre expert (claim lock).' }; }
+      audit(req, 'dispute.escalate', id, { kind: body.kind });
+      return { dispute: result };
+    });
+
+    // Mise en quarantaine préventive : gel des comptes/fonds le temps de l'investigation.
+    scoped.post('/admin/disputes/:id/quarantine', async (req) => {
+      require(req, 'support:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ on: z.boolean() }), req.body);
+      const dispute = container.disputes.setQuarantine(id, body.on);
+      if (!dispute) throw notFound('Litige introuvable');
+      const ride = container.rides.get(dispute.rideId);
+      // Gel/dégel du wallet chauffeur (retraits bloqués) + suspension préventive.
+      if (ride?.driverId) {
+        if (body.on) { container.wallet.freeze(ride.driverId); const d = container.drivers.get(ride.driverId); if (d) { d.kycStatus = 'suspended'; void container.drivers.goOffline(ride.driverId); container.drivers.persist(ride.driverId); } }
+        else { container.wallet.unfreeze(ride.driverId); }
+      }
+      // Gel/dégel du portefeuille client (remboursements/retraits).
+      if (body.on) container.clientWallet.freeze(dispute.clientId); else container.clientWallet.unfreeze(dispute.clientId);
+      audit(req, 'dispute.quarantine', id, { on: body.on });
+      return { dispute, frozen: body.on };
+    });
+
+    // Note d'investigation (réservée à l'expert gestionnaire).
+    scoped.post('/admin/disputes/:id/note', async (req, reply) => {
+      require(req, 'support:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ text: z.string().min(2).max(1000) }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const existing = container.disputes.get(id);
+      if (!existing) throw notFound('Litige introuvable');
+      if (existing.lockedBy && existing.lockedBy !== account.name) {
+        reply.code(403); return { error: 'Dossier verrouillé par un autre expert.' };
+      }
+      const dispute = container.disputes.addNote(id, account.name, body.text);
+      return { dispute };
+    });
+
+    // Garages partenaires agréés (dont habilitation électrique).
+    scoped.get('/admin/garages', async (req) => { require(req, 'support:read'); const { GARAGES } = await import('./service.js'); return { garages: GARAGES }; });
+
+    // Indemnisation perte d'exploitation d'un véhicule immobilisé.
+    scoped.get('/admin/drivers/:id/loss-of-use', async (req) => {
+      require(req, 'support:read');
+      const { id } = req.params as { id: string };
+      if (!container.drivers.get(id)) throw notFound('Chauffeur introuvable');
+      return { lossOfUse: admin.lossOfUse(id) };
+    });
+
+    // Dossier de contestation bancaire (chargeback) — Evidence Package PDF.
+    scoped.get('/admin/disputes/:id/chargeback.pdf', async (req, reply) => {
+      require(req, 'support:read');
+      const { id } = req.params as { id: string };
+      const pdf = admin.chargebackPackPdf(id);
+      if (!pdf) throw notFound('Litige introuvable');
+      reply.header('content-type', 'application/pdf');
+      reply.header('content-disposition', `attachment; filename="orion-chargeback-${id}.pdf"`);
+      return pdf;
+    });
+
+    // Dossier d'instruction légal complet (PDF).
+    scoped.get('/admin/disputes/:id/dossier.pdf', async (req, reply) => {
+      require(req, 'support:read');
+      const { id } = req.params as { id: string };
+      const pdf = admin.legalDossierPdf(id);
+      if (!pdf) throw notFound('Litige introuvable');
+      reply.header('content-type', 'application/pdf');
+      reply.header('content-disposition', `attachment; filename="orion-dossier-${id}.pdf"`);
+      return pdf;
+    });
+
+    // Matrice financière des pertes (Excel/CSV) — shrinkage rate.
+    scoped.get('/admin/disputes.csv', async (req, reply) => {
+      require(req, 'support:read');
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header('content-disposition', 'attachment; filename="orion-pertes.csv"');
+      return admin.lossMatrixCsv();
     });
 
     // Facture mensuelle consolidée (CSV compatible logiciels comptables).
@@ -995,6 +1162,173 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       container.teams.remove(id);
       audit(req, 'team.delete', id);
       return { ok: true };
+    });
+
+    /* ===================== SESSION ÉQUIPES (S8) : RH & squads ===================== */
+
+    // Productivité interne (KPIs employés dérivés du journal d'audit).
+    scoped.get('/admin/staff/productivity', async (req) => { require(req, 'teams:read'); return { staff: admin.staffProductivity() }; });
+
+    // Anomalies de comportement du personnel → signalées à la direction (fraude interne).
+    scoped.get('/admin/staff/anomalies', async (req) => {
+      require(req, 'security:read');
+      const anomalies = admin.staffAnomalies();
+      for (const a of anomalies) {
+        container.security.record({ name: a.actor, role: 'viewer', section: 'comportement anormal', path: a.reason });
+      }
+      return { anomalies };
+    });
+
+    // Planning des astreintes 24/7 + affectation territoriale.
+    scoped.get('/admin/shifts', async (req) => {
+      require(req, 'teams:read');
+      const q = parse(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }), req.query);
+      return { shifts: container.staff.listShifts(q.date) };
+    });
+
+    scoped.put('/admin/shifts', async (req) => {
+      require(req, 'teams:write');
+      const body = parse(z.object({
+        username: z.string().min(1).max(80), name: z.string().min(1).max(80),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.enum(['matin', 'soir', 'nuit']),
+        zoneId: z.string().max(40).optional(),
+      }), req.body);
+      const shift = container.staff.assignShift(body);
+      audit(req, 'shift.assign', shift.id, { username: body.username, slot: body.slot });
+      return { shift };
+    });
+
+    scoped.delete('/admin/shifts/:id', async (req) => {
+      require(req, 'teams:write');
+      const { id } = req.params as { id: string };
+      container.staff.removeShift(id);
+      audit(req, 'shift.remove', id);
+      return { ok: true };
+    });
+
+    // Matrice des heures (Excel/CSV) — OPEX salarial.
+    scoped.get('/admin/staff/hours.csv', async (req, reply) => {
+      require(req, 'teams:read');
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header('content-disposition', 'attachment; filename="orion-heures.csv"');
+      return admin.staffHoursCsv(container.staff.listShifts());
+    });
+
+    // Fiche d'évaluation employé (PDF).
+    scoped.get('/admin/staff/:username/eval.pdf', async (req, reply) => {
+      require(req, 'teams:read');
+      const { username } = req.params as { username: string };
+      reply.header('content-type', 'application/pdf');
+      reply.header('content-disposition', `attachment; filename="orion-eval-${username}.pdf"`);
+      return admin.staffEvalPdf(username);
+    });
+
+    // Tickets de maintenance des véhicules (cycle de vie du matériel).
+    scoped.get('/admin/maintenance', async (req) => {
+      require(req, 'teams:read');
+      const q = parse(z.object({ teamId: z.string().optional() }), req.query);
+      return { tickets: container.staff.listTickets(q.teamId) };
+    });
+
+    scoped.post('/admin/maintenance', async (req) => {
+      require(req, 'teams:write');
+      const body = parse(z.object({
+        driverId: z.string().min(1), teamId: z.string().optional(),
+        kind: z.enum(['controle_technique', 'batterie_soh', 'reparation', 'nettoyage', 'assurance']),
+        title: z.string().min(3).max(160), dueDate: z.string().optional(),
+      }), req.body);
+      const ticket = container.staff.openTicket(body);
+      audit(req, 'maintenance.open', ticket.id, { driverId: body.driverId, kind: body.kind });
+      return { ticket };
+    });
+
+    scoped.post('/admin/maintenance/:id/assign', async (req) => {
+      require(req, 'teams:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ assignee: z.string().min(1).max(80) }), req.body);
+      const ticket = container.staff.assignTicket(id, body.assignee);
+      if (!ticket) throw notFound('Ticket introuvable');
+      audit(req, 'maintenance.assign', id, { assignee: body.assignee });
+      return { ticket };
+    });
+
+    scoped.post('/admin/maintenance/:id/resolve', async (req) => {
+      require(req, 'teams:write');
+      const { id } = req.params as { id: string };
+      const ticket = container.staff.resolveTicket(id);
+      if (!ticket) throw notFound('Ticket introuvable');
+      audit(req, 'maintenance.resolve', id);
+      return { ticket };
+    });
+
+    // Micro P&L d'une squad (rentabilité de la sous-flotte confiée au manager).
+    scoped.get('/admin/teams/:id/pnl', async (req) => {
+      require(req, 'teams:read');
+      const { id } = req.params as { id: string };
+      const team = container.teams.get(id);
+      if (!team) throw notFound('Équipe introuvable');
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      if (account.role === 'manager' && team.managerUsername !== account.username) {
+        throw forbidden('Chef d’équipe : accès limité à votre squad');
+      }
+      return { pnl: admin.squadPnl(team.driverIds), team: { id: team.id, name: team.name } };
+    });
+
+    // Chat interne d'équipe (manager ↔ agents).
+    scoped.get('/admin/teams/:id/chat', async (req) => {
+      require(req, 'teams:read');
+      const { id } = req.params as { id: string };
+      return { messages: container.staff.listChat(id) };
+    });
+
+    scoped.post('/admin/teams/:id/chat', async (req) => {
+      require(req, 'teams:read');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ text: z.string().min(1).max(1000) }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const message = container.staff.postChat(id, account.name, body.text);
+      return { message };
+    });
+
+    // Micro-broadcast : notification CIBLÉE à la seule flotte du manager.
+    scoped.post('/admin/teams/:id/broadcast', async (req) => {
+      require(req, 'teams:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ title: z.string().min(1).max(120), body: z.string().min(1).max(500) }), req.body);
+      const team = container.teams.get(id);
+      if (!team) throw notFound('Équipe introuvable');
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      if (account.role === 'manager' && team.managerUsername !== account.username) {
+        throw forbidden('Chef d’équipe : diffusion limitée à votre flotte');
+      }
+      for (const driverId of team.driverIds) {
+        container.notifications.notify({ driverId }, body.title, body.body);
+      }
+      audit(req, 'team.broadcast', id, { fleet: team.driverIds.length });
+      return { sent: team.driverIds.length };
+    });
+
+    /* ===================== SESSION IA (S9) ===================== */
+
+    // Moteur anti-fraude : ghost rides, spoofing GPS, risque transactionnel.
+    scoped.get('/admin/fraud', async (req) => { require(req, 'rides:read'); return admin.fraudSignals(); });
+
+    // Élasticité-prix : multiplicateur recommandé par cellule (surge neural).
+    scoped.get('/admin/elasticity', async (req) => { require(req, 'rides:read'); return { cells: admin.elasticity() }; });
+
+    // Copilote génératif : synthèse de litige + requêtes en langage naturel.
+    scoped.get('/admin/disputes/:id/summary', async (req) => {
+      require(req, 'support:read');
+      const { id } = req.params as { id: string };
+      const summary = admin.copilotSummary(id);
+      if (summary === null) throw notFound('Litige introuvable');
+      return { summary };
+    });
+
+    scoped.post('/admin/copilot', async (req) => {
+      require(req, 'overview:read');
+      const body = parse(z.object({ q: z.string().min(2).max(200) }), req.body);
+      return admin.copilotQuery(body.q);
     });
 
     // --- Gestion chauffeurs (actions) ---

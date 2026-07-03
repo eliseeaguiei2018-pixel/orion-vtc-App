@@ -321,3 +321,7 @@ html[data-adm-theme='dark'] .samu-room .adm-card { background: #0a0d0b; }
 
 /* Jauge SoC : palier orange (20–50 %) */
 .adm-batt-fill.mid { background: linear-gradient(90deg, #a8641f, #e67e22); }
+
+/* --- Sessions 8-11 : petits ajustements --- */
+.adm-x { background: none; border: none; color: inherit; cursor: pointer; margin-left: 6px; opacity: .6; font-size: 11px; padding: 0; }
+.adm-x:hover { opacity: 1; color: var(--a-danger); }
