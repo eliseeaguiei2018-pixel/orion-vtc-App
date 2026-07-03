@@ -83,8 +83,10 @@ const rides: RideRow[] = [
 
 const drivers: DriverRow[] = fleet.map((f, i) => ({
   id: f.id, name: f.name, matricule: f.matricule!, category: f.category,
-  kycStatus: i === 8 ? 'manual_review' : 'active',
+  kycStatus: i === 8 ? 'manual_review' : i === 6 ? 'docs_submitted' : i === 7 ? 'draft' : 'active',
   availability: f.availability, rating: 4.7 + (i % 3) * 0.1, trips: 800 + i * 137, balance: 15000 + i * 4200,
+  vip: i === 2, loyaltyTier: i === 2 ? 'gold' : i === 4 ? 'silver' : null,
+  electricRides: 200 + i * 110, suspensionReason: null,
 }));
 
 const overview: Overview = {
@@ -133,6 +135,7 @@ const ops = {
   surgeEnabled: true, surgeCapGreen: 1.3, waitFeePerMin: 100,
   radiusKm: 1.5, radiusMaxKm: 6, offerMode: 'cascade', weightRating: 0, weightIdle: 0, greenPriority: false,
   surgeThreshold: 1.3, surgeSmoothingMin: 10, refundCap: 5000, offPeakBonus: 500, offPeakStart: 22, offPeakEnd: 6,
+  cashDebtLimit: 30000, commissionStandard: 0.20, commissionGreen: 0.12, loyaltyRideThreshold: 1000, commissionLoyalty: 0.10,
 };
 /** Support : indicateurs SLA/CSAT + macros (démo). */
 const supportStats = { open: 2, resolvedToday: 5, avgFirstReplyMin: 3.4, csat: 4.6 };
@@ -226,6 +229,38 @@ function copilot(q: string) {
   if (/flotte|chauffeur/.test(s)) return { query: q, answer: '10 chauffeurs (8 en ligne, 4 en course). 12 courses actives.', data: null };
   return { query: q, answer: 'GMV 1 263 500 F CFA · revenu encaissé 1 263 500 F CFA · commission ORION 227 430 F CFA.', data: null };
 }
+
+/* --- S12-S15 (démo) --- */
+const expiring = [
+  { id: 'd5', name: 'Mamadou Bamba', matricule: 'ORION-CI-9034', insuranceExpiry: iso(-60 * 24 * -12), daysLeft: 12 },
+  { id: 'd9', name: 'Yao N’Guessan', matricule: 'ORION-CI-6120', insuranceExpiry: iso(-60 * 24 * -5), daysLeft: 5 },
+];
+const cashDebt = [
+  { id: 'd8', name: 'Serge Aka', matricule: 'ORION-CI-4820', balance: -38900, limit: 30000 },
+];
+const gateways = [
+  { method: 'orange_money', enabled: true }, { method: 'mtn_momo', enabled: true },
+  { method: 'moov_money', enabled: true }, { method: 'wave', enabled: true },
+  { method: 'card', enabled: true }, { method: 'cash', enabled: true },
+];
+const expenses = [
+  { id: 'ex-01', requesterType: 'employee', requesterId: 'awa.ops', requesterName: 'Awa (Dispatch)', amount: 50000, category: 'marketing', neededDate: iso(-60 * 24), description: 'Campagne terrain quartier Cocody', status: 'pending', createdAt: iso(30) },
+  { id: 'ex-02', requesterType: 'driver', requesterId: 'd1', requesterName: 'Konan Yao', amount: 25000, category: 'recharge', neededDate: iso(-60 * 48), description: 'Achat câbles de recharge Type 2', status: 'approved', credited: true, cashOut: { channel: 'wave', amount: 25000, at: iso(120) }, receipt: { amount: 22000, at: iso(60), matches: true }, refunded: 3000, createdAt: iso(300) },
+  { id: 'ex-03', requesterType: 'employee', requesterId: 'jean.support', requesterName: 'Jean (Support)', amount: 15000, category: 'deplacement', neededDate: iso(-60 * 24 * 3), description: 'Frais de déplacement inspection', status: 'approved', credited: true, blocked: true, createdAt: iso(60 * 24 * 4) },
+];
+const liquidity = {
+  currency: 'XOF', cashOnHand: 120_000_000, escrow: 50_000_000, virtualHeld: 34_500_000,
+  backingRatio: 145, backingOk: true, monthlyOpex: 8_000_000, netMonthly: 4_200_000,
+  burnRate: 3_800_000, runwayMonths: 31.6,
+};
+const amortization = {
+  vehicles: 3, totalBookValue: 42_600_000,
+  rows: [
+    { id: 'd3', matricule: 'ORION-CI-1207', km: 42000, purchase: 18000000, depreciation: 5040000, bookValue: 12960000 },
+    { id: 'd7', matricule: 'ORION-CI-7788', km: 51000, purchase: 18000000, depreciation: 6120000, bookValue: 11880000 },
+    { id: 'd8', matricule: 'ORION-CI-4820', km: 38000, purchase: 18000000, depreciation: 4560000, bookValue: 13440000 },
+  ],
+};
 
 /** Modération des notes (démo) : dérivée de la flotte, avec deux cas sous le seuil. */
 function quality() {
@@ -354,8 +389,8 @@ const sessions = [
 ];
 
 const clients = [
-  { id: 'client-8842', name: 'Awa Koffi', phone: '+225 07 08 09 10 11', status: 'active', rides: 34, createdAt: iso(60 * 24 * 40), lastSeenAt: iso(120) },
-  { id: 'client-1190', name: 'Jean Brou', phone: '+225 05 44 22 11 00', status: 'active', rides: 12, createdAt: iso(60 * 24 * 15), lastSeenAt: iso(300) },
+  { id: 'client-8842', name: 'Awa Koffi', phone: '+225 07 08 09 10 11', status: 'active', rides: 34, greenPoints: 1284, vipTier: 'platinum', createdAt: iso(60 * 24 * 40), lastSeenAt: iso(120) },
+  { id: 'client-1190', name: 'Jean Brou', phone: '+225 05 44 22 11 00', status: 'active', rides: 12, greenPoints: 642, vipTier: 'gold', createdAt: iso(60 * 24 * 15), lastSeenAt: iso(300) },
   { id: 'client-4521', name: 'Fatou N’Dri', phone: '+225 01 22 33 44 55', status: 'blocked', rides: 3, createdAt: iso(60 * 24 * 5), lastSeenAt: iso(1400) },
 ];
 // Volume réaliste pour la pagination (démo) : ~34 clients.
@@ -509,4 +544,5 @@ export const DEMO = {
   green, teams, predict, conversion, churn, corporate,
   sos: alerts, sosPresets, sosDossier, security, supportStats, macros, triggers, reservations, csat, qualityTop, simulate,
   staffKpis, shifts, maintenance, squadPnl, fraud, elasticity, copilot,
+  expiring, cashDebt, gateways, expenses, liquidity, amortization,
 };

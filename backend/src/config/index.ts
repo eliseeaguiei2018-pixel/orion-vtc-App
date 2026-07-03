@@ -74,6 +74,14 @@ const schema = z.object({
   // Verrouillage auto d'une session après N minutes d'inactivité (écran laissé allumé).
   ADMIN_INACTIVITY_MINUTES: z.coerce.number().int().positive().default(15),
 
+  // --- Trésorerie (macro-économie) ---
+  // Solde du compte séquestre (Escrow) couvrant les portefeuilles virtuels.
+  TREASURY_ESCROW_XOF: z.coerce.number().min(0).default(50_000_000),
+  // OPEX mensuel (charges) pour le calcul du burn rate / runway.
+  TREASURY_MONTHLY_OPEX_XOF: z.coerce.number().min(0).default(8_000_000),
+  // Réserve de trésorerie disponible (cash on hand) pour le calcul du runway.
+  TREASURY_CASH_XOF: z.coerce.number().min(0).default(120_000_000),
+
   // Persistance : 'memory' (volatile, défaut/tests) ou 'sqlite' (durable, fichier local).
   // En production : 'postgres' via la même interface Repository (cf. docs).
   PERSISTENCE: z.enum(['memory', 'sqlite']).default('memory'),

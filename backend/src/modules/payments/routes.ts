@@ -60,6 +60,10 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
       throw badRequest('La course doit être terminée avant paiement');
     }
 
+    // Passerelle désactivée (panne réseau opérateur) → paiement refusé côté serveur.
+    const gateways = container.settings.getServices().gateways ?? {};
+    if (gateways[body.method] === false) throw badRequest('Moyen de paiement temporairement indisponible');
+
     const provider = container.payments.get(body.method as PaymentMethod);
     if (!provider) throw badRequest('Moyen de paiement indisponible');
 
@@ -85,7 +89,16 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
       container.rides.persist(ride);
       // Crédite le gain net du chauffeur (course + attente) et journalise la commission.
       if (ride.driverId) {
-        commission = container.wallet.creditRide(ride.driverId, ride.id, totalDue);
+        const drv = container.drivers.get(ride.driverId);
+        const ops = container.settings.getOps();
+        const isElectric = (drv?.engine ?? 'electric') === 'electric';
+        // Commission modulée : fidélité > verte réduite > standard.
+        const rate = drv?.commissionOverride
+          ?? (isElectric && (drv?.electricRides ?? 0) >= ops.loyaltyRideThreshold ? ops.commissionLoyalty : undefined)
+          ?? (isElectric ? ops.commissionGreen : ops.commissionStandard);
+        commission = container.wallet.creditRide(ride.driverId, ride.id, totalDue, rate);
+        // Compteur de courses électriques (fidélité verte).
+        if (drv && isElectric) { drv.electricRides = (drv.electricRides ?? 0) + 1; container.drivers.persist(drv.id); }
         // Bonus de micro-secteur (fidélisation de l'offre dans les zones premium).
         const zone = container.settings.zoneForPoint(ride.origin);
         if (zone?.driverBonus) {
@@ -100,9 +113,12 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
         container.matching.releaseLock(ride.driverId);
         container.drivers.setAvailability(ride.driverId, 'online');
         // Points Carbone (fidélisation verte) : 1 point par km 100 % électrique payé.
-        const drv = container.drivers.get(ride.driverId);
-        if ((drv?.engine ?? 'electric') === 'electric') {
-          container.clients.addGreenPoints(ride.clientId, Math.max(1, Math.round((ride.quote.distanceMeters ?? 0) / 1000)));
+        if (isElectric) {
+          const km = Math.max(1, Math.round((ride.quote.distanceMeters ?? 0) / 1000));
+          container.clients.addGreenPoints(ride.clientId, km);
+          // Empreinte carbone individuelle du passager (150 g/km thermique − 20 g/km élec.).
+          const c = container.clients.get(ride.clientId);
+          if (c) { c.co2SavedKg = Math.round(((c.co2SavedKg ?? 0) + km * 0.13) * 10) / 10; container.clients.persist(ride.clientId); }
         }
       }
       // ORION Assurance : enregistre la cotisation 2% si activée.

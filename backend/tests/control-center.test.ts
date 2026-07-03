@@ -21,7 +21,7 @@ test('gestion chauffeur : suspension KYC met hors-ligne', async (t) => {
   const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Awa', category: 'bronze' } });
   const id = drv.json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${id}/online`, payload: { position: { lat: 5.324, lng: -4.021 } } });
-  const res = await app.inject({ method: 'POST', url: `/admin/drivers/${id}/kyc`, headers: AUTH, payload: { status: 'suspended' } });
+  const res = await app.inject({ method: 'POST', url: `/admin/drivers/${id}/kyc`, headers: AUTH, payload: { status: 'suspended', reason: 'Contrôle documentaire' } });
   assert.equal(res.statusCode, 200);
   assert.equal(container.drivers.get(id)!.kycStatus, 'suspended');
   assert.equal(container.drivers.get(id)!.availability, 'offline');

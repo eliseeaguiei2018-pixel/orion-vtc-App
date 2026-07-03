@@ -325,3 +325,14 @@ html[data-adm-theme='dark'] .samu-room .adm-card { background: #0a0d0b; }
 /* --- Sessions 8-11 : petits ajustements --- */
 .adm-x { background: none; border: none; color: inherit; cursor: pointer; margin-left: 6px; opacity: .6; font-size: 11px; padding: 0; }
 .adm-x:hover { opacity: 1; color: var(--a-danger); }
+
+/* --- Sessions 12-15 : Kanban KYC + pastilles passerelles --- */
+.kanban { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+.kanban-col { flex: 0 0 200px; background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.kanban-h { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 700; color: var(--a-muted); }
+.kanban-card { text-align: left; background: var(--a-panel); border: 1px solid var(--a-stroke); border-radius: 10px; padding: 8px 10px; cursor: pointer; color: var(--a-text); display: block; }
+.kanban-card:hover { border-color: var(--a-green2); }
+.kanban-card strong { font-size: 13px; }
+.adm-dot { width: 9px; height: 9px; border-radius: 999px; display: inline-block; }
+.adm-dot.green { background: var(--a-green); box-shadow: 0 0 6px rgba(43,255,166,0.5); }
+.adm-dot.red { background: var(--a-danger); }

@@ -71,16 +71,35 @@ export interface CopilotAnswer { query: string; answer: string; data: unknown }
 export interface TravelPolicy { days?: number[]; hourStart?: number; hourEnd?: number; zoneIds?: string[]; maxTier?: string }
 /* --- S11 Litiges --- */
 export interface Garage { id: string; name: string; electric: boolean; zone: string }
+/* --- S12 Chauffeur --- */
+export interface ExpiringDoc { id: string; name: string; matricule: string; insuranceExpiry: string; daysLeft: number }
+/* --- S14 Finances --- */
+export interface CashDebtor { id: string; name: string | null; matricule: string | null; balance: number; limit: number }
+export interface GatewayStatus { method: string; enabled: boolean }
+export interface ExpenseTicket {
+  id: string; requesterType: string; requesterId: string; requesterName: string; amount: number;
+  category: string; neededDate: string; description: string; status: string; createdAt: string;
+  decidedBy?: string; decisionNote?: string; credited?: boolean;
+  cashOut?: { channel: string; amount: number; at: string }; receipt?: { amount: number; at: string; matches: boolean };
+  refunded?: number; blocked?: boolean;
+}
+/* --- S15 Trésorerie --- */
+export interface Liquidity {
+  currency: string; cashOnHand: number; escrow: number; virtualHeld: number;
+  backingRatio: number; backingOk: boolean; monthlyOpex: number; netMonthly: number;
+  burnRate: number; runwayMonths: number | null;
+}
+export interface Amortization { vehicles: number; totalBookValue: number; rows: { id: string; matricule: string; km: number; purchase: number; depreciation: number; bookValue: number }[] }
 export interface FleetUnit { id: string; lat: number; lng: number; name: string; matricule: string | null; category: string; availability: string; }
 export interface RideRow { id: string; clientId: string; driverName: string | null; matricule: string | null; status: string; amount: number; currency: string; trafficLevel: string; anomaly?: string | null; createdAt: string; }
-export interface DriverRow { id: string; name: string; matricule: string; category: string; kycStatus: string; availability: string; rating: number; trips: number; balance: number; }
+export interface DriverRow { id: string; name: string; matricule: string; category: string; kycStatus: string; availability: string; rating: number; trips: number; balance: number; vip?: boolean; loyaltyTier?: string | null; electricRides?: number; suspensionReason?: string | null; }
 export interface Pricing {
   baseFare: number; perKm: number; perMinute: number; minFare: number; avgSpeedKmh: number;
   tvaRate: number; feeRate: number; insuranceRate: number; trafficWeight: number; stopFee: number;
   multipliers: Record<string, number>; bodySurcharge: Record<string, number>;
 }
 export interface Me { name: string; role: string; roleLabel: string; permissions: string[] }
-export interface Client { id: string; name?: string; phone?: string; status: string; rides: number; greenPoints?: number; createdAt: string; lastSeenAt: string }
+export interface Client { id: string; name?: string; phone?: string; status: string; rides: number; greenPoints?: number; vipTier?: string; noSurgeLock?: boolean; createdAt: string; lastSeenAt: string }
 export interface Promo { id: string; kind: 'percent' | 'amount'; value: number; active: boolean; uses: number; maxUses?: number; createdAt: string }
 export interface ServicesConfig { city: string; open: boolean; services: Record<string, boolean> }
 export interface Zone {
@@ -91,7 +110,7 @@ export interface Zone {
 export interface SupportMsg { id: string; from: 'client' | 'agent'; author?: string; text: string; at: string }
 export interface Conversation { id: string; clientId: string; subject: string; status: string; priority?: number; csat?: number; assignee?: string; messages: SupportMsg[]; createdAt: string; updatedAt: string }
 export interface AuditEntry { id: string; at: string; actor: string; role: string; action: string; target?: string; details?: Record<string, unknown> }
-export interface Finance { currency: string; gmv: number; revenue: number; commission: number; earnings: number; payouts: number; byTier: Record<string, { count: number; revenue: number }> }
+export interface Finance { currency: string; gmv: number; revenue: number; commission: number; earnings: number; payouts: number; taxes?: number; byTier: Record<string, { count: number; revenue: number }> }
 export interface Announcement {
   id: string; audience: string; title: string; body: string; author: string; at: string;
   channel?: 'push' | 'sms' | 'email'; segment?: string; zoneId?: string; scheduledAt?: string;
@@ -122,6 +141,8 @@ export interface OpsConfig {
   weightRating: number; weightIdle: number; greenPriority: boolean;
   surgeThreshold: number; surgeSmoothingMin: number;
   refundCap: number; offPeakBonus: number; offPeakStart: number; offPeakEnd: number;
+  cashDebtLimit: number; commissionStandard: number; commissionGreen: number;
+  loyaltyRideThreshold: number; commissionLoyalty: number;
 }
 export interface Team {
   id: string; name: string; managerUsername: string; managerName?: string; driverIds: string[]; createdAt: string;
@@ -177,7 +198,7 @@ export interface DriverDetail {
 }
 export interface ClientDetail {
   id: string; name: string | null; phone: string | null; status: string; rides: number; createdAt: string | null;
-  spent: number; recentRides: DetailRide[]; conversations: { id: string; subject: string; status: string; messages: number }[];
+  spent: number; greenPoints?: number; recentRides: DetailRide[]; conversations: { id: string; subject: string; status: string; messages: number }[];
 }
 
 /* ------------------------------- API --------------------------------- */
@@ -396,6 +417,13 @@ function Console({ onLogout }: { onLogout: () => void }) {
   // S9 IA
   const [fraud, setFraud] = useState<FraudReport | null>(null);
   const [elasticity, setElasticity] = useState<ElasticityCell[]>([]);
+  // S12-S15
+  const [expiring, setExpiring] = useState<ExpiringDoc[]>([]);
+  const [cashDebt, setCashDebt] = useState<CashDebtor[]>([]);
+  const [gateways, setGateways] = useState<GatewayStatus[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseTicket[]>([]);
+  const [liquidity, setLiquidity] = useState<Liquidity | null>(null);
+  const [amortization, setAmortization] = useState<Amortization | null>(null);
   /** Modale « accès refusé » : session verrouillée, tentative signalée à la direction. */
   const [denied, setDenied] = useState<string | null>(null);
   const [muted, setMuted] = useState(() => localStorage.getItem('orion.admin.muted') === '1');
@@ -416,6 +444,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setCsat(DEMO.csat as CsatReport); setQTop(DEMO.qualityTop as QualityTop[]);
     setStaffKpis(DEMO.staffKpis as StaffKpi[]); setShifts(DEMO.shifts as Shift[]); setMaintenance(DEMO.maintenance as MaintenanceTicket[]);
     setFraud(DEMO.fraud as FraudReport); setElasticity(DEMO.elasticity as ElasticityCell[]);
+    setExpiring(DEMO.expiring as ExpiringDoc[]); setCashDebt(DEMO.cashDebt as CashDebtor[]); setGateways(DEMO.gateways as GatewayStatus[]);
+    setExpenses(DEMO.expenses as ExpenseTicket[]); setLiquidity(DEMO.liquidity as Liquidity); setAmortization(DEMO.amortization as Amortization);
     const dr = pageSlice(DEMO.rides, ridesPage); setRides(dr.items); setRidesMeta(dr.meta);
     const dd = pageSlice(DEMO.drivers, driversPage); setDrivers(dd.items); setDriversMeta(dd.meta);
     const dc = pageSlice(DEMO.clients, clientsPage); setClients(dc.items); setClientsMeta(dc.meta);
@@ -450,6 +480,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
         setFleet((await adminGet<{ fleet: FleetUnit[] }>('/admin/fleet/live')).fleet);
         const d = await adminGet<{ drivers: DriverRow[] } & PageMeta>(`/admin/drivers?page=${driversPage}&limit=${PAGE_SIZE}`);
         setDrivers(d.drivers); setDriversMeta({ total: d.total, page: d.page, pages: d.pages });
+        setExpiring((await adminGet<{ drivers: ExpiringDoc[] }>('/admin/drivers/expiring')).drivers);
       }
       if (has('rides:read')) {
         const r = await adminGet<{ rides: RideRow[] } & PageMeta>(`/admin/rides?page=${ridesPage}&limit=${PAGE_SIZE}`);
@@ -467,8 +498,17 @@ function Console({ onLogout }: { onLogout: () => void }) {
         setSupport(sp.conversations); if (sp.stats) setSupportStats(sp.stats);
         setMacros((await adminGet<{ macros: Macro[] }>('/admin/support/macros')).macros);
       }
-      if (has('finance:read')) setFinance(await adminGet<Finance>('/admin/finance'));
-      if (has('treasury:read')) setTransfers((await adminGet<{ transfers: Transfer[] }>('/admin/treasury')).transfers);
+      if (has('finance:read')) {
+        setFinance(await adminGet<Finance>('/admin/finance'));
+        setCashDebt((await adminGet<{ debtors: CashDebtor[] }>('/admin/finance/cash-debt')).debtors);
+        setGateways((await adminGet<{ gateways: GatewayStatus[] }>('/admin/finance/gateways')).gateways);
+        setExpenses((await adminGet<{ tickets: ExpenseTicket[] }>('/admin/expenses')).tickets);
+      }
+      if (has('treasury:read')) {
+        setTransfers((await adminGet<{ transfers: Transfer[] }>('/admin/treasury')).transfers);
+        setLiquidity(await adminGet<Liquidity>('/admin/liquidity'));
+        setAmortization(await adminGet<Amortization>('/admin/treasury/amortization'));
+      }
       if (has('sessions:read')) { const s = await adminGet<{ sessions: ActiveSession[]; self: string | null }>('/admin/sessions'); setSessions(s.sessions); setSelfSession(s.self); }
       if (has('rides:read')) setOps((await adminGet<{ ops: OpsConfig }>('/admin/dispatch')).ops);
       if (has('overview:read')) setGreen(await adminGet<GreenReport>('/admin/green'));
@@ -763,6 +803,57 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setDisputes((xs) => xs.map((d) => (d.id === id ? { ...d, notes: [...(d.notes ?? []), { author: me?.name ?? 'Expert', text, at: new Date().toISOString() }] } : d)));
   };
 
+  /* --- S12 Chauffeur : suspension motivée, fidélité --- */
+  const suspendDriver = async (id: string) => {
+    const reason = window.prompt('Motif de suspension (obligatoire — trace légale) :', '');
+    if (!reason?.trim()) return;
+    if (API) { try { await adminPost(`/admin/drivers/${id}/kyc`, { status: 'suspended', reason: reason.trim() }); void refresh(); return; } catch { /* */ } }
+    setDrivers((xs) => xs.map((d) => (d.id === id ? { ...d, kycStatus: 'suspended', availability: 'offline', suspensionReason: reason.trim() } : d)));
+  };
+  const setLoyalty = async (id: string, tier: string) => {
+    const pct = window.prompt('Commission personnalisée (%) — laisser vide pour aucune :', '10');
+    const override = pct?.trim() ? Number(pct) / 100 : null;
+    if (API) { try { await adminPost(`/admin/drivers/${id}/loyalty`, { loyaltyTier: tier, commissionOverride: override }); void refresh(); return; } catch { /* */ } }
+    setDrivers((xs) => xs.map((d) => (d.id === id ? { ...d, loyaltyTier: tier } : d)));
+  };
+
+  /* --- S13 Client : VIP, blacklist, no-show --- */
+  const setClientVip = async (id: string, tier: string, noSurgeLock: boolean) => {
+    if (API) { try { await adminPost(`/admin/clients/${id}/vip`, { vipTier: tier, noSurgeLock }); } catch { /* */ } }
+    alert(`Client ${id} → ${tier}${noSurgeLock ? ' · no-surge verrouillé' : ''}.`);
+  };
+  const blacklistClient = async (id: string) => {
+    const imei = window.prompt('Liste noire — IMEI de l’appareil (bloque la réinscription) :', '');
+    if (imei === null) return;
+    if (API) { try { await adminPost(`/admin/clients/${id}/blacklist`, { imei, reason: 'Bannissement manuel' }); } catch { /* */ } }
+    setClients((xs) => xs.map((c) => (c.id === id ? { ...c, status: 'blocked' } : c)));
+    setClientSel((c) => (c && c.id === id ? { ...c, status: 'blocked' } : c));
+  };
+  const noShowFee = async (id: string) => {
+    const fee = window.prompt('Frais de no-show à prélever (F CFA) — vérifiés au GPS :', '1000');
+    if (!fee) return;
+    if (API) { try { await adminPost(`/admin/clients/${id}/noshow`, { fee: Number(fee) }); } catch { /* */ } }
+    alert(`Frais de no-show de ${fcfa(Number(fee))} prélevés sur ${id}.`);
+  };
+
+  /* --- S14 Finances : gateways, notes de frais --- */
+  const toggleGateway = async (method: string, enabled: boolean) => {
+    if (API) { try { await adminPost('/admin/finance/gateways', { method, enabled }); } catch { /* */ } }
+    setGateways((xs) => xs.map((g) => (g.method === method ? { ...g, enabled } : g)));
+  };
+  const decideExpense = async (id: string, decision: 'approve' | 'reject' | 'info') => {
+    if (API) { try { await adminPost(`/admin/expenses/${id}/decide`, { decision }); void refresh(); return; } catch { /* */ } }
+    setExpenses((xs) => xs.map((t) => (t.id === id ? { ...t, status: decision === 'approve' ? 'approved' : decision === 'reject' ? 'rejected' : 'info_requested', credited: decision === 'approve' } : t)));
+  };
+  const newExpense = async () => {
+    const amount = window.prompt('Montant de l’avance demandée (F CFA) :', '50000');
+    if (!amount) return;
+    const description = window.prompt('Justification :', 'Campagne marketing terrain');
+    if (!description) return;
+    if (API) { try { await adminPost('/admin/expenses', { amount: Number(amount), category: 'marketing', neededDate: new Date().toISOString(), description }); void refresh(); return; } catch { alert('Compte gelé (justificatif en retard) ou non autorisé.'); return; } }
+    setExpenses((xs) => [{ id: Math.random().toString(36).slice(2, 8), requesterType: 'employee', requesterId: me?.name ?? 'moi', requesterName: me?.name ?? 'Moi', amount: Number(amount), category: 'marketing', neededDate: new Date().toISOString(), description, status: 'pending', createdAt: new Date().toISOString() }, ...xs]);
+  };
+
   /** Télécharge un CSV : via l'API (avec session JWT) ou généré localement (démo). */
   const downloadCsv = async (path: string, filename: string, local: () => string) => {
     let content: string;
@@ -1022,11 +1113,11 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'teams' && <TeamsSection teams={teams} allDrivers={drivers} staffKpis={staffKpis} shifts={shifts} maintenance={maintenance} canWrite={can('teams:write')} onSave={saveTeam} onDelete={deleteTeam} onShift={assignShift} onRemoveShift={removeShift} onMaintenance={openMaintenance} onResolveMaintenance={resolveMaintenance} onBroadcast={microBroadcast} onPnl={loadSquadPnl} onHoursCsv={() => void downloadCsv('/admin/staff/hours.csv', 'orion-heures.csv', () => 'employe,identifiant,date,tranche,zone')} onEvalPdf={(u) => void downloadFile(`/admin/staff/${u}/eval.pdf`, `orion-eval-${u}.pdf`)} />}
         {section === 'intel' && <IntelSection predict={predict} conversion={conversion} churn={churn} fraud={fraud} elasticity={elasticity} canNotify={can('notify:write')} onReengage={reengage} onCopilot={askCopilot} />}
         {section === 'b2b' && <CorporateSection accounts={corporate} canWrite={can('treasury:request')} canSettle={can('treasury:approve')} canBook={can('rides:write')} onSave={saveCorporate} onSettle={settleCorporate} onInvoice={exportInvoice} onEsg={(id) => void downloadFile(`/admin/corporate/${id}/esg.pdf`, `orion-esg-${id}.pdf`)} onInvoicePdf={(id) => void downloadFile(`/admin/corporate/${id}/invoice.pdf`, `facture-${id}.pdf`)} onImport={importMembers} onBook={webBook} />}
-        {section === 'drivers' && <DriversSection drivers={drivers} canWrite={can('drivers:write')} onAction={driverAction} onOpen={openDriver} meta={driversMeta} onPage={setDriversPage} />}
-        {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} onOpen={openClient} meta={clientsMeta} onPage={setClientsPage} />}
+        {section === 'drivers' && <DriversSection drivers={drivers} expiring={expiring} canWrite={can('drivers:write')} onAction={driverAction} onSuspend={suspendDriver} onLoyalty={setLoyalty} onOpen={openDriver} meta={driversMeta} onPage={setDriversPage} onContract={(id) => void downloadFile(`/admin/drivers/${id}/contract.pdf`, `orion-contrat-${id.slice(0, 8)}.pdf`)} onFleetCsv={() => void downloadCsv('/admin/fleet.csv', 'orion-flotte.csv', () => 'matricule,nom,motorisation')} />}
+        {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} onOpen={openClient} meta={clientsMeta} onPage={setClientsPage} onVip={setClientVip} onBlacklist={blacklistClient} onNoShow={noShowFee} onLtvCsv={() => void downloadCsv('/admin/clients.csv', 'orion-clients-ltv.csv', () => 'client,nom')} onBehaviorPdf={() => void downloadFile('/admin/clients/behavior.pdf', 'orion-comportement-clients.pdf')} />}
         {section === 'notify' && <NotifySection broadcasts={broadcasts} triggers={triggers} canWrite={can('notify:write')} onSend={sendBroadcast} onTrigger={runTrigger} />}
-        {section === 'finance' && finance && <FinanceSection finance={finance} onExport={exportCsv} canExport={can('rides:read')} />}
-        {section === 'treasury' && <TreasurySection transfers={transfers} meName={me.name} canRequest={can('treasury:request')} canApprove={can('treasury:approve')} onRequest={requestTransfer} onDecide={decideTransfer} onExport={exportTreasuryCsv} />}
+        {section === 'finance' && finance && <FinanceSection finance={finance} ops={ops} cashDebt={cashDebt} gateways={gateways} expenses={expenses} onExport={exportCsv} canExport={can('rides:read')} canWrite={can('pricing:write')} canGateway={can('services:write')} canApprove={can('treasury:request')} onSaveOps={saveOps} onToggleGateway={toggleGateway} onDecideExpense={decideExpense} onNewExpense={newExpense} onPayouts={() => void downloadCsv('/admin/payouts.csv', 'orion-payouts.csv', () => 'matricule,nom,solde')} />}
+        {section === 'treasury' && <TreasurySection transfers={transfers} meName={me.name} liquidity={liquidity} amortization={amortization} canRequest={can('treasury:request')} canApprove={can('treasury:approve')} onRequest={requestTransfer} onDecide={decideTransfer} onExport={exportTreasuryCsv} onReportPdf={() => void downloadFile('/admin/treasury/report.pdf', 'orion-tresorerie-executif.pdf')} />}
         {section === 'pricing' && pricing && <PricingEditor pricing={pricing} canWrite={can('pricing:write')} onSave={savePricing} />}
         {section === 'zones' && <ZonesSection zones={zones} canWrite={can('pricing:write')} onSave={saveZone} onToggle={toggleZone} onDelete={deleteZone} onReset={resetZones} />}
         {section === 'promos' && <PromosSection promos={promos} canWrite={can('promos:write')} onSave={savePromo} onToggle={togglePromo} onDelete={deletePromo} />}
@@ -1856,54 +1947,133 @@ function ForensicDrawer({ f, onClose }: { f: RideForensic; onClose: () => void }
   );
 }
 
-function DriversSection({ drivers, canWrite, onAction, onOpen, meta, onPage }: { drivers: DriverRow[]; canWrite: boolean; onAction: (id: string, kind: 'kyc' | 'availability', value: string) => void; onOpen: (id: string) => void; meta: PageMeta; onPage: (p: number) => void }) {
+const KYC_COLUMNS: { id: string; label: string }[] = [
+  { id: 'draft', label: 'Nouveau dossier' },
+  { id: 'docs_submitted', label: 'Documents en analyse' },
+  { id: 'manual_review', label: 'Entretien / formation' },
+  { id: 'approved', label: 'En attente d’activation' },
+  { id: 'active', label: 'Actifs' },
+  { id: 'suspended', label: 'Suspendus / rejetés' },
+];
+const LOYALTY_LABEL: Record<string, string> = { bronze: '🥉 Bronze', silver: '🥈 Silver', gold: '🥇 Gold' };
+
+function DriversSection({ drivers, expiring, canWrite, onAction, onSuspend, onLoyalty, onOpen, meta, onPage, onContract, onFleetCsv }: {
+  drivers: DriverRow[]; expiring: ExpiringDoc[]; canWrite: boolean;
+  onAction: (id: string, kind: 'kyc' | 'availability', value: string) => void;
+  onSuspend: (id: string) => void; onLoyalty: (id: string, tier: string) => void;
+  onOpen: (id: string) => void; meta: PageMeta; onPage: (p: number) => void;
+  onContract: (id: string) => void; onFleetCsv: () => void;
+}) {
+  const [kanban, setKanban] = useState(false);
   return (
-    <div className="adm-card">
-      <div className="adm-card-h"><h3>Chauffeurs</h3><span className="adm-muted">{meta.total}</span></div>
-      <table className="adm-table">
-        <thead><tr><th>Nom</th><th>Matricule</th><th>Niveau</th><th>KYC</th><th>État</th><th className="r">Solde</th><th className="r">Note</th>{canWrite && <th>Actions</th>}</tr></thead>
-        <tbody>
-          {drivers.map((d) => (
-            <tr key={d.id} className="adm-row-click" onClick={() => onOpen(d.id)}>
-              <td>{d.name}</td><td className="mono">{d.matricule}</td><td className="cap">{d.category}</td>
-              <td><span className={`adm-pill kyc-${d.kycStatus}`}>{kycLabel(d.kycStatus)}</span></td>
-              <td><span className={`adm-pill av-${d.availability}`}>{availLabel(d.availability)}</span></td>
-              <td className="r">{fcfa(d.balance)}</td><td className="r">★ {d.rating.toFixed(2)}</td>
-              {canWrite && (
-                <td onClick={(e) => e.stopPropagation()}>
-                  <div className="row" style={{ gap: 6 }}>
-                    {d.kycStatus !== 'active' && <button className="adm-btn xs solid" onClick={() => onAction(d.id, 'kyc', 'active')}>Approuver</button>}
-                    {d.kycStatus !== 'suspended'
-                      ? <button className="adm-btn xs" onClick={() => onAction(d.id, 'kyc', 'suspended')}>Suspendre</button>
-                      : <button className="adm-btn xs" onClick={() => onAction(d.id, 'kyc', 'active')}>Réactiver</button>}
-                  </div>
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <Pager meta={meta} onPage={onPage} />
-    </div>
+    <>
+      {expiring.length > 0 && (
+        <div className="adm-card" style={{ borderColor: 'var(--a-danger)' }}>
+          <div className="adm-card-h"><h3>⚠️ Documents expirant sous 30 jours</h3><span className="adm-muted">{expiring.length} véhicule(s)</span></div>
+          <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+            {expiring.map((e) => (
+              <span key={e.id} className={`adm-pill ${e.daysLeft <= 7 ? 'tr-rejected' : 'tr-pending'}`}>{e.name} · assurance J-{e.daysLeft}</span>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="adm-card">
+        <div className="adm-card-h">
+          <h3>Chauffeurs</h3>
+          <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+            <span className="adm-muted">{meta.total}</span>
+            <div className="adm-seg"><button className={`adm-seg-b${!kanban ? ' on' : ''}`} onClick={() => setKanban(false)}>Table</button><button className={`adm-seg-b${kanban ? ' on' : ''}`} onClick={() => setKanban(true)}>Pipeline KYC</button></div>
+            <button className="adm-btn xs" onClick={onFleetCsv}>⬇ Matrice flotte (CSV)</button>
+          </div>
+        </div>
+        {kanban ? (
+          <div className="kanban">
+            {KYC_COLUMNS.map((col) => {
+              const items = drivers.filter((d) => d.kycStatus === col.id);
+              return (
+                <div key={col.id} className="kanban-col">
+                  <div className="kanban-h">{col.label}<span className="adm-pill">{items.length}</span></div>
+                  {items.map((d) => (
+                    <button key={d.id} className="kanban-card" onClick={() => onOpen(d.id)}>
+                      <strong>{d.name}</strong>
+                      <div className="adm-muted mono" style={{ fontSize: 11 }}>{d.matricule} · {d.category}</div>
+                      {d.suspensionReason && <div className="adm-muted" style={{ fontSize: 11, color: 'var(--a-danger)' }}>{d.suspensionReason}</div>}
+                    </button>
+                  ))}
+                  {items.length === 0 && <span className="adm-muted" style={{ fontSize: 12 }}>—</span>}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <table className="adm-table">
+            <thead><tr><th>Nom</th><th>Matricule</th><th>Niveau</th><th>KYC</th><th>Fidélité</th><th className="r">Solde</th><th className="r">Note</th>{canWrite && <th>Actions</th>}</tr></thead>
+            <tbody>
+              {drivers.map((d) => (
+                <tr key={d.id} className="adm-row-click" onClick={() => onOpen(d.id)}>
+                  <td>{d.name}{d.vip && <span className="adm-pill av-online" style={{ marginLeft: 6 }}>VIP</span>}</td><td className="mono">{d.matricule}</td><td className="cap">{d.category}</td>
+                  <td><span className={`adm-pill kyc-${d.kycStatus}`}>{kycLabel(d.kycStatus)}</span></td>
+                  <td>{d.loyaltyTier ? <span className="adm-pill">{LOYALTY_LABEL[d.loyaltyTier] ?? d.loyaltyTier}</span> : <span className="adm-muted">—</span>}{(d.electricRides ?? 0) > 0 && <span className="adm-muted" style={{ fontSize: 11, display: 'block' }}>{d.electricRides} élec.</span>}</td>
+                  <td className="r">{fcfa(d.balance)}</td><td className="r">★ {d.rating.toFixed(2)}</td>
+                  {canWrite && (
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                        {d.kycStatus !== 'active' && <button className="adm-btn xs solid" onClick={() => onAction(d.id, 'kyc', 'active')}>Approuver</button>}
+                        {d.kycStatus !== 'suspended'
+                          ? <button className="adm-btn xs" onClick={() => onSuspend(d.id)}>Suspendre</button>
+                          : <button className="adm-btn xs" onClick={() => onAction(d.id, 'kyc', 'active')}>Réactiver</button>}
+                        <button className="adm-btn xs" title="Fidélité (commission réduite)" onClick={() => onLoyalty(d.id, 'gold')}>🏅</button>
+                        <button className="adm-btn xs" title="Contrat de partenariat PDF" onClick={() => onContract(d.id)}>📄</button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {!kanban && <Pager meta={meta} onPage={onPage} />}
+      </div>
+    </>
   );
 }
 
-function ClientsSection({ clients, canWrite, onStatus, onOpen, meta, onPage }: { clients: Client[]; canWrite: boolean; onStatus: (id: string, s: string) => void; onOpen: (id: string) => void; meta: PageMeta; onPage: (p: number) => void }) {
+const VIP_LABEL: Record<string, string> = { gold: '⭐ Gold', platinum: '💎 Platinum' };
+function ClientsSection({ clients, canWrite, onStatus, onOpen, meta, onPage, onVip, onBlacklist, onNoShow, onLtvCsv, onBehaviorPdf }: {
+  clients: Client[]; canWrite: boolean; onStatus: (id: string, s: string) => void; onOpen: (id: string) => void;
+  meta: PageMeta; onPage: (p: number) => void;
+  onVip: (id: string, tier: string, noSurgeLock: boolean) => void; onBlacklist: (id: string) => void; onNoShow: (id: string) => void;
+  onLtvCsv: () => void; onBehaviorPdf: () => void;
+}) {
   return (
     <div className="adm-card">
-      <div className="adm-card-h"><h3>Clients</h3><span className="adm-muted">{meta.total}</span></div>
+      <div className="adm-card-h">
+        <h3>Clients (CRM 360°)</h3>
+        <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+          <span className="adm-muted">{meta.total}</span>
+          <button className="adm-btn xs" onClick={onLtvCsv}>⬇ LTV/CAC (CSV)</button>
+          <button className="adm-btn xs" onClick={onBehaviorPdf}>⬇ Comportement (PDF)</button>
+        </div>
+      </div>
       <table className="adm-table">
-        <thead><tr><th>Client</th><th>Téléphone</th><th className="r">Courses</th><th>Statut</th>{canWrite && <th>Actions</th>}</tr></thead>
+        <thead><tr><th>Client</th><th>Téléphone</th><th>VIP</th><th className="r">Courses</th><th>Statut</th>{canWrite && <th>Actions</th>}</tr></thead>
         <tbody>
           {clients.map((c) => (
             <tr key={c.id} className="adm-row-click" onClick={() => onOpen(c.id)}>
-              <td>{c.name ?? c.id}<div className="mono adm-muted" style={{ fontSize: 11 }}>{c.id}</div></td>
-              <td>{c.phone ?? '—'}</td><td className="r">{c.rides}</td>
+              <td>{c.name ?? c.id}<div className="mono adm-muted" style={{ fontSize: 11 }}>{c.id}{(c.greenPoints ?? 0) > 0 ? ` · 🌿 ${c.greenPoints}` : ''}</div></td>
+              <td>{c.phone ?? '—'}</td>
+              <td>{c.vipTier && c.vipTier !== 'standard' ? <span className="adm-pill av-online">{VIP_LABEL[c.vipTier] ?? c.vipTier}</span> : <span className="adm-muted">—</span>}</td>
+              <td className="r">{c.rides}</td>
               <td><span className={`adm-pill ${c.status === 'blocked' ? 'kyc-manual_review' : 'av-online'}`}>{c.status === 'blocked' ? 'Bloqué' : 'Actif'}</span></td>
               {canWrite && (
-                <td onClick={(e) => e.stopPropagation()}>{c.status === 'blocked'
-                  ? <button className="adm-btn xs solid" onClick={() => onStatus(c.id, 'active')}>Débloquer</button>
-                  : <button className="adm-btn xs" onClick={() => onStatus(c.id, 'blocked')}>Bloquer</button>}
+                <td onClick={(e) => e.stopPropagation()}>
+                  <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                    <button className="adm-btn xs" title="Verrouiller VIP no-surge" onClick={() => onVip(c.id, 'platinum', true)}>💎</button>
+                    <button className="adm-btn xs" title="Frais de no-show (GPS)" onClick={() => onNoShow(c.id)}>🚫</button>
+                    {c.status === 'blocked'
+                      ? <button className="adm-btn xs solid" onClick={() => onStatus(c.id, 'active')}>Débloquer</button>
+                      : <button className="adm-btn xs" title="Liste noire (IMEI/e-mail/tél.)" onClick={() => onBlacklist(c.id)}>Bannir</button>}
+                  </div>
                 </td>
               )}
             </tr>
@@ -2290,7 +2460,19 @@ function NotifySection({ broadcasts, triggers, canWrite, onSend, onTrigger }: {
 }
 
 const TIER_LABEL: Record<string, string> = { bronze: 'Bronze', argent: 'Argent', or: 'Or', diamant: 'Diamant', livraison: 'Livraison', ride: 'Course' };
-function FinanceSection({ finance, onExport, canExport }: { finance: Finance; onExport: () => void; canExport: boolean }) {
+const GW_LABEL: Record<string, string> = { orange_money: 'Orange Money', mtn_momo: 'MTN MoMo', moov_money: 'Moov Money', wave: 'Wave', card: 'Carte bancaire', cash: 'Espèces' };
+const EXP_STATUS: Record<string, { label: string; cls: string }> = {
+  pending: { label: 'En attente CFO', cls: 'tr-pending' }, info_requested: { label: 'Complément demandé', cls: 'tr-pending' },
+  approved: { label: 'Approuvé', cls: 'tr-approved' }, rejected: { label: 'Rejeté', cls: 'tr-rejected' },
+};
+const EXP_CAT: Record<string, string> = { marketing: 'Marketing', recharge: 'Recharge', deplacement: 'Déplacement', materiel: 'Matériel', autre: 'Autre' };
+
+function FinanceSection({ finance, ops, cashDebt, gateways, expenses, onExport, canExport, canWrite, canGateway, canApprove, onSaveOps, onToggleGateway, onDecideExpense, onNewExpense, onPayouts }: {
+  finance: Finance; ops: OpsConfig | null; cashDebt: CashDebtor[]; gateways: GatewayStatus[]; expenses: ExpenseTicket[];
+  onExport: () => void; canExport: boolean; canWrite: boolean; canGateway: boolean; canApprove: boolean;
+  onSaveOps: (p: Partial<OpsConfig>) => void; onToggleGateway: (m: string, e: boolean) => void;
+  onDecideExpense: (id: string, d: 'approve' | 'reject' | 'info') => void; onNewExpense: () => void; onPayouts: () => void;
+}) {
   const tiers = Object.entries(finance.byTier);
   const maxRev = Math.max(1, ...tiers.map(([, v]) => v.revenue));
   return (
@@ -2299,8 +2481,91 @@ function FinanceSection({ finance, onExport, canExport }: { finance: Finance; on
         <Kpi label="GMV (volume)" value={fcfa(finance.gmv)} sub="toutes courses" tone="teal" />
         <Kpi label="Revenu encaissé" value={fcfa(finance.revenue)} sub="courses payées" tone="green" />
         <Kpi label="Commission ORION" value={fcfa(finance.commission)} sub="marge plateforme" tone="mint" />
-        <Kpi label="Payouts chauffeurs" value={fcfa(finance.payouts)} sub="retraits versés" tone="muted" />
+        <Kpi label="TVA collectée" value={fcfa(finance.taxes ?? 0)} sub="compte d'attente fiscal" tone="muted" />
       </section>
+
+      {/* Moteur de commissions (take-rate) */}
+      {ops && canWrite && (
+        <div className="adm-card">
+          <div className="adm-card-h"><h3>Moteur de commissions (take-rate)</h3></div>
+          <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <label className="price-field"><span>Commission standard (%)</span><input type="number" min={0} max={50} value={Math.round(ops.commissionStandard * 100)} onChange={(e) => onSaveOps({ commissionStandard: Number(e.target.value) / 100 })} /></label>
+            <label className="price-field"><span>Commission verte réduite (%)</span><input type="number" min={0} max={50} value={Math.round(ops.commissionGreen * 100)} onChange={(e) => onSaveOps({ commissionGreen: Number(e.target.value) / 100 })} /></label>
+            <label className="price-field"><span>Plafond dette espèces (F)</span><input type="number" min={0} step={5000} value={ops.cashDebtLimit} onChange={(e) => onSaveOps({ cashDebtLimit: Number(e.target.value) })} /></label>
+            <label className="price-field"><span>Seuil fidélité (courses élec.)</span><input type="number" min={0} step={100} value={ops.loyaltyRideThreshold} onChange={(e) => onSaveOps({ loyaltyRideThreshold: Number(e.target.value) })} /></label>
+            <label className="price-field"><span>Commission fidélité (%)</span><input type="number" min={0} max={50} value={Math.round(ops.commissionLoyalty * 100)} onChange={(e) => onSaveOps({ commissionLoyalty: Number(e.target.value) / 100 })} /></label>
+          </div>
+          <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
+            Commission modulée par gamme (verte réduite pour encourager la transition) et par fidélité
+            (au-delà du seuil de courses électriques). Split payment : la part chauffeur, la commission ORION
+            et la TVA sont isolées automatiquement à chaque course.
+          </p>
+        </div>
+      )}
+
+      {/* Passerelles de paiement */}
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Passerelles de paiement (monitoring)</h3><button className="adm-btn xs" onClick={onPayouts}>⬇ Virements de masse (CSV)</button></div>
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+          {gateways.map((g) => (
+            <div key={g.method} className="row" style={{ gap: 8, alignItems: 'center', padding: '6px 10px', background: 'var(--a-panel2)', borderRadius: 8 }}>
+              <span className={`adm-dot ${g.enabled ? 'green' : 'red'}`} />
+              <span style={{ fontSize: 13 }}>{GW_LABEL[g.method] ?? g.method}</span>
+              {canGateway && <button className={`adm-toggle${g.enabled ? ' on' : ''}`} onClick={() => onToggleGateway(g.method, !g.enabled)}><span /></button>}
+            </div>
+          ))}
+        </div>
+        <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>En cas de panne réseau opérateur, coupez la passerelle : le moyen de paiement est désactivé côté application client.</p>
+      </div>
+
+      {/* Recouvrement dette espèces */}
+      {cashDebt.length > 0 && (
+        <div className="adm-card" style={{ borderColor: 'var(--a-danger)' }}>
+          <div className="adm-card-h"><h3>⚠️ Recouvrement — dette espèces</h3><span className="adm-muted">{cashDebt.length} chauffeur(s) au-delà du plafond</span></div>
+          <table className="adm-table sm">
+            <thead><tr><th>Chauffeur</th><th>Matricule</th><th className="r">Solde</th><th className="r">Plafond</th></tr></thead>
+            <tbody>
+              {cashDebt.map((d) => (
+                <tr key={d.id}><td>{d.name ?? d.id}</td><td className="mono">{d.matricule ?? '—'}</td><td className="r neg">{fcfa(d.balance)}</td><td className="r">{fcfa(-d.limit)}</td></tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="adm-muted" style={{ margin: '8px 0 0', fontSize: 12 }}>Ces chauffeurs ne reçoivent que des courses payées par carte jusqu'à épuration de la dette.</p>
+        </div>
+      )}
+
+      {/* Notes de frais & avances */}
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Notes de frais & avances</h3><button className="adm-btn xs solid" onClick={onNewExpense}>+ Demande de financement</button></div>
+        {expenses.length === 0 && <p className="adm-empty">Aucune demande. Les employés et chauffeurs soumettent leurs tickets ici.</p>}
+        <div className="stack" style={{ gap: 8 }}>
+          {expenses.map((t) => (
+            <div key={t.id} className="adm-dispute">
+              <div className="row between" style={{ flexWrap: 'wrap', gap: 8 }}>
+                <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <strong>{fcfa(t.amount)}</strong>
+                  <span className="adm-pill">{EXP_CAT[t.category] ?? t.category}</span>
+                  <span className={`adm-pill ${EXP_STATUS[t.status]?.cls ?? ''}`}>{EXP_STATUS[t.status]?.label ?? t.status}</span>
+                  {t.blocked && <span className="adm-pill tr-rejected">🔒 gelé (justif. en retard)</span>}
+                  {t.cashOut && <span className="adm-pill av-online">décaissé {t.cashOut.channel}</span>}
+                  {t.receipt && <span className={`adm-pill ${t.receipt.matches ? 'tr-approved' : 'tr-rejected'}`}>justif. {fcfa(t.receipt.amount)}</span>}
+                  {t.refunded ? <span className="adm-pill">reliquat {fcfa(t.refunded)}</span> : null}
+                </div>
+                <span className="adm-muted" style={{ fontSize: 12 }}>{t.requesterName}</span>
+              </div>
+              <p style={{ margin: '6px 0', fontSize: 13 }}>{t.description}</p>
+              {canApprove && t.status === 'pending' && (
+                <div className="row" style={{ gap: 6 }}>
+                  <button className="adm-btn xs solid" onClick={() => onDecideExpense(t.id, 'approve')}>Approuver (crédit instantané)</button>
+                  <button className="adm-btn xs" onClick={() => onDecideExpense(t.id, 'info')}>Complément</button>
+                  <button className="adm-btn xs" onClick={() => onDecideExpense(t.id, 'reject')}>Rejeter</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="adm-card">
         <div className="adm-card-h"><h3>Revenu par catégorie</h3>{canExport && <button className="adm-btn ghost" onClick={onExport}>⬇ Exporter CSV</button>}</div>
         <div className="stack" style={{ gap: 10, marginTop: 6 }}>
@@ -2474,11 +2739,12 @@ const TR_STATUS: Record<string, { label: string; cls: string }> = {
   rejected: { label: 'Rejeté', cls: 'tr-rejected' },
 };
 
-function TreasurySection({ transfers, meName, canRequest, canApprove, onRequest, onDecide, onExport }: {
-  transfers: Transfer[]; meName: string; canRequest: boolean; canApprove: boolean;
+function TreasurySection({ transfers, meName, liquidity, amortization, canRequest, canApprove, onRequest, onDecide, onExport, onReportPdf }: {
+  transfers: Transfer[]; meName: string; liquidity: Liquidity | null; amortization: Amortization | null;
+  canRequest: boolean; canApprove: boolean;
   onRequest: (i: { amount: number; destination: string; reason: string }) => void;
   onDecide: (id: string, action: 'approve' | 'reject', note?: string) => void;
-  onExport: () => void;
+  onExport: () => void; onReportPdf: () => void;
 }) {
   const [amount, setAmount] = useState(1_000_000);
   const [destination, setDestination] = useState('');
@@ -2492,6 +2758,31 @@ function TreasurySection({ transfers, meName, canRequest, canApprove, onRequest,
   };
   return (
     <>
+      {/* Tour de contrôle liquidité (macro-économie) */}
+      {liquidity && (
+        <>
+          <section className="adm-kpis">
+            <Kpi label="Cash on hand" value={fcfa(liquidity.cashOnHand)} sub="liquidités consolidées" tone="teal" />
+            <Kpi label="Ratio de couverture" value={`${liquidity.backingRatio} %`} sub={liquidity.backingOk ? 'séquestre conforme' : 'SOUS-CAPITALISÉ'} tone={liquidity.backingOk ? 'green' : 'danger'} />
+            <Kpi label="Burn rate / mois" value={fcfa(liquidity.burnRate)} sub={liquidity.burnRate <= 0 ? 'rentable' : 'consommation de capital'} tone={liquidity.burnRate <= 0 ? 'mint' : 'danger'} />
+            <Kpi label="Runway" value={liquidity.runwayMonths === null ? '∞' : `${liquidity.runwayMonths} mois`} sub="avant levée de fonds" tone="muted" />
+          </section>
+          <div className="adm-card">
+            <div className="adm-card-h"><h3>Garantie des portefeuilles (escrow)</h3><button className="adm-btn xs solid" onClick={onReportPdf}>⬇ Reporting exécutif (PDF)</button></div>
+            <div className="row" style={{ gap: 18, flexWrap: 'wrap' }}>
+              <div><span className="adm-muted" style={{ fontSize: 12 }}>Argent virtuel détenu (wallets)</span><div><strong>{fcfa(liquidity.virtualHeld)}</strong></div></div>
+              <div><span className="adm-muted" style={{ fontSize: 12 }}>Compte séquestre</span><div><strong>{fcfa(liquidity.escrow)}</strong></div></div>
+              <div><span className="adm-muted" style={{ fontSize: 12 }}>Revenu net mensuel</span><div><strong>{fcfa(liquidity.netMonthly)}</strong></div></div>
+            </div>
+            {!liquidity.backingOk && <p style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--a-danger)' }}>🔴 Alerte : l'argent virtuel dépasse le séquestre. Transférez des fonds vers le compte séquestre (risque de bank-run).</p>}
+            {amortization && amortization.vehicles > 0 && (
+              <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
+                Flotte électrique en propre (CAPEX) : {amortization.vehicles} véhicule(s) · valeur nette comptable {fcfa(amortization.totalBookValue)} (amortissement selon les km).
+              </p>
+            )}
+          </div>
+        </>
+      )}
       <div className="adm-card">
         <p className="adm-muted" style={{ margin: 0 }}>
           <strong>Double validation obligatoire</strong> : le Directeur Financier <em>demande</em> un virement,

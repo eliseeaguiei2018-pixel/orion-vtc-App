@@ -130,6 +130,12 @@ export async function greenTelemetryRoutes(app: import('fastify').FastifyInstanc
       birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       vehiclePlate: z.string().min(3).max(15).optional(),
       vehicleColor: z.string().min(3).max(20).optional(),
+      /* Conformité éco-responsable + vérif fiscale/bancaire (session Chauffeur). */
+      batteryKwh: z.number().min(0).max(300).optional(),
+      plugType: z.string().min(2).max(20).optional(),
+      cablesConfirmed: z.boolean().optional(),
+      ribVerified: z.boolean().optional(),
+      nif: z.string().min(3).max(40).optional(),
     }), req.body);
     const d = container.drivers.get(id);
     if (!d) throw notFound('Chauffeur introuvable');
@@ -140,6 +146,11 @@ export async function greenTelemetryRoutes(app: import('fastify').FastifyInstanc
     if (body.birthDate) d.birthDate = body.birthDate;
     if (body.vehiclePlate) d.vehiclePlate = body.vehiclePlate;
     if (body.vehicleColor) d.vehicleColor = body.vehicleColor;
+    if (body.batteryKwh !== undefined) d.batteryKwh = body.batteryKwh;
+    if (body.plugType) d.plugType = body.plugType;
+    if (body.cablesConfirmed !== undefined) d.cablesConfirmed = body.cablesConfirmed;
+    if (body.ribVerified !== undefined) d.ribVerified = body.ribVerified;
+    if (body.nif) d.nif = body.nif;
     container.drivers.persist(id);
     return { ok: true };
   });

@@ -4,6 +4,7 @@ import type { Ride } from '../rides/store.js';
 import type { EmergencyAlert } from '../safety/service.js';
 import { haversineMeters } from '../../core/geo.js';
 import { simplePdf } from '../../core/pdf.js';
+import { config } from '../../config/index.js';
 
 /**
  * Service d'agrégation pour le dashboard Admin / supervision SAMU.
@@ -350,6 +351,9 @@ export class AdminService {
       trained: d.trained ?? false,
       zoneLockId: d.zoneLockId ?? null,
       vip: d.vip ?? false,
+      loyaltyTier: d.loyaltyTier ?? null,
+      electricRides: d.electricRides ?? 0,
+      suspensionReason: d.suspensionReason ?? null,
     }));
     return { drivers, ...meta };
   }
@@ -972,6 +976,202 @@ export class AdminService {
       '',
       'Detail ligne par ligne fourni en annexe Excel (export CSV).',
       'Document comptable ORION - pret pour integration ERP.',
+    ]);
+  }
+
+  /* ==================== SESSION CHAUFFEUR (S12) ==================== */
+
+  /** Documents expirant sous 30 jours (assurance / contrôle technique). */
+  driverExpiring(days = 30) {
+    const soon = Date.now() + days * 86_400_000;
+    return this.c.drivers.list()
+      .filter((d) => d.insuranceExpiry && Date.parse(d.insuranceExpiry) <= soon)
+      .map((d) => ({
+        id: d.id, name: d.name, matricule: d.matricule, insuranceExpiry: d.insuranceExpiry!,
+        daysLeft: Math.round((Date.parse(d.insuranceExpiry!) - Date.now()) / 86_400_000),
+      }))
+      .sort((a, b) => a.daysLeft - b.daysLeft);
+  }
+
+  /** Contrat de partenariat PDF (données du profil + commission + espace signature). */
+  driverContractPdf(id: string): Buffer | null {
+    const d = this.c.drivers.get(id);
+    if (!d) return null;
+    const ops = this.c.settings.getOps();
+    const rate = d.commissionOverride ?? ((d.engine ?? 'electric') === 'electric' ? ops.commissionGreen : ops.commissionStandard);
+    return simplePdf([
+      'ORION - CONTRAT DE PARTENARIAT CHAUFFEUR',
+      `Genere le ${new Date().toLocaleDateString('fr-FR')}`,
+      '',
+      `Entre ORION Green Mobility (la Plateforme) et :`,
+      `${d.name} · matricule ${d.matricule}${d.nif ? ` · NIF ${d.nif}` : ''}`,
+      `Vehicule : ${d.vehicleModel ?? 'n/c'} · plaque ${d.vehiclePlate ?? 'n/c'} · ${d.engine ?? 'electrique'}`,
+      d.batteryKwh ? `Batterie : ${d.batteryKwh} kWh · prise ${d.plugType ?? 'n/c'}` : '',
+      '',
+      'ARTICLE 1 - OBJET : mise en relation via la plateforme ORION.',
+      `ARTICLE 2 - COMMISSION : la Plateforme preleve ${Math.round(rate * 100)} % sur chaque course.`,
+      `ARTICLE 3 - FIDELITE : commission reduite au-dela de ${ops.loyaltyRideThreshold} courses electriques.`,
+      'ARTICLE 4 - REVERSEMENT : les gains nets sont credites sur le portefeuille du Chauffeur.',
+      'ARTICLE 5 - CONFORMITE : assurance transport de personnes et controle technique a jour.',
+      '',
+      `Fait a Abidjan, le ${new Date().toLocaleDateString('fr-FR')}.`,
+      '',
+      'Signature du Chauffeur : _______________________',
+      'Signature ORION : _______________________',
+    ]);
+  }
+
+  /** Matrice de la flotte (Excel/CSV) : amortissement + projections. */
+  fleetMatrixCsv(): string {
+    const clean = (v: unknown) => { let s = String(v ?? '').replace(/[",\n]/g, ' '); if (/^[=+\-@]/.test(s)) s = `'${s}`; return s; };
+    const revenueBy = new Map<string, number>();
+    for (const r of this.c.rides.listAll()) {
+      if (r.driverId && REVENUE.has(r.status)) revenueBy.set(r.driverId, (revenueBy.get(r.driverId) ?? 0) + r.quote.amount);
+    }
+    const head = 'matricule,nom,motorisation,modele,plaque,batterie_kwh,assurance_expire,kyc,courses_elec,ca_fcfa';
+    const rows = this.c.drivers.list().map((d) => [
+      d.matricule, d.name, d.engine ?? 'electrique', d.vehicleModel ?? '', d.vehiclePlate ?? '',
+      d.batteryKwh ?? '', d.insuranceExpiry ?? '', d.kycStatus, d.electricRides ?? 0, Math.round(revenueBy.get(d.id) ?? 0),
+    ].map(clean).join(','));
+    return [head, ...rows].join('\n');
+  }
+
+  /* ==================== SESSION CLIENT (S13) ==================== */
+
+  /** Matrice d'acquisition (Excel/CSV) : CAC, LTV, usage promo par client. */
+  clientLtvCsv(): string {
+    const clean = (v: unknown) => { let s = String(v ?? '').replace(/[",\n]/g, ' '); if (/^[=+\-@]/.test(s)) s = `'${s}`; return s; };
+    const spentBy = new Map<string, number>();
+    for (const r of this.c.rides.listAll()) {
+      if (REVENUE.has(r.status)) spentBy.set(r.clientId, (spentBy.get(r.clientId) ?? 0) + r.quote.amount);
+    }
+    const head = 'client,nom,statut,vip,courses,depense_ltv_fcfa,points_verts,co2_kg';
+    const rows = this.c.clients.list().map((c) => [
+      c.id, c.name ?? '', c.status, c.vipTier ?? 'standard', c.rides, Math.round(spentBy.get(c.id) ?? 0),
+      c.greenPoints ?? 0, c.co2SavedKg ?? 0,
+    ].map(clean).join(','));
+    return [head, ...rows].join('\n');
+  }
+
+  /** Rapport comportement consommateur (PDF) — annexe business plan. */
+  clientBehaviorPdf(): Buffer {
+    const clients = this.c.clients.list();
+    const rides = this.c.rides.listAll().filter((r) => REVENUE.has(r.status));
+    const revenue = rides.reduce((s, r) => s + r.quote.amount, 0);
+    const basket = rides.length ? Math.round(revenue / rides.length) : 0;
+    const vip = clients.filter((c) => c.vipTier && c.vipTier !== 'standard').length;
+    const green = clients.filter((c) => (c.greenPoints ?? 0) > 0).length;
+    return simplePdf([
+      'ORION - RAPPORT COMPORTEMENT CONSOMMATEUR',
+      `Genere le ${new Date().toLocaleDateString('fr-FR')}`,
+      '',
+      `Base clients : ${clients.length} passagers inscrits`,
+      `Clients VIP (Gold/Platinum) : ${vip}`,
+      `Clients engages mobilite verte : ${green} (${clients.length ? Math.round((green / clients.length) * 100) : 0} %)`,
+      `Panier moyen par course : ${fcfaLite(basket)}`,
+      `Volume de courses (payees) : ${rides.length}`,
+      `Chiffre d affaires cumule : ${fcfaLite(Math.round(revenue))}`,
+      '',
+      'Tendance : adoption croissante de la flotte 100 % electrique.',
+      'Document destine aux annexes du business plan ORION.',
+    ]);
+  }
+
+  /* ==================== SESSION FINANCES (S14) ==================== */
+
+  /** Chauffeurs dont la dette espèces dépasse le plafond (recouvrement, courses carte). */
+  cashDebt() {
+    const limit = this.c.settings.getOps().cashDebtLimit;
+    return this.c.wallet.debtorsOver(limit).map((row) => {
+      const d = this.c.drivers.get(row.driverId);
+      return { id: row.driverId, name: d?.name ?? null, matricule: d?.matricule ?? null, balance: row.balance, limit };
+    });
+  }
+
+  /** Statut des passerelles de paiement (monitoring). */
+  gatewaysStatus() {
+    const gw = this.c.settings.getServices().gateways ?? {};
+    return Object.entries(gw).map(([method, enabled]) => ({ method, enabled }));
+  }
+
+  /** Fichier de virement de masse (payouts chauffeurs) — CSV format bancaire. */
+  payoutsCsv(): string {
+    const clean = (v: unknown) => { let s = String(v ?? '').replace(/[",\n]/g, ' '); if (/^[=+\-@]/.test(s)) s = `'${s}`; return s; };
+    const head = 'matricule,nom,solde_a_verser_fcfa,rib_verifie';
+    const rows = this.c.drivers.list()
+      .map((d) => ({ d, bal: this.c.wallet.balance(d.id) }))
+      .filter((x) => x.bal > 0)
+      .map(({ d, bal }) => [d.matricule, d.name, Math.round(bal), d.ribVerified ? 'oui' : 'non'].map(clean).join(','));
+    return [head, ...rows].join('\n');
+  }
+
+  /* ==================== SESSION TRÉSORERIE (S15) ==================== */
+
+  /**
+   * Ratio de couverture des portefeuilles (Wallet Backing) : l'argent virtuel
+   * détenu doit être couvert à 100 % par le compte séquestre (anti bank-run).
+   * + burn rate / runway + BFR.
+   */
+  liquidity() {
+    const virtualHeld = Math.max(0, this.c.wallet.totalBalance()) + Math.max(0, this.c.clientWallet.totalBalance());
+    const escrow = config.TREASURY_ESCROW_XOF;
+    const ratio = virtualHeld > 0 ? Math.round((escrow / virtualHeld) * 100) : 100;
+    const monthlyOpex = config.TREASURY_MONTHLY_OPEX_XOF;
+    const cash = config.TREASURY_CASH_XOF;
+    // Burn = OPEX − revenu net mensuel estimé (commission des 30 derniers jours).
+    const since = Date.now() - 30 * 86_400_000;
+    let revenue30 = 0;
+    for (const r of this.c.rides.listAll()) if (REVENUE.has(r.status) && Date.parse(r.createdAt) >= since) revenue30 += r.quote.amount;
+    const netMonthly = Math.round(revenue30 * this.c.settings.getOps().commissionStandard);
+    const burn = monthlyOpex - netMonthly; // positif = on consomme du capital
+    const runway = burn > 0 ? Math.round((cash / burn) * 10) / 10 : Infinity;
+    return {
+      currency: 'XOF',
+      cashOnHand: cash, escrow, virtualHeld,
+      backingRatio: ratio, backingOk: escrow >= virtualHeld,
+      monthlyOpex, netMonthly, burnRate: burn,
+      runwayMonths: runway === Infinity ? null : runway,
+    };
+  }
+
+  /** Amortissement de la flotte électrique détenue en propre (CAPEX). */
+  fleetAmortization() {
+    // Hypothèse : véhicules VIP/dédiés = propriété ORION. Amortissement linéaire 5 ans.
+    const owned = this.c.drivers.list().filter((d) => d.vip || d.zoneLockId);
+    const rows = owned.map((d) => {
+      const km = this.c.rides.listAll().filter((r) => r.driverId === d.id && REVENUE.has(r.status))
+        .reduce((s, r) => s + (r.quote.distanceMeters ?? 0) / 1000, 0);
+      const purchase = 18_000_000; // valeur d'acquisition présumée d'un VE
+      const deprec = Math.min(purchase, Math.round(km * 120)); // ~120 F/km de dépréciation
+      return { id: d.id, matricule: d.matricule, km: Math.round(km), purchase, depreciation: deprec, bookValue: purchase - deprec };
+    });
+    return { vehicles: rows.length, totalBookValue: rows.reduce((s, r) => s + r.bookValue, 0), rows };
+  }
+
+  /** Reporting exécutif mensuel de trésorerie (PDF) — conseil d'administration. */
+  treasuryReportPdf(): Buffer {
+    const l = this.liquidity();
+    const a = this.fleetAmortization();
+    return simplePdf([
+      'ORION - REPORTING EXECUTIF DE TRESORERIE',
+      `Genere le ${new Date().toLocaleDateString('fr-FR')} · confidentiel conseil d administration`,
+      '',
+      '--- LIQUIDITE ---',
+      `Cash on hand : ${fcfaLite(l.cashOnHand)}`,
+      `Argent virtuel detenu (wallets) : ${fcfaLite(l.virtualHeld)}`,
+      `Compte sequestre (escrow) : ${fcfaLite(l.escrow)}`,
+      `Ratio de couverture : ${l.backingRatio} % (${l.backingOk ? 'CONFORME' : 'SOUS-CAPITALISE - ALERTE'})`,
+      '',
+      '--- RENTABILITE ---',
+      `Revenu net mensuel (commission) : ${fcfaLite(l.netMonthly)}`,
+      `OPEX mensuel : ${fcfaLite(l.monthlyOpex)}`,
+      `Burn rate : ${fcfaLite(l.burnRate)} / mois`,
+      `Runway : ${l.runwayMonths === null ? 'positif (rentable)' : `${l.runwayMonths} mois`}`,
+      '',
+      '--- FLOTTE (CAPEX) ---',
+      `Vehicules en propre : ${a.vehicles} · valeur nette comptable ${fcfaLite(a.totalBookValue)}`,
+      '',
+      'Document destine aux actionnaires, banquiers et fonds d investissement.',
     ]);
   }
 

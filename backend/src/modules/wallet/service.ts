@@ -67,9 +67,9 @@ export class WalletService {
     return this.push({ driverId: ownerId, type, amount, note, rideId });
   }
 
-  /** Crédite le gain net d'une course et journalise la commission. */
-  creditRide(driverId: string, rideId: string, gross: number): CommissionResult {
-    const c = computeCommission(gross);
+  /** Crédite le gain net d'une course et journalise la commission (taux optionnel). */
+  creditRide(driverId: string, rideId: string, gross: number, rate?: number): CommissionResult {
+    const c = computeCommission(gross, rate);
     this.push({ driverId, type: 'ride_earning', amount: c.net, rideId, note: 'Gain course (net)' });
     this.push({ driverId, type: 'commission', amount: -c.commission, rideId, note: `Commission ${Math.round(c.rate * 100)}%` });
     return c;
@@ -101,6 +101,23 @@ export class WalletService {
   freeze(ownerId: string): void { this.frozen.add(ownerId); }
   unfreeze(ownerId: string): void { this.frozen.delete(ownerId); }
   isFrozen(ownerId: string): boolean { return this.frozen.has(ownerId); }
+
+  /** Somme des soldes détenus par tous les propriétaires (argent virtuel à couvrir). */
+  totalBalance(): number {
+    let sum = 0;
+    for (const id of this.ledger.keys()) sum += this.balance(id);
+    return Math.round(sum);
+  }
+
+  /** Soldes négatifs (dette espèces) au-delà d'un plafond → recouvrement. */
+  debtorsOver(limit: number): { driverId: string; balance: number }[] {
+    const out: { driverId: string; balance: number }[] = [];
+    for (const id of this.ledger.keys()) {
+      const b = this.balance(id);
+      if (b < -Math.abs(limit)) out.push({ driverId: id, balance: Math.round(b) });
+    }
+    return out.sort((a, b) => a.balance - b.balance);
+  }
 
   /** Demande de retrait vers mobile money. Refuse si solde insuffisant ou compte gelé. */
   requestPayout(driverId: string, amount: number): LedgerEntry {

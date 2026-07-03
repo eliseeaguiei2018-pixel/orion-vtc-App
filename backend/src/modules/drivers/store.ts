@@ -40,6 +40,26 @@ export interface Driver {
   birthDate?: string;
   vehiclePlate?: string;
   vehicleColor?: string;
+  /* --- Cycle de vie (session Chauffeur S12) --- */
+  /** Motif obligatoire de suspension (trace légale). */
+  suspensionReason?: string;
+  /** Palier de fidélité (ancienneté / volume). */
+  loyaltyTier?: 'bronze' | 'silver' | 'gold';
+  /** Commission plateforme personnalisée (fidélité) — remplace le taux global si défini (0..1). */
+  commissionOverride?: number;
+  /** Nombre de courses électriques réalisées (fidélité verte). */
+  electricRides?: number;
+  /* --- Conformité éco-responsable (fleet compliance) --- */
+  /** Capacité nominale de la batterie (kWh). */
+  batteryKwh?: number;
+  /** Type de prise de recharge (Type 2, CCS…). */
+  plugType?: string;
+  /** Câbles de recharge réglementaires confirmés (photo de preuve). */
+  cablesConfirmed?: boolean;
+  /** RIB/IBAN vérifié (virements débloqués). */
+  ribVerified?: boolean;
+  /** Numéro d'identification fiscale (déclaration des revenus). */
+  nif?: string;
 }
 
 /** Génère un matricule ORION lisible, ex. ORION-CI-4821. */

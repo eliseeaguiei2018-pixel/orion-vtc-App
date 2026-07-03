@@ -57,11 +57,14 @@ export interface ServicesConfig {
   city: string;
   open: boolean; // ORION ouvert/fermé (maintenance)
   services: Record<string, boolean>; // course, delivery, food, shop, market, colis
+  /** Passerelles de paiement actives (monitoring / coupure en cas de panne). */
+  gateways?: Record<string, boolean>;
 }
 export const DEFAULT_SERVICES: ServicesConfig = {
   city: 'Abidjan',
   open: true,
   services: { course: true, delivery: true, food: false, shop: false, market: false, colis: false },
+  gateways: { orange_money: true, mtn_momo: true, moov_money: true, wave: true, card: true, cash: true },
 };
 
 /**
@@ -139,6 +142,16 @@ export interface OpsConfig {
   /** Heures creuses (recharge) : début et fin (heures locales). */
   offPeakStart: number;
   offPeakEnd: number;
+  /** Plafond de dette espèces (F CFA) : au-delà, le chauffeur ne reçoit que des courses carte. */
+  cashDebtLimit: number;
+  /** Commission plateforme sur la flotte thermique/standard (0..1). */
+  commissionStandard: number;
+  /** Commission plateforme RÉDUITE sur la flotte 100 % électrique (0..1) — incitation verte. */
+  commissionGreen: number;
+  /** Seuil de courses électriques pour la commission fidélité réduite. */
+  loyaltyRideThreshold: number;
+  /** Commission fidélité (0..1) accordée au-delà du seuil de courses électriques. */
+  commissionLoyalty: number;
 }
 export const DEFAULT_OPS: OpsConfig = {
   strategy: 'nearest', minRating: 4.5, autoWarn: true,
@@ -149,6 +162,8 @@ export const DEFAULT_OPS: OpsConfig = {
   surgeThreshold: 1.3, surgeSmoothingMin: 10,
   refundCap: 5000,
   offPeakBonus: 500, offPeakStart: 22, offPeakEnd: 6,
+  cashDebtLimit: 30_000, commissionStandard: 0.20, commissionGreen: 0.12,
+  loyaltyRideThreshold: 1000, commissionLoyalty: 0.10,
 };
 interface OpsRecord extends OpsConfig { id: string; }
 const OPS_ID = 'ops';
@@ -168,7 +183,9 @@ export class SettingsService {
     const saved = repo?.get(PRICING_ID);
     this.pricing = saved ? stripId(saved) : { ...DEFAULT_PRICING };
     const savedSvc = servicesRepo?.get(SERVICES_ID);
-    this.services = savedSvc ? { city: savedSvc.city, open: savedSvc.open, services: savedSvc.services } : { ...DEFAULT_SERVICES, services: { ...DEFAULT_SERVICES.services } };
+    this.services = savedSvc
+      ? { city: savedSvc.city, open: savedSvc.open, services: savedSvc.services, gateways: savedSvc.gateways ?? { ...DEFAULT_SERVICES.gateways } }
+      : { ...DEFAULT_SERVICES, services: { ...DEFAULT_SERVICES.services }, gateways: { ...DEFAULT_SERVICES.gateways } };
     const savedZones = zonesRepo?.get(ZONES_ID);
     this.zones = savedZones ? savedZones.zones.map((z) => ({ ...z })) : DEFAULT_ZONES.map((z) => ({ ...z }));
     const savedOps = opsRepo?.get(OPS_ID);
@@ -207,6 +224,11 @@ export class SettingsService {
       offPeakBonus: Math.min(5000, Math.max(0, patch.offPeakBonus ?? this.ops.offPeakBonus ?? 500)),
       offPeakStart: Math.min(23, Math.max(0, patch.offPeakStart ?? this.ops.offPeakStart ?? 22)),
       offPeakEnd: Math.min(23, Math.max(0, patch.offPeakEnd ?? this.ops.offPeakEnd ?? 6)),
+      cashDebtLimit: Math.min(1_000_000, Math.max(0, patch.cashDebtLimit ?? this.ops.cashDebtLimit ?? 30_000)),
+      commissionStandard: Math.min(0.5, Math.max(0, patch.commissionStandard ?? this.ops.commissionStandard ?? 0.20)),
+      commissionGreen: Math.min(0.5, Math.max(0, patch.commissionGreen ?? this.ops.commissionGreen ?? 0.12)),
+      loyaltyRideThreshold: Math.max(0, Math.round(patch.loyaltyRideThreshold ?? this.ops.loyaltyRideThreshold ?? 1000)),
+      commissionLoyalty: Math.min(0.5, Math.max(0, patch.commissionLoyalty ?? this.ops.commissionLoyalty ?? 0.10)),
     };
     this.opsRepo?.put({ id: OPS_ID, ...this.ops });
     return this.ops;
@@ -269,6 +291,7 @@ export class SettingsService {
       ...this.services,
       ...patch,
       services: { ...this.services.services, ...(patch.services ?? {}) },
+      gateways: { ...this.services.gateways, ...(patch.gateways ?? {}) },
     };
     this.servicesRepo?.put({ id: SERVICES_ID, ...this.services });
     return this.services;

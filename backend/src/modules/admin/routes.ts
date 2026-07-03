@@ -772,6 +772,12 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         offPeakBonus: z.number().min(0).max(5000).optional(),
         offPeakStart: z.number().int().min(0).max(23).optional(),
         offPeakEnd: z.number().int().min(0).max(23).optional(),
+        // Finances : plafond dette espèces + commissions par gamme + fidélité.
+        cashDebtLimit: z.number().min(0).max(1_000_000).optional(),
+        commissionStandard: z.number().min(0).max(0.5).optional(),
+        commissionGreen: z.number().min(0).max(0.5).optional(),
+        loyaltyRideThreshold: z.number().int().min(0).max(100_000).optional(),
+        commissionLoyalty: z.number().min(0).max(0.5).optional(),
       }), req.body);
       const ops = container.settings.updateOps(body);
       audit(req, 'dispatch.update', undefined, body);
@@ -1332,18 +1338,69 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     });
 
     // --- Gestion chauffeurs (actions) ---
-    scoped.post('/admin/drivers/:id/kyc', async (req) => {
+    scoped.post('/admin/drivers/:id/kyc', async (req, reply) => {
       require(req, 'drivers:write');
       const { id } = req.params as { id: string };
       assertManagerScope(req, id);
-      const body = parse(z.object({ status: z.enum(['draft', 'docs_submitted', 'manual_review', 'approved', 'active', 'suspended']) }), req.body);
+      const body = parse(z.object({
+        status: z.enum(['draft', 'docs_submitted', 'manual_review', 'approved', 'active', 'suspended']),
+        reason: z.string().max(200).optional(),
+      }), req.body);
       const d = container.drivers.get(id);
       if (!d) throw notFound('Chauffeur introuvable');
+      // Motif OBLIGATOIRE à la suspension (trace légale).
+      if (body.status === 'suspended' && !body.reason?.trim()) {
+        reply.code(400);
+        return { error: 'Motif de suspension obligatoire (trace légale).' };
+      }
       d.kycStatus = body.status;
-      if (body.status === 'suspended') void container.drivers.goOffline(id);
+      if (body.status === 'suspended') { d.suspensionReason = body.reason!.trim(); void container.drivers.goOffline(id); }
+      else if (body.status === 'active') d.suspensionReason = undefined;
       container.drivers.persist(id);
-      audit(req, 'driver.kyc', id, { status: body.status });
-      return { driver: { id: d.id, kycStatus: d.kycStatus, availability: d.availability } };
+      audit(req, 'driver.kyc', id, { status: body.status, reason: body.reason });
+      return { driver: { id: d.id, kycStatus: d.kycStatus, availability: d.availability, suspensionReason: d.suspensionReason ?? null } };
+    });
+
+    // Documents expirant sous 30 jours (assurance / contrôle technique).
+    scoped.get('/admin/drivers/expiring', async (req) => {
+      require(req, 'drivers:read');
+      return { drivers: admin.driverExpiring() };
+    });
+
+    // Fidélité : commission réduite (rétention des meilleurs chauffeurs électriques).
+    scoped.post('/admin/drivers/:id/loyalty', async (req) => {
+      require(req, 'drivers:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({
+        loyaltyTier: z.enum(['bronze', 'silver', 'gold']).optional(),
+        commissionOverride: z.number().min(0).max(0.5).nullable().optional(),
+      }), req.body);
+      const d = container.drivers.get(id);
+      if (!d) throw notFound('Chauffeur introuvable');
+      if (body.loyaltyTier) d.loyaltyTier = body.loyaltyTier;
+      if (body.commissionOverride !== undefined) d.commissionOverride = body.commissionOverride ?? undefined;
+      container.drivers.persist(id);
+      audit(req, 'driver.loyalty', id, { tier: body.loyaltyTier, commission: body.commissionOverride });
+      return { driver: { id: d.id, loyaltyTier: d.loyaltyTier ?? null, commissionOverride: d.commissionOverride ?? null } };
+    });
+
+    // Contrat de partenariat PDF.
+    scoped.get('/admin/drivers/:id/contract.pdf', async (req, reply) => {
+      require(req, 'drivers:read');
+      const { id } = req.params as { id: string };
+      const pdf = admin.driverContractPdf(id);
+      if (!pdf) throw notFound('Chauffeur introuvable');
+      reply.header('content-type', 'application/pdf');
+      reply.header('content-disposition', `attachment; filename="orion-contrat-${id.slice(0, 8)}.pdf"`);
+      return pdf;
+    });
+
+    // Matrice de la flotte (Excel/CSV).
+    scoped.get('/admin/fleet.csv', async (req, reply) => {
+      require(req, 'drivers:read');
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header('content-disposition', 'attachment; filename="orion-flotte.csv"');
+      return admin.fleetMatrixCsv();
     });
 
     scoped.post('/admin/drivers/:id/availability', async (req) => {
@@ -1379,6 +1436,164 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       if (!c) throw notFound('Client introuvable');
       audit(req, 'client.status', id, { status: body.status });
       return { client: c };
+    });
+
+    // Statut VIP + verrou no-surge (jamais de majoration + priorité dispatch).
+    scoped.post('/admin/clients/:id/vip', async (req) => {
+      require(req, 'clients:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ vipTier: z.enum(['standard', 'gold', 'platinum']).optional(), noSurgeLock: z.boolean().optional() }), req.body);
+      const c = container.clients.touch(id);
+      if (body.vipTier) c.vipTier = body.vipTier;
+      if (body.noSurgeLock !== undefined) c.noSurgeLock = body.noSurgeLock;
+      container.clients.persist(id);
+      audit(req, 'client.vip', id, { vipTier: c.vipTier, noSurgeLock: c.noSurgeLock });
+      return { client: { id, vipTier: c.vipTier ?? 'standard', noSurgeLock: c.noSurgeLock ?? false } };
+    });
+
+    // Liste noire : bloque le compte + IMEI/e-mail/téléphone (anti-réinscription).
+    scoped.post('/admin/clients/:id/blacklist', async (req) => {
+      require(req, 'clients:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ imei: z.string().max(40).optional(), reason: z.string().max(200).optional() }), req.body);
+      const c = container.clients.touch(id);
+      c.status = 'blocked';
+      if (body.imei) c.blacklistedImei = body.imei;
+      container.clients.persist(id);
+      audit(req, 'client.blacklist', id, { imei: body.imei, reason: body.reason });
+      return { client: { id, status: c.status, blacklistedImei: c.blacklistedImei ?? null } };
+    });
+
+    // Frais de no-show : annulation après arrivée du chauffeur (vérifiable GPS).
+    scoped.post('/admin/clients/:id/noshow', async (req) => {
+      require(req, 'clients:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ fee: z.number().min(0).max(50_000), cancel: z.boolean().optional() }), req.body);
+      const c = container.clients.touch(id);
+      c.noShowFees = body.cancel ? 0 : (c.noShowFees ?? 0) + Math.round(body.fee);
+      container.clients.persist(id);
+      audit(req, body.cancel ? 'client.noshow_cancel' : 'client.noshow_charge', id, { fee: body.fee });
+      return { client: { id, noShowFees: c.noShowFees } };
+    });
+
+    // Matrice d'acquisition (LTV/CAC) CSV + rapport comportement PDF.
+    scoped.get('/admin/clients.csv', async (req, reply) => {
+      require(req, 'clients:read');
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header('content-disposition', 'attachment; filename="orion-clients-ltv.csv"');
+      return admin.clientLtvCsv();
+    });
+
+    scoped.get('/admin/clients/behavior.pdf', async (req, reply) => {
+      require(req, 'clients:read');
+      reply.header('content-type', 'application/pdf');
+      reply.header('content-disposition', 'attachment; filename="orion-comportement-clients.pdf"');
+      return admin.clientBehaviorPdf();
+    });
+
+    /* ===================== SESSION FINANCES (S14) ===================== */
+
+    // Recouvrement : chauffeurs dont la dette espèces dépasse le plafond.
+    scoped.get('/admin/finance/cash-debt', async (req) => { require(req, 'finance:read'); return { debtors: admin.cashDebt() }; });
+
+    // Monitoring des passerelles de paiement.
+    scoped.get('/admin/finance/gateways', async (req) => { require(req, 'finance:read'); return { gateways: admin.gatewaysStatus() }; });
+
+    scoped.post('/admin/finance/gateways', async (req) => {
+      require(req, 'services:write');
+      const body = parse(z.object({ method: z.string().min(2).max(20), enabled: z.boolean() }), req.body);
+      const config = container.settings.updateServices({ gateways: { [body.method]: body.enabled } });
+      audit(req, 'gateway.toggle', body.method, { enabled: body.enabled });
+      return { gateways: config.gateways };
+    });
+
+    // Fichier de virement de masse (payouts chauffeurs).
+    scoped.get('/admin/payouts.csv', async (req, reply) => {
+      require(req, 'finance:read');
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header('content-disposition', 'attachment; filename="orion-payouts.csv"');
+      return admin.payoutsCsv();
+    });
+
+    /* ---- Notes de frais & avances (self-service + validation CFO) ---- */
+    // File d'attente (CFO) ou mes tickets (self-service, filtré par requesterId).
+    scoped.get('/admin/expenses', async (req) => {
+      require(req, 'finance:read');
+      const q = parse(z.object({ requesterId: z.string().optional() }), req.query);
+      container.expenses.enforceDeadlines(); // gèle les tickets en retard de justificatif
+      return { tickets: container.expenses.list(q.requesterId ? { requesterId: q.requesterId } : undefined), pending: container.expenses.pendingCount() };
+    });
+
+    // Ouvrir un ticket de financement (accès employé/chauffeur — perm de base).
+    scoped.post('/admin/expenses', async (req, reply) => {
+      require(req, 'overview:read');
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const body = parse(z.object({
+        requesterType: z.enum(['employee', 'driver']).default('employee'),
+        requesterId: z.string().min(1).max(80).optional(),
+        amount: z.number().positive().max(10_000_000),
+        category: z.enum(['marketing', 'recharge', 'deplacement', 'materiel', 'autre']),
+        neededDate: z.string(),
+        description: z.string().min(3).max(500),
+      }), req.body);
+      const requesterId = body.requesterId ?? account.username ?? account.name;
+      const ticket = container.expenses.request({ ...body, requesterId, requesterName: account.name });
+      if (ticket === 'blocked') { reply.code(403); return { error: 'Compte gelé : justificatif(s) en retard. Régularisez avant toute nouvelle demande.' }; }
+      audit(req, 'expense.request', ticket.id, { amount: ticket.amount, category: ticket.category });
+      reply.code(201);
+      return { ticket };
+    });
+
+    // Décision du CFO : approuver (crédit instantané) / rejeter / demander un complément.
+    scoped.post('/admin/expenses/:id/decide', async (req) => {
+      require(req, 'treasury:request'); // niveau finance dirigeante (CFO)
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ decision: z.enum(['approve', 'reject', 'info']), note: z.string().max(300).optional() }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const ticket = container.expenses.decide(id, body.decision, account.name, body.note);
+      if (!ticket) throw notFound('Ticket introuvable');
+      audit(req, `expense.${body.decision}`, id, { amount: ticket.amount });
+      return { ticket };
+    });
+
+    // Cash-out : le demandeur transfère l'avance vers le monde réel.
+    scoped.post('/admin/expenses/:id/cashout', async (req, reply) => {
+      require(req, 'overview:read');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ channel: z.enum(['wave', 'orange_money', 'mtn_momo', 'moov_money', 'bank', 'card']) }), req.body);
+      const result = container.expenses.cashOut(id, body.channel);
+      if (!result) throw notFound('Ticket introuvable');
+      if (result === 'not_approved') { reply.code(409); return { error: 'Ticket non approuvé' }; }
+      if (result === 'no_funds') { reply.code(409); return { error: 'Fonds insuffisants sur le portefeuille' }; }
+      audit(req, 'expense.cashout', id, { channel: body.channel });
+      return { ticket: result };
+    });
+
+    // Soumission du justificatif (OCR) → concordance + restitution du reliquat.
+    scoped.post('/admin/expenses/:id/receipt', async (req) => {
+      require(req, 'overview:read');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ spentAmount: z.number().min(0).max(10_000_000) }), req.body);
+      const ticket = container.expenses.submitReceipt(id, body.spentAmount);
+      if (!ticket) throw notFound('Ticket introuvable');
+      audit(req, 'expense.receipt', id, { spent: body.spentAmount, refunded: ticket.refunded });
+      return { ticket };
+    });
+
+    /* ===================== SESSION TRÉSORERIE (S15) ===================== */
+
+    // Tour de contrôle liquidité : ratio de couverture séquestre, burn rate, runway.
+    scoped.get('/admin/liquidity', async (req) => { require(req, 'treasury:read'); return admin.liquidity(); });
+
+    // Amortissement de la flotte électrique en propre (CAPEX).
+    scoped.get('/admin/treasury/amortization', async (req) => { require(req, 'treasury:read'); return admin.fleetAmortization(); });
+
+    // Reporting exécutif de trésorerie (PDF investisseurs / conseil).
+    scoped.get('/admin/treasury/report.pdf', async (req, reply) => {
+      require(req, 'treasury:read');
+      reply.header('content-type', 'application/pdf');
+      reply.header('content-disposition', 'attachment; filename="orion-tresorerie-executif.pdf"');
+      return admin.treasuryReportPdf();
     });
 
     // --- Codes promo ---

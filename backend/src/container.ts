@@ -32,6 +32,7 @@ import { CorporateService, type CorporateAccount } from './modules/corporate/ser
 import { SecurityAlertsService } from './modules/admin/security.js';
 import { ReservationService, type Reservation } from './modules/reservations/service.js';
 import { StaffService } from './modules/staff/service.js';
+import { ExpenseService, type ExpenseTicket } from './modules/expenses/service.js';
 import type { Ride } from './modules/rides/store.js';
 import type { LedgerEntry } from './modules/wallet/service.js';
 import type { Subscription } from './modules/subscriptions/service.js';
@@ -76,6 +77,8 @@ export interface Container {
   reservations: ReservationService;
   /** Personnel interne : shifts, pointage, maintenance, squads (session Équipes). */
   staff: StaffService;
+  /** Notes de frais & avances (self-service + validation CFO). */
+  expenses: ExpenseService;
 }
 
 export function createContainer(): Container {
@@ -172,6 +175,7 @@ export function createContainer(): Container {
     security: new SecurityAlertsService(),
     reservations: new ReservationService(createRepository<Reservation>('reservations')),
     staff: new StaffService(createRepository('staff_shifts'), createRepository('staff_tickets')),
+    expenses: new ExpenseService(createRepository<ExpenseTicket>('expenses')),
   };
 }
 

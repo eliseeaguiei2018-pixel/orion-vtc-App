@@ -18,6 +18,20 @@ export interface Client {
   warnings?: number;
   /** Points Carbone (fidélisation verte) : 1 point par km 100 % électrique payé. */
   greenPoints?: number;
+  /* --- CRM passager (session Client S13) --- */
+  email?: string;
+  /** Palier VIP automatique (fréquence + dépenses). */
+  vipTier?: 'standard' | 'gold' | 'platinum';
+  /** Verrou VIP manuel : jamais de majoration (surge) + priorité dispatch. */
+  noSurgeLock?: boolean;
+  /** CO2 économisé (kg) cumulé (empreinte carbone individuelle). */
+  co2SavedKg?: number;
+  /** Frais de no-show dus (annulation après arrivée du chauffeur). */
+  noShowFees?: number;
+  /** Liste noire : appareil (IMEI), e-mail et téléphone bloqués à la réinscription. */
+  blacklistedImei?: string;
+  /** Moyens de paiement liés (numéros masqués). */
+  paymentMethods?: { id: string; kind: string; masked: string }[];
   createdAt: string;
   lastSeenAt: string;
 }
@@ -69,6 +83,12 @@ export class ClientStore {
     c.greenPoints = (c.greenPoints ?? 0) + Math.max(0, Math.round(points));
     this.repo?.put(c);
     return c.greenPoints;
+  }
+
+  /** Persiste l'état courant d'un client (write-through après mutation en place). */
+  persist(id: string): void {
+    const c = this.clients.get(id);
+    if (c) this.repo?.put(c);
   }
 
   get(id: string): Client | undefined { return this.clients.get(id); }
