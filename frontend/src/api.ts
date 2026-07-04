@@ -41,6 +41,8 @@ export interface EstimateOpts {
   bodyType?: 'suv' | 'berline';
   stops?: LatLng[];
   insurance?: boolean;
+  /** Code promo saisi par le client (validé côté backend, remise appliquée au devis). */
+  promoCode?: string;
 }
 
 const BODY = { berline: 1, suv: 1.08 } as const;
@@ -138,7 +140,7 @@ export function previewDelivery(origin: LatLng, destination: LatLng, size: PkgSi
 export async function estimate(origin: LatLng, destination: LatLng, tier: TierOption, opts: EstimateOpts = {}): Promise<Quote> {
   const remote = await tryFetch<{ quote: Quote }>('/pricing/estimate', {
     method: 'POST',
-    body: JSON.stringify({ origin, destination, category: tier.id, bodyType: opts.bodyType, stops: opts.stops, insurance: opts.insurance }),
+    body: JSON.stringify({ origin, destination, category: tier.id, bodyType: opts.bodyType, stops: opts.stops, insurance: opts.insurance, promoCode: opts.promoCode }),
   });
   if (remote?.quote) return remote.quote;
   return localEstimate(origin, destination, tier, opts);
@@ -154,6 +156,32 @@ export async function sos(userId: string, location: LatLng, rideId?: string) {
 
 export function isLiveBackend(): boolean {
   return Boolean(API);
+}
+
+/**
+ * Configuration publique pilotée depuis la console Admin (centre de contrôle).
+ * L'app cliente s'y synchronise : ville, ouverture (maintenance), services activés
+ * et passerelles de paiement en service. `null` en mode démo (backend absent) →
+ * l'app garde tous ses services et moyens de paiement par défaut.
+ */
+export interface AppConfig {
+  city: string;
+  open: boolean;
+  services: Record<string, boolean>;
+  gateways: Record<string, boolean>;
+  currency: string;
+}
+
+export async function fetchAppConfig(): Promise<AppConfig | null> {
+  const res = await tryFetch<Partial<AppConfig>>('/config');
+  if (!res) return null;
+  return {
+    city: res.city ?? 'Abidjan',
+    open: res.open ?? true,
+    services: res.services ?? {},
+    gateways: res.gateways ?? {},
+    currency: res.currency ?? 'XOF',
+  };
 }
 
 export interface RideCreated {

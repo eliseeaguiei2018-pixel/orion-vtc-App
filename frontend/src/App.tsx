@@ -16,7 +16,7 @@ import {
   ABIDJAN_PLACES, COUNTRIES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { cancelRide, clientId, createRide, estimate, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, type Announcement, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
+import { cancelRide, clientId, createRide, estimate, fetchAppConfig, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, type Announcement, type AppConfig, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
 import { LANGUAGES, useI18n, type Lang } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubPlan, TierOption, WeddingDuration } from './types';
 
@@ -95,16 +95,45 @@ export function App() {
   const [announce, setAnnounce] = useState<Announcement | null>(null);
   useEffect(() => { listAnnouncements().then((a) => setAnnounce(a[0] ?? null)); }, []);
 
+  // Synchronisation avec la console Admin : services activés, maintenance, passerelles
+  // de paiement en service. En mode démo (backend absent) → null, l'app garde ses défauts.
+  const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
+  useEffect(() => { fetchAppConfig().then(setAppConfig); }, []);
+  const [promo, setPromo] = useState('');
+
+  // Moyens de paiement réellement proposés : filtrés par les passerelles actives de la
+  // console. Si aucune config (démo) ou aucune passerelle listée → tout le catalogue.
+  const enabledPayments = useMemo(() => {
+    const g = appConfig?.gateways;
+    if (!g || Object.keys(g).length === 0) return PAYMENTS;
+    const filtered = PAYMENTS.filter((p) => g[p.method] !== false);
+    return filtered.length > 0 ? filtered : PAYMENTS;
+  }, [appConfig]);
+  // Si le moyen sélectionné n'est plus proposé (passerelle coupée), bascule sur le 1er actif.
+  useEffect(() => {
+    if (!enabledPayments.some((p) => p.method === payment)) setPayment(enabledPayments[0]!.method);
+  }, [enabledPayments, payment]);
+
+  // ORION fermé (maintenance pilotée depuis la console) : les commandes sont suspendues.
+  const closed = appConfig !== null && !appConfig.open;
+  const deliveryOff = appConfig !== null && appConfig.services?.delivery === false;
+
   const showToast = (message: string, danger?: boolean) => {
     setToast({ message, danger });
     window.setTimeout(() => setToast(null), 3200);
   };
 
+  /** Garde de maintenance : bloque l'ouverture d'un flux de commande si ORION est fermé. */
+  const guardOpen = (): boolean => {
+    if (closed) { showToast(t('closed_toast'), true); return false; }
+    return true;
+  };
+
   useEffect(() => {
     if (screen === 'confirm' && destination) {
-      estimate(origin.location, destination.location, tier, { bodyType, stops: stops.map((s) => s.location), insurance }).then(setQuote);
+      estimate(origin.location, destination.location, tier, { bodyType, stops: stops.map((s) => s.location), insurance, promoCode: promo || undefined }).then(setQuote);
     }
-  }, [screen, destination, tier, bodyType, stops, insurance, origin.location]);
+  }, [screen, destination, tier, bodyType, stops, insurance, promo, origin.location]);
 
   const chooseDestination = (place: Place) => {
     setDestination(place);
@@ -194,6 +223,7 @@ export function App() {
     setStops([]);
     setScheduled(false);
     setInsurance(false);
+    setPromo('');
     setMode('ride');
     setScreen('home');
   };
@@ -211,11 +241,11 @@ export function App() {
         {screen === 'permissions' && <PermissionsScreen onDone={() => setScreen('home')} />}
 
         {screen === 'home' && (
-          <HomeScreen announce={announce}
-            onSearch={() => { setMode('ride'); setScreen('destination'); }}
-            onCourse={() => { setMode('ride'); setScreen('destination'); }}
-            onDelivery={() => { setMode('delivery'); setScreen('delivery'); }}
-            onQuick={(p) => { setMode('ride'); chooseDestination(p); }}
+          <HomeScreen announce={announce} closed={closed} deliveryOff={deliveryOff} city={appConfig?.city ?? null}
+            onSearch={() => { if (guardOpen()) { setMode('ride'); setScreen('destination'); } }}
+            onCourse={() => { if (guardOpen()) { setMode('ride'); setScreen('destination'); } }}
+            onDelivery={() => { if (guardOpen()) { setMode('delivery'); setScreen('delivery'); } }}
+            onQuick={(p) => { if (guardOpen()) { setMode('ride'); chooseDestination(p); } }}
             onNav={setScreen}
             onSoon={(name) => showToast(t('soon_toast', { name }))} />
         )}
@@ -236,6 +266,7 @@ export function App() {
 
         {screen === 'confirm' && destination && (
           <ConfirmScreen origin={origin} destination={destination} tier={tier} quote={quote} payment={payment}
+            payments={enabledPayments} promo={promo} onPromo={setPromo}
             stops={stops} onAddStop={() => setStops((s) => (s.length < 3 ? [...s, EXTRA_STOPS[s.length]!] : s))}
             scheduled={scheduled} onSchedule={setScheduled} insurance={insurance} onInsurance={setInsurance}
             onPayment={setPayment} onBack={() => setScreen('estimate')}
@@ -472,8 +503,8 @@ function MiniSvc({ illus, label, onClick }: { illus: React.ReactNode; label: str
   );
 }
 
-function HomeScreen({ announce, onSearch, onCourse, onDelivery, onQuick, onNav, onSoon }: {
-  announce: Announcement | null;
+function HomeScreen({ announce, closed, deliveryOff, city, onSearch, onCourse, onDelivery, onQuick, onNav, onSoon }: {
+  announce: Announcement | null; closed: boolean; deliveryOff: boolean; city: string | null;
   onSearch: () => void; onCourse: () => void; onDelivery: () => void;
   onQuick: (p: Place) => void; onNav: (s: Screen) => void; onSoon: (name: string) => void;
 }) {
@@ -491,6 +522,16 @@ function HomeScreen({ announce, onSearch, onCourse, onDelivery, onQuick, onNav, 
         <button className="hub-search rise rise-2" onClick={onSearch}>
           <IconSearch size={20} /> <span>{t('home_search')}</span>
         </button>
+        {/* Maintenance pilotée depuis la console : ORION momentanément fermé. */}
+        {closed && (
+          <div className="hub-closed rise rise-2" role="alert">
+            <IconClock size={18} />
+            <span className="col grow" style={{ textAlign: 'start' }}>
+              <strong style={{ fontSize: 13 }}>{t('closed_title')}</strong>
+              <span style={{ fontSize: 12, opacity: 0.9 }}>{city ? t('closed_body_city', { city }) : t('closed_body')}</span>
+            </span>
+          </div>
+        )}
         {announce && showAnnounce && (
           <div className="hub-announce rise rise-2">
             <IconBell size={18} />
@@ -504,16 +545,19 @@ function HomeScreen({ announce, onSearch, onCourse, onDelivery, onQuick, onNav, 
       </div>
 
       <div className="page-body hub-body">
-        {/* Services principaux : Course & Livraison */}
+        {/* Services principaux : Course & Livraison. La livraison se masque si la console
+            l'a désactivée (services.delivery = false) ; tout est grisé en maintenance. */}
         <div className="svc-grid rise rise-2">
-          <button className="svc-card course" onClick={onCourse}>
+          <button className={`svc-card course${closed ? ' svc-off' : ''}`} onClick={onCourse} disabled={closed}>
             <span className="svc-illus"><IllusCar size={92} /></span>
             <span className="svc-meta"><strong>{t('svc_course')}</strong><span>{t('svc_course_d')}</span></span>
           </button>
-          <button className="svc-card deliver" onClick={onDelivery}>
-            <span className="svc-illus"><IllusMoto size={92} /></span>
-            <span className="svc-meta"><strong>{t('svc_delivery')}</strong><span>{t('svc_delivery_d')}</span></span>
-          </button>
+          {!deliveryOff && (
+            <button className={`svc-card deliver${closed ? ' svc-off' : ''}`} onClick={onDelivery} disabled={closed}>
+              <span className="svc-illus"><IllusMoto size={92} /></span>
+              <span className="svc-meta"><strong>{t('svc_delivery')}</strong><span>{t('svc_delivery_d')}</span></span>
+            </button>
+          )}
         </div>
 
         {/* Autres services (bientôt) */}
@@ -728,8 +772,9 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
 }
 
 /* ------------------------------ Confirm ------------------------------ */
-function ConfirmScreen({ origin, destination, tier, quote, payment, stops, onAddStop, scheduled, onSchedule, insurance, onInsurance, onPayment, onBack, onConfirm }: {
+function ConfirmScreen({ origin, destination, tier, quote, payment, payments, promo, onPromo, stops, onAddStop, scheduled, onSchedule, insurance, onInsurance, onPayment, onBack, onConfirm }: {
   origin: Place; destination: Place; tier: TierOption; quote: Quote | null; payment: string;
+  payments: { method: string; label: string }[]; promo: string; onPromo: (v: string) => void;
   stops: Place[]; onAddStop: () => void; scheduled: boolean; onSchedule: (v: boolean) => void;
   insurance: boolean; onInsurance: (v: boolean) => void;
   onPayment: (m: string) => void; onBack: () => void; onConfirm: () => void;
@@ -737,6 +782,8 @@ function ConfirmScreen({ origin, destination, tier, quote, payment, stops, onAdd
   const { t } = useI18n();
   const [showWhy, setShowWhy] = useState(false);
   const [showIns, setShowIns] = useState(false);
+  const [promoDraft, setPromoDraft] = useState(promo);
+  const discount = quote?.breakdown.discount ?? 0;
   return (
     <div className="screen">
       <OrionMap origin={origin.location} destination={destination.location} stops={stops.map((s) => s.location)} />
@@ -782,12 +829,31 @@ function ConfirmScreen({ origin, destination, tier, quote, payment, stops, onAdd
 
         <span className="eyebrow">{t('conf_payment')}</span>
         <div className="chips" style={{ margin: '10px 0 14px' }}>
-          {PAYMENTS.map((p) => (
+          {payments.map((p) => (
             <button key={p.method} className={`chip${p.method === payment ? ' active' : ''}`} onClick={() => onPayment(p.method)}>
               <IconWallet size={15} /> {p.label}
             </button>
           ))}
         </div>
+
+        {/* Code promo (piloté depuis la console) : appliqué au devis côté serveur. */}
+        <span className="eyebrow">{t('promo_label')}</span>
+        <div className="row gap-sm" style={{ margin: '10px 0 14px' }}>
+          <div className="field grow" style={{ padding: '10px 14px' }}>
+            <IconGem size={16} />
+            <input style={{ textTransform: 'uppercase', fontSize: 14 }} value={promoDraft}
+              onChange={(e) => setPromoDraft(e.target.value.toUpperCase().replace(/\s/g, ''))}
+              placeholder={t('promo_ph')} aria-label={t('promo_label')} maxLength={24} />
+          </div>
+          {promo && discount > 0
+            ? <button className="btn btn-ghost" style={{ padding: 12, fontSize: 14, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={() => { onPromo(''); setPromoDraft(''); }}>{t('promo_clear')}</button>
+            : <button className="btn btn-ghost" style={{ padding: 12, fontSize: 14 }} onClick={() => onPromo(promoDraft.trim())} disabled={!promoDraft.trim()}>{t('promo_apply')}</button>}
+        </div>
+        {promo && (
+          discount > 0
+            ? <p className="faint" style={{ fontSize: 12, color: 'var(--green)', marginTop: -6, marginBottom: 12 }}>✓ {t('promo_ok', { code: promo, amount: formatXOF(discount) })}</p>
+            : <p className="faint" style={{ fontSize: 12, marginTop: -6, marginBottom: 12 }}>{t('promo_none', { code: promo })}</p>
+        )}
 
         {quote && (
           <>
@@ -801,6 +867,7 @@ function ConfirmScreen({ origin, destination, tier, quote, payment, stops, onAdd
                 <div className="fare-line"><span>{t('p_distance')} · {(quote.distanceMeters / 1000).toFixed(1)} km</span><span>{formatXOF(quote.breakdown.distance)}</span></div>
                 <div className="fare-line"><span>{t('p_time')} · ~{Math.round(quote.etaSeconds / 60)} {t('est_min')}</span><span>{formatXOF(quote.breakdown.time)}</span></div>
                 {quote.breakdown.traffic > 0 && <div className="fare-line"><span>{t('p_traffic')}</span><span>+{formatXOF(quote.breakdown.traffic)}</span></div>}
+                {quote.breakdown.discount > 0 && <div className="fare-line" style={{ color: 'var(--green)' }}><span>{t('promo_line')}</span><span>−{formatXOF(quote.breakdown.discount)}</span></div>}
                 <div className="fare-line"><span>{t('p_subtotal')}</span><span>{formatXOF(quote.breakdown.subtotal)}</span></div>
                 <div className="fare-line"><span>{t('p_tva')}</span><span>{formatXOF(quote.breakdown.tva)}</span></div>
                 <div className="fare-line"><span>{t('p_fee')}</span><span>{formatXOF(quote.breakdown.fee)}</span></div>
