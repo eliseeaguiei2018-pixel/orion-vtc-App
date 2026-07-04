@@ -3,9 +3,14 @@
 # Le lien sera ensuite : https://<ton-utilisateur>.github.io/orion-vtc-App/
 name: Deploy demo to GitHub Pages
 
+# Le déploiement ne se déclenche que sur `main` : l'environnement « github-pages »
+# n'autorise que la branche par défaut à déployer (règle de protection GitHub),
+# donc les branches de feature échoueraient au gate d'environnement. Le déploiement
+# a donc lieu automatiquement à la fusion dans main. `workflow_dispatch` reste
+# disponible pour un déclenchement manuel depuis main.
 on:
   push:
-    branches: [main, claude/orion-platform-overview-osgd1u]
+    branches: [main]
   workflow_dispatch: {}
 
 permissions:
