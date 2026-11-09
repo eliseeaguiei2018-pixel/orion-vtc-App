@@ -1,8 +1,11 @@
 # ORION VTC — Application Client (premium)
 
-Application **client** mobile-first (la première livrée ; l'app chauffeur est un projet
-séparé, à venir). Pensée pour surpasser les apps VTC du marché : interface premium,
-fluide, et adaptée à la Côte d'Ivoire (Abidjan).
+Application **client** mobile-first (la première livrée). Pensée pour surpasser les apps
+VTC du marché : interface premium, fluide, et adaptée à la Côte d'Ivoire (Abidjan).
+
+Le projet contient trois pages Vite : **app cliente** (`index.html`), **console Admin**
+(`admin.html`) et **app Chauffeur** (`driver.html`, code dans `src/driver/` — voir
+[docs/10](../docs/10-app-chauffeur.md)). En dev : `http://localhost:5173/driver.html`.
 
 ## Points forts
 - 🎨 **Design premium** : thème sombre émeraude, verre dépoli, halo lumineux, animations fluides.

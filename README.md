@@ -7,10 +7,13 @@ simple, rapide, sûre, transparente et **facilement extensible** à d'autres ser
 Ce dépôt contient :
 - une **documentation fonctionnelle et technique** complète (`docs/`) ;
 - un **backend** runnable, stateless et scalable (`backend/`) ;
-- une **application client** premium mobile-first (`frontend/`).
+- une **application client** premium mobile-first (`frontend/`) ;
+- une **application chauffeur** synchronisée en temps réel avec la console (`frontend/driver.html`) ;
+- une **console d'administration** (`frontend/admin.html`).
 
-> 📱 **Périmètre actuel** : l'**application client** est livrée en premier.
-> L'**application chauffeur** est un projet **séparé**, prévu pour la suite (même backend).
+> 📱 **Périmètre actuel** : les trois interfaces — Client, Chauffeur et Admin — sont livrées
+> dans le même projet `frontend/` et partagent le même backend.
+> App Chauffeur : voir [docs/10](docs/10-app-chauffeur.md).
 
 ## 🎯 Principes différenciants
 Interface simple et moderne · rapidité de réservation · sécurité passagers & chauffeurs ·
@@ -80,9 +83,10 @@ adossable à **Redis Pub/Sub**. Voir [docs/05](docs/05-architecture-scalabilite.
 - [x] **Wallet chauffeur + commissions** (crédit au paiement, payout mobile money).
 - [x] **Google Maps** : couche prête (activer via clé API).
 - [x] **Persistance** : Repository mémoire / **SQLite durable** (PostgreSQL-ready), données conservées au redémarrage.
+- [x] **Application chauffeur** : connexion SMS, dossier KYC, offres avec délai console, course, gains, mobilité verte, synchro temps réel.
 1. Brancher PostgreSQL (impl `Repository` Postgres) + Redis pour la prod.
 2. Activer une vraie clé Google Maps (itinéraires/carte réels) côté front & back.
-3. **Application chauffeur** (projet séparé) — remplacera le simulateur par les vraies positions.
+3. **Opérateur SMS** pour la connexion chauffeur en production, puis `DRIVER_AUTH_STRICT=true` et `SIMULATE_RIDES=false`.
 4. Dashboard admin / supervision des urgences (consommer `/ws/emergency`).
 5. Extension : livraison de colis, puis micro-mobilité (cf. docs/04).
 

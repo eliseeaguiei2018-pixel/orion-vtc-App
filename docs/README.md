@@ -12,6 +12,8 @@ Documentation fonctionnelle et technique de la plateforme de mobilité verte ORI
 | 06 | [Modèle de données](./06-modele-de-donnees.md) | Entités et choix structurants |
 | 07 | [Côte d'Ivoire, sécurité & temps réel](./07-cote-divoire-securite-temps-reel.md) | Plan directeur CI, mobile money, détection d'accident + SAMU, WebSocket, Google Maps |
 | 08 | [Persistance des données](./08-persistance.md) | Repository (mémoire / SQLite / PostgreSQL), write-through + réhydratation |
+| 09 | [Dossier de reprise — App Chauffeur](./09-reprise-app-chauffeur.md) | Contexte, règles du projet, points d'accroche |
+| 10 | [Application Chauffeur](./10-app-chauffeur.md) | Fonctionnalités, synchronisation console, endpoints, règles métier, sécurité |
 
 > Les diagrammes sont en **Mermaid** et se rendent automatiquement sur GitHub.
 
@@ -21,4 +23,7 @@ Documentation fonctionnelle et technique de la plateforme de mobilité verte ORI
   temps réel WebSocket, Google Maps, et robustesse (idempotence, rate limiting, health
   checks, graceful shutdown).
 - **App Client** [`../frontend`](../frontend) : application premium mobile-first (Abidjan),
-  livrée en premier. L'app chauffeur est un projet séparé, à venir.
+  livrée en premier.
+- **App Chauffeur** [`../frontend/driver.html`](../frontend/driver.html) : troisième page du même
+  projet, synchronisée en temps réel avec le backend et la console (voir [doc 10](./10-app-chauffeur.md)).
+- **Console Admin** [`../frontend/admin.html`](../frontend/admin.html) : 17 sessions métier.

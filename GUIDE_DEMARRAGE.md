@@ -76,6 +76,8 @@ Au premier lancement, ça installe les pièces nécessaires (ça peut prendre 1�
 Ensuite, ça démarre les deux morceaux. Tu verras s'afficher :
 
 - L'app cliente : **http://localhost:5173** ← **ouvre ce lien dans ton navigateur** 🎉
+- L'app chauffeur : **http://localhost:5173/driver.html**
+- La console Admin : **http://localhost:5173/admin.html**
 - Le moteur (backend) : http://localhost:3000
 
 Pour **arrêter**, reviens dans le terminal et fais `Ctrl + C`.
@@ -105,6 +107,12 @@ Puis ouvre **http://localhost:5173**.
 > ℹ️ L'app cliente fonctionne **même sans le backend** (mode démo, données simulées).
 > Si tu veux qu'elle utilise le vrai moteur, crée un fichier `frontend/.env` avec :
 > `VITE_API_URL=http://localhost:3000`
+
+> 🚗 **App chauffeur** (`/driver.html`) : sans backend, mode démo avec le code `123456`.
+> Avec le backend, le code de connexion s'affiche à l'écran (hors production) ; valide
+> ensuite le dossier du chauffeur dans la console (Chauffeurs → KYC) pour qu'il puisse
+> passer en ligne. Pour qu'il reçoive les courses de l'app cliente, lance le backend avec
+> `SIMULATE_RIDES=false` (sinon les chauffeurs de démonstration sont aussi en ligne).
 
 ---
 

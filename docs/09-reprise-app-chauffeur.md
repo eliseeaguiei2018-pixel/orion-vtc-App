@@ -18,7 +18,7 @@ Interface et contenus **en français**, devise **XOF (F CFA)**, **prix fixe gara
 | **API Backend** | ✅ en place | `backend/` (Node 22, Fastify 5, TypeScript strict) |
 | **App Client** (passagers) | ✅ en place | `frontend/index.html` + `frontend/src/App.tsx` |
 | **Console Admin** (17 sessions) | ✅ en place | `frontend/admin.html` + `frontend/src/admin/Admin.tsx` |
-| **App Chauffeur** | ❌ **à construire** | — |
+| **App Chauffeur** | ✅ en place (novembre 2026) | `frontend/driver.html` + `frontend/src/driver/` — voir [doc 10](./10-app-chauffeur.md) |
 
 Dépôt : `eliseeaguiei2018-pixel/orion-vtc-App` · Branche de travail : `claude/orion-platform-overview-osgd1u` · PR #1 ouverte.
 
@@ -167,7 +167,11 @@ correspondant dans `frontend/src/App.tsx`). **L'app Chauffeur doit faire pareil.
 
 ## 6. Périmètre proposé pour l'app Chauffeur
 
-À confirmer avec le porteur du projet avant de coder.
+> ✅ **Livré** (lots 0 à 8 validés par le porteur du projet). Détail, endpoints ajoutés,
+> règles métier et sécurité : [docs/10-app-chauffeur.md](./10-app-chauffeur.md).
+> Décisions retenues : attribution immédiate conservée + confirmation par le chauffeur
+> (cascade en cas de refus) ; espèces = commission inscrite en dette avec plafond console ;
+> connexion par code SMS, mode strict désactivé par défaut.
 
 1. **Connexion & KYC** : inscription, dépôt de documents, suivi du statut de validation,
    affichage du **motif de suspension** le cas échéant.

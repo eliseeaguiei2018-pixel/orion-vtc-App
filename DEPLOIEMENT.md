@@ -52,7 +52,10 @@ J'ai déjà ajouté le workflow `.github/workflows/deploy-pages.yml`. Une seule 
 
 ### Étape C · Sécuriser (recommandé)
 - Sur Render, change `CORS_ORIGIN` pour mettre **l'URL exacte de ton front** (au lieu de `*`).
-- En production réelle, mets `SIMULATE_RIDES=false` (quand l'app chauffeur fournira les vraies positions).
+- En production réelle, mets `SIMULATE_RIDES=false` (l'app chauffeur fournit désormais les vraies positions).
+- **App chauffeur** : `DRIVER_JWT_SECRET` (généré automatiquement par le blueprint Render),
+  puis, une fois l'opérateur SMS branché, `DRIVER_AUTH_STRICT=true`. Sans opérateur SMS, un
+  serveur en production n'envoie pas le code de connexion chauffeur (voir docs/10 §6).
 
 ---
 
