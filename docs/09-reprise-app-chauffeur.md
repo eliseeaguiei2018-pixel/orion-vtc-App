@@ -62,6 +62,43 @@ Implémentation existante : `backend/src/modules/admin/security.ts` (`SecurityAl
 - **CSV anti-injection de formule** : préfixer `'` si la cellule commence par `=`, `+`, `-` ou `@`.
 - **Tests** : `node:test` + `tsx`, dans `backend/tests/*.test.ts`. **117 tests, 0 échec** à ce jour.
 
+### ⚠️ Zod v4 — syntaxe à respecter
+
+Le backend utilise **Zod v4** (`zod@^4.6.7`, depuis la mise à jour de sécurité
+GHSA-mrhx-c7xc-m3w5). La migration depuis la v3 n'a demandé **aucune adaptation du code
+existant**, mais une règle change pour tout nouveau schéma.
+
+**La règle qui casse** — `z.record()` exige **deux arguments** (type de clé, type de valeur) :
+
+```ts
+// ❌ Passe à l'exécution, mais ÉCHOUE au typecheck :
+//    "error TS2554: Expected 2-3 arguments, but got 1" → CI rouge
+const schema = z.record(z.boolean());
+
+// ✅ Forme correcte (déjà celle employée dans le code existant)
+const schema = z.record(z.string(), z.boolean());
+```
+
+> Le piège : la v4 reste permissive à l'exécution, donc un test peut passer alors que
+> `npm run typecheck` échouera. C'est `tsc` qui garde la CI — toujours le lancer.
+
+**Formes héritées encore valides** (vérifiées sur zod 4.6.7, typecheck et exécution) —
+inutile de les réécrire dans le code existant, mais préférer la forme moderne pour du neuf :
+
+| Hérité (fonctionne) | Forme moderne v4 |
+|---|---|
+| `z.string().email()` | `z.email()` |
+| `z.object({…}).strict()` | `z.strictObject({…})` |
+| `z.nativeEnum(Obj)` | `z.enum(Obj)` |
+| `error.flatten()` | `z.flattenError(error)` |
+| `.min(2, { message: 'court' })` | `.min(2, { error: 'court' })` |
+
+**Inchangé** : `z.object`, `z.string`, `z.number`, `z.boolean`, `z.array`, `z.enum`,
+`z.coerce.*`, `z.custom<T>()`, `.optional()`, `.default()`, `safeParse()`.
+
+Le wrapper maison `parse(schema, data)` (`backend/src/core/validate.ts`) lève un 400
+homogène et reste inchangé : **l'utiliser systématiquement** plutôt qu'un `safeParse` direct.
+
 ### Temps réel (WebSocket)
 
 | Canal | Rôle |
