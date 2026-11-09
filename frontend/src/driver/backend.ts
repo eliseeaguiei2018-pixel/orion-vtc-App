@@ -211,7 +211,11 @@ function createLiveBackend(): DriverBackend {
 
     wallet: () => call(`/drivers/${id()}/wallet`),
     async payout(amount, method) { await post(`/drivers/${id()}/payout`, { amount, method }); },
-    training: () => call('/training/eco', {}, false),
+    async training() {
+      const t = await call<Training>('/training/eco', {}, false);
+      // Vidéo servie par le backend : chemin relatif → URL absolue de l'API.
+      return { ...t, videoUrl: t.videoUrl.startsWith('/') ? `${API}${t.videoUrl}` : t.videoUrl };
+    },
     // 400 = QCM non réussi : le corps porte quand même le score (affiché au chauffeur).
     submitTraining: (answers) => call<TrainingResult>(`/drivers/${id()}/training`, { method: 'POST', body: JSON.stringify({ answers }) }, true, [400]),
     async announcements() {
