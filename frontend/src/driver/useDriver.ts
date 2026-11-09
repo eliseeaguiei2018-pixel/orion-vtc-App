@@ -237,14 +237,16 @@ export function useDriver() {
     return () => window.clearInterval(id);
   }, [gps, activeRide]);
 
-  // Heartbeat de position (présence + suivi client en direct) toutes les 5 s.
+  // Heartbeat de position (présence + suivi client en direct) : toutes les 5 s en ligne,
+  // toutes les 3 s en mission, et immédiatement à chaque étape de la course.
+  const rideStep = activeRide ? `${activeRide.id}:${activeRide.status}` : null;
   useEffect(() => {
     if (!tracking || !session) return;
     const send = () => { void backend.sendLocation(posRef.current).catch(() => undefined); };
     send();
-    const id = window.setInterval(send, 5000);
+    const id = window.setInterval(send, rideStep ? 3000 : 5000);
     return () => window.clearInterval(id);
-  }, [tracking, session, backend]);
+  }, [tracking, session, backend, rideStep]);
 
   /* ---------------------------------- Actions ---------------------------------- */
   /** Exécute une action serveur avec indicateur d'occupation et message d'erreur lisible. */

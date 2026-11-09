@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { IconCar, IconClock, IconPin, IconWallet } from '../../icons';
 import type { DriverApp } from '../useDriver';
 import type { ActiveRide } from '../types';
-import { fcfa, haversine, km, methodLabel, minutes, pct, TIER_LABEL } from '../format';
+import { fcfa, haversine, km, methodLabel, minutes, pct, TIER_LABEL, zoneAt } from '../format';
 
 /** Bip d'alerte (WebAudio, sans fichier) à l'arrivée d'une offre. */
 function beep(): void {
@@ -55,6 +55,9 @@ export function OfferSheet({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
   }, [left, refresh]);
 
   const toPickup = haversine(app.position, ride.origin);
+  const coords = (p: { lat: number; lng: number }) => `${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}`;
+  const fromName = ride.pickupZone?.name ?? zoneAt(ride.origin, app.driverConfig.zones)?.name ?? coords(ride.origin);
+  const toName = zoneAt(ride.destination, app.driverConfig.zones)?.name ?? coords(ride.destination);
   const rate = app.finance?.commissionRate ?? app.driverConfig.commission.green;
   const net = Math.round(ride.amount * (1 - rate)) + (ride.pickupZone?.driverBonus ?? 0);
   const r = 32;
@@ -90,8 +93,8 @@ export function OfferSheet({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
         </div>
 
         <div className="dv-route card" style={{ padding: '12px 14px 12px 36px' }}>
-          <div><strong>Départ</strong> <span className="muted">· {ride.pickupZone?.name ?? `${ride.origin.lat.toFixed(4)}, ${ride.origin.lng.toFixed(4)}`}</span></div>
-          <div><strong>Arrivée</strong> <span className="muted">· {ride.destination.lat.toFixed(4)}, {ride.destination.lng.toFixed(4)}</span></div>
+          <div><strong>Départ</strong> <span className="muted">· {fromName}</span></div>
+          <div><strong>Arrivée</strong> <span className="muted">· {toName}</span></div>
         </div>
         <div className="faint" style={{ fontSize: 12.5 }}>
           Client : {ride.client.name ?? 'Passager ORION'}{ride.client.rides > 0 ? ` · ${ride.client.rides} course${ride.client.rides > 1 ? 's' : ''} ORION` : ''} · Prix fixe garanti, embouteillages inclus.
