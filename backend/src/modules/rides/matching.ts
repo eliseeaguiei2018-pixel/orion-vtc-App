@@ -79,7 +79,14 @@ export class MatchingEngine {
     return this.blockedPairs.has(`${clientId}|${driverId}`);
   }
 
-  async findDriver(origin: LatLng, category?: string, rideDistanceMeters?: number, clientId?: string): Promise<MatchResult | null> {
+  async findDriver(
+    origin: LatLng,
+    category?: string,
+    rideDistanceMeters?: number,
+    clientId?: string,
+    /** Filtre d'éligibilité supplémentaire (ex. plafond de dette espèces). */
+    eligible?: (driver: Driver) => boolean,
+  ): Promise<MatchResult | null> {
     const ctx = this.dispatchCtx?.(origin);
     const strategy = ctx?.strategy ?? 'nearest';
     const baseRadii = ctx?.radiiMeters?.length ? ctx.radiiMeters : this.radiiMeters;
@@ -100,6 +107,7 @@ export class MatchingEngine {
         if (!this.hasRangeFor(driver, rideDistanceMeters)) continue; // batterie insuffisante
         // Désappariement qualité : jamais réapparier après une note 1–2★.
         if (clientId && this.blockedPairs.has(`${clientId}|${c.id}`)) continue;
+        if (eligible && !eligible(driver)) continue; // ex. dette espèces au-delà du plafond
         // Cantonnement : un chauffeur épinglé à une zone n'est matché QUE dans celle-ci.
         if (driver.zoneLockId && ctx?.originZone?.id !== driver.zoneLockId) continue;
         // Standard minimal du secteur (Riviera Golf exige ≥ argent, Beverly Hills ≥ or…).

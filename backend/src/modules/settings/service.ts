@@ -183,6 +183,9 @@ export class SettingsService {
   /** Notifié à chaque changement de la config publique (services/gateways/open) —
    * branché sur le hub temps réel pour diffuser aux apps clientes (voir container). */
   private servicesChangeHandler?: (config: ServicesConfig) => void;
+  /** Notifié à chaque changement d'un réglage qui concerne les chauffeurs (dispatch,
+   * commissions, dette espèces, heures creuses, attente, zones) — diffusé à l'app chauffeur. */
+  private driverConfigChangeHandler?: () => void;
 
   constructor(
     private readonly repo?: Repository<PricingRecord>,
@@ -208,6 +211,19 @@ export class SettingsService {
       this.ops = { ...DEFAULT_OPS, ...rest };
     } else {
       this.ops = { ...DEFAULT_OPS };
+    }
+  }
+
+  /** Enregistre le handler de diffusion « config chauffeur » (appelé une fois au démarrage). */
+  onDriverConfigChanged(handler: () => void): void {
+    this.driverConfigChangeHandler = handler;
+  }
+
+  private notifyDriverConfig(): void {
+    try {
+      this.driverConfigChangeHandler?.();
+    } catch {
+      /* la diffusion ne doit jamais faire échouer un réglage console */
     }
   }
 
@@ -243,13 +259,18 @@ export class SettingsService {
       commissionLoyalty: Math.min(0.5, Math.max(0, patch.commissionLoyalty ?? this.ops.commissionLoyalty ?? 0.10)),
     };
     this.opsRepo?.put({ id: OPS_ID, ...this.ops });
+    this.notifyDriverConfig();
     return this.ops;
   }
 
   /* ------------------------------- Zones ------------------------------- */
   getZones(): Zone[] { return this.zones; }
 
-  private persistZones(): void { this.zonesRepo?.put({ id: ZONES_ID, zones: this.zones }); }
+  private persistZones(): void {
+    this.zonesRepo?.put({ id: ZONES_ID, zones: this.zones });
+    // Bonus de secteur, standard minimal, surge manuel : visibles en direct côté chauffeur.
+    this.notifyDriverConfig();
+  }
 
   /** Crée ou met à jour une zone (par id). Renvoie la zone. */
   upsertZone(z: Zone): Zone {
@@ -347,6 +368,7 @@ export class SettingsService {
       bodySurcharge: { ...this.pricing.bodySurcharge, ...(patch.bodySurcharge ?? {}) },
     };
     this.repo?.put({ id: PRICING_ID, ...this.pricing });
+    this.notifyDriverConfig();
     return this.pricing;
   }
 
@@ -354,6 +376,7 @@ export class SettingsService {
   resetPricing(): PricingSettings {
     this.pricing = { ...DEFAULT_PRICING };
     this.repo?.put({ id: PRICING_ID, ...this.pricing });
+    this.notifyDriverConfig();
     return this.pricing;
   }
 }

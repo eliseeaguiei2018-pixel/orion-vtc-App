@@ -3,7 +3,9 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { latLng, parse } from '../../core/validate.js';
-import { notFound } from '../../core/errors.js';
+import { conflict, forbidden, notFound } from '../../core/errors.js';
+import { config } from '../../config/index.js';
+import { fromDriverApp } from '../driver-app/routes.js';
 import { driverRoom, rideRoom } from '../realtime/hub.js';
 import { genMatricule } from './store.js';
 
@@ -42,8 +44,21 @@ export async function driverRoutes(app: FastifyInstance, container: Container): 
   // Activation de la disponibilité (passage en ligne) + publication de la position.
   app.post('/drivers/:id/online', async (req) => {
     const { id } = req.params as { id: string };
-    if (!container.drivers.get(id)) throw notFound('Chauffeur introuvable');
+    const drv = container.drivers.get(id);
+    if (!drv) throw notFound('Chauffeur introuvable');
     const body = parse(onlineSchema, req.body);
+    // Garde-fous (synchro console) : compte suspendu → motif affiché ; ORION fermé
+    // (maintenance) → aucune mise en ligne.
+    if (drv.kycStatus === 'suspended') {
+      throw forbidden(`Compte suspendu par ORION${drv.suspensionReason ? ` : ${drv.suspensionReason}` : ''}`);
+    }
+    if (!container.settings.getServices().open) {
+      throw conflict('ORION est momentanément fermé (maintenance) — mise en ligne impossible');
+    }
+    // Depuis l'app chauffeur (ou en mode strict) : dossier VALIDÉ par ORION exigé.
+    if ((config.DRIVER_AUTH_STRICT || fromDriverApp(req)) && drv.kycStatus !== 'approved' && drv.kycStatus !== 'active') {
+      throw forbidden('Dossier en cours de validation par ORION — mise en ligne possible après validation');
+    }
     await container.drivers.goOnline(id, body.position);
     return { status: 'online' };
   });

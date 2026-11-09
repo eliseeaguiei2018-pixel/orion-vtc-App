@@ -74,6 +74,8 @@ export function genMatricule(): string {
  */
 export class DriverStore {
   private readonly drivers = new Map<string, Driver>();
+  /** Notifié à chaque changement de fiche (app chauffeur synchronisée en direct). */
+  private changeHandler?: (driver: Driver) => void;
 
   constructor(
     private readonly geo: GeoIndex,
@@ -83,16 +85,44 @@ export class DriverStore {
     for (const d of repo.all()) this.drivers.set(d.id, d);
   }
 
+  /**
+   * Enregistre le handler de diffusion (appelé une fois au démarrage, cf. container) :
+   * toute décision de la console (suspension motivée, avertissement, VIP, fidélité,
+   * cantonnement…) est ainsi poussée en temps réel vers l'app du chauffeur concerné.
+   */
+  onChange(handler: (driver: Driver) => void): void {
+    this.changeHandler = handler;
+  }
+
+  private changed(d: Driver): void {
+    try {
+      this.changeHandler?.(d);
+    } catch {
+      /* la diffusion ne doit jamais faire échouer une écriture */
+    }
+  }
+
   /** Persiste l'état courant d'un chauffeur (write-through). */
   persist(id: string): void {
     const d = this.drivers.get(id);
-    if (d) this.repo.put(d);
+    if (d) {
+      this.repo.put(d);
+      this.changed(d);
+    }
   }
 
   upsert(driver: Driver): Driver {
     this.drivers.set(driver.id, driver);
     this.repo.put(driver);
+    this.changed(driver);
     return driver;
+  }
+
+  /** Recherche par téléphone (connexion app chauffeur). Comparaison sur chiffres seuls. */
+  findByPhone(phone: string): Driver | undefined {
+    const digits = phone.replace(/\D/g, '');
+    if (!digits) return undefined;
+    return [...this.drivers.values()].find((d) => d.phone !== undefined && d.phone.replace(/\D/g, '') === digits);
   }
 
   get(id: string): Driver | undefined {
@@ -111,6 +141,7 @@ export class DriverStore {
     d.availability = 'online';
     d.idleSince = new Date().toISOString(); // entre dans la file d'attente (dispatch FIFO)
     this.repo.put(d);
+    this.changed(d);
     await this.geo.upsert({ id, lat: pos.lat, lng: pos.lng, meta: { category: d.category } });
   }
 
@@ -119,6 +150,7 @@ export class DriverStore {
     if (d) {
       d.availability = 'offline';
       this.repo.put(d);
+      this.changed(d);
     }
     await this.geo.remove(id);
   }
@@ -136,6 +168,7 @@ export class DriverStore {
       d.availability = availability;
       if (availability === 'online') d.idleSince = new Date().toISOString(); // re-entre dans la file
       this.repo.put(d);
+      this.changed(d);
     }
   }
 }

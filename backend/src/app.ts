@@ -24,6 +24,7 @@ import { weddingRoutes } from './modules/wedding/routes.js';
 import { insuranceRoutes } from './modules/insurance/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { supportClientRoutes } from './modules/support/routes.js';
+import { driverAppRoutes, registerDriverGuard } from './modules/driver-app/routes.js';
 
 export interface BuiltApp {
   app: FastifyInstance;
@@ -73,6 +74,9 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
     reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Route introuvable', requestId: req.id } });
   });
 
+  // Garde d'accès app chauffeur (jeton) sur les routes chauffeur existantes.
+  registerDriverGuard(app, container);
+
   // Passerelle temps réel (WebSocket) — enregistrée avant les routes HTTP.
   await realtimeRoutes(app, container);
 
@@ -95,6 +99,8 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
   await insuranceRoutes(app, container);
   await adminRoutes(app, container);
   await supportClientRoutes(app, container);
+  // App Chauffeur : connexion, config flotte, historique, course en cours, canal WS.
+  await driverAppRoutes(app, container);
 
   // Arrêt en douceur : couper les timers de simulation.
   app.addHook('onClose', async () => container.simulator.stopAll());

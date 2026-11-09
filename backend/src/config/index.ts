@@ -74,6 +74,17 @@ const schema = z.object({
   // Verrouillage auto d'une session après N minutes d'inactivité (écran laissé allumé).
   ADMIN_INACTIVITY_MINUTES: z.coerce.number().int().positive().default(15),
 
+  // --- Authentification APP CHAUFFEUR (téléphone + code SMS → jeton signé) ---
+  // Secret de signature des jetons chauffeur (HS256), DISTINCT de celui de la console.
+  DRIVER_JWT_SECRET: z.string().default('orion-dev-driver-secret-change-me'),
+  // Durée de validité d'une session chauffeur (secondes). 30 jours par défaut.
+  DRIVER_JWT_TTL_SECONDS: z.coerce.number().int().positive().default(2_592_000),
+  // Validité d'un code SMS de connexion (secondes).
+  DRIVER_OTP_TTL_SECONDS: z.coerce.number().int().positive().default(300),
+  // Mode STRICT : si "true", le jeton chauffeur devient OBLIGATOIRE sur toutes les routes
+  // /drivers/:id/* (à activer en production). Désactivé par défaut (compatibilité).
+  DRIVER_AUTH_STRICT: z.string().default('false').transform((v) => v.toLowerCase() === 'true'),
+
   // --- Trésorerie (macro-économie) ---
   // Solde du compte séquestre (Escrow) couvrant les portefeuilles virtuels.
   TREASURY_ESCROW_XOF: z.coerce.number().min(0).default(50_000_000),

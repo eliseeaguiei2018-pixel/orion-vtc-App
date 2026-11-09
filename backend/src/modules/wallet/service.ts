@@ -12,7 +12,9 @@ import type { Repository } from '../../core/db/repository.js';
  * En production : ledger en base (PostgreSQL) avec écritures comptables en double entrée.
  * Ici : ledger en mémoire, même logique métier (testable et déterministe).
  */
-export type LedgerType = 'ride_earning' | 'commission' | 'payout' | 'adjustment' | 'insurance_refund';
+export type LedgerType = 'ride_earning' | 'commission' | 'payout' | 'adjustment' | 'insurance_refund'
+  /** Espèces encaissées en main propre par le chauffeur : la commission devient une dette. */
+  | 'cash_collected';
 
 export interface LedgerEntry {
   id: string;
@@ -37,6 +39,21 @@ export function computeCommission(gross: number, rate = config.PLATFORM_COMMISSI
   const commission = Math.round((gross * rate) / 5) * 5; // arrondi 5 FCFA
   const net = gross - commission;
   return { gross, commission, net, rate };
+}
+
+/**
+ * Taux de commission EFFECTIF d'un chauffeur (logique pure, partagée par le paiement et
+ * l'app chauffeur) : personnalisé (fidélité console) > fidélité verte au-delà du seuil
+ * de courses électriques > taux vert réduit > taux standard.
+ */
+export function effectiveCommissionRate(
+  drv: { engine?: 'electric' | 'hybrid'; electricRides?: number; commissionOverride?: number } | undefined,
+  ops: { commissionStandard: number; commissionGreen: number; commissionLoyalty: number; loyaltyRideThreshold: number },
+): number {
+  const isElectric = (drv?.engine ?? 'electric') === 'electric';
+  return drv?.commissionOverride
+    ?? (isElectric && (drv?.electricRides ?? 0) >= ops.loyaltyRideThreshold ? ops.commissionLoyalty : undefined)
+    ?? (isElectric ? ops.commissionGreen : ops.commissionStandard);
 }
 
 export class WalletService {

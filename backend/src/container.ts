@@ -15,7 +15,8 @@ import { InsuranceService, type InsuranceContribution } from './modules/insuranc
 import { PaymentRegistry } from './modules/payments/providers.js';
 import { SafetyService } from './modules/safety/service.js';
 import { SettingsService, type PricingRecord } from './modules/settings/service.js';
-import { RealtimeHub, CONFIG_ROOM } from './modules/realtime/hub.js';
+import { RealtimeHub, CONFIG_ROOM, DRIVER_CONFIG_ROOM, driverRoom } from './modules/realtime/hub.js';
+import { driverAppConfig } from './modules/driver-app/config.js';
 import { createMapsProvider, type MapsProvider } from './modules/maps/service.js';
 import { createRepository } from './core/db/repository.js';
 import { genMatricule, type Driver } from './modules/drivers/store.js';
@@ -149,6 +150,12 @@ export function createContainer(): Container {
   // console (maintenance, services, passerelles), toutes les apps clientes connectées au
   // canal WS `config` reçoivent la nouvelle config et se mettent à jour instantanément.
   settings.onServicesChanged((cfg) => realtime.publish(CONFIG_ROOM, 'config.update', { ...cfg, currency: 'XOF' }));
+  // App CHAUFFEUR synchronisée : réglages flotte (délai d'offre, commissions, dette
+  // espèces, heures creuses, zones) rediffusés à chaque changement console…
+  settings.onDriverConfigChanged(() => realtime.publish(DRIVER_CONFIG_ROOM, 'driver-config.update', driverAppConfig(settings)));
+  // …et chaque modification de fiche (KYC, suspension motivée, avertissement, VIP,
+  // fidélité, disponibilité) poussée en direct au chauffeur concerné.
+  drivers.onChange((d) => realtime.publish(driverRoom(d.id), 'driver.update', { driver: d }));
   const safety = new SafetyService(realtime);
   // Portefeuille client (séparé du wallet chauffeur) : remboursements ORION Assurance.
   const clientWallet = new WalletService(createRepository<LedgerEntry>('client_wallet'));

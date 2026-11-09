@@ -28,6 +28,8 @@ export interface Ride {
   waitMinutes?: number;
   /** Compte Entreprise (B2B) : course imputée à la ligne de crédit société. */
   corporateId?: string;
+  /** Moyen de paiement annoncé par le client à la commande (affiché au chauffeur). */
+  paymentMethod?: string;
   createdAt: string;
 }
 
@@ -88,6 +90,13 @@ export class RideStore {
 
   findByShareToken(token: string): Ride | undefined {
     return [...this.rides.values()].find((r) => r.shareToken === token);
+  }
+
+  /** Courses d'un chauffeur (historique app chauffeur), plus récentes d'abord. */
+  listByDriver(driverId: string): Ride[] {
+    return [...this.rides.values()]
+      .filter((r) => r.driverId === driverId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   listByClient(clientId: string): Ride[] {

@@ -7,6 +7,7 @@ import { badRequest, notFound } from '../../core/errors.js';
 import { PAYMENT_CATALOG, type PaymentMethod } from './providers.js';
 import { driverRoom } from '../realtime/hub.js';
 import { rideReceipt, sendEmail } from '../../core/mailer.js';
+import { effectiveCommissionRate } from '../wallet/service.js';
 
 /** Lien profond (deep link) vers l'app de paiement de l'opérateur choisi. */
 const DEEPLINKS: Record<string, string> = {
@@ -95,11 +96,16 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
         const drv = container.drivers.get(ride.driverId);
         const ops = container.settings.getOps();
         const isElectric = (drv?.engine ?? 'electric') === 'electric';
-        // Commission modulée : fidélité > verte réduite > standard.
-        const rate = drv?.commissionOverride
-          ?? (isElectric && (drv?.electricRides ?? 0) >= ops.loyaltyRideThreshold ? ops.commissionLoyalty : undefined)
-          ?? (isElectric ? ops.commissionGreen : ops.commissionStandard);
+        // Commission modulée : fidélité > verte réduite > standard (logique partagée
+        // avec l'app chauffeur, qui affiche le même taux).
+        const rate = effectiveCommissionRate(drv, ops);
         commission = container.wallet.creditRide(ride.driverId, ride.id, totalDue, rate);
+        // ESPÈCES : le chauffeur a encaissé le total en main propre. On l'inscrit au
+        // ledger → son solde baisse du montant encaissé et la commission devient une
+        // DETTE envers ORION (recouvrement + plafond console « dette espèces »).
+        if (body.method === 'cash') {
+          container.wallet.credit(ride.driverId, -totalDue, 'cash_collected', 'Espèces encaissées (commission due à ORION)', ride.id);
+        }
         // Compteur de courses électriques (fidélité verte).
         if (drv && isElectric) { drv.electricRides = (drv.electricRides ?? 0) + 1; container.drivers.persist(drv.id); }
         // Prime « prise en charge longue » : approche à vide au-delà du seuil → bonus chauffeur.

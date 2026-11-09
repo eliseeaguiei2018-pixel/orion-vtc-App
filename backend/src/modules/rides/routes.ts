@@ -7,6 +7,7 @@ import { badRequest, conflict, notFound } from '../../core/errors.js';
 import { rideStateMachine, type RideStatus } from '../services/ride/stateMachine.js';
 import { rideRoom } from '../realtime/hub.js';
 import type { Ride } from './store.js';
+import { publishAssignment } from '../driver-app/routes.js';
 
 const createSchema = z.object({
   clientId: z.string().min(1),
@@ -15,6 +16,9 @@ const createSchema = z.object({
   trustedContact: z.object({ name: z.string().min(1), phone: z.string().min(1) }).optional(),
   // Compte Entreprise (B2B) : la course est imputée à la ligne de crédit société.
   corporateCode: z.string().min(2).max(40).optional(),
+  // Moyen de paiement annoncé : affiché au chauffeur ; « espèces » exclut les chauffeurs
+  // dont la dette espèces dépasse le plafond console.
+  paymentMethod: z.enum(['cash', 'orange_money', 'mtn_momo', 'moov_money', 'wave', 'card']).optional(),
 });
 
 const transitionSchema = z.object({ to: z.custom<RideStatus>() });
@@ -74,6 +78,7 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
         shareToken: randomUUID().slice(0, 8),
         trustedContact: body.trustedContact,
         corporateId,
+        paymentMethod: body.paymentMethod,
         createdAt: new Date().toISOString(),
       };
       if (corporateId) appendEvent(created, 'corporate_charged', { corporateId, amount: quote.amount });
@@ -82,7 +87,11 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
 
       // Matching : recherche d'un chauffeur disponible à proximité
       // (les paires désappariées après une note 1–2★ sont exclues).
-      const match = await container.matching.findDriver(created.origin, quote.category, quote.distanceMeters, body.clientId);
+      // Plafond de dette espèces (console) : un chauffeur trop endetté ne reçoit plus
+      // de course payée en espèces (il reste éligible aux paiements électroniques).
+      const cashCap = body.paymentMethod === 'cash' ? container.settings.getOps().cashDebtLimit : undefined;
+      const eligible = cashCap === undefined ? undefined : (d: { id: string }) => container.wallet.balance(d.id) >= -cashCap;
+      const match = await container.matching.findDriver(created.origin, quote.category, quote.distanceMeters, body.clientId, eligible);
       if (match) {
         rideStateMachine.assertTransition(created.status, 'accepted');
         created.status = 'accepted';
@@ -95,6 +104,8 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       }
 
       container.rides.save(created);
+      // App chauffeur : affectation poussée en direct sur son canal personnel.
+      if (created.status === 'accepted') publishAssignment(container, created, match?.etaSeconds);
       // Rattache la course au client (fiche client / support).
       container.clients.incrementRides(created.clientId);
 

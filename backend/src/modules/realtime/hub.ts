@@ -51,3 +51,7 @@ export const clientRoom = (clientId: string) => `client:${clientId}`;
  * la console (maintenance, services activés, passerelles de paiement). Toutes les apps
  * clientes connectées s'y mettent à jour instantanément. */
 export const CONFIG_ROOM = 'config';
+/** Room de la configuration CHAUFFEUR : réglages console qui concernent la flotte
+ * (délai d'offre, commissions, dette espèces, heures creuses, attente, zones). Toutes les
+ * apps chauffeur connectées s'y mettent à jour instantanément. */
+export const DRIVER_CONFIG_ROOM = 'driver-config';
