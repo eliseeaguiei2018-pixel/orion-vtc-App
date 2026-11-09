@@ -962,15 +962,17 @@ function ConfirmScreen({ origin, destination, tier, quote, payment, payments, pr
         {/* Code promo (piloté depuis la console) : appliqué au devis côté serveur. */}
         <span className="eyebrow">{t('promo_label')}</span>
         <div className="row gap-sm" style={{ margin: '10px 0 14px' }}>
-          <div className="field grow" style={{ padding: '10px 14px' }}>
+          {/* Le champ occupe la place restante ; le bouton garde sa largeur propre
+              (sans cela, .btn { width: 100% } écrasait la saisie du code). */}
+          <div className="field grow" style={{ padding: '10px 14px', minWidth: 0 }}>
             <IconGem size={16} />
-            <input style={{ textTransform: 'uppercase', fontSize: 14 }} value={promoDraft}
+            <input style={{ textTransform: 'uppercase', fontSize: 14, minWidth: 0 }} value={promoDraft}
               onChange={(e) => setPromoDraft(e.target.value.toUpperCase().replace(/\s/g, ''))}
               placeholder={t('promo_ph')} aria-label={t('promo_label')} maxLength={24} />
           </div>
           {promo && discount > 0
-            ? <button className="btn btn-ghost" style={{ padding: 12, fontSize: 14, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={() => { onPromo(''); setPromoDraft(''); }}>{t('promo_clear')}</button>
-            : <button className="btn btn-ghost" style={{ padding: 12, fontSize: 14 }} onClick={() => onPromo(promoDraft.trim())} disabled={!promoDraft.trim()}>{t('promo_apply')}</button>}
+            ? <button className="btn btn-ghost" style={{ padding: '12px 16px', fontSize: 14, width: 'auto', flex: 'none', borderColor: 'var(--green)', color: 'var(--green)' }} onClick={() => { onPromo(''); setPromoDraft(''); }}>{t('promo_clear')}</button>
+            : <button className="btn btn-ghost" style={{ padding: '12px 16px', fontSize: 14, width: 'auto', flex: 'none' }} onClick={() => onPromo(promoDraft.trim())} disabled={!promoDraft.trim()}>{t('promo_apply')}</button>}
         </div>
         {promo && (
           discount > 0
