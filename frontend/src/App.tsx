@@ -16,7 +16,7 @@ import {
   ABIDJAN_PLACES, COUNTRIES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { cancelRide, clientId, configSocketUrl, createRide, estimate, fetchAppConfig, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, type Announcement, type AppConfig, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
+import { cancelRide, clientId, configSocketUrl, createRide, estimate, fetchAppConfig, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, estimateDelivery, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, type Announcement, type AppConfig, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
 import { LANGUAGES, useI18n, type Lang } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubPlan, TierOption, WeddingDuration } from './types';
 
@@ -204,7 +204,15 @@ export function App() {
         setScreen('tracking');
         return;
       }
+      // Backend connecté : ne JAMAIS fabriquer de chauffeur. Sans attribution (aucun
+      // chauffeur disponible) ou si l'appel a échoué, on le dit au client et on libère
+      // la course. Afficher un faux chauffeur ferait croire qu'une voiture arrive.
+      if (res?.ride?.id) void cancelRide(res.ride.id);
+      showToast(res ? t('toast_no_driver') : t('toast_ride_failed'), true);
+      reset();
+      return;
     }
+    // Mode démo uniquement (pas de backend) : course simulée.
     window.setTimeout(() => {
       setRideId(null);
       setLive(false);
@@ -232,14 +240,40 @@ export function App() {
   };
 
   /** Lance une livraison moto (retrait → dépôt), tarif coursier, suivi moto. */
-  const startDelivery = (dropoff: Place, size: PkgSize) => {
+  const startDelivery = async (dropoff: Place, size: PkgSize) => {
     setMode('delivery');
     setPkgSize(size);
     setDestination(dropoff);
+    setScreen('searching');
+
+    // Backend connecté : la livraison est une VRAIE commande (devis coursier verrouillé
+    // puis création de la course), visible dans la console. Elle n'était jusqu'ici que
+    // simulée, même en production : aucun colis n'était réellement enregistré.
+    if (isLiveBackend()) {
+      const q = await estimateDelivery(origin.location, dropoff.location, size, promo || undefined);
+      if (q) {
+        setQuote(q);
+        const res = await createRide(q.lockId, clientId(), shareRides && trusted ? trusted : undefined, payment);
+        if (res?.ride?.driverId) {
+          setRideId(res.ride.id);
+          setLive(true);
+          setDriver(res.driver ? driverFromSafe(res.driver) : pickCourier());
+          setCarPos(null);
+          setTripPhase('enroute');
+          setScreen('tracking');
+          return;
+        }
+        if (res?.ride?.id) void cancelRide(res.ride.id);
+      }
+      showToast(q ? t('toast_no_driver') : t('toast_ride_failed'), true);
+      reset();
+      return;
+    }
+
+    // Mode démo (pas de backend) : coursier simulé.
     setQuote(previewDelivery(origin.location, dropoff.location, size));
     setLive(false);
     setRideId(null);
-    setScreen('searching');
     window.setTimeout(() => { setDriver(pickCourier()); setTripPhase('enroute'); setScreen('tracking'); }, 2200);
   };
 

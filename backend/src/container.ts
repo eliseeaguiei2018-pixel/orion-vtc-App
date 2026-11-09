@@ -3,6 +3,7 @@ import { createGeoIndex, type GeoIndex } from './core/geo.js';
 import { IdempotencyStore } from './core/idempotency.js';
 import { ServiceRegistry } from './modules/services/registry.js';
 import { RideServiceModule } from './modules/services/ride/rideModule.js';
+import { DeliveryServiceModule } from './modules/services/delivery/deliveryModule.js';
 import { DriverStore } from './modules/drivers/store.js';
 import { RideStore } from './modules/rides/store.js';
 import { MatchingEngine } from './modules/rides/matching.js';
@@ -143,7 +144,25 @@ export function createContainer(): Container {
       };
     }),
   );
-  // Extension : registry.register(new DeliveryServiceModule()) ... (cf. docs/04)
+  // Livraison à moto : même contexte tarifaire que la course (trafic intégré, zone,
+  // surge plafonné, codes promo de la console) sur le barème coursier.
+  registry.register(
+    new DeliveryServiceModule(async (req) => {
+      const traffic = trafficInfo(req.origin, req.destination);
+      demand.record(req.origin);
+      const ops = settings.getOps();
+      const surgeRaw = ops.surgeEnabled ? await demand.surgeFor(req.origin) : 1;
+      const surgeManual = settings.zoneForPoint(req.origin)?.surgeManual ?? 1;
+      return {
+        trafficFactor: traffic.factor,
+        trafficLevel: traffic.level,
+        settings: settings.getPricing(),
+        zoneFactor: settings.zoneFactor(req.origin),
+        surgeMultiplier: Math.min(Math.max(surgeRaw, surgeManual), ops.surgeCapGreen),
+        promoDiscount: (subtotal: number) => promos.evaluate(req.promoCode, subtotal)?.discount ?? 0,
+      };
+    }),
+  );
 
   const realtime = new RealtimeHub();
   // Diffusion temps réel de la config publique : à chaque changement piloté depuis la

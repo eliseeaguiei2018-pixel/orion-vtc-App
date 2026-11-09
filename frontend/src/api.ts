@@ -137,6 +137,19 @@ export function previewDelivery(origin: LatLng, destination: LatLng, size: PkgSi
   };
 }
 
+/**
+ * Devis de LIVRAISON auprès du backend (service coursier). Renvoie null si le backend
+ * est absent ou indisponible — l'appelant retombe alors sur `previewDelivery` (démo).
+ * Le lockId renvoyé permet de créer une vraie livraison au prix affiché.
+ */
+export async function estimateDelivery(origin: LatLng, destination: LatLng, size: PkgSize, promoCode?: string): Promise<Quote | null> {
+  const remote = await tryFetch<{ quote: Quote }>('/pricing/estimate', {
+    method: 'POST',
+    body: JSON.stringify({ serviceType: 'delivery', origin, destination, category: size, promoCode }),
+  });
+  return remote?.quote ?? null;
+}
+
 export async function estimate(origin: LatLng, destination: LatLng, tier: TierOption, opts: EstimateOpts = {}): Promise<Quote> {
   const remote = await tryFetch<{ quote: Quote }>('/pricing/estimate', {
     method: 'POST',
