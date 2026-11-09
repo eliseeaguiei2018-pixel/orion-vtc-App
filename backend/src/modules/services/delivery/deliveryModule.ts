@@ -22,14 +22,22 @@ import { isWithinCotedIvoire } from '../../geo-ci/zones.js';
  */
 
 /** Tailles de colis acceptées et leur facteur de prix. */
-export const PACKAGE_FACTOR: Record<string, number> = { petit: 1, moyen: 1.15, grand: 1.35 };
+export const PACKAGE_FACTOR: Record<string, number> = { petit: 1, moyen: 1.12, grand: 1.25 };
 export const DEFAULT_PACKAGE = 'moyen';
 
-/** Barème coursier (F CFA) — distinct de celui des voitures. */
+/**
+ * Barème coursier (F CFA) — distinct de celui des voitures et DÉLIBÉRÉMENT moins cher.
+ *
+ * Le barème hérité de la maquette faisait payer une livraison 22 à 30 % de PLUS qu'une
+ * course bronze sur le même trajet, ce qui est commercialement à l'envers : une moto
+ * transportant un colis coûte moins cher à exploiter qu'une voiture transportant une
+ * personne, et le client n'occupe pas le véhicule. Le barème vise désormais environ
+ * 70 % du prix d'une course bronze, le plancher protégeant les très courtes distances.
+ */
 export const DELIVERY_TARIFF = {
-  baseFare: 450,
-  perKm: 150,
-  perMinute: 14,
+  baseFare: 220,
+  perKm: 88,
+  perMinute: 8,
   minFare: 500,
   avgSpeedKmh: 26, // la moto se faufile : plus rapide qu'une voiture en ville
   currency: 'XOF',

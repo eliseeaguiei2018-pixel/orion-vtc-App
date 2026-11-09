@@ -49,20 +49,29 @@ test('Livraison : la taille du colis renchérit le prix (petit < moyen < grand)'
   assert.ok(moyen < grand, `moyen (${moyen}) < grand (${grand})`);
 });
 
-test('Livraison : barème coursier distinct de la course, et moto plus rapide', async (t) => {
+test('Livraison : moins chère qu’une course voiture, quelle que soit la taille du colis', async (t) => {
+  // Chaque devis est pris sur une instance NEUVE : un devis compte comme une demande
+  // (surge), donc des mesures successives sur la même instance se gonflent l'une l'autre.
   const { buildApp } = await import('../src/app.js');
-  const { app } = await buildApp();
-  t.after(() => app.close());
+  const une = async (payload: object) => {
+    const { app } = await buildApp();
+    const q = (await app.inject({ method: 'POST', url: '/pricing/estimate', payload })).json().quote;
+    await app.close();
+    return q;
+  };
 
-  const est = async (payload: object) => (await app.inject({ method: 'POST', url: '/pricing/estimate', payload })).json().quote;
-  const course = await est({ serviceType: 'ride', origin: ORIGIN, destination: DEST, category: 'bronze' });
-  const livraison = await est({ serviceType: 'delivery', origin: ORIGIN, destination: DEST, category: 'petit' });
+  const course = await une({ serviceType: 'ride', origin: ORIGIN, destination: DEST, category: 'bronze' });
+  for (const taille of ['petit', 'moyen', 'grand']) {
+    const livr = await une({ serviceType: 'delivery', origin: ORIGIN, destination: DEST, category: taille });
+    // Une moto portant un colis ne doit jamais coûter plus qu'une voiture portant
+    // une personne : le barème hérité de la maquette facturait 22 à 30 % de PLUS.
+    assert.ok(livr.amount < course.amount,
+      `colis ${taille} (${livr.amount}) doit rester sous la course bronze (${course.amount})`);
+  }
 
-  // La moto se faufile : à distance égale, elle arrive avant la voiture.
-  assert.ok(livraison.etaSeconds < course.etaSeconds, `moto ${livraison.etaSeconds}s < voiture ${course.etaSeconds}s`);
-  // Barèmes bien distincts (base coursier 450 F contre 300 F × multiplicateur de gamme).
-  assert.notEqual(livraison.breakdown.base, course.breakdown.base);
-  assert.equal(livraison.distanceMeters, course.distanceMeters, 'même trajet, même distance');
+  const petit = await une({ serviceType: 'delivery', origin: ORIGIN, destination: DEST, category: 'petit' });
+  assert.ok(petit.etaSeconds < course.etaSeconds, 'la moto arrive avant la voiture');
+  assert.equal(petit.distanceMeters, course.distanceMeters, 'même trajet, même distance');
 });
 
 test('Livraison : hors Côte d’Ivoire refusée, et code promo de la console appliqué', async (t) => {

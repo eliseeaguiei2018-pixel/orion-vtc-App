@@ -1,4 +1,4 @@
-import type { Overview, Alert, FleetUnit, RideRow, DriverRow, Client, DriverDetail, ClientDetail } from './Admin';
+import type { Overview, Alert, FleetUnit, RideRow, DriverRow, Client, DriverDetail, ClientDetail } from './types';
 
 /** Jeu de données de démonstration (console autonome, sans backend). */
 const iso = (minAgo: number) => new Date(Date.now() - minAgo * 60000).toISOString();

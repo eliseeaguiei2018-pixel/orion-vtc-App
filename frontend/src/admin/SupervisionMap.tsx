@@ -1,4 +1,4 @@
-import type { FleetUnit, Alert } from './Admin';
+import type { FleetUnit, Alert } from './types';
 
 /**
  * Carte de supervision (console admin) : projette la flotte et les alertes SAMU sur

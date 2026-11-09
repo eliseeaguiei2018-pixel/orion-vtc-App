@@ -100,8 +100,9 @@ export function previewQuote(origin: LatLng, destination: LatLng, tier: TierOpti
   return localEstimate(origin, destination, tier, opts);
 }
 
-/** Tailles de colis (livraison moto) et leur facteur de prix. */
-export const PKG_FACTOR = { petit: 1, moyen: 1.15, grand: 1.35 } as const;
+/** Tailles de colis (livraison moto) et leur facteur de prix. Doit rester aligné sur
+ *  PACKAGE_FACTOR du backend, sinon le prix affiché hors ligne diverge du prix payé. */
+export const PKG_FACTOR = { petit: 1, moyen: 1.12, grand: 1.25 } as const;
 export type PkgSize = keyof typeof PKG_FACTOR;
 
 /**
@@ -115,9 +116,11 @@ export function previewDelivery(origin: LatLng, destination: LatLng, size: PkgSi
   const f = PKG_FACTOR[size];
   const etaSeconds = Math.round((km / 26) * 3600 * traffic.factor); // moto plus rapide
   const minutes = (km / 26) * 60;
-  const base = 450 * f;
-  const distance = km * 150 * f;
-  const time = minutes * 14 * f;
+  // Barème coursier : aligné sur DELIVERY_TARIFF du backend (moins cher qu'une course
+  // voiture — la moto coûte moins à exploiter et ne transporte pas de passager).
+  const base = 220 * f;
+  const distance = km * 88 * f;
+  const time = minutes * 8 * f;
   const trafficMult = 1 + (traffic.factor - 1) * TRAFFIC_PRICE_WEIGHT;
   const subtotal = Math.max((base + distance + time) * trafficMult, 500);
   const tva = subtotal * 0.05;
