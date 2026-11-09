@@ -60,6 +60,14 @@ export interface Driver {
   ribVerified?: boolean;
   /** Numéro d'identification fiscale (déclaration des revenus). */
   nif?: string;
+  /* --- App Chauffeur --- */
+  /** Première connexion à l'app chauffeur : les offres passent alors par l'app (compte à rebours). */
+  appLinkedAt?: string;
+  /** Statistiques d'offres (taux d'acceptation affiché au chauffeur et à la console). */
+  offersReceived?: number;
+  offersAccepted?: number;
+  offersDeclined?: number;
+  offersExpired?: number;
 }
 
 /** Génère un matricule ORION lisible, ex. ORION-CI-4821. */

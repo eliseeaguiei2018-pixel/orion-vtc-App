@@ -31,6 +31,8 @@ export interface SimulatorOptions {
 export class RideSimulator {
   private readonly timers = new Set<ReturnType<typeof setInterval>>();
   private readonly opts: SimulatorOptions;
+  /** Chauffeurs à NE PAS simuler (ils pilotent eux-mêmes la course via l'app chauffeur). */
+  private skip?: (driverId: string) => boolean;
 
   constructor(
     private readonly rides: RideStore,
@@ -47,9 +49,15 @@ export class RideSimulator {
     };
   }
 
+  /** Exclut de la simulation les chauffeurs équipés de l'app (appelé au démarrage). */
+  skipWhen(predicate: (driverId: string) => boolean): void {
+    this.skip = predicate;
+  }
+
   /** Démarre la simulation d'une course déjà acceptée (chauffeur assigné). */
   start(ride: Ride): void {
     if (!this.opts.enabled || !ride.driverId) return;
+    if (this.skip?.(ride.driverId)) return; // vrai chauffeur : positions et statuts viennent de l'app
 
     // Le chauffeur démarre à proximité, puis rejoint le point de départ.
     const driverStart: LatLng = { lat: ride.origin.lat - 0.012, lng: ride.origin.lng - 0.009 };

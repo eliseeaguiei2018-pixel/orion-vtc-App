@@ -121,3 +121,8 @@ export function requireDriver(req: FastifyRequest, driverId: string): void {
   if (!sub) throw unauthorized('Session chauffeur absente ou expirée — reconnectez-vous');
   if (sub !== driverId) throw forbidden('Ce compte chauffeur ne vous appartient pas');
 }
+
+/** La requête vient-elle de l'app chauffeur (jeton chauffeur valide présenté) ? */
+export function fromDriverApp(req: FastifyRequest): boolean {
+  return verifyDriverToken(driverTokenOf(req)) !== null;
+}

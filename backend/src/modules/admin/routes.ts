@@ -12,6 +12,7 @@ import {
 } from './auth.js';
 import { config } from '../../config/index.js';
 import { SOS_PRESETS } from '../safety/service.js';
+import { consoleForced, consoleReassigned } from '../driver-app/offers.js';
 
 /** Rôles de direction : accès complet, 2FA exigible via ADMIN_REQUIRE_2FA. */
 const EXEC_ROLES = new Set(['ceo', 'dg', 'daa', 'coo', 'super_admin']);
@@ -893,6 +894,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       ride.events.push({ type: 'reassigned', at: new Date().toISOString(), payload: { previous, next } });
       container.drivers.setAvailability(next, 'on_trip');
       container.rides.persist(ride);
+      // App chauffeur synchronisée : retrait chez l'ancien, offre chez le nouveau.
+      consoleReassigned(container, ride, previous);
       audit(req, 'ride.reassign', id, { previous, next });
       const d = container.drivers.get(next);
       return { ride: { id: ride.id, status: ride.status, driverId: next, driverName: d?.name ?? null, matricule: d?.matricule ?? null } };
@@ -919,6 +922,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         container.drivers.setAvailability(ride.driverId, 'online');
       }
       container.rides.persist(ride);
+      // Client et chauffeur prévenus en direct (course débloquée).
+      consoleForced(container, ride);
       audit(req, `ride.force_${body.action}`, id);
       return { ride: { id: ride.id, status: ride.status } };
     });

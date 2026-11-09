@@ -7,7 +7,7 @@ import { badRequest, conflict, notFound } from '../../core/errors.js';
 import { rideStateMachine, type RideStatus } from '../services/ride/stateMachine.js';
 import { rideRoom } from '../realtime/hub.js';
 import type { Ride } from './store.js';
-import { publishAssignment } from '../driver-app/routes.js';
+import { publishAssignment } from '../driver-app/offers.js';
 
 const createSchema = z.object({
   clientId: z.string().min(1),

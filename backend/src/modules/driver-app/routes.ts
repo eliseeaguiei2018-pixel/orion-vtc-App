@@ -5,106 +5,28 @@ import type { Container } from '../../container.js';
 import { config } from '../../config/index.js';
 import { parse } from '../../core/validate.js';
 import { AppError, badRequest, forbidden, notFound, unauthorized } from '../../core/errors.js';
-import { CONFIG_ROOM, DRIVER_CONFIG_ROOM, driverRoom, type RealtimeMessage } from '../realtime/hub.js';
+import { CONFIG_ROOM, DRIVER_CONFIG_ROOM, driverRoom, rideRoom, type RealtimeMessage } from '../realtime/hub.js';
 import { ANNOUNCE_ROOM } from '../notifications/service.js';
-import { effectiveCommissionRate } from '../wallet/service.js';
-import { genMatricule, type Driver } from '../drivers/store.js';
-import type { Ride } from '../rides/store.js';
+import { genMatricule } from '../drivers/store.js';
 import { driverAppConfig } from './config.js';
+import { activeRideFor, driverRideView, financeFor, startOfDay, totals } from './views.js';
+import { offersOf } from './offers.js';
 import {
   OtpStore, driverTokenOf, issueDriverToken, normalizePhone, requireDriver, verifyDriverToken,
 } from './auth.js';
 
-/** Statuts de course « actifs » côté chauffeur (mission en cours). */
-const ACTIVE = new Set(['accepted', 'driver_en_route', 'arrived', 'in_progress', 'completed']);
-
 /** Masque un numéro pour les journaux (jamais de numéro complet dans les logs). */
 const maskPhone = (p: string) => p.replace(/\d(?=\d{2})/g, '•');
 
-/** Début de journée locale Abidjan (UTC+0, pas d'heure d'été). */
-const startOfDay = (d = new Date()) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-
-/**
- * Vue d'une course POUR LE CHAUFFEUR : trajet, montant, moyen de paiement, et surtout
- * ce que la course lui a rapporté (ledger) — gain net, bonus, commission, espèces.
- */
-export function driverRideView(ride: Ride, container: Container, driverId: string) {
-  const entries = container.wallet.history(driverId).filter((e) => e.rideId === ride.id);
-  const sum = (types: string[]) => entries.filter((e) => types.includes(e.type)).reduce((s, e) => s + e.amount, 0);
-  const paid = ride.events.find((e) => e.type === 'paid')?.payload as { method?: string; amount?: number } | undefined;
-  const rated = ride.events.find((e) => e.type === 'rated')?.payload as { stars?: number; comment?: string } | undefined;
-  const last = ride.events[ride.events.length - 1];
-  return {
-    id: ride.id,
-    status: ride.status,
-    serviceType: ride.serviceType,
-    category: ride.quote.category,
-    origin: ride.origin,
-    destination: ride.destination,
-    stops: ride.quote.stops ?? [],
-    distanceMeters: ride.quote.distanceMeters,
-    etaSeconds: ride.quote.etaSeconds,
-    amount: ride.quote.amount,
-    waitMinutes: ride.waitMinutes ?? 0,
-    paymentMethod: paid?.method ?? ride.paymentMethod ?? null,
-    paidAmount: paid?.amount ?? null,
-    earnings: {
-      net: Math.round(sum(['ride_earning'])),
-      bonus: Math.round(sum(['adjustment'])),
-      commission: Math.round(-sum(['commission'])),
-      cashCollected: Math.round(-sum(['cash_collected'])),
-    },
-    rating: rated?.stars ?? null,
-    createdAt: ride.createdAt,
-    updatedAt: last?.at ?? ride.createdAt,
-  };
-}
-
-/** Totaux de gains sur une période (courses payées). */
-function totals(views: ReturnType<typeof driverRideView>[], sinceMs: number) {
-  const rows = views.filter((v) => v.paidAmount !== null && Date.parse(v.updatedAt) >= sinceMs);
-  return {
-    rides: rows.length,
-    gross: rows.reduce((s, v) => s + (v.paidAmount ?? 0), 0),
-    net: rows.reduce((s, v) => s + v.earnings.net + v.earnings.bonus, 0),
-    commission: rows.reduce((s, v) => s + v.earnings.commission, 0),
-    cashCollected: rows.reduce((s, v) => s + v.earnings.cashCollected, 0),
-  };
-}
-
-/** Course en cours du chauffeur, enrichie (client, secteur de prise en charge). */
-export function activeRideFor(container: Container, driverId: string) {
-  const ride = container.rides.listByDriver(driverId).find((r) => ACTIVE.has(r.status));
-  if (!ride) return null;
-  const client = container.clients.get(ride.clientId);
-  const zone = container.settings.zoneForPoint(ride.origin);
-  return {
-    ...driverRideView(ride, container, driverId),
-    events: ride.events.map((e) => ({ type: e.type, at: e.at })),
-    // Coordonnées du passager : visibles UNIQUEMENT pendant la mission.
-    client: { id: ride.clientId, name: client?.name ?? null, phone: client?.phone ?? null, rides: client?.rides ?? 0 },
-    pickupZone: zone ? { id: zone.id, name: zone.name, driverBonus: zone.driverBonus ?? 0 } : null,
-  };
-}
-
-/** Situation financière synthétique (solde, dette espèces, taux appliqué). */
-export function financeFor(container: Container, driver: Driver) {
-  const ops = container.settings.getOps();
-  const balance = Math.round(container.wallet.balance(driver.id));
-  const debt = balance < 0 ? -balance : 0;
-  return {
-    balance,
-    cashDebt: debt,
-    cashDebtLimit: ops.cashDebtLimit,
-    /** Au-delà du plafond : plus de courses payées en espèces (règle console). */
-    cashBlocked: debt > ops.cashDebtLimit,
-    commissionRate: effectiveCommissionRate(driver, ops),
-    frozen: container.wallet.isFrozen(driver.id),
-  };
-}
-
 export async function driverAppRoutes(app: FastifyInstance, container: Container): Promise<void> {
   const otps = new OtpStore();
+  const offers = offersOf(container);
+  const activeOf = (driverId: string) => {
+    const pending = offers.pendingFor(driverId);
+    return activeRideFor(container, driverId, pending ?? null);
+  };
+  // Arrêt en douceur : coupe les comptes à rebours d'offres.
+  app.addHook('onClose', async () => offers.stopAll());
 
   /* ------------------------------ Connexion ------------------------------ */
 
@@ -165,6 +87,12 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
         phone,
       });
     }
+    // Lien app ↔ chauffeur : désormais, ses courses lui sont proposées comme des offres
+    // (compte à rebours console) et ne sont plus simulées.
+    if (!driver.appLinkedAt) {
+      driver.appLinkedAt = new Date().toISOString();
+      container.drivers.persist(driver.id);
+    }
     container.audit.log({
       actor: driver.name, role: 'chauffeur', action: created ? 'driver.signup' : 'driver.login',
       target: driver.id, details: { phone: maskPhone(phone), matricule: driver.matricule },
@@ -214,7 +142,26 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
     const { id } = req.params as { id: string };
     requireDriver(req, id);
     if (!container.drivers.get(id)) throw notFound('Chauffeur introuvable');
-    return { ride: activeRideFor(container, id) };
+    return { ride: activeOf(id) };
+  });
+
+  /* ------------------------------ Offres ------------------------------ */
+
+  // Accepter l'offre (dans le délai console) → course confirmée.
+  app.post('/drivers/:id/offers/:rideId/accept', async (req) => {
+    const { id, rideId } = req.params as { id: string; rideId: string };
+    requireDriver(req, id);
+    offers.accept(id, rideId);
+    return { ride: activeOf(id) };
+  });
+
+  // Refuser l'offre → réattribution automatique au chauffeur suivant.
+  app.post('/drivers/:id/offers/:rideId/decline', async (req) => {
+    const { id, rideId } = req.params as { id: string; rideId: string };
+    requireDriver(req, id);
+    const body = parse(z.object({ reason: z.string().max(120).optional() }), req.body ?? {});
+    const res = await offers.decline(id, rideId, body.reason);
+    return { ok: true, reassigned: res.reassignedTo !== null };
   });
 
   /* ------------------------ Canal temps réel chauffeur ------------------------ */
@@ -248,14 +195,31 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
         config: { ...container.settings.getServices(), currency: 'XOF' },
         driverConfig: driverAppConfig(container.settings),
         finance: financeFor(container, driver),
-        activeRide: activeRideFor(container, id),
+        activeRide: activeOf(id),
         at: new Date().toISOString(),
       });
 
       const relay = (msg: RealtimeMessage) => send(msg);
+      // Suivi de la course en cours : les événements de sa room (annulation client,
+      // statuts, réattribution, SOS) sont relayés sur ce même canal — une seule
+      // connexion côté app. Sa propre position est filtrée (déjà connue de l'app).
+      let rideUnsub: (() => void) | null = null;
+      let followed: string | null = null;
+      const follow = (rideId: string | null) => {
+        if (rideId === followed) return;
+        rideUnsub?.();
+        rideUnsub = null;
+        followed = rideId;
+        if (rideId) rideUnsub = container.realtime.subscribe(rideRoom(rideId), (msg) => { if (msg.type !== 'driver.location') relay(msg); });
+      };
+      follow(activeOf(id)?.id ?? null);
       const unsubs = [
-        // Sa propre position lui est inutile (déjà connue de l'app) : filtrée.
-        container.realtime.subscribe(driverRoom(id), (msg) => { if (msg.type !== 'driver.location') relay(msg); }),
+        container.realtime.subscribe(driverRoom(id), (msg) => {
+          if (msg.type === 'driver.location') return;
+          relay(msg);
+          if (msg.type === 'ride.assigned') follow((msg.data as { ride: { id: string } }).ride.id);
+          if (msg.type === 'ride.withdrawn' && (msg.data as { rideId: string }).rideId === followed) follow(null);
+        }),
         container.realtime.subscribe(CONFIG_ROOM, relay),
         container.realtime.subscribe(DRIVER_CONFIG_ROOM, relay),
         container.realtime.subscribe(ANNOUNCE_ROOM, (msg) => {
@@ -276,6 +240,7 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
       socket.on('close', () => {
         clearInterval(heartbeat);
         for (const u of unsubs) u();
+        follow(null);
       });
     });
   });
@@ -311,22 +276,5 @@ export function registerDriverGuard(app: FastifyInstance, container: Container):
       const ride = container.rides.get(decodeURIComponent(r[1]!));
       if (ride && ride.driverId !== sub) throw forbidden('Cette course ne vous est pas attribuée');
     }
-  });
-}
-
-/** Utilisé par la route de mise en ligne : la requête vient-elle de l'app chauffeur ? */
-export function fromDriverApp(req: import('fastify').FastifyRequest): boolean {
-  return verifyDriverToken(driverTokenOf(req)) !== null;
-}
-
-/** Diffuse l'affectation d'une course au chauffeur (room personnelle). */
-export function publishAssignment(container: Container, ride: Ride, etaSeconds?: number): void {
-  if (!ride.driverId) return;
-  container.realtime.publish(driverRoom(ride.driverId), 'ride.assigned', {
-    ride: driverRideView(ride, container, ride.driverId),
-    etaToPickupSeconds: etaSeconds ?? null,
-    // Le canal de suivi de la course (positions, statuts, annulation client) reste
-    // le canal existant /ws/rides/:id, partagé avec l'app cliente.
-    rideChannel: `/ws/rides/${ride.id}`,
   });
 }

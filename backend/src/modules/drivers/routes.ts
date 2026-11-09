@@ -5,7 +5,7 @@ import type { Container } from '../../container.js';
 import { latLng, parse } from '../../core/validate.js';
 import { conflict, forbidden, notFound } from '../../core/errors.js';
 import { config } from '../../config/index.js';
-import { fromDriverApp } from '../driver-app/routes.js';
+import { fromDriverApp } from '../driver-app/auth.js';
 import { driverRoom, rideRoom } from '../realtime/hub.js';
 import { genMatricule } from './store.js';
 

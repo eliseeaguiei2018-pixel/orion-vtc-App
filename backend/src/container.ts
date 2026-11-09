@@ -171,7 +171,12 @@ export function createContainer(): Container {
     safety,
     realtime,
     maps: createMapsProvider(),
-    simulator: new RideSimulator(rides, realtime),
+    simulator: (() => {
+      const sim = new RideSimulator(rides, realtime);
+      // Les chauffeurs équipés de l'app pilotent eux-mêmes leurs courses.
+      sim.skipWhen((driverId) => Boolean(drivers.get(driverId)?.appLinkedAt));
+      return sim;
+    })(),
     wallet: new WalletService(createRepository<LedgerEntry>('wallet_ledger')),
     clientWallet,
     insurance: new InsuranceService(createRepository<InsuranceContribution>('insurance'), clientWallet),
