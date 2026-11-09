@@ -44,8 +44,18 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
   });
 
   // CORS : autorise l'app cliente (autre origine) à appeler l'API.
+  //
+  // Les cookies de session de la console ne traversent les origines QUE si le
+  // navigateur reçoit `credentials: true` avec une origine EXPLICITE. On ne les
+  // active donc pas quand CORS_ORIGIN vaut « * » : refléter n'importe quelle
+  // origine tout en acceptant les cookies laisserait n'importe quel site émettre
+  // des requêtes authentifiées. Avec « * », la console doit être servie depuis la
+  // même origine que l'API (déploiement recommandé) — les cookies fonctionnent
+  // alors sans CORS du tout.
+  const originsExplicites = config.CORS_ORIGIN !== '*';
   await app.register(cors, {
-    origin: config.CORS_ORIGIN === '*' ? true : config.CORS_ORIGIN.split(',').map((s) => s.trim()),
+    origin: originsExplicites ? config.CORS_ORIGIN.split(',').map((s) => s.trim()) : true,
+    credentials: originsExplicites,
   });
 
   // Back-pressure : protège contre la surcharge (renvoie 429 plutôt que de s'effondrer).

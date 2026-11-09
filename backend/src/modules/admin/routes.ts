@@ -11,6 +11,10 @@ import {
   verifyTotp, registerSession, touchSession, revokeSession, listSessions, isSessionInactive,
 } from './auth.js';
 import { config } from '../../config/index.js';
+import {
+  CSRF_COOKIE, CSRF_HEADER, SESSION_COOKIE, cookiesDeConnexion, cookiesDeDeconnexion,
+  estEcriture, newCsrfToken, parseCookies,
+} from './cookies.js';
 import { SOS_PRESETS } from '../safety/service.js';
 import { consoleForced, consoleReassigned } from '../driver-app/offers.js';
 
@@ -73,10 +77,36 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       createdAt: new Date().toISOString(), expiresAt,
     });
     container.audit.log({ actor: account.name, role: account.role, action: needs2fa ? 'login.success_2fa' : 'login.success' });
+    // Session posée en cookie HttpOnly : la console n'a plus à stocker le jeton,
+    // donc une faille XSS ne peut plus l'exfiltrer. Le second cookie, lisible,
+    // porte la preuve anti-CSRF à recopier dans l'en-tête sur chaque écriture.
+    const csrf = newCsrfToken();
+    const dureeSecondes = Math.max(0, Math.round((Date.parse(expiresAt) - Date.now()) / 1000));
+    reply.header('set-cookie', cookiesDeConnexion(token, csrf, dureeSecondes));
     return {
+      // `token` reste renvoyé pour les clients non navigateur (automatisation,
+      // scripts) ; la console, elle, ne le conserve plus.
+      csrfToken: csrf,
       token, expiresAt,
       account: { name: account.name, role: account.role, roleLabel: ROLE_LABEL[account.role], permissions: ROLE_PERMISSIONS[account.role] },
     };
+  });
+
+  /**
+   * Déconnexion : efface les cookies et révoque la session côté serveur, pour que
+   * le jeton reste inutilisable même s'il avait été copié. Volontairement hors du
+   * groupe authentifié — se déconnecter doit marcher même si la session a expiré.
+   */
+  app.post('/admin/logout', async (req, reply) => {
+    const cookies = parseCookies(req.headers['cookie'] as string | undefined);
+    const session = verifyToken(cookies[SESSION_COOKIE])
+      ?? verifyToken(bearerToken(req.headers['authorization'] as string | undefined));
+    if (session?.jti) {
+      revokeSession(session.jti);
+      container.audit.log({ actor: session.name, role: session.role, action: 'logout' });
+    }
+    reply.header('set-cookie', cookiesDeDeconnexion());
+    return { ok: true };
   });
 
   await app.register(async (scoped) => {
@@ -85,10 +115,29 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     // Résout le compte : session JWT (Authorization: Bearer) OU jeton statique
     // (x-admin-token, compatibilité/automatisation). 401 si aucun n'est valide.
     scoped.addHook('preHandler', async (req) => {
+      // Ordre de résolution : cookie HttpOnly (console) → Bearer (automatisation,
+      // app chauffeur) → jeton statique. Le cookie est prioritaire car il est le
+      // mode normal du navigateur ; JavaScript ne peut pas le lire.
+      const cookies = parseCookies(req.headers['cookie'] as string | undefined);
+      const jetonCookie = cookies[SESSION_COOKIE];
+      const parCookie = verifyToken(jetonCookie);
       const jwt = bearerToken(req.headers['authorization'] as string | undefined);
-      const verified = verifyToken(jwt);
+      const verified = parCookie ?? verifyToken(jwt);
       const account = verified ?? resolveAccount(req.headers['x-admin-token'] as string | undefined);
       if (!account) throw unauthorized('Session invalide ou expirée');
+
+      // ANTI-CSRF — uniquement quand l'authentification vient du cookie : celui-ci
+      // est envoyé automatiquement par le navigateur, y compris depuis un site
+      // tiers. L'en-tête doit reprendre la valeur du cookie lisible, qu'un autre
+      // site ne peut pas lire. Bearer et jeton statique n'ont pas ce risque :
+      // ils ne sont jamais joints automatiquement.
+      if (parCookie && estEcriture(req.method)) {
+        const attendu = cookies[CSRF_COOKIE];
+        const fourni = req.headers[CSRF_HEADER] as string | undefined;
+        if (!attendu || !fourni || fourni !== attendu) {
+          throw forbidden('Requête rejetée : preuve anti-CSRF absente ou invalide. Recharge la console.');
+        }
+      }
       // Verrouillage auto après inactivité (écran laissé allumé — sécurité RBAC).
       if (verified?.jti && isSessionInactive(verified.jti)) {
         throw unauthorized('Session verrouillée pour inactivité — reconnecte-toi');

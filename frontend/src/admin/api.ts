@@ -16,24 +16,91 @@ export function pageSlice<T>(list: T[], page: number): { items: T[]; meta: PageM
 
 /* ------------------------------- API --------------------------------- */
 export const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
-export const jwtKey = 'orion.admin.jwt';
+
+/**
+ * Un backend est-il joignable ?
+ *
+ * On ne peut PAS le déduire d'une URL vide : le déploiement recommandé pour les
+ * cookies de session sert la console et l'API sur la MÊME origine, donc avec une
+ * base vide et des appels relatifs. Confondre « base vide » et « pas de backend »
+ * rendait ce déploiement impossible — la console basculait en mode démo.
+ *
+ * VITE_API_URL renseignée        → backend sur une autre origine.
+ * VITE_SAME_ORIGIN=1             → backend derrière la même origine (appels relatifs).
+ * ni l'une ni l'autre            → mode démo, données simulées.
+ */
+export const LIVE = Boolean(API) || (import.meta.env.VITE_SAME_ORIGIN as string | undefined) === '1';
+
+/**
+ * SESSION EN COOKIE HttpOnly.
+ *
+ * Le jeton vivait dans localStorage, donc lisible par tout script de la page : une
+ * faille XSS suffisait à l'exfiltrer et à rejouer la session d'un administrateur.
+ * Il est désormais posé par le serveur en cookie HttpOnly — ce code n'y a plus
+ * accès, et n'a plus rien à stocker. Chaque appel part simplement avec
+ * `credentials: 'include'`.
+ *
+ * Seules subsistent en local la date d'expiration (pour éviter d'afficher la
+ * console à une session visiblement périmée) et la preuve anti-CSRF, qui doit
+ * justement être lisible pour être recopiée en en-tête.
+ */
 export const expKey = 'orion.admin.exp';
-export const getJwt = () => localStorage.getItem(jwtKey) ?? '';
-export const clearSession = () => { localStorage.removeItem(jwtKey); localStorage.removeItem(expKey); };
-/** Session valide si un jeton existe et n'est pas expiré (garde locale, revérifiée serveur). */
-export const sessionValid = () => {
-  if (!getJwt()) return false;
-  const exp = Number(localStorage.getItem(expKey) ?? 0);
-  return !exp || exp > Date.now();
+const csrfKey = 'orion.admin.csrf';
+/** Mode démo : aucun backend, la console tourne sur des données simulées. */
+const demoKey = 'orion.admin.demo';
+
+export const isDemoSession = () => localStorage.getItem(demoKey) === '1';
+export const setDemoSession = () => localStorage.setItem(demoKey, '1');
+
+/** Lit la preuve anti-CSRF : d'abord le cookie posé au login, sinon la copie locale. */
+export const getCsrf = (): string => {
+  const m = document.cookie.match(/(?:^|;\s*)orion_csrf=([^;]*)/);
+  if (m?.[1]) { try { return decodeURIComponent(m[1]); } catch { /* valeur illisible */ } }
+  return localStorage.getItem(csrfKey) ?? '';
 };
+export const setCsrf = (v: string) => localStorage.setItem(csrfKey, v);
+
+export const clearSession = () => {
+  localStorage.removeItem(expKey);
+  localStorage.removeItem(csrfKey);
+  localStorage.removeItem(demoKey);
+};
+
+/** Garde locale : l'autorisation réelle est toujours revérifiée par le serveur. */
+export const sessionValid = () => {
+  if (isDemoSession()) return true;
+  const exp = Number(localStorage.getItem(expKey) ?? 0);
+  if (!exp) return false;
+  return exp > Date.now();
+};
+
 export const H = (): Record<string, string> => {
   const h: Record<string, string> = { 'content-type': 'application/json' };
-  const jwt = getJwt();
-  if (jwt && jwt !== 'demo') h['authorization'] = `Bearer ${jwt}`;
+  // Double soumission : le serveur compare cet en-tête au cookie lisible. Un site
+  // tiers ne peut pas lire ce cookie, donc pas forger l'en-tête.
+  const csrf = getCsrf();
+  if (csrf) h['x-csrf-token'] = csrf;
   return h;
 };
+
+/** Options communes : le cookie de session doit accompagner chaque appel. */
+export const withCreds = (init: RequestInit = {}): RequestInit => ({ ...init, credentials: 'include' });
 /** 401 = session expirée/invalide → on purge et on renvoie à l'écran de connexion. */
-export function onUnauthorized() { clearSession(); if (API) window.location.reload(); }
+export function onUnauthorized() {
+  clearSession();
+  if (LIVE) window.location.reload();
+}
+
+/** Déconnexion : le serveur efface le cookie HttpOnly et révoque la session. */
+export async function logout(): Promise<void> {
+  if (LIVE) {
+    // Corps `{}` obligatoire : l'en-tête annonce du JSON, et Fastify rejette un
+    // corps vide (le POST partait alors en erreur et le cookie n'était pas effacé).
+    try { await fetch(API + '/admin/logout', withCreds({ method: 'POST', headers: H(), body: '{}' })); }
+    catch { /* hors ligne : on purge quand même le poste */ }
+  }
+  clearSession();
+}
 
 /**
  * Échec d'un appel à l'API admin, porteur du code HTTP et du message du serveur.
@@ -86,10 +153,10 @@ export async function reportResponse(r: Response): Promise<void> {
   errorSink(await toAdminError(r));
 }
 
-export async function adminGet<T>(p: string): Promise<T> { const r = await fetch(API + p, { headers: H() }); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
-export async function adminPost<T>(p: string, b?: unknown): Promise<T> { const r = await fetch(API + p, { method: 'POST', headers: H(), body: JSON.stringify(b ?? {}) }); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
-export async function adminPut<T>(p: string, b: unknown): Promise<T> { const r = await fetch(API + p, { method: 'PUT', headers: H(), body: JSON.stringify(b) }); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
-export async function adminDel(p: string): Promise<void> { const r = await fetch(API + p, { method: 'DELETE', headers: H() }); if (r.status === 401) onUnauthorized(); if (!r.ok) await fail(r); }
+export async function adminGet<T>(p: string): Promise<T> { const r = await fetch(API + p, withCreds({ headers: H() })); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
+export async function adminPost<T>(p: string, b?: unknown): Promise<T> { const r = await fetch(API + p, withCreds({ method: 'POST', headers: H(), body: JSON.stringify(b ?? {}) })); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
+export async function adminPut<T>(p: string, b: unknown): Promise<T> { const r = await fetch(API + p, withCreds({ method: 'PUT', headers: H(), body: JSON.stringify(b) })); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
+export async function adminDel(p: string): Promise<void> { const r = await fetch(API + p, withCreds({ method: 'DELETE', headers: H() })); if (r.status === 401) onUnauthorized(); if (!r.ok) await fail(r); }
 
 /**
  * Appel d'ÉCRITURE sûr : renvoie true seulement si le serveur a accepté. Les appelants

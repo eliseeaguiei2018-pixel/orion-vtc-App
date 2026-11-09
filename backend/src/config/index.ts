@@ -48,6 +48,13 @@ const schema = z.object({
 
   // CORS : origine(s) autorisée(s) pour l'app cliente. '*' en dev ; liste en prod.
   CORS_ORIGIN: z.string().default('*'),
+  /** SameSite des cookies de session console. « lax » si la console est servie depuis
+   *  la même origine que l'API (recommandé) ; « none » si elle est sur une autre
+   *  origine — SameSite=None impose Secure et un CORS avec origine explicite. */
+  ADMIN_COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
+  /** Cookies marqués Secure (HTTPS uniquement). À activer en production.
+   *  Parsé explicitement : z.coerce.boolean() transformerait "false" en true. */
+  ADMIN_COOKIE_SECURE: z.string().default('false').transform((v) => v.toLowerCase() === 'true'),
 
   // Jeton d'accès au dashboard Admin / supervision SAMU (RBAC simple, en-tête x-admin-token).
   // Conservé pour la compatibilité / automatisation ; l'accès humain passe par le login JWT.

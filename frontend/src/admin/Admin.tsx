@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { DEMO } from './demo';
-import { API, AdminError, H, PAGE_SIZE, adminDel, adminGet, adminPost, adminPut, clearSession, expKey, fcfa, jwtKey, onUnauthorized, pageSlice, reportResponse, safePost, safePut, sessionValid, setAdminErrorSink } from './api';
+import { API, LIVE, AdminError, H, PAGE_SIZE, adminDel, adminGet, adminPost, adminPut, clearSession, expKey, fcfa, logout, onUnauthorized, setCsrf, setDemoSession, pageSlice, reportResponse, safePost, safePut, sessionValid, setAdminErrorSink } from './api';
 import { AuditSection, CorporateSection, FinanceSection, GlobalSearch, GreenSection, IntelSection, NotifySection, PricingEditor, PromosSection, ServicesSection, SupportSection, TreasurySection, ZonesSection } from './sections/business';
 import { ClientsSection, DispatchSection, DisputesSection, DriversSection, ForensicDrawer, QualitySection, ReservationsCard, RidesSection } from './sections/operations';
 import { RolesSection, SessionsSection, TeamsSection } from './sections/organisation';
@@ -38,7 +38,9 @@ function playSiren(): void {
   } catch { /* audio indisponible (autoplay bloqué) — la notification visuelle reste */ }
 }
 
-interface LoginResponse { token: string; expiresAt: string; account: Me }
+interface LoginResponse { token: string; expiresAt: string; account: Me;
+  /** Preuve anti-CSRF à recopier en en-tête (le jeton, lui, reste en cookie HttpOnly). */
+  csrfToken?: string }
 
 /* --------------------------- Porte d'entrée -------------------------- */
 export function Admin() {
@@ -47,14 +49,14 @@ export function Admin() {
   useEffect(() => {
     (async () => {
       if (!sessionValid()) { clearSession(); setChecking(false); return; }
-      if (!API) { setAuthed(true); setChecking(false); return; }
+      if (!LIVE) { setAuthed(true); setChecking(false); return; }
       try { await adminGet('/admin/me'); setAuthed(true); } catch { clearSession(); }
       setChecking(false);
     })();
   }, []);
   if (checking) return <div className="adm-loading">Vérification de l'accès…</div>;
   if (!authed) return <Login onDone={() => setAuthed(true)} />;
-  return <Console onLogout={() => { clearSession(); setAuthed(false); }} />;
+  return <Console onLogout={() => { void logout().then(() => setAuthed(false)); }} />;
 }
 
 /* --------------------------- Écran de connexion --------------------- */
@@ -71,17 +73,21 @@ function Login({ onDone }: { onDone: () => void }) {
     if (mfa && !code.trim()) { setErr('Saisis le code à 6 chiffres de ton application d\'authentification.'); return; }
     setBusy(true); setErr('');
     // Mode démo (sans backend) : session locale, données simulées.
-    if (!API) { localStorage.setItem(jwtKey, 'demo'); localStorage.setItem(expKey, String(Date.now() + 12 * 3600e3)); onDone(); return; }
+    if (!LIVE) { setDemoSession(); localStorage.setItem(expKey, String(Date.now() + 12 * 3600e3)); onDone(); return; }
     try {
       const res = await fetch(`${API}/admin/login`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
+        // Le serveur répond avec le cookie de session HttpOnly : il faut l'accepter.
+        credentials: 'include',
         body: JSON.stringify({ username: username.trim(), password, ...(mfa && code.trim() ? { code: code.trim() } : {}) }),
       });
       if (res.status === 429) { setErr('Compte temporairement verrouillé (trop de tentatives). Réessaie plus tard.'); setBusy(false); return; }
       if (!res.ok) { setErr(mfa ? 'Code 2FA invalide.' : 'Identifiants refusés. Accès réservé au personnel ORION.'); setBusy(false); return; }
       const data = (await res.json()) as LoginResponse & { mfaRequired?: boolean };
       if (data.mfaRequired) { setMfa(true); setBusy(false); return; } // mot de passe OK → code demandé
-      localStorage.setItem(jwtKey, data.token);
+      // Le jeton N'EST PLUS stocké : il vit dans un cookie HttpOnly, hors de portée
+      // de JavaScript. On ne garde que l'échéance et la preuve anti-CSRF.
+      if (data.csrfToken) setCsrf(data.csrfToken);
       localStorage.setItem(expKey, String(Date.parse(data.expiresAt) || Date.now() + 12 * 3600e3));
       onDone();
     } catch {
@@ -250,7 +256,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
   }, [statsDays, ridesPage, driversPage, clientsPage]);
 
   const refresh = useCallback(async () => {
-    if (!API) { loadDemo(); return; }
+    if (!LIVE) { loadDemo(); return; }
     try {
       const meRes = await adminGet<Me>('/admin/me');
       setMe(meRes); setLive(true);
@@ -328,7 +334,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
-    const p = API ? setInterval(() => void refresh(), 6000) : undefined;
+    const p = LIVE ? setInterval(() => void refresh(), 6000) : undefined;
     return () => { clearInterval(t); if (p) clearInterval(p); };
   }, [refresh]);
 
@@ -372,9 +378,9 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   /** Téléchargement authentifié d'un fichier serveur (PDF/CSV) via la session JWT. */
   const downloadFile = async (path: string, filename: string) => {
-    if (!API) { alert('Disponible avec le backend connecté — le document est généré côté serveur.'); return; }
+    if (!LIVE) { alert('Disponible avec le backend connecté — le document est généré côté serveur.'); return; }
     try {
-      const res = await fetch(API + path, { headers: H() });
+      const res = await fetch(API + path, { headers: H(), credentials: 'include' });
       if (res.status === 401) { onUnauthorized(); return; }
       // Refus/erreur : on remonte le message du serveur (403 → message de la direction)
       // au lieu d'un avertissement générique, et on ne télécharge rien.
@@ -387,22 +393,22 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   /* --------------- Session SAMU : triage, prise en charge, clôture --------------- */
   const claimSos = async (id: string) => {
-    if (!API) { setAlerts((xs) => xs.map((a) => (a.id === id ? { ...a, agent: me?.name, status: 'acknowledged' } : a))); return; }
+    if (!LIVE) { setAlerts((xs) => xs.map((a) => (a.id === id ? { ...a, agent: me?.name, status: 'acknowledged' } : a))); return; }
     try { await adminPost(`/admin/sos/${id}/claim`); void refresh(); }
     catch { alert('Alerte déjà prise en charge par un autre agent (verrou nominatif).'); }
   };
   const openSos = async (id: string) => {
-    if (!API) { setSosSel(DEMO.sosDossier(id) as SosDossier); return; }
+    if (!LIVE) { setSosSel(DEMO.sosDossier(id) as SosDossier); return; }
     try { setSosSel(await adminGet<SosDossier>(`/admin/sos/${id}`)); }
     catch { alert('Dossier scellé — accès réservé à la direction.'); }
   };
   const sosMessage = async (id: string, text: string) => {
-    if (API) { try { await adminPost(`/admin/sos/${id}/message`, { text }); } catch { alert('Crise gérée par un autre agent.'); return; } }
+    if (LIVE) { try { await adminPost(`/admin/sos/${id}/message`, { text }); } catch { alert('Crise gérée par un autre agent.'); return; } }
     const msg: SosChat = { from: 'agent', author: me?.name, text, at: new Date().toISOString() };
     setSosSel((s) => (s && s.alert.id === id ? { ...s, alert: { ...s.alert, chat: [...(s.alert.chat ?? []), msg] } } : s));
   };
   const closeSos = async (id: string, note: string) => {
-    if (API) {
+    if (LIVE) {
       try { await adminPost(`/admin/sos/${id}/close`, { note }); }
       catch { alert('Clôture refusée : note de synthèse trop courte, ou vous n’êtes pas l’agent gestionnaire.'); return; }
     }
@@ -412,67 +418,67 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   /* ------ Accès non autorisé : refus affiché + signalement direction ------ */
   const openLocked = async (sectionId: string, label: string) => {
-    if (API) { try { await adminPost('/admin/access-denied', { section: sectionId }); } catch { /* déjà signalé côté serveur */ } }
+    if (LIVE) { try { await adminPost('/admin/access-denied', { section: sectionId }); } catch { /* déjà signalé côté serveur */ } }
     setDenied(`Vous n’avez pas le droit d’accéder à la session « ${label} » sans autorisation de la direction. Cette tentative vient d’être signalée à la direction (DG, CFO, DAA).`);
   };
 
   const savePricing = async (patch: Partial<Pricing>) => {
-    if (!API) { setPricing((p) => (p ? { ...p, ...patch, multipliers: { ...p.multipliers, ...(patch.multipliers ?? {}) } } : p)); return; }
+    if (!LIVE) { setPricing((p) => (p ? { ...p, ...patch, multipliers: { ...p.multipliers, ...(patch.multipliers ?? {}) } } : p)); return; }
     const { pricing: next } = await adminPut<{ pricing: Pricing }>('/admin/pricing', patch);
     setPricing(next);
   };
 
   const saveZone = async (zn: Zone) => {
-    if (!API) { setZones((xs) => (xs.some((z) => z.id === zn.id) ? xs.map((z) => (z.id === zn.id ? zn : z)) : [...xs, zn])); return; }
+    if (!LIVE) { setZones((xs) => (xs.some((z) => z.id === zn.id) ? xs.map((z) => (z.id === zn.id ? zn : z)) : [...xs, zn])); return; }
     const { zone } = await adminPut<{ zone: Zone }>('/admin/zones', zn);
     setZones((xs) => (xs.some((z) => z.id === zone.id) ? xs.map((z) => (z.id === zone.id ? zone : z)) : [...xs, zone]));
   };
   const toggleZone = async (id: string, active: boolean) => {
-    if (API && !(await safePost(`/admin/zones/${id}/active`, { active }))) return;
+    if (LIVE && !(await safePost(`/admin/zones/${id}/active`, { active }))) return;
     setZones((xs) => xs.map((z) => (z.id === id ? { ...z, active } : z)));
   };
   const deleteZone = async (id: string) => {
-    if (API) await adminDel(`/admin/zones/${id}`);
+    if (LIVE) await adminDel(`/admin/zones/${id}`);
     setZones((xs) => xs.filter((z) => z.id !== id));
   };
   const resetZones = async () => {
-    if (!API) { setZones(DEMO.zones as Zone[]); return; }
+    if (!LIVE) { setZones(DEMO.zones as Zone[]); return; }
     const { zones: next } = await adminPost<{ zones: Zone[] }>('/admin/zones/reset');
     setZones(next);
   };
 
   const setClientStatus = async (id: string, status: string) => {
-    if (!API) { setClients((xs) => xs.map((c) => (c.id === id ? { ...c, status } : c))); return; }
+    if (!LIVE) { setClients((xs) => xs.map((c) => (c.id === id ? { ...c, status } : c))); return; }
     try { await adminPost(`/admin/clients/${id}/status`, { status }); setClients((xs) => xs.map((c) => (c.id === id ? { ...c, status } : c))); } catch { /* ignore */ }
   };
 
   const savePromo = async (p: { code: string; kind: 'percent' | 'amount'; value: number; maxUses?: number }) => {
-    if (!API) { setPromos((xs) => { const id = p.code.toUpperCase(); const ex = xs.find((x) => x.id === id); const np: Promo = { id, kind: p.kind, value: p.value, active: ex?.active ?? true, uses: ex?.uses ?? 0, maxUses: p.maxUses, createdAt: ex?.createdAt ?? new Date().toISOString() }; return ex ? xs.map((x) => (x.id === id ? np : x)) : [np, ...xs]; }); return; }
+    if (!LIVE) { setPromos((xs) => { const id = p.code.toUpperCase(); const ex = xs.find((x) => x.id === id); const np: Promo = { id, kind: p.kind, value: p.value, active: ex?.active ?? true, uses: ex?.uses ?? 0, maxUses: p.maxUses, createdAt: ex?.createdAt ?? new Date().toISOString() }; return ex ? xs.map((x) => (x.id === id ? np : x)) : [np, ...xs]; }); return; }
     const { promo } = await adminPut<{ promo: Promo }>('/admin/promos', p);
     setPromos((xs) => (xs.some((x) => x.id === promo.id) ? xs.map((x) => (x.id === promo.id ? promo : x)) : [promo, ...xs]));
   };
   const togglePromo = async (code: string, active: boolean) => {
-    if (!API) { setPromos((xs) => xs.map((x) => (x.id === code ? { ...x, active } : x))); return; }
+    if (!LIVE) { setPromos((xs) => xs.map((x) => (x.id === code ? { ...x, active } : x))); return; }
     try { await adminPost(`/admin/promos/${code}/active`, { active }); setPromos((xs) => xs.map((x) => (x.id === code ? { ...x, active } : x))); } catch { /* */ }
   };
   const deletePromo = async (code: string) => {
-    if (API) await adminDel(`/admin/promos/${code}`);
+    if (LIVE) await adminDel(`/admin/promos/${code}`);
     setPromos((xs) => xs.filter((x) => x.id !== code));
   };
 
   const saveServices = async (patch: Partial<ServicesConfig>) => {
-    if (!API) { setServices((s) => (s ? { ...s, ...patch, services: { ...s.services, ...(patch.services ?? {}) } } : s)); return; }
+    if (!LIVE) { setServices((s) => (s ? { ...s, ...patch, services: { ...s.services, ...(patch.services ?? {}) } } : s)); return; }
     const { config } = await adminPut<{ config: ServicesConfig }>('/admin/services', patch);
     setServices(config);
   };
 
   const supportReply = async (convId: string, text: string) => {
     const msg: SupportMsg = { id: Math.random().toString(36).slice(2, 8), from: 'agent', author: me?.name, text, at: new Date().toISOString() };
-    if (API && !(await safePost(`/admin/support/${convId}/reply`, { text }))) return;
+    if (LIVE && !(await safePost(`/admin/support/${convId}/reply`, { text }))) return;
     setSupport((xs) => xs.map((c) => (c.id === convId ? { ...c, messages: [...c.messages, msg], status: 'pending' } : c)));
   };
   const supportSetStatus = async (convId: string, status: string) => {
-    if (API && !(await safePost(`/admin/support/${convId}/status`, { status }))) return;
+    if (LIVE && !(await safePost(`/admin/support/${convId}/status`, { status }))) return;
     setSupport((xs) => xs.map((c) => (c.id === convId ? { ...c, status } : c)));
   };
 
@@ -483,7 +489,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
       stats: { sent: 1240, delivered: 1203, opened: 662, clicked: 199, rides: 53 },
     };
     // Sur refus/erreur, on n'ajoute PAS l'annonce localement : elle n'a pas été diffusée.
-    if (API) {
+    if (LIVE) {
       try { const { announcement } = await adminPost<{ announcement: Announcement }>('/admin/broadcast', a); setBroadcasts((xs) => [announcement, ...xs]); }
       catch { /* déjà signalé à l'employé */ }
       return;
@@ -493,7 +499,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   // Déclencheurs automatisés (batterie < 15 %, win-back 30 j).
   const runTrigger = async (trigger: 'battery' | 'winback') => {
-    if (!API) { alert(trigger === 'battery' ? 'Guidage borne envoyé aux véhicules < 15 % (démo).' : 'Campagne win-back envoyée avec un code RETOUR-XXXX (démo).'); return; }
+    if (!LIVE) { alert(trigger === 'battery' ? 'Guidage borne envoyé aux véhicules < 15 % (démo).' : 'Campagne win-back envoyée avec un code RETOUR-XXXX (démo).'); return; }
     try {
       const r = await adminPost<{ sent: number; code?: string }>('/admin/notify/triggers/run', { trigger });
       alert(`${r.sent} notification(s) envoyée(s)${r.code ? ` · code ${r.code}` : ''}.`);
@@ -503,7 +509,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   // Code promotionnel personnalisé de dédommagement (support).
   const compensate = async (clientId: string, percent: number) => {
-    if (!API) { alert(`Code DESOLE-${Math.random().toString(36).slice(2, 6).toUpperCase()} (-${percent} %) envoyé à ${clientId} (démo).`); return; }
+    if (!LIVE) { alert(`Code DESOLE-${Math.random().toString(36).slice(2, 6).toUpperCase()} (-${percent} %) envoyé à ${clientId} (démo).`); return; }
     try {
       const { promo } = await adminPost<{ promo: { id: string } }>('/admin/promos/compensation', { clientId, percent, days: 7 });
       alert(`Code ${promo.id} (-${percent} %, 7 jours) envoyé dans l’app de ${clientId}.`);
@@ -512,7 +518,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   // Clôture forcée / ajustement de destination en vol (centre d'intervention manuelle).
   const forceRide = async (id: string, action: 'complete' | 'cancel') => {
-    if (!API) { setRides((xs) => xs.map((r) => (r.id === id ? { ...r, status: action === 'complete' ? 'completed' : 'cancelled' } : r))); return; }
+    if (!LIVE) { setRides((xs) => xs.map((r) => (r.id === id ? { ...r, status: action === 'complete' ? 'completed' : 'cancelled' } : r))); return; }
     try { await adminPost(`/admin/rides/${id}/force`, { action }); void refresh(); } catch { /* déjà terminée */ }
   };
   const changeDestination = async (id: string) => {
@@ -520,7 +526,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
     if (!input) return;
     const [lat, lng] = input.split(',').map((s) => Number(s.trim()));
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) { alert('Coordonnées invalides.'); return; }
-    if (!API) { alert('Destination mise à jour, devis recalculé (démo).'); return; }
+    if (!LIVE) { alert('Destination mise à jour, devis recalculé (démo).'); return; }
     try {
       const r = await adminPut<{ ride: { amount: number } }>(`/admin/rides/${id}/destination`, { lat, lng });
       alert(`Destination mise à jour — nouveau prix fixe : ${fcfa(r.ride.amount)}.`);
@@ -530,84 +536,84 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   // Réservations à l'avance : assignation / annulation.
   const assignReservation = async (id: string) => {
-    if (!API) { setReservations((xs) => xs.map((r) => (r.id === id ? { ...r, status: 'assignee', driverName: 'Serge Aka', punctualityAlert: false } : r))); return; }
+    if (!LIVE) { setReservations((xs) => xs.map((r) => (r.id === id ? { ...r, status: 'assignee', driverName: 'Serge Aka', punctualityAlert: false } : r))); return; }
     try { await adminPost(`/admin/reservations/${id}/assign`); void refresh(); }
     catch { alert('Aucun chauffeur disponible pour cette réservation.'); }
   };
   const cancelReservation = async (id: string) => {
-    if (API && !(await safePost(`/admin/reservations/${id}/cancel`))) return;
+    if (LIVE && !(await safePost(`/admin/reservations/${id}/cancel`))) return;
     setReservations((xs) => xs.map((r) => (r.id === id ? { ...r, status: 'annulee' } : r)));
   };
 
   // Programme VIP / Top Driver (priorité dispatch + commission réduite).
   const setVip = async (id: string, vip: boolean) => {
-    if (API && !(await safePost(`/admin/drivers/${id}/vip`, { vip }))) return;
+    if (LIVE && !(await safePost(`/admin/drivers/${id}/vip`, { vip }))) return;
     setQTop((xs) => xs.map((t) => (t.id === id ? { ...t, vip } : t)));
   };
 
   // Shadow mode : simulation d'une configuration hypothétique de dispatch.
   const simulate = async (patch: { maxEtaMinutes?: number; radiusMaxKm?: number }): Promise<{ current: SimResult; proposed: SimResult } | null> => {
-    if (!API) return DEMO.simulate(patch);
+    if (!LIVE) return DEMO.simulate(patch);
     try { return await adminPost<{ current: SimResult; proposed: SimResult }>('/admin/dispatch/simulate', patch); }
     catch { return null; }
   };
 
   /* --- S8 Équipes / RH : shifts, maintenance, micro-broadcast, P&L --- */
   const assignShift = async (input: { username: string; name: string; date: string; slot: string; zoneId?: string }) => {
-    if (API) { if (!(await safePut('/admin/shifts', input))) return; void refresh(); return; }
+    if (LIVE) { if (!(await safePut('/admin/shifts', input))) return; void refresh(); return; }
     setShifts((xs) => [...xs, { id: Math.random().toString(36).slice(2, 8), createdAt: new Date().toISOString(), ...input } as Shift]);
   };
   const removeShift = async (id: string) => {
-    if (API) await adminDel(`/admin/shifts/${id}`);
+    if (LIVE) await adminDel(`/admin/shifts/${id}`);
     setShifts((xs) => xs.filter((s) => s.id !== id));
   };
   const openMaintenance = async (input: { driverId: string; kind: string; title: string; teamId?: string }) => {
-    if (API) { if (!(await safePost('/admin/maintenance', input))) return; void refresh(); return; }
+    if (LIVE) { if (!(await safePost('/admin/maintenance', input))) return; void refresh(); return; }
     setMaintenance((xs) => [{ id: Math.random().toString(36).slice(2, 8), status: 'ouvert', createdAt: new Date().toISOString(), ...input } as MaintenanceTicket, ...xs]);
   };
   const resolveMaintenance = async (id: string) => {
-    if (API && !(await safePost(`/admin/maintenance/${id}/resolve`))) return;
+    if (LIVE && !(await safePost(`/admin/maintenance/${id}/resolve`))) return;
     setMaintenance((xs) => xs.map((t) => (t.id === id ? { ...t, status: 'resolu' } : t)));
   };
   const microBroadcast = async (teamId: string, title: string, body: string) => {
-    if (!API) { alert(`Micro-broadcast envoyé à la flotte de l'équipe (démo).`); return; }
+    if (!LIVE) { alert(`Micro-broadcast envoyé à la flotte de l'équipe (démo).`); return; }
     try { const r = await adminPost<{ sent: number }>(`/admin/teams/${teamId}/broadcast`, { title, body }); alert(`${r.sent} chauffeur(s) de la flotte notifié(s).`); }
     catch { /* */ }
   };
   const loadSquadPnl = async (teamId: string): Promise<SquadPnl | null> => {
-    if (!API) return DEMO.squadPnl(teamId);
+    if (!LIVE) return DEMO.squadPnl(teamId);
     try { return (await adminGet<{ pnl: SquadPnl }>(`/admin/teams/${teamId}/pnl`)).pnl; } catch { return null; }
   };
 
   /* --- S9 IA : copilote conversationnel --- */
   const askCopilot = async (q: string): Promise<CopilotAnswer | null> => {
-    if (!API) return DEMO.copilot(q);
+    if (!LIVE) return DEMO.copilot(q);
     try { return await adminPost<CopilotAnswer>('/admin/copilot', { q }); } catch { return null; }
   };
 
   /* --- S10 B2B : import de masse, web booker --- */
   const importMembers = async (id: string, memberIds: string[]) => {
-    if (!API) { alert(`${memberIds.length} collaborateur(s) importé(s) (démo).`); return; }
+    if (!LIVE) { alert(`${memberIds.length} collaborateur(s) importé(s) (démo).`); return; }
     try { const r = await adminPost<{ added: number }>(`/admin/corporate/${id}/members`, { memberIds }); alert(`${r.added} nouveau(x) collaborateur(s) rattaché(s).`); void refresh(); }
     catch { /* */ }
   };
   const webBook = async (id: string, input: { guestName: string; origin: { lat: number; lng: number }; destination: { lat: number; lng: number }; category: string }) => {
-    if (!API) { alert(`Course conciergerie réservée pour ${input.guestName} (démo). SMS de suivi GPS + plaque envoyé.`); return; }
+    if (!LIVE) { alert(`Course conciergerie réservée pour ${input.guestName} (démo). SMS de suivi GPS + plaque envoyé.`); return; }
     try { const r = await adminPost<{ booking: { amount: number } }>(`/admin/corporate/${id}/book`, input); alert(`Course réservée pour ${input.guestName} — ${fcfa(r.booking.amount)}. SMS de suivi envoyé.`); void refresh(); }
     catch { alert('Réservation refusée (politique entreprise ou crédit dépassé).'); }
   };
 
   /* --- S11 Litiges : escalade, quarantaine, notes --- */
   const escalateDispute = async (id: string, kind: string) => {
-    if (API) { try { await adminPost(`/admin/disputes/${id}/escalate`, { kind }); void refresh(); return; } catch { alert('Dossier déjà verrouillé par un autre expert.'); return; } }
+    if (LIVE) { try { await adminPost(`/admin/disputes/${id}/escalate`, { kind }); void refresh(); return; } catch { alert('Dossier déjà verrouillé par un autre expert.'); return; } }
     setDisputes((xs) => xs.map((d) => (d.id === id ? { ...d, escalation: kind, lockedBy: me?.name, status: 'investigating' } : d)));
   };
   const quarantineDispute = async (id: string, on: boolean) => {
-    if (API) { if (!(await safePost(`/admin/disputes/${id}/quarantine`, { on }))) return; void refresh(); return; }
+    if (LIVE) { if (!(await safePost(`/admin/disputes/${id}/quarantine`, { on }))) return; void refresh(); return; }
     setDisputes((xs) => xs.map((d) => (d.id === id ? { ...d, quarantined: on } : d)));
   };
   const noteDispute = async (id: string, text: string) => {
-    if (API) { try { await adminPost(`/admin/disputes/${id}/note`, { text }); void refresh(); return; } catch { alert('Note réservée à l’expert gestionnaire.'); return; } }
+    if (LIVE) { try { await adminPost(`/admin/disputes/${id}/note`, { text }); void refresh(); return; } catch { alert('Note réservée à l’expert gestionnaire.'); return; } }
     setDisputes((xs) => xs.map((d) => (d.id === id ? { ...d, notes: [...(d.notes ?? []), { author: me?.name ?? 'Expert', text, at: new Date().toISOString() }] } : d)));
   };
 
@@ -615,48 +621,48 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const suspendDriver = async (id: string) => {
     const reason = window.prompt('Motif de suspension (obligatoire — trace légale) :', '');
     if (!reason?.trim()) return;
-    if (API) { if (!(await safePost(`/admin/drivers/${id}/kyc`, { status: 'suspended', reason: reason.trim() }))) return; void refresh(); return; }
+    if (LIVE) { if (!(await safePost(`/admin/drivers/${id}/kyc`, { status: 'suspended', reason: reason.trim() }))) return; void refresh(); return; }
     setDrivers((xs) => xs.map((d) => (d.id === id ? { ...d, kycStatus: 'suspended', availability: 'offline', suspensionReason: reason.trim() } : d)));
   };
   const setLoyalty = async (id: string, tier: string) => {
     const pct = window.prompt('Commission personnalisée (%) — laisser vide pour aucune :', '10');
     const override = pct?.trim() ? Number(pct) / 100 : null;
-    if (API) { if (!(await safePost(`/admin/drivers/${id}/loyalty`, { loyaltyTier: tier, commissionOverride: override }))) return; void refresh(); return; }
+    if (LIVE) { if (!(await safePost(`/admin/drivers/${id}/loyalty`, { loyaltyTier: tier, commissionOverride: override }))) return; void refresh(); return; }
     setDrivers((xs) => xs.map((d) => (d.id === id ? { ...d, loyaltyTier: tier } : d)));
   };
 
   /* --- S13 Client : VIP, blacklist, no-show --- */
   const setClientVip = async (id: string, tier: string, noSurgeLock: boolean) => {
-    if (API && !(await safePost(`/admin/clients/${id}/vip`, { vipTier: tier, noSurgeLock }))) return;
+    if (LIVE && !(await safePost(`/admin/clients/${id}/vip`, { vipTier: tier, noSurgeLock }))) return;
     alert(`Client ${id} → ${tier}${noSurgeLock ? ' · no-surge verrouillé' : ''}.`);
   };
   const blacklistClient = async (id: string) => {
     const imei = window.prompt('Liste noire — IMEI de l’appareil (bloque la réinscription) :', '');
     if (imei === null) return;
-    if (API && !(await safePost(`/admin/clients/${id}/blacklist`, { imei, reason: 'Bannissement manuel' }))) return;
+    if (LIVE && !(await safePost(`/admin/clients/${id}/blacklist`, { imei, reason: 'Bannissement manuel' }))) return;
     setClients((xs) => xs.map((c) => (c.id === id ? { ...c, status: 'blocked' } : c)));
     setClientSel((c) => (c && c.id === id ? { ...c, status: 'blocked' } : c));
   };
   const noShowFee = async (id: string) => {
     const fee = window.prompt('Frais de no-show à prélever (F CFA) — vérifiés au GPS :', '1000');
     if (!fee) return;
-    if (API && !(await safePost(`/admin/clients/${id}/noshow`, { fee: Number(fee) }))) return;
+    if (LIVE && !(await safePost(`/admin/clients/${id}/noshow`, { fee: Number(fee) }))) return;
     alert(`Frais de no-show de ${fcfa(Number(fee))} prélevés sur ${id}.`);
   };
 
   /* --- S16 Tarification : shadow pricing --- */
   const shadowPricing = async (patch: { baseFactor: number; perKmFactor: number }): Promise<ShadowPricing | null> => {
-    if (!API) { const base = 1263500; const sim = Math.round(base * (0.5 * patch.baseFactor + 0.5 * patch.perKmFactor)); return { sampled: 60, realRevenue: base, simulatedRevenue: sim, impactPercent: Math.round(((sim - base) / base) * 1000) / 10 }; }
+    if (!LIVE) { const base = 1263500; const sim = Math.round(base * (0.5 * patch.baseFactor + 0.5 * patch.perKmFactor)); return { sampled: 60, realRevenue: base, simulatedRevenue: sim, impactPercent: Math.round(((sim - base) / base) * 1000) / 10 }; }
     try { return await adminPost<ShadowPricing>('/admin/pricing/shadow', patch); } catch { return null; }
   };
 
   /* --- S14 Finances : gateways, notes de frais --- */
   const toggleGateway = async (method: string, enabled: boolean) => {
-    if (API && !(await safePost('/admin/finance/gateways', { method, enabled }))) return;
+    if (LIVE && !(await safePost('/admin/finance/gateways', { method, enabled }))) return;
     setGateways((xs) => xs.map((g) => (g.method === method ? { ...g, enabled } : g)));
   };
   const decideExpense = async (id: string, decision: 'approve' | 'reject' | 'info') => {
-    if (API) { if (!(await safePost(`/admin/expenses/${id}/decide`, { decision }))) return; void refresh(); return; }
+    if (LIVE) { if (!(await safePost(`/admin/expenses/${id}/decide`, { decision }))) return; void refresh(); return; }
     setExpenses((xs) => xs.map((t) => (t.id === id ? { ...t, status: decision === 'approve' ? 'approved' : decision === 'reject' ? 'rejected' : 'info_requested', credited: decision === 'approve' } : t)));
   };
   const newExpense = async () => {
@@ -664,16 +670,16 @@ function Console({ onLogout }: { onLogout: () => void }) {
     if (!amount) return;
     const description = window.prompt('Justification :', 'Campagne marketing terrain');
     if (!description) return;
-    if (API) { try { await adminPost('/admin/expenses', { amount: Number(amount), category: 'marketing', neededDate: new Date().toISOString(), description }); void refresh(); return; } catch { alert('Compte gelé (justificatif en retard) ou non autorisé.'); return; } }
+    if (LIVE) { try { await adminPost('/admin/expenses', { amount: Number(amount), category: 'marketing', neededDate: new Date().toISOString(), description }); void refresh(); return; } catch { alert('Compte gelé (justificatif en retard) ou non autorisé.'); return; } }
     setExpenses((xs) => [{ id: Math.random().toString(36).slice(2, 8), requesterType: 'employee', requesterId: me?.name ?? 'moi', requesterName: me?.name ?? 'Moi', amount: Number(amount), category: 'marketing', neededDate: new Date().toISOString(), description, status: 'pending', createdAt: new Date().toISOString() }, ...xs]);
   };
 
   /** Télécharge un CSV : via l'API (avec session JWT) ou généré localement (démo). */
   const downloadCsv = async (path: string, filename: string, local: () => string) => {
     let content: string;
-    if (API) {
+    if (LIVE) {
       try {
-        const res = await fetch(API + path, { headers: H() });
+        const res = await fetch(API + path, { headers: H(), credentials: 'include' });
         if (res.status === 401) { onUnauthorized(); return; }
         // Sans ce contrôle, un refus (403) écrivait le corps d'erreur JSON DANS le
         // fichier : l'employé repartait avec un export corrompu au lieu de voir le refus.
@@ -703,31 +709,31 @@ function Console({ onLogout }: { onLogout: () => void }) {
   });
 
   const driverAction = async (id: string, kind: 'kyc' | 'availability', value: string) => {
-    if (API && !(await safePost(`/admin/drivers/${id}/${kind}`, kind === 'kyc' ? { status: value } : { availability: value }))) return;
+    if (LIVE && !(await safePost(`/admin/drivers/${id}/${kind}`, kind === 'kyc' ? { status: value } : { availability: value }))) return;
     setDrivers((xs) => xs.map((d) => (d.id === id ? { ...d, ...(kind === 'kyc' ? { kycStatus: value, availability: value === 'suspended' ? 'offline' : d.availability } : { availability: value }) } : d)));
   };
 
   const openDriver = async (id: string) => {
-    if (!API) { setDriverSel(DEMO.driverDetail(id, drivers)); return; }
+    if (!LIVE) { setDriverSel(DEMO.driverDetail(id, drivers)); return; }
     try { setDriverSel((await adminGet<{ driver: DriverDetail }>(`/admin/drivers/${id}`)).driver); }
     catch { setDriverSel(DEMO.driverDetail(id, drivers)); }
   };
   const openClient = async (id: string) => {
-    if (!API) { setClientSel(DEMO.clientDetail(id, clients)); return; }
+    if (!LIVE) { setClientSel(DEMO.clientDetail(id, clients)); return; }
     try { setClientSel((await adminGet<{ client: ClientDetail }>(`/admin/clients/${id}`)).client); }
     catch { setClientSel(DEMO.clientDetail(id, clients)); }
   };
 
   // --- Trésorerie (double validation) ---
   const requestTransfer = async (input: { amount: number; destination: string; reason: string }) => {
-    if (!API) {
+    if (!LIVE) {
       const local: Transfer = { id: Math.random().toString(36).slice(2, 10), currency: 'XOF', status: 'pending', requestedBy: me?.name ?? 'CFO', requestedRole: me?.role ?? 'cfo', createdAt: new Date().toISOString(), ...input };
       setTransfers((xs) => [local, ...xs]); return;
     }
     try { const { transfer } = await adminPost<{ transfer: Transfer }>('/admin/treasury/request', input); setTransfers((xs) => [transfer, ...xs]); } catch { /* */ }
   };
   const decideTransfer = async (id: string, action: 'approve' | 'reject', note?: string) => {
-    if (!API) {
+    if (!LIVE) {
       setTransfers((xs) => xs.map((x) => (x.id === id && x.status === 'pending'
         ? { ...x, status: action === 'approve' ? 'approved' : 'rejected', decidedBy: me?.name, decisionNote: note, decidedAt: new Date().toISOString(), executedAt: action === 'approve' ? new Date().toISOString() : undefined }
         : x)));
@@ -741,7 +747,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   // --- Recherche globale ---
   const runSearch = async (q: string): Promise<SearchResults> => {
-    if (!API) return DEMO.search(q);
+    if (!LIVE) return DEMO.search(q);
     try { return await adminGet<SearchResults>(`/admin/search?q=${encodeURIComponent(q)}`); }
     catch { return { drivers: [], clients: [], rides: [] }; }
   };
@@ -760,36 +766,36 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   // Dispatch & qualité (règles d'attribution + seuil de notes).
   const saveOps = async (patch: Partial<OpsConfig>) => {
-    if (!API) { setOps((o) => (o ? { ...o, ...patch } : o)); setQuality((q) => (q ? { ...q, threshold: patch.minRating ?? q.threshold, autoWarn: patch.autoWarn ?? q.autoWarn } : q)); return; }
+    if (!LIVE) { setOps((o) => (o ? { ...o, ...patch } : o)); setQuality((q) => (q ? { ...q, threshold: patch.minRating ?? q.threshold, autoWarn: patch.autoWarn ?? q.autoWarn } : q)); return; }
     try { const { ops: next } = await adminPut<{ ops: OpsConfig }>('/admin/dispatch', patch); setOps(next); } catch { /* */ }
   };
 
   const warnDriver = async (id: string) => {
-    if (API && !(await safePost(`/admin/drivers/${id}/warn`))) return;
+    if (LIVE && !(await safePost(`/admin/drivers/${id}/warn`))) return;
     setQuality((q) => (q ? { ...q, drivers: q.drivers.map((d) => (d.id === id ? { ...d, warnings: d.warnings + 1 } : d)) } : q));
   };
 
   // Réassignation manuelle d'une course (auto : re-matching selon la règle courante).
   const reassignRide = async (id: string) => {
-    if (!API) { setRides((xs) => xs.map((r) => (r.id === id ? { ...r, driverName: 'Serge Aka', matricule: 'ORION-CI-4820', status: 'accepted' } : r))); return; }
+    if (!LIVE) { setRides((xs) => xs.map((r) => (r.id === id ? { ...r, driverName: 'Serge Aka', matricule: 'ORION-CI-4820', status: 'accepted' } : r))); return; }
     try { await adminPost(`/admin/rides/${id}/reassign`); void refresh(); } catch { /* aucun chauffeur dispo */ }
   };
 
   // Instruction d'un litige : fiche complète de la course (tracé GPS + tarif).
   const openForensic = async (rideId: string) => {
-    if (!API) { setForensic(DEMO.rideForensic(rideId)); return; }
+    if (!LIVE) { setForensic(DEMO.rideForensic(rideId)); return; }
     try { setForensic(await adminGet<RideForensic>(`/admin/rides/${rideId}`)); }
     catch { setForensic(DEMO.rideForensic(rideId)); }
   };
 
   const decideDispute = async (id: string, status: 'investigating' | 'resolved' | 'rejected', resolution?: string, refund?: number) => {
-    if (API && !(await safePost(`/admin/disputes/${id}/status`, { status, resolution, refund }))) return;
+    if (LIVE && !(await safePost(`/admin/disputes/${id}/status`, { status, resolution, refund }))) return;
     setDisputes((xs) => xs.map((d) => (d.id === id ? { ...d, status, resolution: resolution ?? d.resolution, refund: refund ?? d.refund, decidedBy: me?.name, decidedAt: new Date().toISOString() } : d)));
   };
 
   // Équipes : création/mise à jour + affectation de flotte.
   const saveTeam = async (input: { id?: string; name: string; managerUsername: string; managerName?: string; driverIds?: string[] }) => {
-    if (!API) {
+    if (!LIVE) {
       const id = input.id ?? Math.random().toString(36).slice(2, 10);
       const detail = (input.driverIds ?? []).map((did) => drivers.find((d) => d.id === did)).filter(Boolean)
         .map((d) => ({ id: d!.id, name: d!.name, matricule: d!.matricule, availability: d!.availability, rating: d!.rating }));
@@ -802,13 +808,13 @@ function Console({ onLogout }: { onLogout: () => void }) {
     try { await adminPut('/admin/teams', input); void refresh(); } catch { /* */ }
   };
   const deleteTeam = async (id: string) => {
-    if (API) await adminDel(`/admin/teams/${id}`);
+    if (LIVE) await adminDel(`/admin/teams/${id}`);
     setTeams((xs) => xs.filter((t) => t.id !== id));
   };
 
   // B2B : comptes entreprises (ligne de crédit, facture, règlement).
   const saveCorporate = async (input: { id?: string; name: string; contactEmail?: string; creditLimit: number }) => {
-    if (!API) {
+    if (!LIVE) {
       const id = input.id ?? input.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
       setCorporate((xs) => {
         const ex = xs.find((a) => a.id === id);
@@ -820,7 +826,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
     try { await adminPut('/admin/corporate', input); void refresh(); } catch { /* */ }
   };
   const settleCorporate = async (id: string) => {
-    if (API && !(await safePost(`/admin/corporate/${id}/settle`))) return;
+    if (LIVE && !(await safePost(`/admin/corporate/${id}/settle`))) return;
     setCorporate((xs) => xs.map((a) => (a.id === id ? { ...a, balanceUsed: 0 } : a)));
   };
   const exportInvoice = (id: string) => void downloadCsv(`/admin/corporate/${id}/invoice`, `facture-${id}.csv`, () => {
@@ -830,9 +836,9 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   // Bilan carbone PDF (via session JWT).
   const downloadCarbonPdf = async () => {
-    if (!API) { alert('Disponible avec le backend connecté — le PDF est généré côté serveur.'); return; }
+    if (!LIVE) { alert('Disponible avec le backend connecté — le PDF est généré côté serveur.'); return; }
     try {
-      const res = await fetch(`${API}/admin/green/report.pdf`, { headers: H() });
+      const res = await fetch(`${API}/admin/green/report.pdf`, { headers: H(), credentials: 'include' });
       if (res.status === 401) { onUnauthorized(); return; }
       // Sans ce contrôle, un refus téléchargeait le corps d'erreur JSON en guise de PDF.
       if (!res.ok) { await reportResponse(res); return; }
@@ -851,9 +857,9 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   // Révoque une session (l'employé est déconnecté immédiatement).
   const revokeSess = async (id: string) => {
-    if (API && !(await safePost(`/admin/sessions/${id}/revoke`))) return;
+    if (LIVE && !(await safePost(`/admin/sessions/${id}/revoke`))) return;
     setSessions((xs) => xs.map((s) => (s.id === id ? { ...s, revoked: true } : s)));
-    if (id === selfSession) { clearSession(); window.location.reload(); } // on s'est déconnecté soi-même
+    if (id === selfSession) { void logout().then(() => window.location.reload()); } // on s'est déconnecté soi-même
   };
 
   if (!me || !ov) return <div className="adm-loading">Chargement de la console…</div>;
