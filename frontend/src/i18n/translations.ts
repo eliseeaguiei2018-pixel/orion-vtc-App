@@ -118,6 +118,12 @@ const fr: Dict = {
   sup_placeholder: 'Écrivez votre message…', sup_you: 'Vous', sup_note: 'Un agent ORION vous répond ici.',
   sup_intro: 'Bonjour 👋 Comment pouvons-nous vous aider ? Écrivez-nous, un agent ORION vous répond.',
   sup_auto: 'Merci pour votre message ! Un agent ORION va vous répondre dans un instant.',
+  /* SOS : on n’annonce jamais des secours prévenus sans confirmation. */
+  sos_sending: 'Alerte en cours d’envoi…',
+  sos_sending_sub: 'Nous prévenons le SAMU et la supervision ORION. Restez où vous êtes si c’est sûr.',
+  sos_failed: 'Alerte NON envoyée',
+  sos_failed_sub: 'Le réseau n’a pas permis de joindre ORION. Appelez directement les secours :',
+  sos_retry: 'Réessayer l’alerte ORION',
 };
 
 const en: Dict = {
@@ -217,6 +223,12 @@ const en: Dict = {
   sup_auto: 'Thanks for your message! An ORION agent will reply shortly.',
   pay_title: 'Payment', pay_redirect: 'Redirecting to {p}…', pay_confirm_in: 'Confirm in {p}', pay_success: 'Payment received by ORION',
   pay_email: 'Receipt sent by email 📧', pay_notif: 'Driver & client notified', pay_open: 'Open {p}',
+  /* SOS : on n’annonce jamais des secours prévenus sans confirmation. */
+  sos_sending: 'Sending alert…',
+  sos_sending_sub: 'We are alerting SAMU and ORION supervision. Stay where you are if it is safe.',
+  sos_failed: 'Alert NOT sent',
+  sos_failed_sub: 'The network could not reach ORION. Call the emergency services directly:',
+  sos_retry: 'Retry the ORION alert',
 };
 
 const es: Dict = {
@@ -412,6 +424,12 @@ const es: Dict = {
   wal_use: 'Pagar un viaje',
   why_price: '¿Por qué este precio?',
   wifi_free: 'Wi-Fi gratis e ilimitado a bordo',
+  /* SOS : on n’annonce jamais des secours prévenus sans confirmation. */
+  sos_sending: 'Enviando alerta…',
+  sos_sending_sub: 'Estamos avisando al SAMU y a la supervisión ORION. Quédate donde estás si es seguro.',
+  sos_failed: 'Alerta NO enviada',
+  sos_failed_sub: 'La red no ha permitido contactar con ORION. Llama directamente a emergencias:',
+  sos_retry: 'Reintentar la alerta ORION',
 };
 
 const it: Dict = {
@@ -607,6 +625,12 @@ const it: Dict = {
   wal_use: 'Paga una corsa',
   why_price: 'Perché questo prezzo?',
   wifi_free: 'Wi-Fi gratuito e illimitato a bordo',
+  /* SOS : on n’annonce jamais des secours prévenus sans confirmation. */
+  sos_sending: 'Invio dell’allerta…',
+  sos_sending_sub: 'Stiamo avvisando il SAMU e la supervisione ORION. Resta dove sei se è sicuro.',
+  sos_failed: 'Allerta NON inviata',
+  sos_failed_sub: 'La rete non ha permesso di contattare ORION. Chiama direttamente i soccorsi:',
+  sos_retry: 'Riprova l’allerta ORION',
 };
 
 const de: Dict = {
@@ -802,6 +826,12 @@ const de: Dict = {
   wal_use: 'Fahrt bezahlen',
   why_price: 'Warum dieser Preis?',
   wifi_free: 'Kostenloses unbegrenztes WLAN an Bord',
+  /* SOS : on n’annonce jamais des secours prévenus sans confirmation. */
+  sos_sending: 'Alarm wird gesendet…',
+  sos_sending_sub: 'Wir alarmieren SAMU und die ORION-Überwachung. Bleiben Sie, wo Sie sind, wenn es sicher ist.',
+  sos_failed: 'Alarm NICHT gesendet',
+  sos_failed_sub: 'Das Netz konnte ORION nicht erreichen. Rufen Sie die Rettungsdienste direkt an:',
+  sos_retry: 'ORION-Alarm erneut senden',
 };
 
 const ar: Dict = {
@@ -997,6 +1027,12 @@ const ar: Dict = {
   wal_use: 'دفع رحلة',
   why_price: 'لماذا هذا السعر؟',
   wifi_free: 'واي فاي مجاني غير محدود داخل السيارة',
+  /* SOS : on n’annonce jamais des secours prévenus sans confirmation. */
+  sos_sending: 'جارٍ إرسال الاستغاثة…',
+  sos_sending_sub: 'نُبلغ الإسعاف وغرفة إشراف أوريون. ابقَ مكانك إن كان آمنًا.',
+  sos_failed: 'لم تُرسَل الاستغاثة',
+  sos_failed_sub: 'تعذّر على الشبكة الوصول إلى أوريون. اتصل بالطوارئ مباشرة:',
+  sos_retry: 'إعادة محاولة تنبيه أوريون',
 };
 
 const zh: Dict = {
@@ -1192,6 +1228,12 @@ const zh: Dict = {
   wal_use: '支付行程',
   why_price: '为何是这个价格？',
   wifi_free: '车内免费无限 Wi-Fi',
+  /* SOS : on n’annonce jamais des secours prévenus sans confirmation. */
+  sos_sending: '正在发送求救…',
+  sos_sending_sub: '我们正在通知急救中心和 ORION 监控室。如安全请留在原地。',
+  sos_failed: '求救未发送',
+  sos_failed_sub: '网络无法连接 ORION。请直接拨打紧急电话：',
+  sos_retry: '重试 ORION 求救',
 };
 
 const ru: Dict = {
@@ -1387,6 +1429,12 @@ const ru: Dict = {
   wal_use: 'Оплатить поездку',
   why_price: 'Почему такая цена?',
   wifi_free: 'Бесплатный безлимитный Wi-Fi в салоне',
+  /* SOS : on n’annonce jamais des secours prévenus sans confirmation. */
+  sos_sending: 'Отправка сигнала…',
+  sos_sending_sub: 'Оповещаем SAMU и диспетчерскую ORION. Оставайтесь на месте, если это безопасно.',
+  sos_failed: 'Сигнал НЕ отправлен',
+  sos_failed_sub: 'Сеть не позволила связаться с ORION. Позвоните в экстренные службы напрямую:',
+  sos_retry: 'Повторить сигнал ORION',
 };
 
 export const TRANSLATIONS: Record<Lang, Dict> = { fr, en, es, it, ar, zh, de, ru };

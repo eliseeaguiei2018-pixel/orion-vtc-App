@@ -159,12 +159,36 @@ export async function estimate(origin: LatLng, destination: LatLng, tier: TierOp
   return localEstimate(origin, destination, tier, opts);
 }
 
-export async function sos(userId: string, location: LatLng, rideId?: string) {
-  const remote = await tryFetch<{ alert: unknown }>('/safety/sos', {
-    method: 'POST',
-    body: JSON.stringify({ userId, location, rideId }),
-  });
-  return remote?.alert ?? { id: `local-sos-${Date.now()}`, status: 'dispatched', dispatchedTo: ['185', '170'] };
+/** Numéros de secours en Côte d'Ivoire, à composer si l'alerte ne part pas. */
+export const EMERGENCY_NUMBERS = { samu: '185', police: '170', pompiers: '180' } as const;
+
+export interface SosResult {
+  /** true UNIQUEMENT si ORION a bien reçu l'alerte. Jamais optimiste. */
+  delivered: boolean;
+  alert?: unknown;
+}
+
+/**
+ * Déclenche une alerte SOS. Fonction de SÉCURITÉ : elle ne ment jamais sur le résultat.
+ *
+ * Auparavant, tout échec (réseau, erreur serveur, délai dépassé) était masqué par une
+ * fausse alerte locale « dispatched », et l'app annonçait au passager que le SAMU était
+ * prévenu alors qu'aucune alerte n'était partie. En cas d'accident réel avec réseau
+ * instable, la personne attendait des secours jamais appelés.
+ *
+ * Désormais : délai plus long qu'un appel ordinaire, deux réessais, et un résultat franc.
+ * À l'appelant d'afficher les numéros d'urgence si `delivered` est faux.
+ */
+export async function sos(userId: string, location: LatLng, rideId?: string): Promise<SosResult> {
+  if (!API) return { delivered: false }; // mode démo : aucune alerte réelle n'est envoyée
+  const body = JSON.stringify({ userId, location, rideId });
+  for (let essai = 0; essai < 3; essai++) {
+    // 8 s : une urgence mérite plus de patience qu'un appel ordinaire (2,5 s).
+    const remote = await tryFetch<{ alert: unknown }>('/safety/sos', { method: 'POST', body }, 8000);
+    if (remote) return { delivered: true, alert: remote.alert };
+    if (essai < 2) await new Promise((r) => setTimeout(r, 600 * (essai + 1)));
+  }
+  return { delivered: false };
 }
 
 export function isLiveBackend(): boolean {

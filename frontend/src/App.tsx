@@ -16,7 +16,7 @@ import {
   ABIDJAN_PLACES, COUNTRIES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { cancelRide, clientId, configSocketUrl, createRide, estimate, fetchAppConfig, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, estimateDelivery, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, type Announcement, type AppConfig, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
+import { EMERGENCY_NUMBERS, cancelRide, clientId, configSocketUrl, createRide, estimate, fetchAppConfig, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, estimateDelivery, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, type Announcement, type AppConfig, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
 import { LANGUAGES, useI18n, type Lang } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubPlan, TierOption, WeddingDuration } from './types';
 
@@ -92,6 +92,8 @@ export function App() {
   const [currentPlan, setCurrentPlan] = useState<string | null>(null);
   const [phone, setPhone] = useState('');
   const [toast, setToast] = useState<{ message: string; danger?: boolean } | null>(null);
+  /** État de l'alerte SOS : envoi en cours, ou échec (le passager doit appeler lui-même). */
+  const [sosState, setSosState] = useState<'sending' | 'failed' | null>(null);
   const [announce, setAnnounce] = useState<Announcement | null>(null);
   useEffect(() => { listAnnouncements().then((a) => setAnnounce(a[0] ?? null)); }, []);
 
@@ -222,9 +224,18 @@ export function App() {
     }, 2400);
   };
 
-  const triggerSos = () => {
-    void sos(clientId(), carPos ?? origin.location, rideId ?? undefined);
-    showToast(t('toast_sos'), true);
+  /**
+   * SOS. Fonction de sécurité : on n'annonce « secours prévenus » QUE si ORION a
+   * réellement reçu l'alerte. Si l'envoi échoue (réseau coupé, serveur indisponible),
+   * on le dit franchement et on propose d'appeler directement les secours — l'ancienne
+   * version affichait toujours « SAMU notifié », même quand rien n'était parti.
+   */
+  const triggerSos = async () => {
+    if (!isLiveBackend()) { showToast(t('toast_sos'), true); return; } // démo : simulation
+    setSosState('sending');
+    const res = await sos(clientId(), carPos ?? origin.location, rideId ?? undefined);
+    if (res.delivered) { setSosState(null); showToast(t('toast_sos'), true); return; }
+    setSosState('failed'); // échec : le passager doit appeler lui-même
   };
 
   const cancelCurrentRide = () => {
@@ -299,6 +310,7 @@ export function App() {
     <div className="app-shell">
       <div className="phone">
         {toast && <Toast message={toast.message} danger={toast.danger} />}
+        {sosState && <SosOverlay state={sosState} onRetry={() => void triggerSos()} onClose={() => setSosState(null)} />}
         {locked && <LockScreen onUnlock={() => setLocked(false)} />}
 
         {screen === 'splash' && <Splash onDone={() => setScreen('onboarding')} />}
@@ -378,6 +390,48 @@ export function App() {
         )}
         {screen === 'wedding' && (
           <WeddingScreen onBack={() => setScreen('home')} onReserve={() => { showToast(t('toast_reserved')); setScreen('home'); }} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* --------------------------- SOS (sécurité) --------------------------- */
+/**
+ * Surcouche SOS. En cas d'échec d'envoi, elle NE laisse PAS croire que les secours
+ * sont prévenus : elle l'annonce clairement et met les numéros d'urgence à portée
+ * de pouce (appel direct), avec possibilité de réessayer l'alerte ORION.
+ */
+function SosOverlay({ state, onRetry, onClose }: { state: 'sending' | 'failed'; onRetry: () => void; onClose: () => void }) {
+  const { t } = useI18n();
+  const numeros: Array<[string, string]> = [
+    ['SAMU', EMERGENCY_NUMBERS.samu],
+    [t('help_police'), EMERGENCY_NUMBERS.police],
+    [t('help_fire'), EMERGENCY_NUMBERS.pompiers],
+  ];
+  return (
+    <div className="sos-wrap" role="alertdialog" aria-live="assertive">
+      <div className="sos-card">
+        {state === 'sending' ? (
+          <>
+            <div className="sos-pulse" aria-hidden="true" />
+            <h2 className="sos-title">{t('sos_sending')}</h2>
+            <p className="sos-sub">{t('sos_sending_sub')}</p>
+          </>
+        ) : (
+          <>
+            <h2 className="sos-title danger">⚠️ {t('sos_failed')}</h2>
+            <p className="sos-sub">{t('sos_failed_sub')}</p>
+            <div className="sos-nums">
+              {numeros.map(([label, num]) => (
+                <a key={num} className="sos-num" href={`tel:${num}`}>
+                  <IconPhone size={18} /> <strong>{num}</strong> <span>{label}</span>
+                </a>
+              ))}
+            </div>
+            <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={onRetry}>{t('sos_retry')}</button>
+            <button className="btn btn-ghost" style={{ marginTop: 8 }} onClick={onClose}>{t('ins_got')}</button>
+          </>
         )}
       </div>
     </div>
