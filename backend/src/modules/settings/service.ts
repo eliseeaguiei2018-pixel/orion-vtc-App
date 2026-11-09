@@ -180,6 +180,9 @@ export class SettingsService {
   private services: ServicesConfig;
   private zones: Zone[];
   private ops: OpsConfig;
+  /** Notifié à chaque changement de la config publique (services/gateways/open) —
+   * branché sur le hub temps réel pour diffuser aux apps clientes (voir container). */
+  private servicesChangeHandler?: (config: ServicesConfig) => void;
 
   constructor(
     private readonly repo?: Repository<PricingRecord>,
@@ -313,6 +316,11 @@ export class SettingsService {
 
   getServices(): ServicesConfig { return this.services; }
 
+  /** Enregistre le handler de diffusion temps réel (appelé une fois au démarrage). */
+  onServicesChanged(handler: (config: ServicesConfig) => void): void {
+    this.servicesChangeHandler = handler;
+  }
+
   updateServices(patch: Partial<ServicesConfig>): ServicesConfig {
     this.services = {
       ...this.services,
@@ -321,6 +329,8 @@ export class SettingsService {
       gateways: { ...this.services.gateways, ...(patch.gateways ?? {}) },
     };
     this.servicesRepo?.put({ id: SERVICES_ID, ...this.services });
+    // Diffusion temps réel aux apps clientes connectées (maintenance, services, gateways).
+    this.servicesChangeHandler?.(this.services);
     return this.services;
   }
 

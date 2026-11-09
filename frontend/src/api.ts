@@ -282,14 +282,28 @@ export async function listAnnouncements(): Promise<Announcement[]> {
   return res?.announcements ?? [];
 }
 
-/** URL WebSocket de suivi d'une course (null si pas de backend configuré). */
-export function rideSocketUrl(rideId: string): string | null {
+/** Construit une URL WebSocket vers un chemin de l'API (null si pas de backend). */
+function wsUrl(path: string): string | null {
   if (!API) return null;
   try {
     const u = new URL(API);
     const proto = u.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${proto}//${u.host}/ws/rides/${rideId}`;
+    return `${proto}//${u.host}${path}`;
   } catch {
     return null;
   }
+}
+
+/** URL WebSocket de suivi d'une course (null si pas de backend configuré). */
+export function rideSocketUrl(rideId: string): string | null {
+  return wsUrl(`/ws/rides/${rideId}`);
+}
+
+/**
+ * URL WebSocket de la config publique temps réel. L'app cliente s'y abonne pour recevoir
+ * instantanément les changements pilotés depuis la console (maintenance, services,
+ * passerelles de paiement) sans avoir à redémarrer. Null en mode démo (pas de backend).
+ */
+export function configSocketUrl(): string | null {
+  return wsUrl('/ws/config');
 }

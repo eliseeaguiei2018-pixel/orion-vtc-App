@@ -16,7 +16,7 @@ import {
   ABIDJAN_PLACES, COUNTRIES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { cancelRide, clientId, createRide, estimate, fetchAppConfig, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, type Announcement, type AppConfig, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
+import { cancelRide, clientId, configSocketUrl, createRide, estimate, fetchAppConfig, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, type Announcement, type AppConfig, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
 import { LANGUAGES, useI18n, type Lang } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubPlan, TierOption, WeddingDuration } from './types';
 
@@ -100,6 +100,39 @@ export function App() {
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   useEffect(() => { fetchAppConfig().then(setAppConfig); }, []);
   const [promo, setPromo] = useState('');
+
+  // Temps réel : abonnement au canal WS `config`. Toute modification pilotée depuis la
+  // console (maintenance, services, passerelles) est reçue et appliquée instantanément,
+  // sans redémarrer l'app. Reconnexion automatique si le lien tombe.
+  useEffect(() => {
+    const url = configSocketUrl();
+    if (!url) return; // mode démo : pas de backend
+    let ws: WebSocket | null = null;
+    let retry: number | undefined;
+    let closed = false;
+    const apply = (c: Partial<AppConfig> | undefined) => {
+      if (!c) return;
+      setAppConfig({
+        city: c.city ?? 'Abidjan', open: c.open ?? true,
+        services: c.services ?? {}, gateways: c.gateways ?? {}, currency: c.currency ?? 'XOF',
+      });
+    };
+    const connect = () => {
+      try { ws = new WebSocket(url); } catch { return; }
+      ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(String(ev.data));
+          // `connected` porte l'état courant (config) ; `config.update` la nouvelle (data).
+          if (msg.type === 'connected') apply(msg.config);
+          else if (msg.type === 'config.update') apply(msg.data);
+        } catch { /* trame ignorée */ }
+      };
+      ws.onclose = () => { if (!closed) retry = window.setTimeout(connect, 4000); };
+      ws.onerror = () => { try { ws?.close(); } catch { /* ignore */ } };
+    };
+    connect();
+    return () => { closed = true; window.clearTimeout(retry); try { ws?.close(); } catch { /* ignore */ } };
+  }, []);
 
   // Moyens de paiement réellement proposés : filtrés par les passerelles actives de la
   // console. Si aucune config (démo) ou aucune passerelle listée → tout le catalogue.

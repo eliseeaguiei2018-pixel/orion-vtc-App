@@ -15,7 +15,7 @@ import { InsuranceService, type InsuranceContribution } from './modules/insuranc
 import { PaymentRegistry } from './modules/payments/providers.js';
 import { SafetyService } from './modules/safety/service.js';
 import { SettingsService, type PricingRecord } from './modules/settings/service.js';
-import { RealtimeHub } from './modules/realtime/hub.js';
+import { RealtimeHub, CONFIG_ROOM } from './modules/realtime/hub.js';
 import { createMapsProvider, type MapsProvider } from './modules/maps/service.js';
 import { createRepository } from './core/db/repository.js';
 import { genMatricule, type Driver } from './modules/drivers/store.js';
@@ -145,6 +145,10 @@ export function createContainer(): Container {
   // Extension : registry.register(new DeliveryServiceModule()) ... (cf. docs/04)
 
   const realtime = new RealtimeHub();
+  // Diffusion temps réel de la config publique : à chaque changement piloté depuis la
+  // console (maintenance, services, passerelles), toutes les apps clientes connectées au
+  // canal WS `config` reçoivent la nouvelle config et se mettent à jour instantanément.
+  settings.onServicesChanged((cfg) => realtime.publish(CONFIG_ROOM, 'config.update', { ...cfg, currency: 'XOF' }));
   const safety = new SafetyService(realtime);
   // Portefeuille client (séparé du wallet chauffeur) : remboursements ORION Assurance.
   const clientWallet = new WalletService(createRepository<LedgerEntry>('client_wallet'));

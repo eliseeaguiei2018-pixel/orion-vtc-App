@@ -47,3 +47,7 @@ export const EMERGENCY_ROOM = 'emergency';
 /** Room globale des agents support + room par client (chat). */
 export const SUPPORT_ROOM = 'support';
 export const clientRoom = (clientId: string) => `client:${clientId}`;
+/** Room de configuration publique : diffusion temps réel des changements pilotés depuis
+ * la console (maintenance, services activés, passerelles de paiement). Toutes les apps
+ * clientes connectées s'y mettent à jour instantanément. */
+export const CONFIG_ROOM = 'config';
