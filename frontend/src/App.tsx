@@ -194,7 +194,7 @@ export function App() {
     setScreen('searching');
     if (shareRides && trusted) showToast(t('toast_shared', { name: trusted.name }));
     if (isLiveBackend() && quote) {
-      const res = await createRide(quote.lockId, clientId(), shareRides && trusted ? trusted : undefined);
+      const res = await createRide(quote.lockId, clientId(), shareRides && trusted ? trusted : undefined, payment);
       if (res?.ride?.driverId) {
         setRideId(res.ride.id);
         setLive(true);
@@ -314,7 +314,9 @@ export function App() {
           <TrackingScreen origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase} mode={mode}
             carPos={carPos} setCarPos={setCarPos} setPhase={setTripPhase} live={live} rideId={rideId} stops={stops}
             onSos={triggerSos} onShare={() => showToast(t('toast_share'))} onArrived={() => setScreen('payment')}
-            onCancel={cancelCurrentRide} />
+            onCancel={cancelCurrentRide}
+            onReassigned={(d) => { setDriver(driverFromSafe(d)); showToast(t('toast_reassigned', { name: d.name })); }}
+            onServerCancel={() => { showToast(t('toast_no_driver'), true); reset(); }} />
         )}
 
         {screen === 'payment' && destination && driver && (
@@ -962,10 +964,14 @@ function SearchingScreen({ origin, destination, mode = 'ride', onCancel }: { ori
 }
 
 /* ----------------------------- Tracking ------------------------------ */
-function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, onSos, onShare, onArrived, onCancel }: {
+function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, onSos, onShare, onArrived, onCancel, onReassigned, onServerCancel }: {
   origin: Place; destination: Place; driver: Driver; tier: TierOption; phase: TripPhase; mode?: 'ride' | 'delivery';
   carPos: LatLng | null; setCarPos: (p: LatLng) => void; setPhase: (p: TripPhase) => void;
   live: boolean; rideId: string | null; stops: Place[]; onSos: () => void; onShare: () => void; onArrived: () => void; onCancel: () => void;
+  /** Synchro app chauffeur : nouveau chauffeur (refus / délai dépassé / console). */
+  onReassigned?: (d: SafeDriver) => void;
+  /** Course annulée côté serveur (aucun chauffeur disponible, clôture console). */
+  onServerCancel?: () => void;
 }) {
   const { t } = useI18n();
   const del = mode === 'delivery';
@@ -980,10 +986,12 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
     const ws = new WebSocket(url);
     ws.onmessage = (ev) => {
       try {
-        const m = JSON.parse(ev.data as string) as { type: string; data: { position?: LatLng; status?: string } };
+        const m = JSON.parse(ev.data as string) as { type: string; data: { position?: LatLng; status?: string; driver?: SafeDriver | null } };
         if (m.type === 'driver.location' && m.data.position) setCarPos(m.data.position);
+        if (m.type === 'ride.reassigned' && m.data.driver) onReassigned?.(m.data.driver);
         if (m.type === 'ride.status') {
           const s = m.data.status;
+          if (s === 'cancelled') onServerCancel?.();
           if (s === 'driver_en_route') setPhase('enroute');
           else if (s === 'arrived') setPhase('arrived');
           else if (s === 'in_progress') setPhase('inprogress');

@@ -4,9 +4,12 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "_comment_admin": "Sous-domaine admin : remplacer 'admin.orion.ci' par ton vrai domaine admin dans Vercel (Domains).",
+  "_comment_chauffeur": "Sous-domaine chauffeur : remplacer 'chauffeur.orion.ci' par ton vrai domaine chauffeur (sinon /driver.html).",
   "rewrites": [
     { "source": "/", "has": [{ "type": "host", "value": "admin.orion.ci" }], "destination": "/admin.html" },
     { "source": "/(.*)", "has": [{ "type": "host", "value": "admin.orion.ci" }], "destination": "/admin.html" },
+    { "source": "/", "has": [{ "type": "host", "value": "chauffeur.orion.ci" }], "destination": "/driver.html" },
+    { "source": "/(.*)", "has": [{ "type": "host", "value": "chauffeur.orion.ci" }], "destination": "/driver.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

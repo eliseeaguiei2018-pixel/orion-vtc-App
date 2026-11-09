@@ -222,12 +222,16 @@ export function clientId(): string {
   return id;
 }
 
-/** Crée une course côté backend (idempotent). Renvoie null si backend indisponible. */
-export async function createRide(lockId: string, cid: string, trustedContact?: TrustedContact): Promise<RideCreateResult | null> {
+/**
+ * Crée une course côté backend (idempotent). Renvoie null si backend indisponible.
+ * `paymentMethod` (optionnel) : moyen annoncé, affiché au chauffeur ; « espèces » exclut
+ * les chauffeurs au-delà du plafond de dette espèces fixé en console.
+ */
+export async function createRide(lockId: string, cid: string, trustedContact?: TrustedContact, paymentMethod?: string): Promise<RideCreateResult | null> {
   const res = await tryFetch<{ ride: RideCreated; driver: SafeDriver | null }>('/rides', {
     method: 'POST',
     headers: { 'idempotency-key': `${cid}-${lockId}` },
-    body: JSON.stringify({ clientId: cid, lockId, trustedContact }),
+    body: JSON.stringify({ clientId: cid, lockId, trustedContact, paymentMethod }),
   });
   return res ? { ride: res.ride, driver: res.driver ?? null } : null;
 }

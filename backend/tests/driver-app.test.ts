@@ -74,6 +74,36 @@ test('Connexion : inscription par code SMS, reconnexion, code faux, anti-spam', 
   assert.ok(adm.statusCode === 401 || adm.statusCode === 403, `console refusée (${adm.statusCode})`);
 });
 
+test('Dossier : soumission complète exigée, zones à forte demande', async (t) => {
+  const { buildApp } = await import('../src/app.js');
+  const { app } = await buildApp();
+  t.after(() => app.close());
+  const s = await login(app, '0177777777', 'Serge Aka');
+  const submit = () => app.inject({ method: 'POST', url: `/drivers/${s.driver.id}/kyc/submit`, headers: s.headers });
+
+  const ko = await submit();
+  assert.equal(ko.statusCode, 400);
+  assert.ok((ko.json().error.details.missing as string[]).includes('numéro de permis'));
+
+  await app.inject({ method: 'POST', url: `/drivers/${s.driver.id}/profile`, headers: s.headers, payload: {
+    birthDate: '1990-04-12', licenseNo: 'CI-AB-12345', vehicleModel: 'BYD Dolphin', vehiclePlate: '1234 AB 01',
+    vehicleColor: 'Blanc', insuranceExpiry: '2099-12-31', batteryKwh: 60, plugType: 'Type 2',
+  } });
+  const ok = await submit();
+  assert.equal(ok.statusCode, 200, ok.body);
+  assert.equal(ok.json().driver.kycStatus, 'docs_submitted');
+
+  // Une fois validé par la console, plus de re-soumission.
+  await approve(app, s.driver.id);
+  assert.equal((await submit()).statusCode, 400);
+
+  // Carte de chaleur : un devis compte comme une demande dans sa cellule.
+  await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: ORIGIN, destination: DEST, category: 'bronze' } });
+  const heat = (await app.inject({ method: 'GET', url: '/drivers/demand' })).json();
+  assert.ok(heat.cells.length >= 1);
+  assert.equal(typeof heat.cells[0].demand, 'number');
+});
+
 test('Jeton chauffeur : chacun ses données ; routes existantes compatibles sans jeton', async (t) => {
   const { buildApp } = await import('../src/app.js');
   const { app } = await buildApp();

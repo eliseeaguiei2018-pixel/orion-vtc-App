@@ -117,6 +117,38 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
   // Annonces de la console destinées aux chauffeurs (audience chauffeurs ou tous).
   app.get('/drivers/announcements', async () => ({ announcements: container.notifications.forAudience('drivers') }));
 
+  // Zones à forte demande (carte de chaleur chauffeur) : demande vs offre par cellule
+  // (~800 m, fenêtre glissante 10 min). Données agrégées, aucune donnée personnelle.
+  app.get('/drivers/demand', async () => ({ cells: await container.demand.hotCells(12) }));
+
+  /* ------------------------- Dossier (KYC) ------------------------- */
+
+  // Le chauffeur SOUMET son dossier complété : il passe dans la file de validation
+  // de la console (pipeline KYC). Pièces originales vérifiées en agence ORION.
+  app.post('/drivers/:id/kyc/submit', async (req) => {
+    const { id } = req.params as { id: string };
+    requireDriver(req, id);
+    const d = container.drivers.get(id);
+    if (!d) throw notFound('Chauffeur introuvable');
+    if (d.kycStatus !== 'draft' && d.kycStatus !== 'docs_submitted') {
+      throw badRequest('Dossier déjà en cours d’examen ou validé');
+    }
+    const required: Array<[keyof typeof d, string]> = [
+      ['phone', 'téléphone'], ['birthDate', 'date de naissance'], ['licenseNo', 'numéro de permis'],
+      ['vehicleModel', 'modèle du véhicule'], ['vehiclePlate', 'immatriculation'],
+      ['vehicleColor', 'couleur du véhicule'], ['insuranceExpiry', 'échéance de l’assurance'],
+    ];
+    const missing = required.filter(([k]) => !d[k]).map(([, label]) => label);
+    if (missing.length) throw badRequest(`Dossier incomplet : ${missing.join(', ')}`, { missing });
+    if (d.insuranceExpiry && Date.parse(d.insuranceExpiry) < Date.now()) {
+      throw badRequest('Assurance expirée — renouvelez-la avant de soumettre le dossier');
+    }
+    d.kycStatus = 'docs_submitted';
+    container.drivers.persist(id);
+    container.audit.log({ actor: d.name, role: 'chauffeur', action: 'driver.kyc_submit', target: id, details: { matricule: d.matricule } });
+    return { driver: d };
+  });
+
   /* --------------------------- Courses & gains --------------------------- */
 
   // Historique des courses + totaux du jour et des 7 derniers jours.
@@ -253,7 +285,7 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
  * Sur les routes de course, un jeton chauffeur ne peut agir que sur SES courses.
  */
 const DRIVER_SCOPED = /^\/drivers\/([^/?#]+)\/(online|offline|location|telemetry|profile|payout|training|wallet|queue)(?:[/?#]|$)/;
-const RIDE_SCOPED = /^\/rides\/([^/?#]+)\/(transition|wait|sos)(?:[/?#]|$)/;
+const RIDE_SCOPED = /^\/rides\/([^/?#]+)\/(transition|wait|sos|pay)(?:[/?#]|$)/;
 
 export function registerDriverGuard(app: FastifyInstance, container: Container): void {
   app.addHook('onRequest', async (req) => {
