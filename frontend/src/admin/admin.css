@@ -296,6 +296,16 @@ html[data-adm-theme='light'] .adm-trace-bg { fill: #0b1f14; }
 .adm-denied h3 { margin: 0 0 10px; color: var(--a-danger); font-size: 19px; }
 .adm-denied p { margin: 0 0 18px; color: var(--a-text); font-size: 14px; line-height: 1.5; }
 
+/* Bandeau d'erreur serveur : l'opération a été refusée et n'a PAS été enregistrée. */
+.adm-notice { position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 70;
+  display: flex; align-items: center; gap: 12px; max-width: min(640px, calc(100vw - 32px));
+  padding: 12px 14px; border-radius: 12px; background: var(--a-panel);
+  border: 1px solid var(--a-danger); color: var(--a-text); font-size: 13.5px; line-height: 1.45;
+  box-shadow: 0 18px 50px rgba(0,0,0,0.45); }
+.adm-notice-x { background: transparent; border: none; color: var(--a-text); opacity: 0.7;
+  cursor: pointer; font-size: 13px; padding: 0 2px; flex: none; }
+.adm-notice-x:hover { opacity: 1; }
+
 /* Session SAMU — « dark room » à fort contraste */
 .samu-room .samu-head { border-color: rgba(255,84,104,0.35); }
 html[data-adm-theme='dark'] .samu-room .adm-card { background: #0a0d0b; }

@@ -224,10 +224,75 @@ const H = (): Record<string, string> => {
 };
 /** 401 = session expirée/invalide → on purge et on renvoie à l'écran de connexion. */
 function onUnauthorized() { clearSession(); if (API) window.location.reload(); }
-async function adminGet<T>(p: string): Promise<T> { const r = await fetch(API + p, { headers: H() }); if (r.status === 401) onUnauthorized(); if (!r.ok) throw new Error(String(r.status)); return r.json() as Promise<T>; }
-async function adminPost<T>(p: string, b?: unknown): Promise<T> { const r = await fetch(API + p, { method: 'POST', headers: H(), body: JSON.stringify(b ?? {}) }); if (r.status === 401) onUnauthorized(); if (!r.ok) throw new Error(String(r.status)); return r.json() as Promise<T>; }
-async function adminPut<T>(p: string, b: unknown): Promise<T> { const r = await fetch(API + p, { method: 'PUT', headers: H(), body: JSON.stringify(b) }); if (r.status === 401) onUnauthorized(); if (!r.ok) throw new Error(String(r.status)); return r.json() as Promise<T>; }
-async function adminDel(p: string): Promise<void> { const r = await fetch(API + p, { method: 'DELETE', headers: H() }); if (r.status === 401) onUnauthorized(); }
+
+/**
+ * Échec d'un appel à l'API admin, porteur du code HTTP et du message du serveur.
+ *
+ * Indispensable pour l'exigence transversale : un refus 403 renvoie le message
+ * « …sans autorisation de la direction… signalée à la direction (DG, CFO, DAA) »,
+ * que la console DOIT afficher à l'employé. Sans ce type, le refus était avalé.
+ */
+export class AdminError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+    this.name = 'AdminError';
+  }
+  /** Tentative d'accès refusée (session/action non autorisée). */
+  get isDenied(): boolean { return this.status === 403; }
+}
+
+/**
+ * Puits d'erreurs branché par la console au montage : toute erreur d'appel y est
+ * signalée pour être RENDUE VISIBLE (modale de refus ou bandeau), même si l'appelant
+ * ignore l'exception. Avant, 38 appels avalaient silencieusement les échecs.
+ */
+let errorSink: (e: AdminError) => void = () => {};
+export function setAdminErrorSink(fn: (e: AdminError) => void): void { errorSink = fn; }
+
+/** Construit l'erreur depuis la réponse, en reprenant le message du serveur si présent. */
+async function toAdminError(r: Response): Promise<AdminError> {
+  let message = '';
+  try {
+    const body = await r.json() as { error?: { message?: string } };
+    message = body?.error?.message ?? '';
+  } catch { /* corps non JSON */ }
+  if (!message) {
+    message = r.status === 403
+      ? 'Action refusée : vous n’avez pas le droit d’effectuer cette opération sans autorisation de la direction. Cette tentative a été signalée à la direction (DG, CFO, DAA).'
+      : `Le serveur a refusé l’opération (erreur ${r.status}). Rien n’a été enregistré.`;
+  }
+  return new AdminError(r.status, message);
+}
+
+/** Signale l'échec (modale de refus / bandeau) et le lève — pour les appels JSON. */
+async function fail(r: Response): Promise<never> {
+  const e = await toAdminError(r);
+  errorSink(e);
+  throw e;
+}
+
+/** Signale l'échec SANS lever — pour les téléchargements, qui abandonnent simplement. */
+async function reportResponse(r: Response): Promise<void> {
+  errorSink(await toAdminError(r));
+}
+
+async function adminGet<T>(p: string): Promise<T> { const r = await fetch(API + p, { headers: H() }); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
+async function adminPost<T>(p: string, b?: unknown): Promise<T> { const r = await fetch(API + p, { method: 'POST', headers: H(), body: JSON.stringify(b ?? {}) }); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
+async function adminPut<T>(p: string, b: unknown): Promise<T> { const r = await fetch(API + p, { method: 'PUT', headers: H(), body: JSON.stringify(b) }); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
+async function adminDel(p: string): Promise<void> { const r = await fetch(API + p, { method: 'DELETE', headers: H() }); if (r.status === 401) onUnauthorized(); if (!r.ok) await fail(r); }
+
+/**
+ * Appel d'ÉCRITURE sûr : renvoie true seulement si le serveur a accepté. Les appelants
+ * s'en servent pour ne PAS modifier l'affichage quand l'opération a échoué — l'état
+ * fantôme (suspension, blacklist… affichées comme faites alors qu'elles ont été refusées)
+ * était le second défaut de la gestion d'erreur précédente.
+ */
+async function safePost(p: string, b?: unknown): Promise<boolean> {
+  try { await adminPost(p, b); return true; } catch { return false; }
+}
+async function safePut(p: string, b: unknown): Promise<boolean> {
+  try { await adminPut(p, b); return true; } catch { return false; }
+}
 const fcfa = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' F';
 
 /* ----------------------- Thème jour / nuit --------------------------- */
@@ -429,6 +494,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [amortization, setAmortization] = useState<Amortization | null>(null);
   /** Modale « accès refusé » : session verrouillée, tentative signalée à la direction. */
   const [denied, setDenied] = useState<string | null>(null);
+  /** Bandeau d'erreur serveur (opération refusée ou indisponible) — non bloquant. */
+  const [notice, setNotice] = useState<string | null>(null);
   const [muted, setMuted] = useState(() => localStorage.getItem('orion.admin.muted') === '1');
   const [theme, setTheme] = useState<AdmTheme>(savedTheme);
   const [ridesPage, setRidesPage] = useState(1);
@@ -549,6 +616,21 @@ function Console({ onLogout }: { onLogout: () => void }) {
     return () => { clearInterval(t); if (p) clearInterval(p); };
   }, [refresh]);
 
+  // Rend VISIBLE tout refus ou erreur d'appel à l'API. Exigence transversale : un 403
+  // doit afficher à l'employé qu'il n'a pas le droit d'agir sans autorisation de la
+  // direction (le serveur a déjà notifié DG, CFO, DAA). Les autres erreurs passent en
+  // bandeau, afin qu'aucune opération refusée ne paraisse avoir réussi.
+  useEffect(() => {
+    setAdminErrorSink((e) => { if (e.isDenied) setDenied(e.message); else setNotice(e.message); });
+    return () => setAdminErrorSink(() => {});
+  }, []);
+  // Le bandeau d'erreur s'effface de lui-même (l'employé peut aussi le fermer).
+  useEffect(() => {
+    if (!notice) return;
+    const id = setTimeout(() => setNotice(null), 7000);
+    return () => clearTimeout(id);
+  }, [notice]);
+
   // Alertes SAMU temps réel : sirène + notification navigateur à chaque NOUVELLE alerte.
   const seenAlerts = useRef<Set<string> | null>(null);
   useEffect(() => {
@@ -578,11 +660,13 @@ function Console({ onLogout }: { onLogout: () => void }) {
     try {
       const res = await fetch(API + path, { headers: H() });
       if (res.status === 401) { onUnauthorized(); return; }
-      if (!res.ok) { alert('Document indisponible (accès réservé ?).'); return; }
+      // Refus/erreur : on remonte le message du serveur (403 → message de la direction)
+      // au lieu d'un avertissement générique, et on ne télécharge rien.
+      if (!res.ok) { await reportResponse(res); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob); const a = document.createElement('a');
       a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
-    } catch { /* réseau */ }
+    } catch (e) { if (!(e instanceof AdminError)) setNotice('Document indisponible : serveur injoignable.'); }
   };
 
   /* --------------- Session SAMU : triage, prise en charge, clôture --------------- */
@@ -628,7 +712,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setZones((xs) => (xs.some((z) => z.id === zone.id) ? xs.map((z) => (z.id === zone.id ? zone : z)) : [...xs, zone]));
   };
   const toggleZone = async (id: string, active: boolean) => {
-    if (API) { try { await adminPost(`/admin/zones/${id}/active`, { active }); } catch { /* */ } }
+    if (API && !(await safePost(`/admin/zones/${id}/active`, { active }))) return;
     setZones((xs) => xs.map((z) => (z.id === id ? { ...z, active } : z)));
   };
   const deleteZone = async (id: string) => {
@@ -668,11 +752,11 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   const supportReply = async (convId: string, text: string) => {
     const msg: SupportMsg = { id: Math.random().toString(36).slice(2, 8), from: 'agent', author: me?.name, text, at: new Date().toISOString() };
-    if (API) { try { await adminPost(`/admin/support/${convId}/reply`, { text }); } catch { /* */ } }
+    if (API && !(await safePost(`/admin/support/${convId}/reply`, { text }))) return;
     setSupport((xs) => xs.map((c) => (c.id === convId ? { ...c, messages: [...c.messages, msg], status: 'pending' } : c)));
   };
   const supportSetStatus = async (convId: string, status: string) => {
-    if (API) { try { await adminPost(`/admin/support/${convId}/status`, { status }); } catch { /* */ } }
+    if (API && !(await safePost(`/admin/support/${convId}/status`, { status }))) return;
     setSupport((xs) => xs.map((c) => (c.id === convId ? { ...c, status } : c)));
   };
 
@@ -682,7 +766,12 @@ function Console({ onLogout }: { onLogout: () => void }) {
       ...a, channel: (a.channel as Announcement['channel']) ?? 'push',
       stats: { sent: 1240, delivered: 1203, opened: 662, clicked: 199, rides: 53 },
     };
-    if (API) { try { const { announcement } = await adminPost<{ announcement: Announcement }>('/admin/broadcast', a); setBroadcasts((xs) => [announcement, ...xs]); return; } catch { /* */ } }
+    // Sur refus/erreur, on n'ajoute PAS l'annonce localement : elle n'a pas été diffusée.
+    if (API) {
+      try { const { announcement } = await adminPost<{ announcement: Announcement }>('/admin/broadcast', a); setBroadcasts((xs) => [announcement, ...xs]); }
+      catch { /* déjà signalé à l'employé */ }
+      return;
+    }
     setBroadcasts((xs) => [local, ...xs]);
   };
 
@@ -730,13 +819,13 @@ function Console({ onLogout }: { onLogout: () => void }) {
     catch { alert('Aucun chauffeur disponible pour cette réservation.'); }
   };
   const cancelReservation = async (id: string) => {
-    if (API) { try { await adminPost(`/admin/reservations/${id}/cancel`); } catch { /* */ } }
+    if (API && !(await safePost(`/admin/reservations/${id}/cancel`))) return;
     setReservations((xs) => xs.map((r) => (r.id === id ? { ...r, status: 'annulee' } : r)));
   };
 
   // Programme VIP / Top Driver (priorité dispatch + commission réduite).
   const setVip = async (id: string, vip: boolean) => {
-    if (API) { try { await adminPost(`/admin/drivers/${id}/vip`, { vip }); } catch { /* */ } }
+    if (API && !(await safePost(`/admin/drivers/${id}/vip`, { vip }))) return;
     setQTop((xs) => xs.map((t) => (t.id === id ? { ...t, vip } : t)));
   };
 
@@ -749,7 +838,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   /* --- S8 Équipes / RH : shifts, maintenance, micro-broadcast, P&L --- */
   const assignShift = async (input: { username: string; name: string; date: string; slot: string; zoneId?: string }) => {
-    if (API) { try { await adminPut('/admin/shifts', input); void refresh(); return; } catch { /* */ } }
+    if (API) { if (!(await safePut('/admin/shifts', input))) return; void refresh(); return; }
     setShifts((xs) => [...xs, { id: Math.random().toString(36).slice(2, 8), createdAt: new Date().toISOString(), ...input } as Shift]);
   };
   const removeShift = async (id: string) => {
@@ -757,11 +846,11 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setShifts((xs) => xs.filter((s) => s.id !== id));
   };
   const openMaintenance = async (input: { driverId: string; kind: string; title: string; teamId?: string }) => {
-    if (API) { try { await adminPost('/admin/maintenance', input); void refresh(); return; } catch { /* */ } }
+    if (API) { if (!(await safePost('/admin/maintenance', input))) return; void refresh(); return; }
     setMaintenance((xs) => [{ id: Math.random().toString(36).slice(2, 8), status: 'ouvert', createdAt: new Date().toISOString(), ...input } as MaintenanceTicket, ...xs]);
   };
   const resolveMaintenance = async (id: string) => {
-    if (API) { try { await adminPost(`/admin/maintenance/${id}/resolve`); } catch { /* */ } }
+    if (API && !(await safePost(`/admin/maintenance/${id}/resolve`))) return;
     setMaintenance((xs) => xs.map((t) => (t.id === id ? { ...t, status: 'resolu' } : t)));
   };
   const microBroadcast = async (teamId: string, title: string, body: string) => {
@@ -798,7 +887,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setDisputes((xs) => xs.map((d) => (d.id === id ? { ...d, escalation: kind, lockedBy: me?.name, status: 'investigating' } : d)));
   };
   const quarantineDispute = async (id: string, on: boolean) => {
-    if (API) { try { await adminPost(`/admin/disputes/${id}/quarantine`, { on }); void refresh(); return; } catch { /* */ } }
+    if (API) { if (!(await safePost(`/admin/disputes/${id}/quarantine`, { on }))) return; void refresh(); return; }
     setDisputes((xs) => xs.map((d) => (d.id === id ? { ...d, quarantined: on } : d)));
   };
   const noteDispute = async (id: string, text: string) => {
@@ -810,32 +899,32 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const suspendDriver = async (id: string) => {
     const reason = window.prompt('Motif de suspension (obligatoire — trace légale) :', '');
     if (!reason?.trim()) return;
-    if (API) { try { await adminPost(`/admin/drivers/${id}/kyc`, { status: 'suspended', reason: reason.trim() }); void refresh(); return; } catch { /* */ } }
+    if (API) { if (!(await safePost(`/admin/drivers/${id}/kyc`, { status: 'suspended', reason: reason.trim() }))) return; void refresh(); return; }
     setDrivers((xs) => xs.map((d) => (d.id === id ? { ...d, kycStatus: 'suspended', availability: 'offline', suspensionReason: reason.trim() } : d)));
   };
   const setLoyalty = async (id: string, tier: string) => {
     const pct = window.prompt('Commission personnalisée (%) — laisser vide pour aucune :', '10');
     const override = pct?.trim() ? Number(pct) / 100 : null;
-    if (API) { try { await adminPost(`/admin/drivers/${id}/loyalty`, { loyaltyTier: tier, commissionOverride: override }); void refresh(); return; } catch { /* */ } }
+    if (API) { if (!(await safePost(`/admin/drivers/${id}/loyalty`, { loyaltyTier: tier, commissionOverride: override }))) return; void refresh(); return; }
     setDrivers((xs) => xs.map((d) => (d.id === id ? { ...d, loyaltyTier: tier } : d)));
   };
 
   /* --- S13 Client : VIP, blacklist, no-show --- */
   const setClientVip = async (id: string, tier: string, noSurgeLock: boolean) => {
-    if (API) { try { await adminPost(`/admin/clients/${id}/vip`, { vipTier: tier, noSurgeLock }); } catch { /* */ } }
+    if (API && !(await safePost(`/admin/clients/${id}/vip`, { vipTier: tier, noSurgeLock }))) return;
     alert(`Client ${id} → ${tier}${noSurgeLock ? ' · no-surge verrouillé' : ''}.`);
   };
   const blacklistClient = async (id: string) => {
     const imei = window.prompt('Liste noire — IMEI de l’appareil (bloque la réinscription) :', '');
     if (imei === null) return;
-    if (API) { try { await adminPost(`/admin/clients/${id}/blacklist`, { imei, reason: 'Bannissement manuel' }); } catch { /* */ } }
+    if (API && !(await safePost(`/admin/clients/${id}/blacklist`, { imei, reason: 'Bannissement manuel' }))) return;
     setClients((xs) => xs.map((c) => (c.id === id ? { ...c, status: 'blocked' } : c)));
     setClientSel((c) => (c && c.id === id ? { ...c, status: 'blocked' } : c));
   };
   const noShowFee = async (id: string) => {
     const fee = window.prompt('Frais de no-show à prélever (F CFA) — vérifiés au GPS :', '1000');
     if (!fee) return;
-    if (API) { try { await adminPost(`/admin/clients/${id}/noshow`, { fee: Number(fee) }); } catch { /* */ } }
+    if (API && !(await safePost(`/admin/clients/${id}/noshow`, { fee: Number(fee) }))) return;
     alert(`Frais de no-show de ${fcfa(Number(fee))} prélevés sur ${id}.`);
   };
 
@@ -847,11 +936,11 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   /* --- S14 Finances : gateways, notes de frais --- */
   const toggleGateway = async (method: string, enabled: boolean) => {
-    if (API) { try { await adminPost('/admin/finance/gateways', { method, enabled }); } catch { /* */ } }
+    if (API && !(await safePost('/admin/finance/gateways', { method, enabled }))) return;
     setGateways((xs) => xs.map((g) => (g.method === method ? { ...g, enabled } : g)));
   };
   const decideExpense = async (id: string, decision: 'approve' | 'reject' | 'info') => {
-    if (API) { try { await adminPost(`/admin/expenses/${id}/decide`, { decision }); void refresh(); return; } catch { /* */ } }
+    if (API) { if (!(await safePost(`/admin/expenses/${id}/decide`, { decision }))) return; void refresh(); return; }
     setExpenses((xs) => xs.map((t) => (t.id === id ? { ...t, status: decision === 'approve' ? 'approved' : decision === 'reject' ? 'rejected' : 'info_requested', credited: decision === 'approve' } : t)));
   };
   const newExpense = async () => {
@@ -870,8 +959,14 @@ function Console({ onLogout }: { onLogout: () => void }) {
       try {
         const res = await fetch(API + path, { headers: H() });
         if (res.status === 401) { onUnauthorized(); return; }
+        // Sans ce contrôle, un refus (403) écrivait le corps d'erreur JSON DANS le
+        // fichier : l'employé repartait avec un export corrompu au lieu de voir le refus.
+        if (!res.ok) { await reportResponse(res); return; }
         content = await res.text();
-      } catch { content = local(); }
+      } catch (e) {
+        if (e instanceof AdminError) return; // déjà signalé
+        content = local();                   // réseau coupé : export local de secours
+      }
     } else {
       content = local();
     }
@@ -892,7 +987,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
   });
 
   const driverAction = async (id: string, kind: 'kyc' | 'availability', value: string) => {
-    if (API) { try { await adminPost(`/admin/drivers/${id}/${kind}`, kind === 'kyc' ? { status: value } : { availability: value }); } catch { /* */ } }
+    if (API && !(await safePost(`/admin/drivers/${id}/${kind}`, kind === 'kyc' ? { status: value } : { availability: value }))) return;
     setDrivers((xs) => xs.map((d) => (d.id === id ? { ...d, ...(kind === 'kyc' ? { kycStatus: value, availability: value === 'suspended' ? 'offline' : d.availability } : { availability: value }) } : d)));
   };
 
@@ -954,7 +1049,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
   };
 
   const warnDriver = async (id: string) => {
-    if (API) { try { await adminPost(`/admin/drivers/${id}/warn`); } catch { /* */ } }
+    if (API && !(await safePost(`/admin/drivers/${id}/warn`))) return;
     setQuality((q) => (q ? { ...q, drivers: q.drivers.map((d) => (d.id === id ? { ...d, warnings: d.warnings + 1 } : d)) } : q));
   };
 
@@ -972,7 +1067,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
   };
 
   const decideDispute = async (id: string, status: 'investigating' | 'resolved' | 'rejected', resolution?: string, refund?: number) => {
-    if (API) { try { await adminPost(`/admin/disputes/${id}/status`, { status, resolution, refund }); } catch { /* */ } }
+    if (API && !(await safePost(`/admin/disputes/${id}/status`, { status, resolution, refund }))) return;
     setDisputes((xs) => xs.map((d) => (d.id === id ? { ...d, status, resolution: resolution ?? d.resolution, refund: refund ?? d.refund, decidedBy: me?.name, decidedAt: new Date().toISOString() } : d)));
   };
 
@@ -1009,7 +1104,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
     try { await adminPut('/admin/corporate', input); void refresh(); } catch { /* */ }
   };
   const settleCorporate = async (id: string) => {
-    if (API) { try { await adminPost(`/admin/corporate/${id}/settle`); } catch { /* */ } }
+    if (API && !(await safePost(`/admin/corporate/${id}/settle`))) return;
     setCorporate((xs) => xs.map((a) => (a.id === id ? { ...a, balanceUsed: 0 } : a)));
   };
   const exportInvoice = (id: string) => void downloadCsv(`/admin/corporate/${id}/invoice`, `facture-${id}.csv`, () => {
@@ -1023,10 +1118,12 @@ function Console({ onLogout }: { onLogout: () => void }) {
     try {
       const res = await fetch(`${API}/admin/green/report.pdf`, { headers: H() });
       if (res.status === 401) { onUnauthorized(); return; }
+      // Sans ce contrôle, un refus téléchargeait le corps d'erreur JSON en guise de PDF.
+      if (!res.ok) { await reportResponse(res); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob); const a = document.createElement('a');
       a.href = url; a.download = 'orion-bilan-carbone.pdf'; a.click(); URL.revokeObjectURL(url);
-    } catch { /* */ }
+    } catch { setNotice('Bilan carbone indisponible : serveur injoignable.'); }
   };
 
   // Campagne de réengagement (churn) → diffusion clients avec code promo.
@@ -1038,7 +1135,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   // Révoque une session (l'employé est déconnecté immédiatement).
   const revokeSess = async (id: string) => {
-    if (API) { try { await adminPost(`/admin/sessions/${id}/revoke`); } catch { /* */ } }
+    if (API && !(await safePost(`/admin/sessions/${id}/revoke`))) return;
     setSessions((xs) => xs.map((s) => (s.id === id ? { ...s, revoked: true } : s)));
     if (id === selfSession) { clearSession(); window.location.reload(); } // on s'est déconnecté soi-même
   };
@@ -1158,6 +1255,14 @@ function Console({ onLogout }: { onLogout: () => void }) {
             <p>{denied}</p>
             <button className="adm-btn solid" onClick={() => setDenied(null)}>J’ai compris</button>
           </div>
+        </div>
+      )}
+
+      {/* Bandeau d'erreur serveur : l'opération n'a PAS été enregistrée. */}
+      {notice && (
+        <div className="adm-notice" role="alert">
+          <span>⚠️ {notice}</span>
+          <button className="adm-notice-x" onClick={() => setNotice(null)} aria-label="Fermer">✕</button>
         </div>
       )}
     </div>
