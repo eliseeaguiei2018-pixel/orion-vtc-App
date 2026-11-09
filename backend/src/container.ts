@@ -123,7 +123,7 @@ export function createContainer(): Container {
       const traffic = trafficInfo(req.origin, req.destination);
       // Surge : chaque devis compte comme une demande dans sa cellule ;
       // plafonné (incitation verte) — la flotte ORION est électrique.
-      demand.record(req.origin);
+      demand.record(req.origin, req.clientId);
       const ops = settings.getOps();
       const surgeRaw = ops.surgeEnabled ? await demand.surgeFor(req.origin) : 1;
       // Surge MANUEL d'urgence (zone dessinée dans la console) — toujours plafonné (cap vert).
@@ -149,7 +149,7 @@ export function createContainer(): Container {
   registry.register(
     new DeliveryServiceModule(async (req) => {
       const traffic = trafficInfo(req.origin, req.destination);
-      demand.record(req.origin);
+      demand.record(req.origin, req.clientId);
       const ops = settings.getOps();
       const surgeRaw = ops.surgeEnabled ? await demand.surgeFor(req.origin) : 1;
       const surgeManual = settings.zoneForPoint(req.origin)?.surgeManual ?? 1;

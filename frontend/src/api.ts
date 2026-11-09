@@ -148,7 +148,7 @@ export function previewDelivery(origin: LatLng, destination: LatLng, size: PkgSi
 export async function estimateDelivery(origin: LatLng, destination: LatLng, size: PkgSize, promoCode?: string): Promise<Quote | null> {
   const remote = await tryFetch<{ quote: Quote }>('/pricing/estimate', {
     method: 'POST',
-    body: JSON.stringify({ serviceType: 'delivery', origin, destination, category: size, promoCode }),
+    body: JSON.stringify({ serviceType: 'delivery', origin, destination, category: size, promoCode, clientId: clientId() }),
   });
   return remote?.quote ?? null;
 }
@@ -156,7 +156,9 @@ export async function estimateDelivery(origin: LatLng, destination: LatLng, size
 export async function estimate(origin: LatLng, destination: LatLng, tier: TierOption, opts: EstimateOpts = {}): Promise<Quote> {
   const remote = await tryFetch<{ quote: Quote }>('/pricing/estimate', {
     method: 'POST',
-    body: JSON.stringify({ origin, destination, category: tier.id, bodyType: opts.bodyType, stops: opts.stops, insurance: opts.insurance, promoCode: opts.promoCode }),
+    // clientId : le serveur ne compte qu'UNE demande par personne pour le surge —
+    // sans lui, comparer les gammes ferait monter son propre prix.
+    body: JSON.stringify({ origin, destination, category: tier.id, bodyType: opts.bodyType, stops: opts.stops, insurance: opts.insurance, promoCode: opts.promoCode, clientId: clientId() }),
   });
   if (remote?.quote) return remote.quote;
   return localEstimate(origin, destination, tier, opts);

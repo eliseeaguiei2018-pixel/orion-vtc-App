@@ -27,9 +27,16 @@ export interface CellDemand {
   surge: number;
 }
 
+/** Une demande dans une cellule : quand, et par qui lorsque le client s'identifie. */
+interface DemandEntry {
+  at: number;
+  /** Identifiant du demandeur — sert à ne compter qu'UNE fois la même personne. */
+  by?: string;
+}
+
 export class DemandService {
-  /** cellule → horodatages des demandes (fenêtre glissante). */
-  private readonly cells = new Map<string, number[]>();
+  /** cellule → demandes de la fenêtre glissante. */
+  private readonly cells = new Map<string, DemandEntry[]>();
   /** Conversion : sessions (devis) et commandes (courses) cumulées par cellule. */
   private readonly sessions = new Map<string, number>();
   private readonly orders = new Map<string, number>();
@@ -40,13 +47,31 @@ export class DemandService {
     return `${Math.round(p.lat / CELL_DEG)}:${Math.round(p.lng / CELL_DEG)}`;
   }
 
-  /** Enregistre une demande client (appelé à chaque devis). */
-  record(p: LatLng): void {
+  /**
+   * Enregistre une demande client (appelé à chaque devis).
+   *
+   * DÉDUPLICATION par demandeur : une demande représente une INTENTION DE TRAJET,
+   * pas un appel HTTP. L'app cliente ré-estime à chaque changement (gamme, assurance,
+   * arrêt, code promo) ; sans dédoublonnage, une seule personne qui compare trois
+   * gammes atteignait le seuil de surge et faisait monter SON PROPRE prix.
+   *
+   * Un même `requesterId` déjà présent dans la cellule ne compte pas une seconde fois :
+   * son horodatage est simplement rafraîchi (il veut toujours partir). Sans
+   * identifiant (appels serveur à serveur, tests), chaque devis compte comme avant.
+   */
+  record(p: LatLng, requesterId?: string): void {
     const key = this.cellKey(p);
     const now = Date.now();
-    const arr = this.cells.get(key) ?? [];
-    const fresh = arr.filter((t) => now - t < WINDOW_MS);
-    fresh.push(now);
+    const fresh = (this.cells.get(key) ?? []).filter((e) => now - e.at < WINDOW_MS);
+    if (requesterId) {
+      const dejaLa = fresh.find((e) => e.by === requesterId);
+      if (dejaLa) {
+        dejaLa.at = now;              // toujours intéressé, mais une seule demande
+        this.cells.set(key, fresh);
+        return;
+      }
+    }
+    fresh.push({ at: now, by: requesterId });
     this.cells.set(key, fresh);
     this.sessions.set(key, (this.sessions.get(key) ?? 0) + 1);
   }
@@ -81,7 +106,7 @@ export class DemandService {
   demandAt(p: LatLng): number {
     const now = Date.now();
     const arr = this.cells.get(this.cellKey(p)) ?? [];
-    return arr.filter((t) => now - t < WINDOW_MS).length;
+    return arr.filter((e) => now - e.at < WINDOW_MS).length;
   }
 
   /** Multiplicateur brut pour un point : 1 · 1.3 · 1.5 selon demande vs offre. */
@@ -99,7 +124,7 @@ export class DemandService {
     const now = Date.now();
     const out: CellDemand[] = [];
     for (const [cell, arr] of this.cells) {
-      const demand = arr.filter((t) => now - t < WINDOW_MS).length;
+      const demand = arr.filter((e) => now - e.at < WINDOW_MS).length;
       if (demand === 0) { this.cells.delete(cell); continue; }
       const [la, ln] = cell.split(':').map(Number);
       const lat = (la ?? 0) * CELL_DEG, lng = (ln ?? 0) * CELL_DEG;

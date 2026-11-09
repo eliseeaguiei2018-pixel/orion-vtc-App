@@ -19,6 +19,9 @@ export interface EstimateRequest {
   /** ORION Assurance activée (cotisation 2% de la course). */
   insurance?: boolean;
   promoCode?: string;
+  /** Identifiant du demandeur : sert à ne compter qu'une fois la même personne
+   *  dans le calcul du surge (un client qui compare les gammes = UNE demande). */
+  clientId?: string;
 }
 
 /** Détail transparent du prix (le client sait pourquoi sa course coûte ce montant). */
