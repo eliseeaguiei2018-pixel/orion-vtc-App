@@ -279,7 +279,11 @@ export function useDriver() {
         return false;
       }
     },
-    logout() {
+    async logout() {
+      // On ne laisse pas un chauffeur « fantôme » en ligne après déconnexion.
+      if (driver && (driver.availability === 'online' || driver.availability === 'paused')) {
+        await backend.goOffline().catch(() => undefined);
+      }
       backend.logout();
       setSession(null);
       setDriver(null);
@@ -307,7 +311,7 @@ export function useDriver() {
     telemetry: (body: { engine?: 'electric' | 'hybrid'; batteryPct?: number; batteryHealthPct?: number }) => run(async () => { await backend.telemetry(body); await refresh(); }, 'Télémétrie transmise'),
     updateProfile: (patch: Parameters<DriverBackend['updateProfile']>[0]) => run(async () => { await backend.updateProfile(patch); await refresh(); }, 'Dossier enregistré'),
     submitKyc: () => run(async () => { setDriver(await backend.submitKyc()); }, 'Dossier envoyé à ORION pour validation'),
-    payout: (amount: number, method: string) => run(async () => { await backend.payout(amount, method); await refresh(); }, 'Demande de retrait envoyée'),
+    payout: (amount: number, method: string) => run(async () => { await backend.payout(amount, method); await refresh(); return true; }, 'Demande de retrait envoyée'),
     dismissSettled: () => setSettled(null),
     refresh,
   };

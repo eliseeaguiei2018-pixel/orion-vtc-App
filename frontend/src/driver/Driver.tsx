@@ -48,7 +48,7 @@ function Shell({ app }: { app: DriverApp }) {
         <h1 className="h-title">Connexion au serveur impossible</h1>
         <p className="h-sub">Vérifiez votre réseau puis réessayez.</p>
         <button className="btn btn-primary" onClick={() => void app.actions.refresh()}>Réessayer</button>
-        <button className="btn btn-ghost" onClick={app.actions.logout}>Se déconnecter</button>
+        <button className="btn btn-ghost" onClick={() => void app.actions.logout()}>Se déconnecter</button>
       </div>
     );
   }
