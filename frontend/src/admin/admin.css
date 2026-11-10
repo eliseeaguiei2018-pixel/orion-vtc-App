@@ -29,7 +29,13 @@ body { margin: 0; background: var(--a-bg); color: var(--a-text); font-family: 'I
 
 /* ---- Console : shell + barre latérale ---- */
 .adm-shell { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
-.adm-side { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 8px;
+/* La barre latérale défile : avec 36 sessions, sur un portable de 900 px de haut,
+   les dernières (Caisses, Personnel & accès, Journal…) étaient tout simplement
+   hors de l'écran, sans aucun moyen de les atteindre. Une session invisible est
+   une session qui n'existe pas. */
+.adm-side { position: sticky; top: 0; height: 100vh; overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: rgba(43,255,166,0.25) transparent;
+  display: flex; flex-direction: column; gap: 8px;
   background: var(--a-panel2); border-right: 1px solid var(--a-stroke); padding: 18px 14px; }
 .adm-side .adm-brand { margin-bottom: 10px; }
 .adm-nav { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
