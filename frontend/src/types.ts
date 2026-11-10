@@ -76,6 +76,127 @@ export interface Country {
 
 export type WeddingDuration = 'halfday' | 'fullday' | 'weekend';
 
+/* ------------------------- LOCATION ORION (Signature) ------------------------- */
+
+export type RentalFormula = 'evenement' | 'entreprise' | 'mise_a_disposition';
+export type RentalDuree = 'heures' | 'journee' | 'weekend' | 'semaine' | 'mois';
+
+/** Véhicule de la gamme Signature (réservé à la location). */
+export interface PrestigeVehicle {
+  id: string;
+  name: string;
+  marque: string;
+  classe: 'signature' | 'presidentielle';
+  places: number;
+  prixJour: number;
+  autonomieKm: number;
+  atouts: string[];
+  exemplaires: number;
+}
+
+export interface RentalOptions {
+  decoration?: boolean;
+  tapisRouge?: boolean;
+  cortege?: number;
+  hotesses?: number;
+  escorte?: boolean;
+  plaque?: boolean;
+  kilometrageIllimite?: boolean;
+  secondChauffeur?: boolean;
+  rafraichissements?: boolean;
+}
+
+export interface RentalAvailability {
+  vehicleId: string;
+  total: number;
+  reserves: number;
+  restants: number;
+  disponible: boolean;
+  /** Mise à disposition le jour même : délai réel en minutes. */
+  delaiMinutes: number;
+}
+
+export interface RentalQuote {
+  formula: RentalFormula;
+  vehicleId: string;
+  vehicle: Pick<PrestigeVehicle, 'id' | 'name' | 'marque' | 'classe' | 'places' | 'prixJour' | 'autonomieKm'>;
+  debut: string;
+  fin: string;
+  duree: RentalDuree;
+  heures?: number;
+  heuresService: number;
+  jours: number;
+  options: Required<RentalOptions>;
+  secondChauffeurRequis: boolean;
+  kmInclus: number | null;
+  prixKmSupp: number;
+  breakdown: {
+    vehicule: number; kilometrageIllimite: number; cortege: number; options: number;
+    majorationJourJ: number; remiseAbonnement: number; ht: number; tva: number;
+  };
+  total: number;
+  caution: number;
+  jourJ: boolean;
+  disponibilite: RentalAvailability;
+  currency: string;
+}
+
+export type RentalStatus = 'devis' | 'reservee' | 'confirmee' | 'en_cours' | 'terminee' | 'annulee';
+
+export interface RentalReservation extends RentalQuote {
+  id: string;
+  userId: string;
+  status: RentalStatus;
+  contact?: { nom: string; telephone: string; email?: string };
+  societe?: { nom: string; bonCommande?: string; contribuable?: string };
+  lieu?: string;
+  driverId?: string;
+  events: Array<{ type: string; at: string; note?: string }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/* ---------------------------- ABONNEMENT ORION ---------------------------- */
+
+/** Ce que l'abonnement fait sur une course donnée (aperçu ou application). */
+export interface SubCoverage {
+  covered: boolean;
+  plan?: string;
+  montantCouvert: number;
+  remise: number;
+  aPayer: number;
+  remaining: number;
+  raison: string;
+}
+
+export interface SubInvoice {
+  id: string;
+  userId: string;
+  plan: string;
+  amount: number;
+  periodeDebut: string;
+  periodeFin: string;
+  status: 'en_attente' | 'payee' | 'echouee';
+  method?: string;
+  emiseLe: string;
+  payeeLe?: string;
+  motifEchec?: string;
+}
+
+export interface SubState {
+  subscription: {
+    id: string; userId: string; plan: string; startedAt: string; renewsAt: string;
+    ridesPerDay: number; usedToday: number; active: boolean; autoRenew: boolean;
+    totalCouvert: number; coursesCouvertes: number; cancelledAt?: string;
+  } | null;
+  plan: { id: string; label: string; ridesPerDay: number; monthlyPrice: number; perRideCap: number; benefits: string[]; accent: string } | null;
+  echu: boolean;
+  joursRestants: number;
+  restantesAujourdhui: number;
+  factureEnAttente: SubInvoice | null;
+  invoices?: SubInvoice[];
+}
+
 export type Screen =
   | 'splash'
   | 'onboarding'
@@ -94,6 +215,8 @@ export type Screen =
   | 'settings'
   | 'subscription'
   | 'wedding'
+  | 'rental'
+  | 'myRentals'
   | 'wallet'
   | 'history'
   | 'help'

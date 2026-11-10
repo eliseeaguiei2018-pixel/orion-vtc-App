@@ -1,4 +1,4 @@
-import type { Country, Driver, Place, SubPlan, TierOption } from './types';
+import type { Country, Driver, Place, PrestigeVehicle, RentalDuree, RentalFormula, SubPlan, TierOption } from './types';
 
 /** Position par défaut : Plateau, Abidjan. */
 export const DEFAULT_ORIGIN: Place = {
@@ -64,3 +64,44 @@ export const WEDDING_DURATION_FACTOR: Record<string, number> = { halfday: 0.6, f
 
 export const formatXOF = (n: number): string =>
   new Intl.NumberFormat('fr-FR').format(Math.round(n)) + ' F';
+
+/* ------------------- LOCATION ORION — gamme Signature (repli démo) -------------------
+ *
+ * Le catalogue de référence est servi par le backend (/rental/catalogue) : c'est lui
+ * qui fait foi. Cette copie ne sert QU'EN MODE DÉMO, quand aucun backend n'est
+ * joignable, pour que l'écran de location reste présentable sans infrastructure.
+ */
+export const PRESTIGE_FALLBACK: PrestigeVehicle[] = [
+  { id: 'maextro-s800', name: 'Huawei Maextro S800', marque: 'Huawei', classe: 'presidentielle', places: 3, prixJour: 900000, autonomieKm: 700, exemplaires: 2,
+    atouts: ['Limousine présidentielle', 'Sièges arrière à inclinaison totale', 'Isolation phonique renforcée'] },
+  { id: 'yangwang-altior', name: 'BYD Yangwang Altior', marque: 'BYD', classe: 'presidentielle', places: 4, prixJour: 780000, autonomieKm: 650, exemplaires: 2,
+    atouts: ['Suspension active', 'Tenue de route exceptionnelle', 'Finitions sur mesure'] },
+  { id: 'aito-m9', name: 'Huawei AITO M9', marque: 'Huawei', classe: 'signature', places: 6, prixJour: 520000, autonomieKm: 630, exemplaires: 4,
+    atouts: ['Grand SUV 6 places', 'Idéal cortège familial', 'Toit panoramique'] },
+  { id: 'nio-es9', name: 'NIO ES9', marque: 'NIO', classe: 'signature', places: 5, prixJour: 480000, autonomieKm: 640, exemplaires: 4,
+    atouts: ['SUV haut de gamme', 'Salon arrière', 'Échange de batterie rapide'] },
+  { id: 'nio-et9', name: 'NIO ET9', marque: 'NIO', classe: 'signature', places: 4, prixJour: 460000, autonomieKm: 620, exemplaires: 3,
+    atouts: ['Berline exécutive', 'Suspension pilotée', 'Silence de roulement'] },
+  { id: 'stelato-s9', name: 'Huawei Stelato S9', marque: 'Huawei', classe: 'signature', places: 4, prixJour: 440000, autonomieKm: 600, exemplaires: 3,
+    atouts: ['Berline de prestige', 'Assistance de conduite avancée', 'Intérieur cuir clair'] },
+  { id: 'zeekr-8x', name: 'Zeekr 8X', marque: 'Zeekr', classe: 'signature', places: 6, prixJour: 420000, autonomieKm: 580, exemplaires: 3,
+    atouts: ['SUV 6 places', 'Coffre généreux', 'Confort de suspension'] },
+];
+
+/** Barème de location (repli démo — miroir de backend/src/modules/rental/tariff.ts). */
+export const RENTAL_TARIFF = {
+  decoration: 35000, tapisRouge: 45000, hotesse: 60000, escorte: 120000, plaque: 25000,
+  secondChauffeur: 50000, rafraichissements: 30000,
+  remiseCortege: 0.15, kmInclusParJour: 100, prixKmSupp: 450,
+  majorationKmIllimite: 0.18, majorationJourJ: 0.12, tauxCaution: 0.15,
+  ratioHeure: 0.17, minHeures: 3, maxHeures: 12, heuresParJournee: 10,
+};
+
+export const RENTAL_COEF: Record<string, number> = { journee: 1, weekend: 1.8, semaine: 5.5, mois: 20 };
+export const RENTAL_JOURS: Record<string, number> = { journee: 1, weekend: 2, semaine: 7, mois: 30 };
+export const RENTAL_FORMULES: RentalFormula[] = ['evenement', 'entreprise', 'mise_a_disposition'];
+export const RENTAL_DUREES: RentalDuree[] = ['heures', 'journee', 'weekend', 'semaine', 'mois'];
+/** Options proposées à l'écran, dans l'ordre d'affichage. */
+export const RENTAL_OPTION_KEYS = [
+  'decoration', 'tapisRouge', 'plaque', 'rafraichissements', 'escorte', 'kilometrageIllimite',
+] as const;

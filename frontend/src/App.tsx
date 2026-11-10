@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { OrionMap } from './components/OrionMap';
 import { Sheet, TopBar, Toast } from './components/ui';
 import {
-  IconBell, IconBolt, IconBriefcase, IconCalendar, IconCamera, IconCheck, IconChevron, IconClock, IconCrown,
+  IconBell, IconBolt, IconBriefcase, IconCalendar, IconCamera, IconCar, IconCheck, IconChevron, IconClock, IconCrown,
   IconFingerprint, IconGem, IconGlobe, IconHome, IconImage, IconLeaf, IconLock, IconMic, IconMinus,
   IconPhone, IconPhoneOff, IconPin, IconPlane, IconPlus, IconRing, IconSearch, IconSettings, IconShare,
   IconShield, IconShieldCheck, IconStar, IconTraffic, IconVolume, IconWallet, IconWifi,
@@ -16,9 +16,10 @@ import {
   ABIDJAN_PLACES, COUNTRIES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { EMERGENCY_NUMBERS, cancelRide, clientId, configSocketUrl, createRide, estimate, fetchAppConfig, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, estimateDelivery, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, type Announcement, type AppConfig, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
+import { EMERGENCY_NUMBERS, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, fetchSubscription, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, estimateDelivery, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, subscribePlan, type Announcement, type AppConfig, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
 import { LANGUAGES, useI18n, type Lang } from './i18n';
-import type { Driver, LatLng, Place, Quote, Screen, SubPlan, TierOption, WeddingDuration } from './types';
+import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubState, TierOption, WeddingDuration } from './types';
+import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
 
 const PAYMENTS = [
   { method: 'orange_money', label: 'Orange Money' },
@@ -78,6 +79,8 @@ export function App() {
   const [insurance, setInsurance] = useState(false);
   const [payment, setPayment] = useState<string>('orange_money');
   const [quote, setQuote] = useState<Quote | null>(null);
+  /** Ce que l'abonnement ORION couvrirait sur cette course (aperçu, rien n'est consommé). */
+  const [coverage, setCoverage] = useState<SubCoverage | null>(null);
   const [locked, setLocked] = useState(isBiometricEnabled());
   const [trusted, setTrusted] = useState<TrustedContact | null>(() => {
     try { return JSON.parse(localStorage.getItem('orion.trusted') || 'null'); } catch { return null; }
@@ -89,7 +92,6 @@ export function App() {
   const [rideId, setRideId] = useState<string | null>(null);
   const [live, setLive] = useState(false);
   const [rating, setRating] = useState(0);
-  const [currentPlan, setCurrentPlan] = useState<string | null>(null);
   const [phone, setPhone] = useState('');
   const [toast, setToast] = useState<{ message: string; danger?: boolean } | null>(null);
   /** État de l'alerte SOS : envoi en cours, ou échec (le passager doit appeler lui-même). */
@@ -166,7 +168,8 @@ export function App() {
 
   useEffect(() => {
     if (screen === 'confirm' && destination) {
-      estimate(origin.location, destination.location, tier, { bodyType, stops: stops.map((s) => s.location), insurance, promoCode: promo || undefined }).then(setQuote);
+      void estimateWithCoverage(origin.location, destination.location, tier, { bodyType, stops: stops.map((s) => s.location), insurance, promoCode: promo || undefined })
+        .then(({ quote: q, coverage: c }) => { setQuote(q); setCoverage(c); });
     }
   }, [screen, destination, tier, bodyType, stops, insurance, promo, origin.location]);
 
@@ -291,6 +294,7 @@ export function App() {
   const reset = () => {
     setDestination(null);
     setQuote(null);
+    setCoverage(null);
     setDriver(null);
     setCarPos(null);
     setRideId(null);
@@ -344,7 +348,7 @@ export function App() {
         )}
 
         {screen === 'confirm' && destination && (
-          <ConfirmScreen origin={origin} destination={destination} tier={tier} quote={quote} payment={payment}
+          <ConfirmScreen origin={origin} destination={destination} tier={tier} quote={quote} coverage={coverage} payment={payment}
             payments={enabledPayments} promo={promo} onPromo={setPromo}
             stops={stops} onAddStop={() => setStops((s) => (s.length < 3 ? [...s, EXTRA_STOPS[s.length]!] : s))}
             scheduled={scheduled} onSchedule={setScheduled} insurance={insurance} onInsurance={setInsurance}
@@ -366,7 +370,7 @@ export function App() {
         )}
 
         {screen === 'payment' && destination && driver && (
-          <PaymentScreen quote={quote} payment={payment} driver={driver} rideId={rideId}
+          <PaymentScreen quote={quote} coverage={coverage} payment={payment} driver={driver} rideId={rideId}
             onPaid={() => setScreen('rating')} />
         )}
 
@@ -385,8 +389,14 @@ export function App() {
         {screen === 'help' && <HelpScreen onBack={() => setScreen('home')} onSupport={() => setScreen('support')} />}
         {screen === 'support' && <SupportChatScreen onBack={() => setScreen('help')} />}
         {screen === 'subscription' && (
-          <SubscriptionScreen currentPlan={currentPlan} onBack={() => setScreen('home')}
-            onSubscribe={(p) => { setCurrentPlan(p); showToast(t('toast_subscribed')); }} />
+          <SubscriptionScreen onBack={() => setScreen('home')} onToast={showToast} />
+        )}
+        {screen === 'rental' && (
+          <RentalScreen onBack={() => setScreen('home')} onToast={showToast}
+            onReserved={(id) => { showToast(t('rent_reserved', { id })); setScreen('myRentals'); }} />
+        )}
+        {screen === 'myRentals' && (
+          <MyRentalsScreen onBack={() => setScreen('home')} onToast={showToast} />
         )}
         {screen === 'wedding' && (
           <WeddingScreen onBack={() => setScreen('home')} onReserve={() => { showToast(t('toast_reserved')); setScreen('home'); }} />
@@ -694,6 +704,7 @@ function HomeScreen({ announce, closed, deliveryOff, city, onSearch, onCourse, o
         {/* Raccourcis ORION */}
         <div className="hub-quick rise rise-3">
           <button className="feature-card" onClick={() => onNav('subscription')}><IconCrown size={20} /> <span>{t('menu_subscription')}</span></button>
+          <button className="feature-card" onClick={() => onNav('rental')}><IconCar size={20} /> <span>{t('rent_entry')}</span></button>
           <button className="feature-card" onClick={() => onNav('wedding')}><IconRing size={20} /> <span>{t('menu_wedding')}</span></button>
           <button className="feature-card" onClick={() => onNav('history')}><IconClock size={20} /> <span>{t('menu_history')}</span></button>
           <button className="feature-card" onClick={() => onNav('help')}><IconShield size={20} /> <span>{t('menu_help')}</span></button>
@@ -895,8 +906,8 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
 }
 
 /* ------------------------------ Confirm ------------------------------ */
-function ConfirmScreen({ origin, destination, tier, quote, payment, payments, promo, onPromo, stops, onAddStop, scheduled, onSchedule, insurance, onInsurance, onPayment, onBack, onConfirm }: {
-  origin: Place; destination: Place; tier: TierOption; quote: Quote | null; payment: string;
+function ConfirmScreen({ origin, destination, tier, quote, coverage, payment, payments, promo, onPromo, stops, onAddStop, scheduled, onSchedule, insurance, onInsurance, onPayment, onBack, onConfirm }: {
+  origin: Place; destination: Place; tier: TierOption; quote: Quote | null; coverage: SubCoverage | null; payment: string;
   payments: { method: string; label: string }[]; promo: string; onPromo: (v: string) => void;
   stops: Place[]; onAddStop: () => void; scheduled: boolean; onSchedule: (v: boolean) => void;
   insurance: boolean; onInsurance: (v: boolean) => void;
@@ -1000,12 +1011,29 @@ function ConfirmScreen({ origin, destination, tier, quote, payment, payments, pr
               </div>
             )}
             <div className="divider" style={{ margin: '8px 0' }} />
+            {/* ABONNEMENT ORION : ce que le forfait prend en charge sur CETTE course.
+                Affiché avant la commande, pour que le client sache ce qu'il paiera —
+                le quota, lui, n'est débité qu'à la confirmation. */}
+            {coverage?.covered && (
+              <div className="fare-line" style={{ color: 'var(--green)' }}>
+                <span><IconCrown size={12} /> {coverage.aPayer > 0
+                  ? t('sub_coveredPartial', { amount: formatXOF(coverage.montantCouvert), rest: formatXOF(coverage.aPayer) })
+                  : t('sub_covered')}</span>
+                <span>-{formatXOF(coverage.montantCouvert)}</span>
+              </div>
+            )}
+            {!coverage?.covered && coverage && coverage.remise > 0 && (
+              <div className="fare-line" style={{ color: 'var(--green)' }}>
+                <span><IconCrown size={12} /> {t('sub_memberDiscount', { amount: formatXOF(coverage.remise) })}</span>
+                <span>-{formatXOF(coverage.remise)}</span>
+              </div>
+            )}
             <div className="fare-total">
               <span className="col" style={{ alignItems: 'flex-start' }}>
                 <span className="muted">{t('conf_total')}</span>
                 <span className="badge green" style={{ fontSize: 10, marginTop: 4 }}><IconShieldCheck size={11} /> {t('fixed_badge')}</span>
               </span>
-              <span className="amt">{formatXOF(quote.amount)}</span>
+              <span className="amt">{formatXOF(Math.max(0, quote.amount - (coverage?.montantCouvert ?? 0) - (coverage?.remise ?? 0)))}</span>
             </div>
           </>
         )}
@@ -1358,48 +1386,134 @@ function SettingsScreen({ onBack, onWallet, trusted, setTrusted, shareRides, set
   );
 }
 
-/* --------------------------- Subscription ---------------------------- */
-function SubscriptionScreen({ currentPlan, onBack, onSubscribe }: {
-  currentPlan: string | null; onBack: () => void; onSubscribe: (p: string) => void;
-}) {
+/* --------------------------- Subscription ----------------------------
+ *
+ * Écran BRANCHÉ au serveur. Il affichait auparavant un simple état local : choisir
+ * un forfait ne créait aucun abonnement, ne débitait rien et n'ouvrait aucun droit.
+ * Désormais la souscription part à l'API, et l'écran rend compte de la réalité :
+ * quota du jour, échéance, plafond par course, facture à régler, valeur déjà rendue.
+ */
+function SubscriptionScreen({ onBack, onToast }: { onBack: () => void; onToast: (m: string, d?: boolean) => void }) {
   const { t } = useI18n();
+  const [etat, setEtat] = useState<SubState | null>(null);
+  const [envoi, setEnvoi] = useState<string | null>(null);
+
+  const charger = () => { void fetchSubscription(clientId()).then((e) => { if (e) setEtat(e); }); };
+  useEffect(charger, []);
+
+  const souscrire = async (plan: string) => {
+    setEnvoi(plan);
+    const e = await subscribePlan(clientId(), plan);
+    setEnvoi(null);
+    // Hors ligne, rien n'a été créé côté serveur : on ne fait pas croire le contraire.
+    if (!e) { onToast(t('sub_offline'), true); return; }
+    setEtat(e);
+    onToast(t('toast_subscribed'));
+  };
+
+  const regler = async (invoiceId: string) => {
+    setEnvoi(invoiceId);
+    const f = await paySubscriptionInvoice(invoiceId, 'wave');
+    setEnvoi(null);
+    if (!f) { onToast(t('sub_offline'), true); return; }
+    onToast(f.status === 'payee' ? t('sub_invoicePaid') : f.status === 'echouee' ? t('sub_invoiceFailed') : t('sub_invoicePending', { amount: formatXOF(f.amount) }), f.status === 'echouee');
+    charger();
+  };
+
+  const resilier = async () => {
+    const ok = await cancelSubscription(clientId());
+    if (!ok) { onToast(t('sub_offline'), true); return; }
+    onToast(t('sub_cancelled'));
+    charger();
+  };
+
+  const actif = etat?.subscription && etat.subscription.active && !etat.echu ? etat.subscription : null;
+  const facture = etat?.factureEnAttente ?? null;
+  const planServeur = (id: string) => etat?.plan && etat.plan.id === id ? etat.plan : null;
+
   return (
     <div className="screen page">
       <TopBar onBack={onBack} title={t('sub_title')} />
       <div className="page-body">
         <h2 className="h-title">{t('sub_title')}</h2>
         <p className="h-sub" style={{ marginBottom: 16 }}>{t('sub_subtitle')}</p>
+
+        {/* État réel de l'abonnement : ce qui reste aujourd'hui, et ce qu'il a rapporté. */}
+        {etat?.subscription && (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="row between">
+              <strong style={{ fontSize: 14.5 }}>{etat.plan?.label ?? etat.subscription.plan}</strong>
+              <span className="badge green">
+                {actif ? t('sub_quotaToday', { n: String(etat.restantesAujourdhui) }) : etat.echu ? t('sub_expired') : t('sub_suspended')}
+              </span>
+            </div>
+            <div className="divider" style={{ margin: '10px 0' }} />
+            {actif && etat.restantesAujourdhui === 0 && (
+              <div className="fare-line"><span>{t('sub_quotaNone')}</span><span /></div>
+            )}
+            <div className="fare-line"><span>{t('sub_renews', { n: String(etat.joursRestants) })}</span><span /></div>
+            {etat.plan && <div className="fare-line"><span>{t('sub_cap', { amount: formatXOF(etat.plan.perRideCap) })}</span><span /></div>}
+            {etat.subscription.coursesCouvertes > 0 && (
+              <div className="fare-line" style={{ color: 'var(--green)' }}>
+                <span>{t('sub_value', { n: String(etat.subscription.coursesCouvertes), amount: formatXOF(etat.subscription.totalCouvert) })}</span><span />
+              </div>
+            )}
+            {facture && (
+              <>
+                <div className="divider" style={{ margin: '10px 0' }} />
+                <div className="row between" style={{ marginBottom: 10 }}>
+                  <span className="muted" style={{ fontSize: 13 }}>{t('sub_invoicePending', { amount: formatXOF(facture.amount) })}</span>
+                </div>
+                <button className="btn btn-primary" disabled={envoi === facture.id} onClick={() => void regler(facture.id)}>
+                  <IconWallet size={16} /> {t('sub_invoicePay')}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         <div className="stack">
           {SUB_PLANS.map((p: SubPlan) => {
-            const active = currentPlan === p.id;
+            const active = actif?.plan === p.id;
+            const srv = planServeur(p.id);
+            const avantages = srv?.benefits ?? p.benefits;
             return (
               <div key={p.id} className="plan-card" style={{ borderColor: active ? p.accent : 'var(--stroke)', boxShadow: active ? `0 0 24px ${p.accent}44` : 'none' }}>
                 <div className="row between">
                   <div className="row gap-sm">
                     <span className="veh-ico" style={{ width: 42, height: 42, color: p.accent }}><IconCrown size={22} /></span>
                     <div className="col">
-                      <strong style={{ fontSize: 17 }}>{p.id === 'gold' ? 'Pack Gold' : `Pack ${t(p.key)}`}</strong>
-                      <span className="faint" style={{ fontSize: 12.5 }}>{p.ridesPerDay} {t('sub_perDay')}</span>
+                      <strong style={{ fontSize: 17 }}>{srv?.label ?? (p.id === 'gold' ? 'Pack Gold' : `Pack ${t(p.key)}`)}</strong>
+                      <span className="faint" style={{ fontSize: 12.5 }}>{srv?.ridesPerDay ?? p.ridesPerDay} {t('sub_perDay')}</span>
                     </div>
                   </div>
                   <div className="col" style={{ alignItems: 'flex-end' }}>
-                    <span className="price">{formatXOF(p.monthlyPrice)}</span>
+                    <span className="price">{formatXOF(srv?.monthlyPrice ?? p.monthlyPrice)}</span>
                     <span className="faint" style={{ fontSize: 11 }}>{t('sub_perMonth')}</span>
                   </div>
                 </div>
                 <div className="divider" style={{ margin: '12px 0' }} />
                 <div className="stack" style={{ gap: 6 }}>
-                  {p.benefits.map((b, i) => (
+                  {avantages.map((b, i) => (
                     <div key={i} className="row gap-sm" style={{ fontSize: 13 }}><IconCheck size={15} color={p.accent} /> <span className="muted">{b}</span></div>
                   ))}
                 </div>
-                <button className="btn btn-primary" style={{ marginTop: 14, background: active ? 'var(--surface-2)' : undefined, color: active ? 'var(--text)' : undefined, boxShadow: active ? 'none' : undefined }} disabled={active} onClick={() => onSubscribe(p.id)}>
+                <button
+                  className="btn btn-primary"
+                  style={{ marginTop: 14, background: active ? 'var(--surface-2)' : undefined, color: active ? 'var(--text)' : undefined, boxShadow: active ? 'none' : undefined }}
+                  disabled={active || envoi === p.id}
+                  onClick={() => void souscrire(p.id)}
+                >
                   {active ? t('sub_current') : t('sub_choose')}
                 </button>
               </div>
             );
           })}
         </div>
+
+        {etat?.subscription && !etat.subscription.cancelledAt && (
+          <button className="btn btn-ghost" style={{ marginTop: 16 }} onClick={() => void resilier()}>{t('sub_cancelPlan')}</button>
+        )}
       </div>
     </div>
   );
@@ -1676,8 +1790,8 @@ function SupportChatScreen({ onBack }: { onBack: () => void }) {
 }
 
 /* ------------------------------ Paiement ----------------------------- */
-function PaymentScreen({ quote, payment, driver, rideId, onPaid }: {
-  quote: Quote | null; payment: string; driver: Driver; rideId: string | null; onPaid: () => void;
+function PaymentScreen({ quote, coverage, payment, driver, rideId, onPaid }: {
+  quote: Quote | null; coverage: SubCoverage | null; payment: string; driver: Driver; rideId: string | null; onPaid: () => void;
 }) {
   const { t } = useI18n();
   const provider = PAYMENTS.find((p) => p.method === payment)?.label ?? payment;
@@ -1709,7 +1823,7 @@ function PaymentScreen({ quote, payment, driver, rideId, onPaid }: {
         {phase !== 'success' ? (
           <>
             <div className="row between" style={{ marginBottom: 14 }}>
-              <span className="col"><span className="faint" style={{ fontSize: 12 }}>{t('conf_total')}</span><span className="amt" style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 28 }}>{formatXOF(quote?.amount ?? 0)}</span></span>
+              <span className="col"><span className="faint" style={{ fontSize: 12 }}>{t('conf_total')}</span><span className="amt" style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 28 }}>{formatXOF(Math.max(0, (quote?.amount ?? 0) - (coverage?.montantCouvert ?? 0) - (coverage?.remise ?? 0)))}</span></span>
               <span className="driver-photo" style={{ width: 48, height: 48, fontSize: 18 }}>{driver.name.charAt(0)}</span>
             </div>
             <div className="chip active" style={{ width: '100%', justifyContent: 'flex-start', marginBottom: 14 }}><IconWallet size={16} /> {provider}</div>

@@ -1,4 +1,11 @@
-import type { LatLng, Quote, TierOption } from './types';
+import type {
+  LatLng, PrestigeVehicle, Quote, RentalAvailability, RentalDuree, RentalFormula, RentalOptions,
+  RentalQuote, RentalReservation, SubCoverage, SubInvoice, SubState, TierOption,
+} from './types';
+import {
+  PRESTIGE_FALLBACK, RENTAL_COEF, RENTAL_DUREES, RENTAL_FORMULES, RENTAL_JOURS,
+  RENTAL_OPTION_KEYS, RENTAL_TARIFF,
+} from './data';
 
 /**
  * Client API ORION. Si VITE_API_URL est défini et joignable, on utilise le backend réel.
@@ -154,14 +161,28 @@ export async function estimateDelivery(origin: LatLng, destination: LatLng, size
 }
 
 export async function estimate(origin: LatLng, destination: LatLng, tier: TierOption, opts: EstimateOpts = {}): Promise<Quote> {
-  const remote = await tryFetch<{ quote: Quote }>('/pricing/estimate', {
+  return (await estimateWithCoverage(origin, destination, tier, opts)).quote;
+}
+
+/**
+ * Devis + ce que l'ABONNEMENT ORION couvrirait sur cette course.
+ *
+ * La couverture est un APERÇU : le serveur ne débite aucun quota ici (il le fait à la
+ * commande). Comparer les gammes ne coûte donc aucune course incluse.
+ */
+export async function estimateWithCoverage(
+  origin: LatLng, destination: LatLng, tier: TierOption, opts: EstimateOpts = {},
+): Promise<{ quote: Quote; coverage: SubCoverage | null }> {
+  const remote = await tryFetch<{ quote: Quote; abonnement: SubCoverage | null }>('/pricing/estimate', {
     method: 'POST',
     // clientId : le serveur ne compte qu'UNE demande par personne pour le surge —
-    // sans lui, comparer les gammes ferait monter son propre prix.
+    // sans lui, comparer les gammes ferait monter son propre prix. Il sert aussi à
+    // calculer la couverture d'abonnement.
     body: JSON.stringify({ origin, destination, category: tier.id, bodyType: opts.bodyType, stops: opts.stops, insurance: opts.insurance, promoCode: opts.promoCode, clientId: clientId() }),
   });
-  if (remote?.quote) return remote.quote;
-  return localEstimate(origin, destination, tier, opts);
+  if (remote?.quote) return { quote: remote.quote, coverage: remote.abonnement ?? null };
+  // Mode démo : pas de backend, donc pas d'abonnement à faire valoir.
+  return { quote: localEstimate(origin, destination, tier, opts), coverage: null };
 }
 
 /** Numéros de secours en Côte d'Ivoire, à composer si l'alerte ne part pas. */
@@ -352,4 +373,195 @@ export function rideSocketUrl(rideId: string): string | null {
  */
 export function configSocketUrl(): string | null {
   return wsUrl('/ws/config');
+}
+
+/* =============================== LOCATION ORION ===============================
+ *
+ * Le backend fait foi : barème, disponibilité réelle de la flotte et délai de mise à
+ * disposition viennent de /rental/*. En mode démo (aucun backend joignable), on
+ * recalcule localement avec le MÊME barème pour que l'écran reste utilisable — mais
+ * la disponibilité annoncée est alors celle du catalogue, pas celle du terrain.
+ */
+
+export interface RentalCatalogue {
+  vehicles: PrestigeVehicle[];
+  formules: Array<{ id: RentalFormula; label: string }>;
+  durees: Array<{ id: RentalDuree; label: string; coef: number | null; jours: number | null }>;
+  options: Array<{ id: string; label: string }>;
+  bareme: typeof RENTAL_TARIFF;
+  currency: string;
+  /** Vrai si le barème vient du serveur (et non du repli démo). */
+  live: boolean;
+}
+
+export async function fetchRentalCatalogue(): Promise<RentalCatalogue> {
+  const r = await tryFetch<Omit<RentalCatalogue, 'live'>>('/rental/catalogue');
+  if (r?.vehicles?.length) return { ...r, live: true };
+  return {
+    vehicles: PRESTIGE_FALLBACK,
+    formules: RENTAL_FORMULES.map((id) => ({ id, label: id })),
+    durees: RENTAL_DUREES.map((id) => ({ id, label: id, coef: RENTAL_COEF[id] ?? null, jours: RENTAL_JOURS[id] ?? null })),
+    options: RENTAL_OPTION_KEYS.map((id) => ({ id, label: id })),
+    bareme: RENTAL_TARIFF,
+    currency: 'XOF',
+    live: false,
+  };
+}
+
+/** Fin de la période d'immobilisation (même règle que le serveur). */
+function rentalFin(debut: Date, duree: RentalDuree, heures?: number): Date {
+  if (duree === 'heures') return new Date(debut.getTime() + (heures ?? RENTAL_TARIFF.minHeures) * 3_600_000);
+  return new Date(debut.getTime() + (RENTAL_JOURS[duree] ?? 1) * 86_400_000);
+}
+
+const memeJour = (a: Date, b: Date) => a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
+
+export async function fetchRentalAvailability(debut: Date, duree: RentalDuree, heures?: number): Promise<RentalAvailability[]> {
+  const q = new URLSearchParams({ debut: debut.toISOString(), duree });
+  if (heures) q.set('heures', String(heures));
+  const r = await tryFetch<{ disponibilites: RentalAvailability[] }>(`/rental/disponibilites?${q.toString()}`);
+  if (r?.disponibilites) return r.disponibilites;
+  // Repli démo : la flotte du catalogue, entièrement libre.
+  return PRESTIGE_FALLBACK.map((v) => ({
+    vehicleId: v.id, total: v.exemplaires, reserves: 0, restants: v.exemplaires, disponible: true,
+    delaiMinutes: memeJour(debut, new Date()) ? 25 : 0,
+  }));
+}
+
+export interface RentalQuoteInput {
+  formula: RentalFormula;
+  vehicleId: string;
+  debut: Date;
+  duree: RentalDuree;
+  heures?: number;
+  options?: RentalOptions;
+  userId?: string;
+}
+
+/** Devis local (mode démo) — reproduit fidèlement le calcul du serveur. */
+export function previewRental(input: RentalQuoteInput, vehicles: PrestigeVehicle[], tvaRate = 0.05, remise = 0): RentalQuote {
+  const v = vehicles.find((x) => x.id === input.vehicleId) ?? vehicles[0]!;
+  const T = RENTAL_TARIFF;
+  const heures = input.duree === 'heures' ? Math.max(T.minHeures, Math.min(T.maxHeures, input.heures ?? T.minHeures)) : undefined;
+  const coef = input.duree === 'heures' ? Math.min(heures! * T.ratioHeure, 1) : (RENTAL_COEF[input.duree] ?? 1);
+  const jours = input.duree === 'heures' ? heures! / T.heuresParJournee : (RENTAL_JOURS[input.duree] ?? 1);
+  const joursFactures = Math.max(1, Math.ceil(jours));
+  const secondChauffeurRequis = (input.duree === 'heures' ? heures! : T.heuresParJournee) > T.heuresParJournee;
+
+  const o: Required<RentalOptions> = {
+    decoration: input.options?.decoration ?? false,
+    tapisRouge: input.options?.tapisRouge ?? false,
+    cortege: Math.max(0, Math.min(10, input.options?.cortege ?? 0)),
+    hotesses: Math.max(0, Math.min(10, input.options?.hotesses ?? 0)),
+    escorte: input.options?.escorte ?? false,
+    plaque: input.options?.plaque ?? false,
+    kilometrageIllimite: input.options?.kilometrageIllimite ?? false,
+    secondChauffeur: secondChauffeurRequis || (input.options?.secondChauffeur ?? false),
+    rafraichissements: input.options?.rafraichissements ?? false,
+  };
+
+  const vehicule = Math.round(v.prixJour * coef);
+  const kilometrageIllimite = o.kilometrageIllimite ? Math.round(vehicule * T.majorationKmIllimite) : 0;
+  const cortege = o.cortege * Math.round(v.prixJour * coef * (1 - T.remiseCortege));
+  const options =
+    (o.decoration ? T.decoration : 0) + (o.tapisRouge ? T.tapisRouge : 0) +
+    o.hotesses * T.hotesse * joursFactures + (o.escorte ? T.escorte : 0) +
+    (o.plaque ? T.plaque : 0) + (o.secondChauffeur ? T.secondChauffeur : 0) +
+    (o.rafraichissements ? T.rafraichissements : 0);
+
+  const sousTotal = vehicule + kilometrageIllimite + cortege + options;
+  const jourJ = memeJour(input.debut, new Date());
+  const majorationJourJ = jourJ ? Math.round(sousTotal * T.majorationJourJ) : 0;
+  const remiseAbonnement = Math.round((sousTotal + majorationJourJ) * Math.max(0, Math.min(0.3, remise)));
+  const ht = sousTotal + majorationJourJ - remiseAbonnement;
+  const tva = Math.round(ht * tvaRate);
+  const fin = rentalFin(input.debut, input.duree, heures);
+
+  return {
+    formula: input.formula, vehicleId: v.id,
+    vehicle: { id: v.id, name: v.name, marque: v.marque, classe: v.classe, places: v.places, prixJour: v.prixJour, autonomieKm: v.autonomieKm },
+    debut: input.debut.toISOString(), fin: fin.toISOString(), duree: input.duree, heures,
+    heuresService: input.duree === 'heures' ? heures! : (RENTAL_JOURS[input.duree] ?? 1) * T.heuresParJournee,
+    jours, options: o, secondChauffeurRequis,
+    kmInclus: o.kilometrageIllimite ? null : T.kmInclusParJour * joursFactures,
+    prixKmSupp: T.prixKmSupp,
+    breakdown: { vehicule, kilometrageIllimite, cortege, options, majorationJourJ, remiseAbonnement, ht, tva },
+    total: ht + tva, caution: Math.round(ht * T.tauxCaution), jourJ,
+    disponibilite: { vehicleId: v.id, total: v.exemplaires, reserves: 0, restants: v.exemplaires, disponible: true, delaiMinutes: jourJ ? 25 : 0 },
+    currency: 'XOF',
+  };
+}
+
+/** Devis serveur ; bascule sur le calcul local si le backend ne répond pas. */
+export async function quoteRental(input: RentalQuoteInput, vehicles: PrestigeVehicle[]): Promise<RentalQuote> {
+  const r = await tryFetch<{ quote: RentalQuote }>('/rental/quote', {
+    method: 'POST',
+    body: JSON.stringify({
+      formula: input.formula, vehicleId: input.vehicleId, debut: input.debut.toISOString(),
+      duree: input.duree, heures: input.heures, options: input.options, userId: input.userId,
+    }),
+  });
+  return r?.quote ?? previewRental(input, vehicles);
+}
+
+export interface RentalReserveInput extends RentalQuoteInput {
+  userId: string;
+  lieu?: string;
+  contact?: { nom: string; telephone: string; email?: string };
+  societe?: { nom: string; bonCommande?: string; contribuable?: string };
+}
+
+/** Réservation ferme. `null` = backend injoignable (rien n'a été réservé). */
+export async function reserveRental(input: RentalReserveInput): Promise<RentalReservation | null> {
+  const r = await tryFetch<{ reservation: RentalReservation }>('/rental/reserve', {
+    method: 'POST',
+    body: JSON.stringify({
+      formula: input.formula, vehicleId: input.vehicleId, debut: input.debut.toISOString(),
+      duree: input.duree, heures: input.heures, options: input.options,
+      userId: input.userId, lieu: input.lieu, contact: input.contact, societe: input.societe,
+    }),
+  }, 5000);
+  return r?.reservation ?? null;
+}
+
+export async function listMyRentals(userId: string): Promise<RentalReservation[] | null> {
+  const r = await tryFetch<{ reservations: RentalReservation[] }>(`/rental/mes-locations/${encodeURIComponent(userId)}`);
+  return r?.reservations ?? null;
+}
+
+export async function cancelRental(id: string, raison?: string): Promise<{ frais: number; message: string } | null> {
+  const r = await tryFetch<{ frais: number; message: string }>(`/rental/reservation/${encodeURIComponent(id)}/annuler`, {
+    method: 'POST', body: JSON.stringify({ raison }),
+  }, 5000);
+  return r ?? null;
+}
+
+/* ============================== ABONNEMENT ORION ============================== */
+
+export async function fetchSubscription(userId: string): Promise<SubState | null> {
+  return tryFetch<SubState>(`/subscriptions/${encodeURIComponent(userId)}`);
+}
+
+/** Souscription réelle (facture émise côté serveur). `null` = backend injoignable. */
+export async function subscribePlan(userId: string, plan: string, paymentMethod?: string): Promise<SubState | null> {
+  const r = await tryFetch<{ subscription: unknown }>('/subscriptions', {
+    method: 'POST', body: JSON.stringify({ userId, plan, paymentMethod }),
+  }, 5000);
+  if (!r) return null;
+  return fetchSubscription(userId);
+}
+
+export async function cancelSubscription(userId: string, raison?: string): Promise<boolean> {
+  const r = await tryFetch<{ subscription: unknown }>(`/subscriptions/${encodeURIComponent(userId)}/cancel`, {
+    method: 'POST', body: JSON.stringify({ raison }),
+  }, 5000);
+  return Boolean(r);
+}
+
+/** Règlement de la facture d'abonnement via mobile money / carte. */
+export async function paySubscriptionInvoice(invoiceId: string, method: string, phone?: string): Promise<SubInvoice | null> {
+  const r = await tryFetch<{ facture: SubInvoice }>(`/subscriptions/factures/${encodeURIComponent(invoiceId)}/payer`, {
+    method: 'POST', body: JSON.stringify({ method, phone }),
+  }, 6000);
+  return r?.facture ?? null;
 }
