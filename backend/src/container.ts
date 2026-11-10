@@ -39,6 +39,8 @@ import { SecurityAlertsService } from './modules/admin/security.js';
 import { ReservationService, type Reservation } from './modules/reservations/service.js';
 import { StaffService } from './modules/staff/service.js';
 import { StaffAccountService, type StaffAccount } from './modules/staff/accounts.js';
+import { CrewRequestService, type RequeteChauffeur } from './modules/crew/requests.js';
+import { CrewService } from './modules/crew/service.js';
 import { ExecutiveService } from './modules/executive/service.js';
 import { VigilanceService } from './modules/vigilance/service.js';
 import { WorkspaceService } from './modules/workspace/service.js';
@@ -97,6 +99,10 @@ export interface Container {
   staff: StaffService;
   /** Annuaire du personnel : un identifiant de connexion par employé et par chauffeur. */
   accounts: StaffAccountService;
+  /** Requêtes des chauffeurs : prêt, avance, congé, matériel, réclamation. */
+  crewRequests: CrewRequestService;
+  /** Session Équipages : le dossier complet d'un chauffeur, agrégé. */
+  crew: CrewService;
   /** Notes de frais & avances (self-service + validation CFO). */
   expenses: ExpenseService;
   /** Direction générale : consolidation de TOUS les flux financiers (poste du PDG). */
@@ -218,6 +224,10 @@ export function createContainer(): Container {
   comptes.protege(identifiantsDeConfiguration());
   brancherAnnuaire(() => comptes.asAdminUsers());
 
+  // Requêtes des chauffeurs : déposées par eux, instruites par leur chef d'équipe,
+  // décidées par la finance, versées par la trésorerie.
+  const requetesChauffeurs = new CrewRequestService(createRepository<RequeteChauffeur>('crew_requests'));
+
   const safety = new SafetyService(realtime);
   // Portefeuille client (séparé du wallet chauffeur) : remboursements ORION Assurance.
   const clientWallet = new WalletService(createRepository<LedgerEntry>('client_wallet'));
@@ -268,11 +278,13 @@ export function createContainer(): Container {
     reservations: new ReservationService(createRepository<Reservation>('reservations')),
     staff: new StaffService(createRepository('staff_shifts'), createRepository('staff_tickets')),
     accounts: comptes,
+    crewRequests: requetesChauffeurs,
     expenses: new ExpenseService(createRepository<ExpenseTicket>('expenses')),
     // Renseigné juste après : la consolidation a besoin du conteneur complet.
     executive: undefined as unknown as ExecutiveService,
     vigilance: undefined as unknown as VigilanceService,
     workspace: undefined as unknown as WorkspaceService,
+    crew: undefined as unknown as CrewService,
     assistant: undefined as unknown as AssistantService,
   };
   // La direction générale ne stocke rien, elle lit les autres modules. On la câble
@@ -280,7 +292,28 @@ export function createContainer(): Container {
   container.executive = new ExecutiveService(container);
   container.vigilance = new VigilanceService(container);
   container.workspace = new WorkspaceService(container);
+  container.crew = new CrewService(container);
   container.assistant = new AssistantService(container);
+
+  // INTERCONNEXION : une requête chauffeur qui bouge réveille les sessions qui en
+  // dépendent. Sans cela, le chauffeur dépose, et personne ne le sait avant la
+  // prochaine ouverture de l'écran.
+  requetesChauffeurs.onChange((r, evenement) => {
+    realtime.publish(driverRoom(r.driverId), 'crew.request', { requete: r, evenement });
+    const messages: Record<string, string> = {
+      depot: `Nouvelle requête ${r.type} de ${r.driverName} (${r.matricule}).`,
+      instruction: `Requête ${r.id} instruite : avis ${r.avis}.`,
+      accord: `Requête ${r.id} accordée à ${r.driverName}.`,
+      refus: `Requête ${r.id} refusée pour ${r.driverName}.`,
+      versement: `Requête ${r.id} versée à ${r.driverName}.`,
+    };
+    // Le chauffeur concerné est prévenu directement : c'est sa demande, il a le
+    // droit de savoir où elle en est sans rappeler le bureau.
+    const texte = messages[evenement];
+    if (texte && evenement !== 'depot') {
+      container.notifications.notify({ driverId: r.driverId }, 'Votre requête ORION', texte);
+    }
+  });
   return container;
 }
 

@@ -17,6 +17,7 @@ import {
   estEcriture, newCsrfToken, parseCookies,
 } from './cookies.js';
 import { SOS_PRESETS } from '../safety/service.js';
+import { TYPE_LABEL as CREW_TYPE_LABEL, STATUT_LABEL as CREW_STATUT_LABEL, TYPES_FINANCIERS, PLAFOND_AVANCE, PLAFOND_PRET, MAX_ECHEANCES, type TypeRequete } from '../crew/requests.js';
 import { consoleForced, consoleReassigned } from '../driver-app/offers.js';
 
 /** Rôles de direction : accès complet, 2FA exigible via ADMIN_REQUIRE_2FA. */
@@ -2549,6 +2550,198 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       const subscription = container.subscriptions.cancel(userId, body.raison);
       audit(req, 'subscription.cancel', userId, { raison: body.raison });
       return { subscription };
+    });
+
+    /* ============================= SESSION ÉQUIPAGES =============================
+     *
+     * Le dossier des chauffeurs ORION, et l'endroit où ils déposent leurs requêtes.
+     *
+     * Deux publics dans la même session, et une frontière nette entre les deux :
+     *  - l'encadrement (crew:read / crew:write) travaille sur tous les dossiers,
+     *    ou sur sa flotte accréditée s'il s'agit d'un chef d'équipe ou d'un agent ;
+     *  - le chauffeur (crew:self) ne voit QUE son dossier et ne dépose QUE ses
+     *    propres requêtes. Il n'a aucun moyen de regarder le dossier d'un collègue.
+     */
+
+    /** Le chauffeur rattaché au compte connecté, s'il s'agit d'un compte chauffeur. */
+    const monDriverId = (req: FastifyRequest): string | undefined => {
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      return account.username ? container.accounts.get(account.username)?.driverId : undefined;
+    };
+
+    /**
+     * Portée de lecture d'un dossier chauffeur. Le chauffeur n'accède qu'au sien ;
+     * le chef d'équipe et l'agent, qu'à leur flotte accréditée ; l'encadrement, à tout.
+     */
+    const assertPorteeChauffeur = (req: FastifyRequest, driverId: string): void => {
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      if (account.role === 'chauffeur') {
+        if (monDriverId(req) !== driverId) {
+          throw forbidden('Vous ne pouvez consulter que votre propre dossier.');
+        }
+        return;
+      }
+      if (account.role === 'manager' || account.role === 'agent') {
+        const fiche = account.username ? container.accounts.get(account.username) : undefined;
+        const equipes = account.role === 'manager'
+          ? container.teams.listByManager(account.username ?? '')
+          : container.teams.list().filter((t) => t.id === fiche?.teamId);
+        if (!equipes.some((t) => t.driverIds.includes(driverId))) {
+          throw forbidden('Ce chauffeur n’est pas dans la flotte qui vous est accréditée.');
+        }
+      }
+    };
+
+    /** Lecture : l'encadrement a crew:read, le chauffeur n'a que crew:self. */
+    const requireCrewRead = (req: FastifyRequest): void => {
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      if (can(account.role, 'crew:read') || can(account.role, 'crew:self')) return;
+      require(req, 'crew:read');
+    };
+
+    scoped.get('/admin/crew', async (req) => {
+      requireCrewRead(req);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const q = parse(z.object({
+        q: z.string().max(80).optional(),
+        teamId: z.string().max(64).optional(),
+        kycStatus: z.string().max(40).optional(),
+        jours: z.coerce.number().int().min(1).max(365).optional(),
+      }), req.query ?? {});
+
+      // Un chauffeur n'obtient jamais la liste de ses collègues : seulement lui.
+      if (account.role === 'chauffeur') {
+        const moi = monDriverId(req);
+        const lignes = moi ? container.crew.liste({ jours: q.jours }).filter((l) => l.driverId === moi) : [];
+        return { equipages: lignes, tableau: null, moi };
+      }
+
+      let equipages = container.crew.liste(q);
+      // Chef d'équipe et agent : strictement leur flotte accréditée.
+      if (account.role === 'manager' || account.role === 'agent') {
+        const fiche = account.username ? container.accounts.get(account.username) : undefined;
+        const equipes = account.role === 'manager'
+          ? container.teams.listByManager(account.username ?? '')
+          : container.teams.list().filter((t) => t.id === fiche?.teamId);
+        const flotte = new Set(equipes.flatMap((t) => t.driverIds));
+        equipages = equipages.filter((l) => flotte.has(l.driverId));
+      }
+      return {
+        equipages,
+        tableau: container.crew.tableau(q.jours),
+        types: Object.entries(CREW_TYPE_LABEL).map(([id, label]) => ({ id, label, financier: TYPES_FINANCIERS.includes(id as TypeRequete) })),
+        statuts: CREW_STATUT_LABEL,
+        plafonds: { avance: PLAFOND_AVANCE, pret: PLAFOND_PRET, maxEcheances: MAX_ECHEANCES },
+      };
+    });
+
+    scoped.get('/admin/crew/:driverId', async (req) => {
+      requireCrewRead(req);
+      const { driverId } = req.params as { driverId: string };
+      assertPorteeChauffeur(req, driverId);
+      const q = parse(z.object({ jours: z.coerce.number().int().min(1).max(365).optional() }), req.query ?? {});
+      const dossier = container.crew.dossier(driverId, q.jours);
+      if (!dossier) throw notFound('Chauffeur introuvable');
+      return { dossier };
+    });
+
+    /** Dépôt d'une requête : par le chauffeur lui-même, ou en son nom au guichet. */
+    scoped.post('/admin/crew/:driverId/requetes', async (req, reply) => {
+      requireCrewRead(req);
+      const { driverId } = req.params as { driverId: string };
+      assertPorteeChauffeur(req, driverId);
+      const body = parse(z.object({
+        type: z.enum(['pret', 'avance', 'conge', 'materiel', 'reparation', 'reclamation', 'document']),
+        montant: z.number().positive().max(10_000_000).optional(),
+        echeances: z.number().int().min(1).max(MAX_ECHEANCES).optional(),
+        du: z.string().max(20).optional(),
+        au: z.string().max(20).optional(),
+        motif: z.string().min(3).max(600),
+      }), req.body);
+
+      const d = container.drivers.get(driverId);
+      if (!d) throw notFound('Chauffeur introuvable');
+      const equipe = container.teams.list().find((t) => t.driverIds.includes(driverId));
+      const res = container.crewRequests.deposer({
+        driverId, driverName: d.name, matricule: d.matricule, teamId: equipe?.id, ...body,
+      });
+      if (typeof res === 'string') {
+        reply.code(res === 'doublon' ? 409 : 400);
+        const messages: Record<string, string> = {
+          montant_requis: 'Ce type de requête demande un montant.',
+          plafond_depasse: `Montant au-dessus du plafond (avance ${PLAFOND_AVANCE.toLocaleString('fr-FR')} F, prêt ${PLAFOND_PRET.toLocaleString('fr-FR')} F).`,
+          doublon: 'Un prêt est déjà en cours pour ce chauffeur — on ne prête pas pour rembourser un prêt.',
+        };
+        return { error: messages[res] };
+      }
+      audit(req, 'crew.request', res.id, { driverId, type: body.type, montant: body.montant });
+      return { requete: res };
+    });
+
+    /** Avis motivé du chef d'équipe : il connaît l'homme, pas seulement le dossier. */
+    scoped.post('/admin/crew/requetes/:id/instruire', async (req, reply) => {
+      require(req, 'crew:write');
+      const { id } = req.params as { id: string };
+      const existante = container.crewRequests.get(id);
+      if (!existante) throw notFound('Requête introuvable');
+      assertPorteeChauffeur(req, existante.driverId);
+      const body = parse(z.object({
+        avis: z.enum(['favorable', 'defavorable']),
+        note: z.string().max(500).optional(),
+      }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const res = container.crewRequests.instruire(id, body.avis, account.name, body.note);
+      if (res === 'deja_decidee') { reply.code(409); return { error: 'Requête déjà tranchée.' }; }
+      if (!res) throw notFound('Requête introuvable');
+      audit(req, 'crew.instruire', id, { avis: body.avis });
+      return { requete: res };
+    });
+
+    /** Décision financière — jamais sur sa propre requête. */
+    scoped.post('/admin/crew/requetes/:id/decider', async (req, reply) => {
+      require(req, 'finance:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({
+        decision: z.enum(['accord', 'refus']),
+        note: z.string().max(500).optional(),
+        montantAccorde: z.number().min(0).max(10_000_000).optional(),
+      }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const existante = container.crewRequests.get(id);
+      if (!existante) throw notFound('Requête introuvable');
+      // Séparation des tâches : on ne statue pas sur ce qu'on a soi-même déposé.
+      if (account.username && container.accounts.get(account.username)?.driverId === existante.driverId) {
+        throw forbidden('On ne statue pas sur sa propre requête.');
+      }
+      const res = container.crewRequests.decider(id, body.decision, account.name, body);
+      if (res === 'deja_versee') { reply.code(409); return { error: 'Requête déjà versée ou clôturée.' }; }
+      if (!res) throw notFound('Requête introuvable');
+      audit(req, `crew.${body.decision}`, id, { montant: res.montantAccorde });
+      return { requete: res };
+    });
+
+    /** Versement effectif : c'est la trésorerie qui sort l'argent. */
+    scoped.post('/admin/crew/requetes/:id/verser', async (req, reply) => {
+      require(req, 'caisse:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ canal: z.string().min(2).max(40) }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const res = container.crewRequests.verser(id, account.name, body.canal);
+      if (res === 'non_accordee') { reply.code(409); return { error: 'Requête non accordée : rien à verser.' }; }
+      if (!res) throw notFound('Requête introuvable');
+      audit(req, 'crew.verser', id, { montant: res.montantAccorde, canal: body.canal });
+      return { requete: res };
+    });
+
+    /** Remboursement d'une échéance de prêt. */
+    scoped.post('/admin/crew/requetes/:id/rembourser', async (req) => {
+      require(req, 'caisse:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ montant: z.number().positive().max(10_000_000) }), req.body);
+      const res = container.crewRequests.rembourser(id, body.montant);
+      if (!res) throw notFound('Requête ou échéancier introuvable');
+      audit(req, 'crew.rembourser', id, { montant: body.montant });
+      return { requete: res };
     });
 
     /* ================= ANNUAIRE DU PERSONNEL (identifiants de connexion) =================
