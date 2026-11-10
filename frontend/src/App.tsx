@@ -16,9 +16,9 @@ import {
   ABIDJAN_PLACES, COUNTRIES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { EMERGENCY_NUMBERS, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, fetchSubscription, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, estimateDelivery, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, subscribePlan, type Announcement, type AppConfig, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
+import { EMERGENCY_NUMBERS, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, fetchSubPlans, fetchSubscription, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, estimateDelivery, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, subscribePlan, type Announcement, type AppConfig, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
 import { LANGUAGES, useI18n, type Lang } from './i18n';
-import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubState, TierOption, WeddingDuration } from './types';
+import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
 
 const PAYMENTS = [
@@ -1396,10 +1396,12 @@ function SettingsScreen({ onBack, onWallet, trusted, setTrusted, shareRides, set
 function SubscriptionScreen({ onBack, onToast }: { onBack: () => void; onToast: (m: string, d?: boolean) => void }) {
   const { t } = useI18n();
   const [etat, setEtat] = useState<SubState | null>(null);
+  /** Forfaits tels que le serveur les définit : plafonds, niveaux couverts, remises. */
+  const [plansServeur, setPlansServeur] = useState<SubPlanInfo[] | null>(null);
   const [envoi, setEnvoi] = useState<string | null>(null);
 
   const charger = () => { void fetchSubscription(clientId()).then((e) => { if (e) setEtat(e); }); };
-  useEffect(charger, []);
+  useEffect(() => { charger(); void fetchSubPlans().then(setPlansServeur); }, []);
 
   const souscrire = async (plan: string) => {
     setEnvoi(plan);
@@ -1429,7 +1431,7 @@ function SubscriptionScreen({ onBack, onToast }: { onBack: () => void; onToast: 
 
   const actif = etat?.subscription && etat.subscription.active && !etat.echu ? etat.subscription : null;
   const facture = etat?.factureEnAttente ?? null;
-  const planServeur = (id: string) => etat?.plan && etat.plan.id === id ? etat.plan : null;
+  const planServeur = (id: string) => plansServeur?.find((p) => p.id === id) ?? (etat?.plan?.id === id ? etat.plan : null);
 
   return (
     <div className="screen page">

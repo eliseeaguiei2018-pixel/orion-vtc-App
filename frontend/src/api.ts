@@ -1,6 +1,6 @@
 import type {
   LatLng, PrestigeVehicle, Quote, RentalAvailability, RentalDuree, RentalFormula, RentalOptions,
-  RentalQuote, RentalReservation, SubCoverage, SubInvoice, SubState, TierOption,
+  RentalQuote, RentalReservation, SubCoverage, SubInvoice, SubPlanInfo, SubState, TierOption,
 } from './types';
 import {
   PRESTIGE_FALLBACK, RENTAL_COEF, RENTAL_DUREES, RENTAL_FORMULES, RENTAL_JOURS,
@@ -537,6 +537,12 @@ export async function cancelRental(id: string, raison?: string): Promise<{ frais
 }
 
 /* ============================== ABONNEMENT ORION ============================== */
+
+/** Catalogue des forfaits tel que le SERVEUR le définit (plafonds, niveaux, remises). */
+export async function fetchSubPlans(): Promise<SubPlanInfo[] | null> {
+  const r = await tryFetch<{ plans: SubPlanInfo[] }>('/subscriptions/plans');
+  return r?.plans ?? null;
+}
 
 export async function fetchSubscription(userId: string): Promise<SubState | null> {
   return tryFetch<SubState>(`/subscriptions/${encodeURIComponent(userId)}`);

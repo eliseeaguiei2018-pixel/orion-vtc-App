@@ -239,7 +239,11 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
 }
 .veh:active { transform: scale(0.99); }
 .veh.active { border-color: var(--green); background: rgba(0, 224, 138, 0.08); box-shadow: var(--glow); }
-.veh .veh-ico { width: 50px; height: 50px; border-radius: 14px; display: grid; place-items: center; background: var(--surface-2); }
+/* Médaille de véhicule / de forfait. Le fond n'était défini QUE sous .veh : partout
+   ailleurs (abonnements, mes locations) la pastille apparaissait sans fond, réduite à
+   un contour. La règle de base vaut maintenant pour tous les contextes. */
+.veh-ico { border-radius: 14px; display: grid; place-items: center; background: var(--surface-2); flex: none; }
+.veh .veh-ico { width: 50px; height: 50px; }
 .veh .price { font-family: var(--font-display); font-weight: 800; font-size: 18px; }
 
 /* ---- Pay chips ---- */
@@ -456,6 +460,16 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
   scrollbar-width: none;
 }
 .page-body::-webkit-scrollbar { display: none; }
+/* La barre du haut flotte AU-DESSUS du contenu qui défile : sans fond, le texte des
+   premières lignes passait derrière le titre et devenait illisible dès qu'on faisait
+   défiler une page longue (location, réglages). Un voile dégradé règle le problème
+   sans masquer le contenu. */
+.page > .topbar::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(180deg, var(--bg-1) 55%, transparent);
+  z-index: -1;
+}
+.page > .topbar { isolation: isolate; }
 
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 

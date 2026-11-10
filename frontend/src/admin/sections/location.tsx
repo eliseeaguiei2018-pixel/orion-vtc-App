@@ -56,9 +56,14 @@ export function RentalSection({ reservations, fleet, stats, dispos, drivers, can
     [reservations, formule, statut],
   );
   const dispoDe = (id: string) => dispos.find((d) => d.vehicleId === id);
-  /** Les locations Signature sont servies par les chauffeurs les mieux notés. */
+  /**
+   * Chauffeurs affectables : tous sauf les suspendus, les mieux notés en tête. On ne
+   * restreint PAS au seul statut « actif » : une liste vide sans explication est le
+   * pire des cas — l'exploitant croit qu'il n'y a personne alors que le filtre est
+   * simplement trop étroit. Le statut KYC reste affiché dans la liste.
+   */
   const eligibles = useMemo(
-    () => drivers.filter((d) => d.kycStatus === 'active' || d.kycStatus === 'approved').sort((a, b) => b.rating - a.rating),
+    () => drivers.filter((d) => d.kycStatus !== 'suspended').sort((a, b) => b.rating - a.rating),
     [drivers],
   );
 
@@ -142,10 +147,10 @@ export function RentalSection({ reservations, fleet, stats, dispos, drivers, can
                     <td>{dt(r.debut)}{r.jourJ && <><br /><span className="adm-pill av-on_trip">Jour J</span></>}</td>
                     <td>
                       {r.societe?.nom ?? r.contact?.nom ?? r.userId}
-                      {r.societe?.bonCommande && <><br /><span className="adm-muted mono">BC {r.societe.bonCommande}</span></>}
+                      {r.societe?.bonCommande && <><br /><span className="adm-muted">Bon de commande <span className="mono">{r.societe.bonCommande}</span></span></>}
                       {r.lieu && <><br /><span className="adm-muted">{r.lieu}</span></>}
                     </td>
-                    <td className="r">{fcfa(r.total)}</td>
+                    <td className="r" style={{ whiteSpace: 'nowrap' }}>{fcfa(r.total)}</td>
                     <td><span className={`adm-pill ${PILL_STATUT[r.status] ?? ''}`}>{LABEL_STATUT[r.status] ?? r.status}</span></td>
                     <td>
                       {chauffeur ? <>{chauffeur.name}<br /><span className="adm-muted mono">{chauffeur.matricule}</span></> : <span className="adm-muted">à affecter</span>}
@@ -155,19 +160,29 @@ export function RentalSection({ reservations, fleet, stats, dispos, drivers, can
                         <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                           {modifiable && (
                             <>
-                              <select
-                                className="adm-select"
-                                value={choixChauffeur[r.id] ?? r.driverId ?? ''}
-                                onChange={(e) => setChoixChauffeur((c) => ({ ...c, [r.id]: e.target.value }))}
-                              >
-                                <option value="">Chauffeur…</option>
-                                {eligibles.map((d) => <option key={d.id} value={d.id}>{d.name} · ★ {d.rating.toFixed(1)}</option>)}
-                              </select>
-                              <button
-                                className="adm-btn xs"
-                                disabled={!choixChauffeur[r.id]}
-                                onClick={() => onAssign(r.id, choixChauffeur[r.id]!)}
-                              >Affecter</button>
+                              {eligibles.length === 0 ? (
+                                <span className="adm-muted">Aucun chauffeur affectable (tous suspendus ou flotte vide)</span>
+                              ) : (
+                                <>
+                                  <select
+                                    className="adm-select"
+                                    value={choixChauffeur[r.id] ?? r.driverId ?? ''}
+                                    onChange={(e) => setChoixChauffeur((c) => ({ ...c, [r.id]: e.target.value }))}
+                                  >
+                                    <option value="">Chauffeur…</option>
+                                    {eligibles.map((d) => (
+                                      <option key={d.id} value={d.id}>
+                                        {d.name} · ★ {d.rating.toFixed(1)} · {d.kycStatus === 'active' ? 'validé' : d.kycStatus}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    className="adm-btn xs"
+                                    disabled={!choixChauffeur[r.id]}
+                                    onClick={() => onAssign(r.id, choixChauffeur[r.id]!)}
+                                  >Affecter</button>
+                                </>
+                              )}
                             </>
                           )}
                           {r.status === 'reservee' && <button className="adm-btn xs" onClick={() => onStatus(r.id, 'confirmee')}>Confirmer</button>}
@@ -204,6 +219,8 @@ export function SubscriptionsSection({ plans, subscriptions, invoices, stats, ca
 }) {
   const [filtre, setFiltre] = useState('');
   const vues = useMemo(() => invoices.filter((f) => !filtre || f.status === filtre), [invoices, filtre]);
+  /** « gold » ne veut rien dire pour un exploitant : on affiche le nom commercial. */
+  const nomForfait = (id: string) => plans.find((p) => p.id === id)?.label ?? id;
 
   return (
     <>
@@ -255,7 +272,7 @@ export function SubscriptionsSection({ plans, subscriptions, invoices, stats, ca
                 return (
                   <tr key={s.id}>
                     <td className="mono">{s.userId}</td>
-                    <td>{s.plan}</td>
+                    <td>{nomForfait(s.plan)}</td>
                     <td>{dt(s.renewsAt)}{s.autoRenew && <><br /><span className="adm-muted">renouvellement auto.</span></>}</td>
                     <td className="r">{s.usedToday} / {s.ridesPerDay}</td>
                     <td className="r">{fcfa(s.totalCouvert)}<br /><span className="adm-muted">{s.coursesCouvertes} course(s)</span></td>
@@ -294,8 +311,8 @@ export function SubscriptionsSection({ plans, subscriptions, invoices, stats, ca
                 <tr key={f.id}>
                   <td className="mono">{f.id}</td>
                   <td className="mono">{f.userId}</td>
-                  <td>{f.plan}</td>
-                  <td className="r">{fcfa(f.amount)}</td>
+                  <td>{nomForfait(f.plan)}</td>
+                  <td className="r" style={{ whiteSpace: 'nowrap' }}>{fcfa(f.amount)}</td>
                   <td>{dt(f.emiseLe)}</td>
                   <td>
                     <span className={`adm-pill ${PILL_FACTURE[f.status] ?? ''}`}>{LABEL_FACTURE[f.status] ?? f.status}</span>

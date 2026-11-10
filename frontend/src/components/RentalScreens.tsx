@@ -6,6 +6,17 @@ import {
 } from '../icons';
 import { useI18n } from '../i18n';
 import { formatXOF, RENTAL_DUREES, RENTAL_FORMULES, RENTAL_OPTION_KEYS } from '../data';
+
+/**
+ * Options pertinentes par formule. Proposer « décoration florale & rubans » à une
+ * délégation qui réserve une berline pour trois heures n'a pas de sens — et chaque
+ * option inutile est une case de plus à comprendre avant de réserver.
+ */
+const OPTIONS_PAR_FORMULE: Record<RentalFormula, readonly string[]> = {
+  evenement: RENTAL_OPTION_KEYS,
+  entreprise: ['tapisRouge', 'plaque', 'rafraichissements', 'escorte', 'kilometrageIllimite'],
+  mise_a_disposition: ['rafraichissements', 'escorte', 'kilometrageIllimite'],
+};
 import {
   cancelRental, clientId, fetchRentalAvailability, fetchRentalCatalogue, listMyRentals,
   quoteRental, reserveRental, type RentalCatalogue,
@@ -137,7 +148,18 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
         <span className="eyebrow">{t('rent_formula')}</span>
         <div className="stack" style={{ margin: '10px 0 18px' }}>
           {RENTAL_FORMULES.map((f) => (
-            <button key={f} className={`veh${f === formula ? ' active' : ''}`} onClick={() => setFormula(f)}>
+            <button
+              key={f}
+              className={`veh${f === formula ? ' active' : ''}`}
+              onClick={() => {
+                setFormula(f);
+                setOptions((o) => Object.fromEntries(
+                  Object.entries(o).filter(([k]) => OPTIONS_PAR_FORMULE[f].includes(k)),
+                ) as RentalOptions);
+                if (f !== 'evenement') setCortege(0);
+                if (f === 'mise_a_disposition') setHotesses(0);
+              }}
+            >
               <span className="veh-ico" style={{ width: 42, height: 42, color: 'var(--green)' }}>
                 {f === 'entreprise' ? <IconUsers size={20} /> : f === 'mise_a_disposition' ? <IconClock size={20} /> : <IconCrown size={20} />}
               </span>
@@ -226,14 +248,14 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
             <IconCalendar size={15} /> {t('rent_tomorrow')}
           </button>
         </div>
-        <input
-          className="field"
-          type="datetime-local"
-          value={toLocalInput(debut)}
-          min={toLocalInput(new Date())}
-          onChange={(e) => { const d = new Date(e.target.value); if (!Number.isNaN(d.getTime())) setDebut(d); }}
-          style={{ marginBottom: 8 }}
-        />
+        <div className="field" style={{ marginBottom: 8 }}>
+          <input
+            type="datetime-local"
+            value={toLocalInput(debut)}
+            min={toLocalInput(new Date())}
+            onChange={(e) => { const d = new Date(e.target.value); if (!Number.isNaN(d.getTime())) setDebut(d); }}
+          />
+        </div>
         <p className="faint" style={{ fontSize: 11.5, marginBottom: 18 }}>
           {DATE_FMT.format(debut)} · {HEURE_FMT.format(debut)}
           {quote ? ` → ${DATE_FMT.format(new Date(quote.fin))} · ${quote.heuresService} ${t('rent_serviceHours')}` : ''}
@@ -252,7 +274,7 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
         {/* Options */}
         <span className="eyebrow">{t('rent_options')}</span>
         <div className="stack" style={{ gap: 8, margin: '10px 0 14px' }}>
-          {RENTAL_OPTION_KEYS.map((k) => (
+          {RENTAL_OPTION_KEYS.filter((k) => OPTIONS_PAR_FORMULE[formula].includes(k)).map((k) => (
             <div key={k} className="opt">
               <span className="grow" style={{ textAlign: 'start' }}>{t(`rent_o_${k}`)}</span>
               <button
@@ -262,6 +284,7 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
               ><span /></button>
             </div>
           ))}
+          {formula === 'evenement' && (
           <div className="opt">
             <span className="grow" style={{ textAlign: 'start' }}>{t('rent_o_cortege')}</span>
             <div className="row gap-sm">
@@ -273,6 +296,8 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
               ><IconPlus size={16} /></button>
             </div>
           </div>
+          )}
+          {formula !== 'mise_a_disposition' && (
           <div className="opt">
             <span className="grow" style={{ textAlign: 'start' }}>{t('rent_o_hotesses')}</span>
             <div className="row gap-sm">
@@ -281,6 +306,7 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
               <button className="step" onClick={() => setHotesses((h) => Math.min(6, h + 1))}><IconPlus size={16} /></button>
             </div>
           </div>
+          )}
         </div>
 
         {quote?.secondChauffeurRequis && (
@@ -291,20 +317,22 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
 
         {/* Lieu et contact */}
         <span className="eyebrow">{t('rent_place')}</span>
-        <input className="field" style={{ margin: '10px 0 14px' }} placeholder={t('rent_placePh')} value={lieu} onChange={(e) => setLieu(e.target.value)} />
+        <div className="field" style={{ margin: '10px 0 14px' }}>
+          <input placeholder={t('rent_placePh')} value={lieu} onChange={(e) => setLieu(e.target.value)} />
+        </div>
 
         <span className="eyebrow">{t('rent_contact')}</span>
         <div className="row gap-sm" style={{ margin: '10px 0 14px' }}>
-          <input className="field" style={{ minWidth: 0 }} placeholder={t('rent_contactName')} value={contactNom} onChange={(e) => setContactNom(e.target.value)} />
-          <input className="field" style={{ minWidth: 0 }} placeholder={t('rent_contactPhone')} value={contactTel} onChange={(e) => setContactTel(e.target.value)} />
+          <div className="field grow" style={{ minWidth: 0 }}><input placeholder={t('rent_contactName')} value={contactNom} onChange={(e) => setContactNom(e.target.value)} /></div>
+          <div className="field grow" style={{ minWidth: 0 }}><input placeholder={t('rent_contactPhone')} value={contactTel} onChange={(e) => setContactTel(e.target.value)} /></div>
         </div>
 
         {formula === 'entreprise' && (
           <>
             <span className="eyebrow">{t('rent_company')}</span>
             <div className="row gap-sm" style={{ margin: '10px 0 16px' }}>
-              <input className="field" style={{ minWidth: 0 }} placeholder={t('rent_companyName')} value={societe} onChange={(e) => setSociete(e.target.value)} />
-              <input className="field" style={{ minWidth: 0 }} placeholder={t('rent_po')} value={bonCommande} onChange={(e) => setBonCommande(e.target.value)} />
+              <div className="field grow" style={{ minWidth: 0 }}><input placeholder={t('rent_companyName')} value={societe} onChange={(e) => setSociete(e.target.value)} /></div>
+              <div className="field grow" style={{ minWidth: 0 }}><input placeholder={t('rent_po')} value={bonCommande} onChange={(e) => setBonCommande(e.target.value)} /></div>
             </div>
           </>
         )}
@@ -389,7 +417,10 @@ export function MyRentalsScreen({ onBack, onToast }: { onBack: () => void; onToa
                     </span>
                   </div>
                 </div>
-                <span className="price" style={{ fontSize: 15 }}>{formatXOF(r.total)}</span>
+                <span className="col" style={{ alignItems: 'flex-end' }}>
+                  <span className="price" style={{ fontSize: 15, whiteSpace: 'nowrap' }}>{formatXOF(r.total)}</span>
+                  <span className="faint mono" style={{ fontSize: 11 }}>{r.id}</span>
+                </span>
               </div>
               <div className="divider" style={{ margin: '10px 0' }} />
               <div className="row between" style={{ fontSize: 12.5 }}>
@@ -398,7 +429,7 @@ export function MyRentalsScreen({ onBack, onToast }: { onBack: () => void; onToa
               </div>
               {r.lieu && <div className="row gap-sm" style={{ fontSize: 12.5, marginTop: 6 }}><IconPin size={13} /> <span className="muted">{r.lieu}</span></div>}
               {(r.status === 'reservee' || r.status === 'confirmee') && (
-                <button className="btn" style={{ marginTop: 12 }} onClick={() => void annuler(r.id)}>{t('rent_cancel')}</button>
+                <button className="btn btn-ghost" style={{ marginTop: 12 }} onClick={() => void annuler(r.id)}>{t('rent_cancel')}</button>
               )}
             </div>
           ))}

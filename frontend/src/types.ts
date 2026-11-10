@@ -183,13 +183,20 @@ export interface SubInvoice {
   motifEchec?: string;
 }
 
+/** Un forfait tel que le serveur le décrit (source de vérité des avantages). */
+export interface SubPlanInfo {
+  id: string; label: string; ridesPerDay: number; monthlyPrice: number; perRideCap: number;
+  tiers: string[]; remiseHorsQuota: number; remiseLocation: number; priorite: number;
+  annulationGratuite: boolean; benefits: string[]; accent: string;
+}
+
 export interface SubState {
   subscription: {
     id: string; userId: string; plan: string; startedAt: string; renewsAt: string;
     ridesPerDay: number; usedToday: number; active: boolean; autoRenew: boolean;
     totalCouvert: number; coursesCouvertes: number; cancelledAt?: string;
   } | null;
-  plan: { id: string; label: string; ridesPerDay: number; monthlyPrice: number; perRideCap: number; benefits: string[]; accent: string } | null;
+  plan: SubPlanInfo | null;
   echu: boolean;
   joursRestants: number;
   restantesAujourdhui: number;
