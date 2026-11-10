@@ -1,7 +1,7 @@
 import type {
   Overview, Alert, FleetUnit, RideRow, DriverRow, Client, DriverDetail, ClientDetail,
   PrestigeUnit, RentalAvailabilityRow, RentalRow, RentalStats, SubInvoiceRow, SubPlanRow,
-  ContactUrgence, RentalTarifEtat, SubStats, SubscriptionRow,
+  ContactUrgence, ExecutiveBoard, MouvementPage, RentalTarifEtat, SubStats, SubscriptionRow,
 } from './types';
 
 /** Jeu de données de démonstration (console autonome, sans backend). */
@@ -636,6 +636,68 @@ const subInvoices: SubInvoiceRow[] = [
   { id: 'F-10C1', userId: 'client-7731', plan: 'bronze', amount: 25000, periodeDebut: iso(50000), periodeFin: dans(-2), status: 'echouee', method: 'mtn_momo', emiseLe: iso(12000), motifEchec: 'Solde insuffisant chez l’opérateur' },
 ];
 
+/* --------- Direction Générale (démo) --------- */
+const serieExec = Array.from({ length: 30 }, (_, i) => {
+  const date = new Date(Date.now() - (29 - i) * 86400000).toISOString().slice(0, 10);
+  const base = 1_150_000 + Math.round(Math.sin(i / 3.2) * 320_000) + i * 9_000;
+  const sorties = Math.round(base * (0.52 + ((i * 7) % 11) / 100));
+  return { date, entrees: base, sorties, solde: base - sorties };
+});
+
+const livre: MouvementPage = {
+  mouvements: [
+    { id: 'm1', at: iso(25), sens: 'entree', categorie: 'course', libelle: 'Course payée', montant: 4_850, reference: 'r-9f2a1b', contrepartie: 'client-8842', statut: 'wave', enCaisse: true },
+    { id: 'm2', at: iso(48), sens: 'entree', categorie: 'course', libelle: 'Course payée en espèces (au chauffeur)', montant: 3_200, reference: 'r-77c0de', contrepartie: 'client-9120', statut: 'cash', enCaisse: false },
+    { id: 'm3', at: iso(95), sens: 'entree', categorie: 'abonnement', libelle: 'Abonnement gold encaissé', montant: 55_000, reference: 'F-10A4', contrepartie: 'client-8842', statut: 'wave', enCaisse: true },
+    { id: 'm4', at: iso(140), sens: 'entree', categorie: 'location', libelle: 'Location Huawei AITO M9', montant: 1_480_500, reference: 'LOC-4F2A', contrepartie: 'Famille Kouassi', statut: 'confirmee', enCaisse: true },
+    { id: 'm5', at: iso(180), sens: 'sortie', categorie: 'reversement_chauffeur', libelle: 'Retrait chauffeur', montant: 128_400, contrepartie: 'Mamadou Bamba', statut: 'versé', enCaisse: true },
+    { id: 'm6', at: iso(260), sens: 'sortie', categorie: 'virement', libelle: 'Virement — Approvisionnement caisse', montant: 2_500_000, reference: 'tr-55', contrepartie: 'Compte opérations', statut: 'approuvé par DG', enCaisse: true },
+    { id: 'm7', at: iso(320), sens: 'sortie', categorie: 'note_de_frais', libelle: 'Note de frais — deplacement', montant: 85_000, reference: 'ndf-18', contrepartie: 'Awa Koffi', statut: 'wave', enCaisse: true },
+    { id: 'm8', at: iso(400), sens: 'sortie', categorie: 'remboursement', libelle: 'Remboursement litige — trajet', montant: 6_500, reference: 'r-21ab', contrepartie: 'client-7731', statut: 'décidé par Support', enCaisse: true },
+  ],
+  total: 8, page: 1, pages: 1,
+  entrees: 1_540_350, sorties: 2_719_900,
+};
+
+const executive: ExecutiveBoard = {
+  consolidation: {
+    currency: 'XOF', gmv: 18_420_000, revenu: 3_265_400,
+    entrees: 14_880_000, sorties: 11_340_000, solde: 3_540_000,
+    parCategorie: {
+      course: { entrees: 12_100_000, sorties: 0, nombre: 1842 },
+      livraison: { entrees: 820_000, sorties: 0, nombre: 211 },
+      abonnement: { entrees: 393_000, sorties: 0, nombre: 9 },
+      location: { entrees: 1_567_000, sorties: 0, nombre: 4 },
+      reversement_chauffeur: { entrees: 0, sorties: 8_240_000, nombre: 96 },
+      virement: { entrees: 0, sorties: 2_500_000, nombre: 1 },
+      note_de_frais: { entrees: 0, sorties: 573_500, nombre: 7 },
+      remboursement: { entrees: 0, sorties: 26_500, nombre: 4 },
+    },
+    mrr: 118_000, tvaCollectee: 921_000, dusChauffeurs: 2_480_000,
+    especesChauffeurs: 3_940_000, dettesEspeces: 394_000,
+    encoursEntreprises: 1_250_000, impayesAbonnements: 63_000,
+  },
+  serie: serieExec,
+  decisions: [
+    { id: 'tr-55', type: 'virement', libelle: 'Virement à approuver — Approvisionnement caisse (demandé par CFO)', montant: 2_500_000, priorite: 1, depuis: iso(90), section: 'treasury', reference: 'tr-55' },
+    { id: 'sec', type: 'securite', libelle: '2 tentative(s) d’accès non autorisé à signaler', priorite: 1, depuis: iso(140), section: 'security' },
+    { id: 'ndf-19', type: 'note_de_frais', libelle: 'Note de frais — Awa Koffi · deplacement', montant: 350_000, priorite: 2, depuis: iso(210), section: 'finance', reference: 'ndf-19' },
+    { id: 'imp', type: 'impaye', libelle: '1 facture(s) d’abonnement en échec de prélèvement', montant: 25_000, priorite: 3, depuis: iso(12000), section: 'subscriptions' },
+  ],
+  alertes: [
+    { id: 'impayes', gravite: 'attention', titre: 'Cotisations d’abonnement impayées', detail: '63 000 F non encaissés. Relancer ou suspendre.', section: 'subscriptions' },
+    { id: 'encours-b2b', gravite: 'info', titre: 'Encours des comptes entreprise', detail: '1 250 000 F consommés et non encore réglés.', section: 'b2b' },
+    { id: 'securite', gravite: 'attention', titre: 'Tentatives d’accès non autorisé', detail: '2 tentative(s) signalée(s) à la direction (DG, CFO, DAA).', section: 'security' },
+  ],
+  recentes: [
+    { at: iso(60), actor: 'Direction commerciale', role: 'cfo', action: 'rental.tarifs', details: { ecarts: { 'nio-es9.prixJour': { avant: 480000, apres: 525000 } } } },
+    { at: iso(300), actor: 'Super Admin', role: 'super_admin', action: 'pricing.update', details: { perKm: 290 } },
+    { at: iso(900), actor: 'Opérations', role: 'ops', action: 'dispatch.update', details: { radiusKm: 4 } },
+  ],
+  effectif: { employes: 13, chauffeurs: 96, chauffeursEnLigne: 58, clients: 2410, abonnes: 9 },
+  generatedAt: new Date().toISOString(),
+};
+
 const contacts: ContactUrgence[] = [
   { id: 'samu', label: 'SAMU', numero: '185', categorie: 'secours', ordre: 1, actif: true, note: 'Urgences médicales' },
   { id: 'police', label: 'Police secours', numero: '170', categorie: 'secours', ordre: 2, actif: true },
@@ -674,5 +736,5 @@ export const DEMO = {
   sos: alerts, sosPresets, sosDossier, security, supportStats, macros, triggers, reservations, csat, qualityTop, simulate,
   staffKpis, shifts, maintenance, squadPnl, fraud, elasticity, copilot,
   expiring, cashDebt, gateways, expenses, liquidity, amortization,
-  contacts, prestige, rentals, rentalDispos, rentalStats, rentalTarifs, subPlans, subscriptions, subInvoices, subStats,
+  contacts, executive, livre, prestige, rentals, rentalDispos, rentalStats, rentalTarifs, subPlans, subscriptions, subInvoices, subStats,
 };

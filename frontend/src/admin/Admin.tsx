@@ -6,7 +6,8 @@ import { ClientsSection, DispatchSection, DisputesSection, DriversSection, Foren
 import { RolesSection, SessionsSection, TeamsSection } from './sections/organisation';
 import { OverviewSection, SamuSection, SecuritySection, SosDrawer } from './sections/supervision';
 import { RentalSection, RentalTarifsSection, SubscriptionsSection } from './sections/location';
-import type { ActiveSession, Alert, Amortization, Announcement, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, ContactJournal, ContactUrgence, CopilotAnswer, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, RentalTarifEtat, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
+import { DirectionSection } from './sections/direction';
+import type { ActiveSession, Alert, Amortization, Announcement, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, ContactJournal, ContactUrgence, CopilotAnswer, ExecutiveBoard, MouvementPage, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, RentalTarifEtat, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
 import { ClientDrawer, DriverDrawer } from './ui';
 
 
@@ -128,9 +129,10 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'overview' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles';
+type Section = 'overview' | 'direction' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles';
 const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'overview', label: 'Vue d’ensemble', perm: 'overview:read', icon: '📊' },
+  { id: 'direction', label: 'Direction Générale', perm: 'executive:read', icon: '👑' },
   { id: 'alerts', label: 'Supervision SAMU', perm: 'alerts:read', icon: '🚨' },
   { id: 'support', label: 'Support & chat', perm: 'support:read', icon: '💬' },
   { id: 'notify', label: 'Notifications', perm: 'notify:read', icon: '📣' },
@@ -229,6 +231,12 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [subStats, setSubStats] = useState<SubStats | null>(null);
   const [rentalTarifs, setRentalTarifs] = useState<RentalTarifEtat | null>(null);
   const [contacts, setContacts] = useState<ContactUrgence[]>([]);
+  // Direction Générale (poste du PDG)
+  const [board, setBoard] = useState<ExecutiveBoard | null>(null);
+  const [livre, setLivre] = useState<MouvementPage | null>(null);
+  const [execJours, setExecJours] = useState(30);
+  const [livrePage, setLivrePage] = useState(1);
+  const [livreFiltre, setLivreFiltre] = useState<{ sens?: 'entree' | 'sortie'; categorie?: string }>({});
   /** Modale « accès refusé » : session verrouillée, tentative signalée à la direction. */
   const [denied, setDenied] = useState<string | null>(null);
   /** Bandeau d'erreur serveur (opération refusée ou indisponible) — non bloquant. */
@@ -270,6 +278,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setRentals(DEMO.rentals); setPrestige(DEMO.prestige); setRentalStats(DEMO.rentalStats); setRentalDispos(DEMO.rentalDispos);
     setSubPlans(DEMO.subPlans); setSubscriptions(DEMO.subscriptions); setSubInvoices(DEMO.subInvoices); setSubStats(DEMO.subStats);
     setRentalTarifs(DEMO.rentalTarifs); setContacts(DEMO.contacts as ContactUrgence[]);
+    setBoard(DEMO.executive as ExecutiveBoard); setLivre(DEMO.livre as MouvementPage);
     setLive(false);
   }, [statsDays, ridesPage, driversPage, clientsPage]);
 
@@ -287,6 +296,13 @@ function Console({ onLogout }: { onLogout: () => void }) {
       }
       if (has('security:read')) setSecurity((await adminGet<{ attempts: SecurityAttempt[] }>('/admin/security-alerts')).attempts);
       if (has('alerts:read')) setContacts((await adminGet<{ contacts: ContactUrgence[] }>('/admin/contacts')).contacts);
+      if (has('executive:read')) {
+        setBoard(await adminGet<ExecutiveBoard>(`/admin/executive?days=${execJours}`));
+        const q = new URLSearchParams({ days: String(execJours), page: String(livrePage) });
+        if (livreFiltre.sens) q.set('sens', livreFiltre.sens);
+        if (livreFiltre.categorie) q.set('categorie', livreFiltre.categorie);
+        setLivre(await adminGet<MouvementPage>(`/admin/executive/livre?${q.toString()}`));
+      }
       if (has('drivers:read')) {
         setFleet((await adminGet<{ fleet: FleetUnit[] }>('/admin/fleet/live')).fleet);
         const d = await adminGet<{ drivers: DriverRow[] } & PageMeta>(`/admin/drivers?page=${driversPage}&limit=${PAGE_SIZE}`);
@@ -355,7 +371,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
       }
       if (has('audit:read')) setAudit((await adminGet<{ entries: AuditEntry[] }>('/admin/audit')).entries);
     } catch { loadDemo(); }
-  }, [loadDemo, statsDays, ridesPage, driversPage, clientsPage]);
+  }, [loadDemo, statsDays, ridesPage, driversPage, clientsPage, execJours, livrePage, livreFiltre]);
 
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
@@ -1039,6 +1055,17 @@ function Console({ onLogout }: { onLogout: () => void }) {
           </div>
         </header>
 
+        {section === 'direction' && (
+          <DirectionSection
+            board={board} livre={livre} jours={execJours} canAct={can('treasury:approve')}
+            onJours={(j) => { setExecJours(j); setLivrePage(1); }}
+            onAller={(s) => setSection(s as Section)}
+            onPageLivre={setLivrePage}
+            onFiltreLivre={(f) => { setLivreFiltre(f); setLivrePage(1); }}
+            onExportCsv={() => void downloadCsv(`/admin/executive/livre.csv?days=${execJours}`, 'orion-grand-livre.csv', () => 'date;sens;categorie;libelle;montant_fcfa;en_caisse;contrepartie;reference;statut')}
+            onRapportPdf={() => void downloadFile(`/admin/executive/rapport.pdf?days=${execJours}`, 'orion-rapport-executif.pdf')}
+          />
+        )}
         {section === 'overview' && <OverviewSection ov={ov} fleet={fleet} openAlerts={openAlerts} stats={stats} statsDays={statsDays} onStatsDays={setStatsDays} />}
         {section === 'alerts' && (
           <SamuSection

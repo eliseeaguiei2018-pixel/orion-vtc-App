@@ -249,6 +249,40 @@ export interface RentalStats {
   total: number; parStatut: Record<string, number>; parFormule: Record<string, number>;
   chiffreAffaires: number; aVenir: number; tauxOccupation: number;
 }
+/* ------------------ Direction Générale (poste du PDG) ------------------ */
+export interface Mouvement {
+  id: string; at: string; sens: 'entree' | 'sortie'; categorie: string;
+  libelle: string; montant: number; reference?: string; contrepartie?: string;
+  statut?: string; enCaisse: boolean;
+}
+export interface MouvementPage {
+  mouvements: Mouvement[]; total: number; page: number; pages: number;
+  entrees: number; sorties: number;
+}
+export interface ConsolidationFinanciere {
+  currency: string; gmv: number; revenu: number; entrees: number; sorties: number; solde: number;
+  parCategorie: Record<string, { entrees: number; sorties: number; nombre: number }>;
+  mrr: number; tvaCollectee: number; dusChauffeurs: number;
+  especesChauffeurs: number; dettesEspeces: number;
+  encoursEntreprises: number; impayesAbonnements: number;
+}
+export interface DecisionEnAttente {
+  id: string; type: string; libelle: string; montant?: number;
+  priorite: number; depuis: string; section: string; reference?: string;
+}
+export interface AlerteDirection {
+  id: string; gravite: 'critique' | 'attention' | 'info'; titre: string; detail: string; section?: string;
+}
+export interface ExecutiveBoard {
+  consolidation: ConsolidationFinanciere;
+  serie: Array<{ date: string; entrees: number; sorties: number; solde: number }>;
+  decisions: DecisionEnAttente[];
+  alertes: AlerteDirection[];
+  recentes: Array<{ at: string; actor: string; role: string; action: string; details?: Record<string, unknown> }>;
+  effectif: { employes: number; chauffeurs: number; chauffeursEnLigne: number; clients: number; abonnes: number };
+  generatedAt: string;
+}
+
 /** Barème de location réglé depuis la console. */
 export interface RentalTarif {
   coefs: { journee: number; weekend: number; semaine: number; mois: number };

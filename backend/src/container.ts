@@ -37,6 +37,7 @@ import { CorporateService, type CorporateAccount } from './modules/corporate/ser
 import { SecurityAlertsService } from './modules/admin/security.js';
 import { ReservationService, type Reservation } from './modules/reservations/service.js';
 import { StaffService } from './modules/staff/service.js';
+import { ExecutiveService } from './modules/executive/service.js';
 import { ExpenseService, type ExpenseTicket } from './modules/expenses/service.js';
 import type { Ride } from './modules/rides/store.js';
 import type { LedgerEntry } from './modules/wallet/service.js';
@@ -91,6 +92,8 @@ export interface Container {
   staff: StaffService;
   /** Notes de frais & avances (self-service + validation CFO). */
   expenses: ExpenseService;
+  /** Direction générale : consolidation de TOUS les flux financiers (poste du PDG). */
+  executive: ExecutiveService;
 }
 
 export function createContainer(): Container {
@@ -199,7 +202,7 @@ export function createContainer(): Container {
   // Portefeuille client (séparé du wallet chauffeur) : remboursements ORION Assurance.
   const clientWallet = new WalletService(createRepository<LedgerEntry>('client_wallet'));
 
-  return {
+  const container: Container = {
     geo,
     idempotency: new IdempotencyStore(),
     registry,
@@ -245,7 +248,13 @@ export function createContainer(): Container {
     reservations: new ReservationService(createRepository<Reservation>('reservations')),
     staff: new StaffService(createRepository('staff_shifts'), createRepository('staff_tickets')),
     expenses: new ExpenseService(createRepository<ExpenseTicket>('expenses')),
+    // Renseigné juste après : la consolidation a besoin du conteneur complet.
+    executive: undefined as unknown as ExecutiveService,
   };
+  // La direction générale ne stocke rien, elle lit les autres modules. On la câble
+  // après coup pour qu'elle voie l'intégralité du conteneur.
+  container.executive = new ExecutiveService(container);
+  return container;
 }
 
 /**

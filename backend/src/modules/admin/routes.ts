@@ -2018,6 +2018,124 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       return { sent: silent.length, code: promo.id, announcement: a };
     });
 
+    /* ======================= DIRECTION GÉNÉRALE (PDG) ======================= */
+
+    /**
+     * Cellule CSV sûre : on neutralise les séparateurs ET les débuts de formule.
+     * Un libellé commençant par « = » exécuterait du code à l'ouverture du tableur.
+     */
+    const csvCell = (v: unknown): string => {
+      let t = String(v ?? '').replace(/[";\n\r]/g, ' ');
+      if (/^[=+\-@]/.test(t)) t = `'${t}`;
+      return t;
+    };
+
+    /**
+     * Tableau de bord du PDG : consolidation financière, pouls quotidien de la
+     * trésorerie, décisions qui l'attendent, alertes et décisions récentes des
+     * directeurs. Un seul appel — on ouvre sa session et on voit tout.
+     */
+    scoped.get('/admin/executive', async (req) => {
+      require(req, 'executive:read');
+      const q = parse(z.object({ days: z.coerce.number().int().min(1).max(365).optional() }), req.query);
+      return container.executive.tableauDeBord(q.days ?? 30);
+    });
+
+    /** GRAND LIVRE : chaque entrée et chaque sortie d'argent, filtrable. */
+    scoped.get('/admin/executive/livre', async (req) => {
+      require(req, 'executive:read');
+      const q = parse(
+        z.object({
+          days: z.coerce.number().int().min(1).max(365).optional(),
+          sens: z.enum(['entree', 'sortie']).optional(),
+          categorie: z.string().max(40).optional(),
+          page: z.coerce.number().int().min(1).optional(),
+          limit: z.coerce.number().int().min(1).max(200).optional(),
+        }),
+        req.query,
+      );
+      const tout = container.executive.grandLivre({
+        depuisJours: q.days ?? 30,
+        sens: q.sens,
+        categorie: q.categorie as never,
+      });
+      const limit = q.limit ?? 50;
+      const page = Math.max(1, q.page ?? 1);
+      return {
+        mouvements: tout.slice((page - 1) * limit, page * limit),
+        total: tout.length,
+        page,
+        pages: Math.max(1, Math.ceil(tout.length / limit)),
+        // Totaux sur l'ENSEMBLE du filtre, pas sur la page affichée : une page de
+        // tableau ne doit jamais donner une fausse idée du total.
+        entrees: tout.filter((x) => x.sens === 'entree' && x.enCaisse).reduce((n, x) => n + x.montant, 0),
+        sorties: tout.filter((x) => x.sens === 'sortie').reduce((n, x) => n + x.montant, 0),
+      };
+    });
+
+    /** Export comptable du grand livre (tableur / expert-comptable). */
+    scoped.get('/admin/executive/livre.csv', async (req, reply) => {
+      require(req, 'executive:read');
+      const q = parse(z.object({ days: z.coerce.number().int().min(1).max(365).optional() }), req.query);
+      const lignes = container.executive.grandLivre({ depuisJours: q.days ?? 90 });
+      const entete = 'date;sens;categorie;libelle;montant_fcfa;en_caisse;contrepartie;reference;statut';
+      const corps = lignes.map((m) => [
+        m.at, m.sens, m.categorie, csvCell(m.libelle), String(m.montant),
+        m.enCaisse ? 'oui' : 'non', csvCell(m.contrepartie ?? ''), csvCell(m.reference ?? ''), csvCell(m.statut ?? ''),
+      ].join(';'));
+      audit(req, 'executive.export', undefined, { lignes: lignes.length });
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header('content-disposition', 'attachment; filename="orion-grand-livre.csv"');
+      return [entete, ...corps].join('\n');
+    });
+
+    /** Rapport exécutif PDF — ce que le PDG emporte en conseil d'administration. */
+    scoped.get('/admin/executive/rapport.pdf', async (req, reply) => {
+      require(req, 'executive:read');
+      const q = parse(z.object({ days: z.coerce.number().int().min(1).max(365).optional() }), req.query);
+      const jours = q.days ?? 30;
+      const t = container.executive.tableauDeBord(jours);
+      const c = t.consolidation;
+      const { simplePdf } = await import('../../core/pdf.js');
+      const f = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} F`;
+      const lignes = [
+        'ORION — RAPPORT EXÉCUTIF (DIRECTION GÉNÉRALE)',
+        `Période : ${jours} derniers jours · émis le ${new Date().toLocaleString('fr-FR')}`,
+        '',
+        '— FLUX FINANCIERS —',
+        `Volume d'affaires (GMV) : ${f(c.gmv)}`,
+        `Revenu ORION : ${f(c.revenu)}`,
+        `Entrées en caisse : ${f(c.entrees)}`,
+        `Sorties de caisse : ${f(c.sorties)}`,
+        `Solde de la période : ${f(c.solde)}`,
+        '',
+        '— HORS CAISSE —',
+        `Espèces encaissées par les chauffeurs : ${f(c.especesChauffeurs)}`,
+        `Commissions dues sur ces espèces : ${f(c.dettesEspeces)}`,
+        `Sommes dues aux chauffeurs : ${f(c.dusChauffeurs)}`,
+        `Encours comptes entreprise : ${f(c.encoursEntreprises)}`,
+        `TVA collectée (à reverser) : ${f(c.tvaCollectee)}`,
+        '',
+        '— ABONNEMENTS —',
+        `Revenu récurrent mensuel : ${f(c.mrr)}`,
+        `Cotisations impayées : ${f(c.impayesAbonnements)}`,
+        '',
+        `— DÉCISIONS EN ATTENTE (${t.decisions.length}) —`,
+        ...t.decisions.slice(0, 12).map((d) => `• ${d.libelle}${d.montant ? ` — ${f(d.montant)}` : ''}`),
+        '',
+        `— ALERTES (${t.alertes.length}) —`,
+        ...t.alertes.map((a) => `• [${a.gravite.toUpperCase()}] ${a.titre} — ${a.detail}`),
+        '',
+        '— EFFECTIF —',
+        `Employés console : ${t.effectif.employes} · Chauffeurs : ${t.effectif.chauffeurs} (${t.effectif.chauffeursEnLigne} en ligne)`,
+        `Clients : ${t.effectif.clients} · Abonnés actifs : ${t.effectif.abonnes}`,
+      ];
+      audit(req, 'executive.rapport', undefined, { jours });
+      reply.header('content-type', 'application/pdf');
+      reply.header('content-disposition', 'attachment; filename="orion-rapport-executif.pdf"');
+      return simplePdf(lignes);
+    });
+
     /* ------------------- LOCATION SIGNATURE (événements, entreprises) ------------------- */
 
     /** Tableau de bord Location : demandes, flotte Signature et indicateurs. */

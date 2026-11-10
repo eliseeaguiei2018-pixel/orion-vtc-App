@@ -366,3 +366,7 @@ html[data-adm-theme='dark'] .samu-room .adm-card { background: #0a0d0b; }
 .adm-contact.joint { border-color: var(--a-green2); }
 .adm-contact-id { display: flex; flex-direction: column; gap: 1px; min-width: 0; font-size: 12.5px; }
 .adm-contact-id strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Courbe de trésorerie (Direction Générale) : tracé continu, pas des barres. */
+.adm-courbe { width: 100%; padding: 6px 0 2px; }
+.adm-courbe svg { display: block; overflow: visible; }

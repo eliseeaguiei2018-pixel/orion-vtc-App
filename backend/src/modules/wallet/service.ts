@@ -97,6 +97,16 @@ export class WalletService {
   }
 
   /** Total des commissions prélevées (reporting plateforme). */
+  /**
+   * TOUTES les écritures, tous chauffeurs confondus — consolidation financière de la
+   * direction. Le détail par chauffeur reste `history()`.
+   */
+  allEntries(): LedgerEntry[] {
+    const out: LedgerEntry[] = [];
+    for (const list of this.ledger.values()) out.push(...list);
+    return out.sort((a, b) => b.at.localeCompare(a.at));
+  }
+
   history(driverId: string): LedgerEntry[] {
     return [...(this.ledger.get(driverId) ?? [])].sort((a, b) => b.at.localeCompare(a.at));
   }
