@@ -201,3 +201,45 @@ export interface ClientDetail {
   spent: number; greenPoints?: number; recentRides: DetailRide[]; conversations: { id: string; subject: string; status: string; messages: number }[];
 }
 
+
+/* --------------- Location Signature & abonnements (sessions console) --------------- */
+export interface PrestigeUnit {
+  id: string; name: string; marque: string; classe: 'signature' | 'presidentielle';
+  places: number; prixJour: number; autonomieKm: number; atouts: string[]; exemplaires: number;
+}
+export interface RentalAvailabilityRow {
+  vehicleId: string; total: number; reserves: number; restants: number; disponible: boolean; delaiMinutes: number;
+}
+export interface RentalRow {
+  id: string; userId: string; formula: string; duree: string; heures?: number;
+  vehicle: { id: string; name: string; classe: 'signature' | 'presidentielle'; places: number };
+  debut: string; fin: string; total: number; caution: number; jourJ: boolean;
+  status: string; driverId?: string; lieu?: string;
+  options: { cortege: number; hotesses: number; decoration: boolean; escorte: boolean };
+  breakdown: { vehicule: number; cortege: number; options: number; majorationJourJ: number; remiseAbonnement: number; ht: number; tva: number };
+  contact?: { nom: string; telephone: string; email?: string };
+  societe?: { nom: string; bonCommande?: string; contribuable?: string };
+  events: { type: string; at: string; note?: string }[];
+  createdAt: string;
+}
+export interface RentalStats {
+  total: number; parStatut: Record<string, number>; parFormule: Record<string, number>;
+  chiffreAffaires: number; aVenir: number; tauxOccupation: number;
+}
+export interface SubPlanRow {
+  id: string; label: string; ridesPerDay: number; monthlyPrice: number; perRideCap: number;
+  tiers: string[]; remiseHorsQuota: number; remiseLocation: number; benefits: string[]; accent: string;
+}
+export interface SubscriptionRow {
+  id: string; userId: string; plan: string; startedAt: string; renewsAt: string;
+  ridesPerDay: number; usedToday: number; active: boolean; autoRenew: boolean;
+  totalCouvert: number; coursesCouvertes: number; cancelledAt?: string; cancelReason?: string;
+}
+export interface SubInvoiceRow {
+  id: string; userId: string; plan: string; amount: number; periodeDebut: string; periodeFin: string;
+  status: string; method?: string; reference?: string; emiseLe: string; payeeLe?: string; motifEchec?: string;
+}
+export interface SubStats {
+  total: number; actifs: number; parPlan: Record<string, number>; mrr: number;
+  impayees: number; montantImpaye: number; totalCouvert: number; coursesCouvertes: number;
+}

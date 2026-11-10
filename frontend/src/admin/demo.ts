@@ -1,4 +1,8 @@
-import type { Overview, Alert, FleetUnit, RideRow, DriverRow, Client, DriverDetail, ClientDetail } from './types';
+import type {
+  Overview, Alert, FleetUnit, RideRow, DriverRow, Client, DriverDetail, ClientDetail,
+  PrestigeUnit, RentalAvailabilityRow, RentalRow, RentalStats, SubInvoiceRow, SubPlanRow,
+  SubStats, SubscriptionRow,
+} from './types';
 
 /** Jeu de données de démonstration (console autonome, sans backend). */
 const iso = (minAgo: number) => new Date(Date.now() - minAgo * 60000).toISOString();
@@ -541,6 +545,100 @@ function clientDetail(id: string, rows: Client[]): ClientDetail {
   };
 }
 
+/* --------- Location Signature & abonnements (démo) --------- */
+const dans = (jours: number, h = 10) => {
+  const d = new Date(Date.now() + jours * 86400000);
+  d.setHours(h, 0, 0, 0);
+  return d.toISOString();
+};
+
+const prestige: PrestigeUnit[] = [
+  { id: 'maextro-s800', name: 'Huawei Maextro S800', marque: 'Huawei', classe: 'presidentielle', places: 3, prixJour: 900000, autonomieKm: 700, exemplaires: 2, atouts: ['Limousine présidentielle', 'Sièges arrière à inclinaison totale'] },
+  { id: 'yangwang-altior', name: 'BYD Yangwang Altior', marque: 'BYD', classe: 'presidentielle', places: 4, prixJour: 780000, autonomieKm: 650, exemplaires: 2, atouts: ['Suspension active', 'Finitions sur mesure'] },
+  { id: 'aito-m9', name: 'Huawei AITO M9', marque: 'Huawei', classe: 'signature', places: 6, prixJour: 520000, autonomieKm: 630, exemplaires: 4, atouts: ['Grand SUV 6 places', 'Toit panoramique'] },
+  { id: 'nio-es9', name: 'NIO ES9', marque: 'NIO', classe: 'signature', places: 5, prixJour: 480000, autonomieKm: 640, exemplaires: 4, atouts: ['SUV haut de gamme', 'Salon arrière'] },
+  { id: 'nio-et9', name: 'NIO ET9', marque: 'NIO', classe: 'signature', places: 4, prixJour: 460000, autonomieKm: 620, exemplaires: 3, atouts: ['Berline exécutive', 'Suspension pilotée'] },
+  { id: 'stelato-s9', name: 'Huawei Stelato S9', marque: 'Huawei', classe: 'signature', places: 4, prixJour: 440000, autonomieKm: 600, exemplaires: 3, atouts: ['Berline de prestige', 'Intérieur cuir clair'] },
+  { id: 'zeekr-8x', name: 'Zeekr 8X', marque: 'Zeekr', classe: 'signature', places: 6, prixJour: 420000, autonomieKm: 580, exemplaires: 3, atouts: ['SUV 6 places', 'Coffre généreux'] },
+];
+
+const rentals: RentalRow[] = [
+  {
+    id: 'LOC-4F2A', userId: 'client-mariage-1', formula: 'evenement', duree: 'journee',
+    vehicle: { id: 'aito-m9', name: 'Huawei AITO M9', classe: 'signature', places: 6 },
+    debut: dans(4, 9), fin: dans(5, 9), total: 1_480_500, caution: 211_500, jourJ: false,
+    status: 'confirmee', driverId: 'd7', lieu: 'Cathédrale Saint-Paul, Plateau',
+    options: { cortege: 2, hotesses: 2, decoration: true, escorte: false },
+    breakdown: { vehicule: 520_000, cortege: 884_000, options: 155_000, majorationJourJ: 0, remiseAbonnement: 0, ht: 1_409_000, tva: 70_450 },
+    contact: { nom: 'Famille Kouassi', telephone: '+2250102030405' },
+    events: [{ type: 'reservee', at: iso(2880) }, { type: 'confirmee', at: iso(1440), note: 'acompte reçu' }],
+    createdAt: iso(2880),
+  },
+  {
+    id: 'LOC-91C7', userId: 'institution-1', formula: 'entreprise', duree: 'semaine',
+    vehicle: { id: 'maextro-s800', name: 'Huawei Maextro S800', classe: 'presidentielle', places: 3 },
+    debut: dans(9, 8), fin: dans(16, 8), total: 5_197_500, caution: 742_500, jourJ: false,
+    status: 'reservee', lieu: 'Aéroport Félix-Houphouët-Boigny',
+    options: { cortege: 0, hotesses: 0, decoration: false, escorte: true },
+    breakdown: { vehicule: 4_950_000, cortege: 0, options: 120_000, majorationJourJ: 0, remiseAbonnement: 0, ht: 4_950_000, tva: 247_500 },
+    societe: { nom: 'Ambassade du Ghana', bonCommande: 'BC-7741', contribuable: 'CI-2026-00881' },
+    contact: { nom: 'Service du protocole', telephone: '+2250708091011' },
+    events: [{ type: 'reservee', at: iso(300) }],
+    createdAt: iso(300),
+  },
+  {
+    id: 'LOC-C083', userId: 'client-9120', formula: 'mise_a_disposition', duree: 'heures', heures: 6,
+    vehicle: { id: 'nio-es9', name: 'NIO ES9', classe: 'signature', places: 5 },
+    debut: dans(0, new Date().getHours() + 1), fin: dans(0, new Date().getHours() + 7), total: 541_632, caution: 77_376, jourJ: true,
+    status: 'en_cours', driverId: 'd8', lieu: 'Hôtel Ivoire, Cocody',
+    options: { cortege: 0, hotesses: 0, decoration: false, escorte: false },
+    breakdown: { vehicule: 489_600, cortege: 0, options: 0, majorationJourJ: 58_752, remiseAbonnement: 54_835, ht: 515_840, tva: 25_792 },
+    contact: { nom: 'M. Diallo', telephone: '+2250506070809' },
+    events: [{ type: 'reservee', at: iso(120) }, { type: 'confirmee', at: iso(100) }, { type: 'en_cours', at: iso(40) }],
+    createdAt: iso(120),
+  },
+];
+
+const rentalDispos: RentalAvailabilityRow[] = prestige.map((v) => {
+  const engages = rentals
+    .filter((r) => r.vehicle.id === v.id && r.status !== 'annulee' && r.status !== 'terminee')
+    .reduce((n, r) => n + 1 + r.options.cortege, 0);
+  const restants = Math.max(0, v.exemplaires - engages);
+  return { vehicleId: v.id, total: v.exemplaires, reserves: engages, restants, disponible: restants > 0, delaiMinutes: restants > 0 ? 25 + Math.round((engages / v.exemplaires) * 20) : 0 };
+});
+
+const rentalStats: RentalStats = {
+  total: rentals.length,
+  parStatut: { reservee: 1, confirmee: 1, en_cours: 1 },
+  parFormule: { evenement: 1, entreprise: 1, mise_a_disposition: 1 },
+  chiffreAffaires: rentals.reduce((n, r) => n + r.total, 0),
+  aVenir: 2,
+  tauxOccupation: 7 / 21,
+};
+
+const subPlans: SubPlanRow[] = [
+  { id: 'bronze', label: 'Pack Bronze', ridesPerDay: 2, monthlyPrice: 25000, perRideCap: 2500, tiers: ['bronze', 'argent'], remiseHorsQuota: 0, remiseLocation: 0, accent: '#cd7f4d', benefits: ['2 courses incluses / jour', 'Niveaux Bronze & Argent'] },
+  { id: 'argent', label: 'Pack Argent', ridesPerDay: 3, monthlyPrice: 38000, perRideCap: 3500, tiers: ['bronze', 'argent', 'or'], remiseHorsQuota: 0.1, remiseLocation: 0.05, accent: '#c8d2dc', benefits: ['3 courses incluses / jour', 'Niveaux jusqu’à Or', '-10 % au-delà du quota'] },
+  { id: 'gold', label: 'Pack Gold', ridesPerDay: 4, monthlyPrice: 55000, perRideCap: 5000, tiers: ['bronze', 'argent', 'or', 'diamant'], remiseHorsQuota: 0.15, remiseLocation: 0.1, accent: '#f5c451', benefits: ['4 courses incluses / jour', 'Tous les niveaux', '-15 % au-delà du quota', 'Annulation gratuite'] },
+];
+
+const subscriptions: SubscriptionRow[] = [
+  { id: 's1', userId: 'client-8842', plan: 'gold', startedAt: iso(14400), renewsAt: dans(16), ridesPerDay: 4, usedToday: 2, active: true, autoRenew: true, totalCouvert: 184_000, coursesCouvertes: 41 },
+  { id: 's2', userId: 'client-9120', plan: 'argent', startedAt: iso(28800), renewsAt: dans(9), ridesPerDay: 3, usedToday: 3, active: true, autoRenew: true, totalCouvert: 96_500, coursesCouvertes: 29 },
+  { id: 's3', userId: 'client-7731', plan: 'bronze', startedAt: iso(50000), renewsAt: dans(-2), ridesPerDay: 2, usedToday: 0, active: false, autoRenew: false, totalCouvert: 42_000, coursesCouvertes: 18 },
+];
+
+const subInvoices: SubInvoiceRow[] = [
+  { id: 'F-10A4', userId: 'client-8842', plan: 'gold', amount: 55000, periodeDebut: iso(14400), periodeFin: dans(16), status: 'payee', method: 'wave', reference: 'WAVE-88213', emiseLe: iso(14400), payeeLe: iso(14380) },
+  { id: 'F-10B9', userId: 'client-9120', plan: 'argent', amount: 38000, periodeDebut: iso(28800), periodeFin: dans(9), status: 'en_attente', method: 'orange_money', emiseLe: iso(480) },
+  { id: 'F-10C1', userId: 'client-7731', plan: 'bronze', amount: 25000, periodeDebut: iso(50000), periodeFin: dans(-2), status: 'echouee', method: 'mtn_momo', emiseLe: iso(12000), motifEchec: 'Solde insuffisant chez l’opérateur' },
+];
+
+const subStats: SubStats = {
+  total: subscriptions.length, actifs: 2, parPlan: { gold: 1, argent: 1, bronze: 1 }, mrr: 93000,
+  impayees: 2, montantImpaye: 63000, totalCouvert: 322_500, coursesCouvertes: 88,
+};
+
 export const DEMO = {
   overview, stats, alerts, fleet, rides, drivers, pricing, zones, me, clients, promos, services, support, audit,
   finance, broadcasts, treasury, sessions, search, driverDetail, clientDetail, ops, quality, disputes, rideForensic,
@@ -548,4 +646,5 @@ export const DEMO = {
   sos: alerts, sosPresets, sosDossier, security, supportStats, macros, triggers, reservations, csat, qualityTop, simulate,
   staffKpis, shifts, maintenance, squadPnl, fraud, elasticity, copilot,
   expiring, cashDebt, gateways, expenses, liquidity, amortization,
+  prestige, rentals, rentalDispos, rentalStats, subPlans, subscriptions, subInvoices, subStats,
 };

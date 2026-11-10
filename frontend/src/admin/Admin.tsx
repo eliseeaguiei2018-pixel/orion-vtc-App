@@ -5,7 +5,8 @@ import { AuditSection, CorporateSection, FinanceSection, GlobalSearch, GreenSect
 import { ClientsSection, DispatchSection, DisputesSection, DriversSection, ForensicDrawer, QualitySection, ReservationsCard, RidesSection } from './sections/operations';
 import { RolesSection, SessionsSection, TeamsSection } from './sections/organisation';
 import { OverviewSection, SamuSection, SecuritySection, SosDrawer } from './sections/supervision';
-import type { ActiveSession, Alert, Amortization, Announcement, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, CopilotAnswer, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, Promo, QualityRow, QualityTop, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
+import { RentalSection, SubscriptionsSection } from './sections/location';
+import type { ActiveSession, Alert, Amortization, Announcement, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, CopilotAnswer, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
 import { ClientDrawer, DriverDrawer } from './ui';
 
 
@@ -127,7 +128,7 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'overview' | 'alerts' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles';
+type Section = 'overview' | 'alerts' | 'rental' | 'subscriptions' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles';
 const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'overview', label: 'Vue d’ensemble', perm: 'overview:read', icon: '📊' },
   { id: 'alerts', label: 'Supervision SAMU', perm: 'alerts:read', icon: '🚨' },
@@ -140,6 +141,8 @@ const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'teams', label: 'Équipes', perm: 'teams:read', icon: '🧑‍🤝‍🧑' },
   { id: 'intel', label: 'Intelligence', perm: 'rides:read', icon: '🧠' },
   { id: 'b2b', label: 'Entreprises (B2B)', perm: 'finance:read', icon: '🏢' },
+  { id: 'rental', label: 'Location Signature', perm: 'rental:read', icon: '💎' },
+  { id: 'subscriptions', label: 'Abonnements', perm: 'rental:read', icon: '🎫' },
   { id: 'disputes', label: 'Litiges', perm: 'support:read', icon: '⚖️' },
   { id: 'drivers', label: 'Chauffeurs', perm: 'drivers:read', icon: '🧑‍✈️' },
   { id: 'clients', label: 'Clients', perm: 'clients:read', icon: '👥' },
@@ -214,6 +217,15 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [expenses, setExpenses] = useState<ExpenseTicket[]>([]);
   const [liquidity, setLiquidity] = useState<Liquidity | null>(null);
   const [amortization, setAmortization] = useState<Amortization | null>(null);
+  // Location Signature & abonnements ORION
+  const [rentals, setRentals] = useState<RentalRow[]>([]);
+  const [prestige, setPrestige] = useState<PrestigeUnit[]>([]);
+  const [rentalStats, setRentalStats] = useState<RentalStats | null>(null);
+  const [rentalDispos, setRentalDispos] = useState<RentalAvailabilityRow[]>([]);
+  const [subPlans, setSubPlans] = useState<SubPlanRow[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
+  const [subInvoices, setSubInvoices] = useState<SubInvoiceRow[]>([]);
+  const [subStats, setSubStats] = useState<SubStats | null>(null);
   /** Modale « accès refusé » : session verrouillée, tentative signalée à la direction. */
   const [denied, setDenied] = useState<string | null>(null);
   /** Bandeau d'erreur serveur (opération refusée ou indisponible) — non bloquant. */
@@ -252,6 +264,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setTeams(DEMO.teams as Team[]);
     setPredict(DEMO.predict); setConversion(DEMO.conversion); setChurn(DEMO.churn);
     setCorporate(DEMO.corporate as CorporateAccount[]);
+    setRentals(DEMO.rentals); setPrestige(DEMO.prestige); setRentalStats(DEMO.rentalStats); setRentalDispos(DEMO.rentalDispos);
+    setSubPlans(DEMO.subPlans); setSubscriptions(DEMO.subscriptions); setSubInvoices(DEMO.subInvoices); setSubStats(DEMO.subStats);
     setLive(false);
   }, [statsDays, ridesPage, driversPage, clientsPage]);
 
@@ -327,6 +341,12 @@ function Console({ onLogout }: { onLogout: () => void }) {
       if (has('rides:read')) setReservations((await adminGet<{ reservations: Reservation[] }>('/admin/reservations')).reservations);
       if (has('support:read')) setDisputes((await adminGet<{ disputes: Dispute[] }>('/admin/disputes')).disputes);
       if (has('notify:read')) setBroadcasts((await adminGet<{ announcements: Announcement[] }>('/admin/broadcasts')).announcements);
+      if (has('rental:read')) {
+        const loc = await adminGet<{ reservations: RentalRow[]; fleet: PrestigeUnit[]; stats: RentalStats; disponibilites: RentalAvailabilityRow[] }>('/admin/rental');
+        setRentals(loc.reservations); setPrestige(loc.fleet); setRentalStats(loc.stats); setRentalDispos(loc.disponibilites);
+        const abo = await adminGet<{ plans: SubPlanRow[]; subscriptions: SubscriptionRow[]; invoices: SubInvoiceRow[]; stats: SubStats }>('/admin/subscriptions');
+        setSubPlans(abo.plans); setSubscriptions(abo.subscriptions); setSubInvoices(abo.invoices); setSubStats(abo.stats);
+      }
       if (has('audit:read')) setAudit((await adminGet<{ entries: AuditEntry[] }>('/admin/audit')).entries);
     } catch { loadDemo(); }
   }, [loadDemo, statsDays, ridesPage, driversPage, clientsPage]);
@@ -543,6 +563,35 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const cancelReservation = async (id: string) => {
     if (LIVE && !(await safePost(`/admin/reservations/${id}/cancel`))) return;
     setReservations((xs) => xs.map((r) => (r.id === id ? { ...r, status: 'annulee' } : r)));
+  };
+
+  /* ---------------- Location Signature & abonnements ---------------- */
+  // Chaque écriture passe par safePost : si le serveur refuse, l'affichage N'EST PAS
+  // modifié. Une location affichée « confirmée » alors que le serveur l'a refusée
+  // laisserait un client sans véhicule le jour de son mariage.
+  const assignRental = async (id: string, driverId: string) => {
+    if (LIVE && !(await safePost(`/admin/rental/${id}/assign`, { driverId }))) return;
+    setRentals((xs) => xs.map((r) => (r.id === id ? { ...r, driverId } : r)));
+  };
+  const setRentalStatus = async (id: string, status: string, note?: string) => {
+    if (LIVE && !(await safePost(`/admin/rental/${id}/status`, { status, note }))) return;
+    setRentals((xs) => xs.map((r) => (r.id === id ? { ...r, status } : r)));
+  };
+  const cancelRental = async (id: string, raison?: string) => {
+    if (LIVE && !(await safePost(`/admin/rental/${id}/annuler`, { raison }))) return;
+    setRentals((xs) => xs.map((r) => (r.id === id ? { ...r, status: 'annulee' } : r)));
+  };
+  const paySubInvoice = async (id: string) => {
+    if (LIVE && !(await safePost(`/admin/subscriptions/invoices/${id}/payer`, { method: 'cash' }))) return;
+    setSubInvoices((xs) => xs.map((f) => (f.id === id ? { ...f, status: 'payee', payeeLe: new Date().toISOString() } : f)));
+  };
+  const runEcheances = async () => {
+    if (LIVE && !(await safePost('/admin/subscriptions/echeances'))) return;
+    void refresh();
+  };
+  const cancelSub = async (userId: string) => {
+    if (LIVE && !(await safePost(`/admin/subscriptions/${userId}/resilier`, {}))) return;
+    setSubscriptions((xs) => xs.map((x) => (x.userId === userId ? { ...x, active: false, cancelledAt: new Date().toISOString() } : x)));
   };
 
   // Programme VIP / Top Driver (priorité dispatch + commission réduite).
@@ -950,6 +999,21 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'zones' && <ZonesSection zones={zones} canWrite={can('pricing:write')} onSave={saveZone} onToggle={toggleZone} onDelete={deleteZone} onReset={resetZones} onMatrixCsv={() => void downloadCsv('/admin/zones/matrix.csv', 'orion-matrice-zones.csv', () => 'zone_depart,zone_arrivee,forfait_fcfa')} />}
         {section === 'promos' && <PromosSection promos={promos} canWrite={can('promos:write')} onSave={savePromo} onToggle={togglePromo} onDelete={deletePromo} />}
         {section === 'services' && services && <ServicesSection config={services} canWrite={can('services:write')} onSave={saveServices} />}
+        {section === 'rental' && (
+          <RentalSection
+            reservations={rentals} fleet={prestige} stats={rentalStats} dispos={rentalDispos} drivers={drivers}
+            canWrite={can('rental:write')}
+            onAssign={assignRental} onStatus={setRentalStatus} onCancel={cancelRental}
+            onBon={(id) => void downloadFile(`/admin/rental/${id}/bon.pdf`, `orion-location-${id}.pdf`)}
+          />
+        )}
+        {section === 'subscriptions' && (
+          <SubscriptionsSection
+            plans={subPlans} subscriptions={subscriptions} invoices={subInvoices} stats={subStats}
+            canWrite={can('rental:write')}
+            onPayInvoice={paySubInvoice} onEcheances={runEcheances} onResilier={cancelSub}
+          />
+        )}
         {section === 'audit' && <AuditSection entries={audit} />}
         {section === 'sessions' && <SessionsSection sessions={sessions} self={selfSession} canWrite={can('sessions:write')} onRevoke={revokeSess} />}
         {section === 'security' && <SecuritySection attempts={security} />}
