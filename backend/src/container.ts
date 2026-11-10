@@ -31,6 +31,7 @@ import { SupportService } from './modules/support/service.js';
 import { NotificationService } from './modules/notifications/service.js';
 import { AuditService } from './modules/admin/audit.js';
 import { TreasuryService, type Transfer } from './modules/treasury/service.js';
+import { CaisseService, type Caisse, type MouvementCaisse } from './modules/treasury/caisse.js';
 import { DisputeService, type Dispute } from './modules/disputes/service.js';
 import { DemandService } from './modules/rides/demand.js';
 import { TeamService, type Team } from './modules/teams/service.js';
@@ -101,6 +102,8 @@ export interface Container {
   accounts: StaffAccountService;
   /** Requêtes des chauffeurs : prêt, avance, congé, matériel, réclamation. */
   crewRequests: CrewRequestService;
+  /** Caisses nominatives : espèces reçues, comptage et arrêté par trésorier. */
+  caisses: CaisseService;
   /** Session Équipages : le dossier complet d'un chauffeur, agrégé. */
   crew: CrewService;
   /** Notes de frais & avances (self-service + validation CFO). */
@@ -279,6 +282,7 @@ export function createContainer(): Container {
     staff: new StaffService(createRepository('staff_shifts'), createRepository('staff_tickets')),
     accounts: comptes,
     crewRequests: requetesChauffeurs,
+    caisses: new CaisseService(createRepository<Caisse>('caisses'), createRepository<MouvementCaisse>('caisse_mouvements')),
     expenses: new ExpenseService(createRepository<ExpenseTicket>('expenses')),
     // Renseigné juste après : la consolidation a besoin du conteneur complet.
     executive: undefined as unknown as ExecutiveService,

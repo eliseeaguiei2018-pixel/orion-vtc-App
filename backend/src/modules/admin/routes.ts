@@ -17,6 +17,7 @@ import {
   estEcriture, newCsrfToken, parseCookies,
 } from './cookies.js';
 import { SOS_PRESETS } from '../safety/service.js';
+import { COUPURES, ECART_TOLERE, ORIGINE_LABEL, SORTIE_LABEL, totalComptage, type Comptage } from '../treasury/caisse.js';
 import { TYPE_LABEL as CREW_TYPE_LABEL, STATUT_LABEL as CREW_STATUT_LABEL, TYPES_FINANCIERS, PLAFOND_AVANCE, PLAFOND_PRET, MAX_ECHEANCES, type TypeRequete } from '../crew/requests.js';
 import { consoleForced, consoleReassigned } from '../driver-app/offers.js';
 
@@ -2550,6 +2551,197 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       const subscription = container.subscriptions.cancel(userId, body.raison);
       audit(req, 'subscription.cancel', userId, { raison: body.raison });
       return { subscription };
+    });
+
+    /* ======================= CAISSE NOMINATIVE (Trésorerie) =======================
+     *
+     * Une partie de l'argent d'ORION arrive en espèces, passe par les mains d'une
+     * personne, et se compte à la main en fin de journée. Tant que cette étape
+     * n'est pas outillée, elle se fait sur un cahier et le rapport financier ignore
+     * une part réelle des encaissements.
+     *
+     * La caisse est NOMINATIVE : personne ne touche celle d'une autre. La direction
+     * financière lit tout, mais n'encaisse ni n'arrête à la place de la titulaire.
+     */
+
+    const coupureSchema = z.object(
+      Object.fromEntries(COUPURES.map((c) => [String(c), z.number().int().min(0).max(100_000).optional()])),
+    );
+
+    /** Seule la titulaire manipule sa caisse. Lecture possible pour l'encadrement. */
+    const assertMaCaisse = (req: FastifyRequest, caisseId: string): void => {
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const caisse = container.caisses.get(caisseId);
+      if (!caisse) throw notFound('Caisse introuvable');
+      if (caisse.titulaire !== account.username) {
+        throw forbidden('Cette caisse est tenue par une autre personne — on ne compte pas l’argent d’autrui.');
+      }
+    };
+
+    scoped.get('/admin/caisses', async (req) => {
+      require(req, 'caisse:read');
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const q = parse(z.object({
+        titulaire: z.string().max(60).optional(),
+        statut: z.enum(['ouverte', 'arretee']).optional(),
+        jours: z.coerce.number().int().min(1).max(365).optional(),
+      }), req.query ?? {});
+
+      // Une trésorière voit SES caisses ; la direction financière voit tout le monde.
+      const toutVoir = can(account.role, 'finance:read') && account.role !== 'tresorier';
+      const caisses = container.caisses.list({
+        titulaire: toutVoir ? q.titulaire : account.username,
+        statut: q.statut,
+      });
+      const maCaisse = account.username ? container.caisses.caisseOuverteDe(account.username) : undefined;
+      return {
+        caisses,
+        /** La caisse ouverte du compte connecté, avec son journal : son poste de travail. */
+        maCaisse: maCaisse ? container.caisses.etat(maCaisse.id) : null,
+        consolidation: can(account.role, 'finance:read') ? container.caisses.consolidation(q.jours ?? 30) : null,
+        referentiel: {
+          coupures: COUPURES,
+          ecartTolere: ECART_TOLERE,
+          origines: ORIGINE_LABEL,
+          sorties: SORTIE_LABEL,
+        },
+      };
+    });
+
+    scoped.get('/admin/caisses/:id', async (req) => {
+      require(req, 'caisse:read');
+      const { id } = req.params as { id: string };
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const etat = container.caisses.etat(id);
+      if (!etat) throw notFound('Caisse introuvable');
+      // La titulaire, ou quelqu'un qui a le droit de lire les comptes de l'entreprise.
+      if (etat.titulaire !== account.username && !can(account.role, 'finance:read')) {
+        throw forbidden('Caisse tenue par une autre personne.');
+      }
+      return { caisse: etat };
+    });
+
+    scoped.post('/admin/caisses', async (req, reply) => {
+      require(req, 'caisse:write');
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      if (!account.username) throw forbidden('Une caisse est nominative : connectez-vous avec votre compte.');
+      const body = parse(z.object({
+        fondDeCaisse: z.number().min(0).max(50_000_000),
+        emplacement: z.string().max(80).optional(),
+      }), req.body);
+      const res = container.caisses.ouvrir({
+        titulaire: account.username, titulaireNom: account.name,
+        fondDeCaisse: body.fondDeCaisse, emplacement: body.emplacement,
+      });
+      if (res === 'deja_ouverte') {
+        reply.code(409);
+        return { error: 'Vous avez déjà une caisse ouverte — arrêtez-la avant d’en ouvrir une autre.' };
+      }
+      audit(req, 'caisse.ouvrir', res.id, { fondDeCaisse: body.fondDeCaisse });
+      return { caisse: container.caisses.etat(res.id) };
+    });
+
+    scoped.post('/admin/caisses/:id/encaisser', async (req, reply) => {
+      require(req, 'caisse:write');
+      const { id } = req.params as { id: string };
+      assertMaCaisse(req, id);
+      const body = parse(z.object({
+        montant: z.number().positive().max(50_000_000),
+        origine: z.enum(['commission_chauffeur', 'location', 'abonnement', 'reliquat_note_frais', 'remboursement_pret', 'autre']),
+        tiers: z.string().max(100).optional(),
+        reference: z.string().max(80).optional(),
+        note: z.string().max(300).optional(),
+      }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const res = container.caisses.encaisser(id, { ...body, par: account.name });
+      if (res === 'caisse_fermee') { reply.code(409); return { error: 'Caisse déjà arrêtée.' }; }
+      if (!res) throw notFound('Caisse introuvable');
+      audit(req, 'caisse.encaisser', id, { montant: body.montant, origine: body.origine });
+      return { mouvement: res, caisse: container.caisses.etat(id) };
+    });
+
+    scoped.post('/admin/caisses/:id/decaisser', async (req, reply) => {
+      require(req, 'caisse:write');
+      const { id } = req.params as { id: string };
+      assertMaCaisse(req, id);
+      const body = parse(z.object({
+        montant: z.number().positive().max(50_000_000),
+        sortie: z.enum(['versement_banque', 'avance_chauffeur', 'depense', 'transfert_caisse']),
+        tiers: z.string().max(100).optional(),
+        reference: z.string().max(80).optional(),
+        note: z.string().max(300).optional(),
+      }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const res = container.caisses.decaisser(id, { ...body, par: account.name });
+      if (res === 'caisse_fermee') { reply.code(409); return { error: 'Caisse déjà arrêtée.' }; }
+      if (res === 'solde_insuffisant') {
+        reply.code(409);
+        return { error: 'Montant supérieur à ce que contient la caisse — vérifiez la saisie.' };
+      }
+      if (!res) throw notFound('Caisse introuvable');
+      audit(req, 'caisse.decaisser', id, { montant: body.montant, sortie: body.sortie });
+      return { mouvement: res, caisse: container.caisses.etat(id) };
+    });
+
+    /** Comptage à blanc : ce que donnerait l'arrêté, sans rien figer. */
+    scoped.post('/admin/caisses/:id/comptage', async (req) => {
+      require(req, 'caisse:write');
+      const { id } = req.params as { id: string };
+      assertMaCaisse(req, id);
+      const body = parse(z.object({ comptage: coupureSchema }), req.body);
+      const comptage = Object.fromEntries(
+        Object.entries(body.comptage).filter(([, v]) => v !== undefined).map(([k, v]) => [Number(k), v]),
+      ) as Comptage;
+      const compte = totalComptage(comptage);
+      const attendu = container.caisses.soldeTheorique(id);
+      return { montantCompte: compte, montantAttendu: attendu, ecart: compte - attendu, ecartTolere: ECART_TOLERE };
+    });
+
+    /** ARRÊTÉ : la trésorière déclare ce qu'elle a réellement compté. */
+    scoped.post('/admin/caisses/:id/arreter', async (req, reply) => {
+      require(req, 'caisse:write');
+      const { id } = req.params as { id: string };
+      assertMaCaisse(req, id);
+      const body = parse(z.object({
+        comptage: coupureSchema.optional(),
+        montantCompte: z.number().min(0).max(50_000_000).optional(),
+        motifEcart: z.string().max(400).optional(),
+        verseEnBanque: z.number().min(0).max(50_000_000).optional(),
+      }), req.body);
+      const comptage = body.comptage
+        ? Object.fromEntries(
+          Object.entries(body.comptage).filter(([, v]) => v !== undefined).map(([k, v]) => [Number(k), v]),
+        ) as Comptage
+        : undefined;
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const res = container.caisses.arreter(id, { ...body, comptage, par: account.name });
+      if (typeof res === 'string') {
+        reply.code(res === 'deja_arretee' ? 409 : 400);
+        const messages: Record<string, string> = {
+          deja_arretee: 'Cette caisse est déjà arrêtée.',
+          motif_requis: `Écart supérieur à ${ECART_TOLERE} F : un motif écrit est obligatoire. Un manquant sans explication n’est pas un arrêté.`,
+          rien_a_compter: 'Indiquez le comptage par coupures ou le montant compté.',
+        };
+        return { error: messages[res] };
+      }
+      if (res === null) throw notFound('Caisse introuvable');
+      audit(req, 'caisse.arreter', id, { ecart: res.ecart, verseEnBanque: res.verseEnBanque });
+      return { caisse: container.caisses.etat(id) };
+    });
+
+    /** Validation par un supérieur — un arrêté ne se valide pas tout seul. */
+    scoped.post('/admin/caisses/:id/valider', async (req, reply) => {
+      require(req, 'finance:write');
+      const { id } = req.params as { id: string };
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const res = container.caisses.valider(id, account.username ?? account.name);
+      if (res === 'non_arretee') { reply.code(409); return { error: 'Caisse encore ouverte : rien à valider.' }; }
+      if (res === 'auto_validation') {
+        throw forbidden('On ne valide pas son propre arrêté de caisse.');
+      }
+      if (res === null) throw notFound('Caisse introuvable');
+      audit(req, 'caisse.valider', id, { ecart: res.ecart });
+      return { caisse: container.caisses.etat(id) };
     });
 
     /* ============================= SESSION ÉQUIPAGES =============================

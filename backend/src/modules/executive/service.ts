@@ -78,6 +78,20 @@ export interface ConsolidationFinanciere {
   dettesEspeces: number;
   /** Encours client des comptes entreprise (facturé, pas encore réglé). */
   encoursEntreprises: number;
+  /**
+   * CAISSES ESPÈCES : ce que les trésorières ont réellement encaissé, compté et
+   * versé en banque. Sans cette ligne, une part réelle des encaissements d'ORION
+   * n'apparaissait nulle part dans les comptes — elle vivait sur un cahier.
+   */
+  caisses: {
+    ouvertes: number;
+    especesEnCaisse: number;
+    encaisse: number;
+    verseEnBanque: number;
+    /** Cumul des écarts constatés aux arrêtés. Négatif = manquants. */
+    ecartCumule: number;
+    arretesNonValides: number;
+  };
   /** Factures d'abonnement émises et non réglées. */
   impayesAbonnements: number;
 }
@@ -275,6 +289,7 @@ export class ExecutiveService {
     }
 
     const encoursEntreprises = this.c.corporate.list().reduce((n, a) => n + a.balanceUsed, 0);
+    const caisses = this.c.caisses.consolidation(depuisJours);
 
     return {
       currency: 'XOF',
@@ -291,6 +306,14 @@ export class ExecutiveService {
       especesChauffeurs,
       dettesEspeces,
       encoursEntreprises,
+      caisses: {
+        ouvertes: caisses.caissesOuvertes,
+        especesEnCaisse: caisses.especesEnCaisse,
+        encaisse: caisses.encaisseSurPeriode,
+        verseEnBanque: caisses.verseEnBanque,
+        ecartCumule: caisses.ecartCumule,
+        arretesNonValides: caisses.arretesNonValides,
+      },
       impayesAbonnements: subStats.montantImpaye,
     };
   }

@@ -227,6 +227,78 @@ export class VigilanceService {
       });
     }
 
+    /* ------------------------------- Caisses ------------------------------- */
+    // Une caisse laissée ouverte d'un jour sur l'autre n'est plus comptable de rien :
+    // on ne sait plus à quelle journée rattacher les espèces qu'elle contient.
+    const caissesDormantes = this.c.caisses.list({ statut: 'ouverte' }).filter(
+      (c) => now - Date.parse(c.ouverteLe) > 36 * 3_600_000,
+    );
+    if (caissesDormantes.length > 0) {
+      push({
+        id: 'caisse-non-arretee', severite: 'eleve', domaine: 'finance',
+        titre: 'Caisses ouvertes depuis plus de 36 h',
+        constat: `${caissesDormantes.length} caisse(s) jamais arrêtée(s) : ${caissesDormantes.map((c) => c.titulaireNom).join(', ')}.`,
+        consequence: 'Les espèces ne sont rattachées à aucune journée comptable, et l’écart éventuel devient introuvable.',
+        action: 'Demander l’arrêté de caisse aux titulaires concernés depuis la session Trésorerie.',
+        section: 'treasury', elements: caissesDormantes.map((c) => c.id),
+      });
+    }
+
+    const arretes = this.c.caisses.list({ statut: 'arretee' });
+    const manquants = arretes.filter((c) => (c.ecart ?? 0) < -500);
+    if (manquants.length > 0) {
+      const total = manquants.reduce((n, c) => n + Math.abs(c.ecart ?? 0), 0);
+      push({
+        id: 'caisse-manquants', severite: total > 50_000 ? 'eleve' : 'moyen', domaine: 'finance',
+        titre: 'Manquants constatés en caisse',
+        constat: `${manquants.length} arrêté(s) en manquant, pour ${total.toLocaleString('fr-FR')} F au total.`,
+        consequence: 'Un manquant répété chez la même personne n’est plus une erreur de comptage.',
+        action: 'Examiner les motifs saisis et rapprocher avec les mouvements de la journée.',
+        section: 'treasury', elements: manquants.map((c) => c.id),
+      });
+    }
+
+    const nonValides = arretes.filter((c) => !c.valideLe && now - Date.parse(c.arreteeLe ?? c.ouverteLe) > 3 * JOUR);
+    if (nonValides.length > 0) {
+      push({
+        id: 'arretes-non-valides', severite: 'moyen', domaine: 'finance',
+        titre: 'Arrêtés de caisse non validés depuis plus de 3 jours',
+        constat: `${nonValides.length} arrêté(s) attendent la validation d’un supérieur.`,
+        consequence: 'Sans contrôle de second niveau, la caisse n’est auditée par personne.',
+        action: 'Valider ou contester ces arrêtés depuis la session Trésorerie.',
+        section: 'treasury', elements: nonValides.map((c) => c.id),
+      });
+    }
+
+    /* ------------------------ Requêtes des chauffeurs ------------------------ */
+    const requetesOubliees = this.c.crewRequests.list({ statut: 'deposee' }).filter(
+      (r) => now - Date.parse(r.createdAt) > 5 * JOUR,
+    );
+    if (requetesOubliees.length > 0) {
+      push({
+        id: 'requetes-chauffeurs-dormantes', severite: 'moyen', domaine: 'client',
+        titre: 'Requêtes de chauffeurs sans réponse depuis plus de 5 jours',
+        constat: `${requetesOubliees.length} demande(s) déposée(s) et jamais instruite(s).`,
+        consequence: 'Un chauffeur sans réponse cesse de demander, puis cesse de faire confiance.',
+        action: 'Instruire ces requêtes depuis la session Équipages.',
+        section: 'crew', elements: requetesOubliees.map((r) => r.id),
+      });
+    }
+
+    const echeancesEnRetard = this.c.crewRequests.list({ statut: 'versee' }).filter(
+      (r) => r.plan?.some((e) => !e.payeeLe && Date.parse(e.dueDate) < now),
+    );
+    if (echeancesEnRetard.length > 0) {
+      push({
+        id: 'prets-en-retard', severite: 'moyen', domaine: 'finance',
+        titre: 'Échéances de prêt chauffeur en retard',
+        constat: `${echeancesEnRetard.length} prêt(s) avec au moins une échéance dépassée.`,
+        consequence: 'Un encours qui ne rentre pas finit par être passé en perte.',
+        action: 'Régulariser avec les chauffeurs concernés depuis la session Équipages.',
+        section: 'crew', elements: echeancesEnRetard.map((r) => r.id),
+      });
+    }
+
     const litigesVieux = this.c.disputes.list().filter(
       (d) => (d.status === 'open' || d.status === 'investigating') && now - Date.parse(d.createdAt) > 7 * JOUR,
     );
