@@ -104,6 +104,9 @@ export const STATUT_LABEL: Record<StatutRequete, string> = {
   refusee: 'Refusée', versee: 'Versée', cloturee: 'Clôturée',
 };
 
+/** Une requête prête à l'affichage : les codes internes sont déjà traduits. */
+export type RequeteAffichable = RequeteChauffeur & { typeLabel: string; statutLabel: string };
+
 /** Types qui engagent de l'argent et passent donc par la trésorerie. */
 export const TYPES_FINANCIERS: TypeRequete[] = ['pret', 'avance', 'reparation', 'materiel'];
 
@@ -290,12 +293,20 @@ export class CrewRequestService {
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
   }
 
-  /** Ce qui attend un geste : le chef instruit, la finance décide, la caisse verse. */
-  enAttente(): { aInstruire: RequeteChauffeur[]; aDecider: RequeteChauffeur[]; aVerser: RequeteChauffeur[] } {
+  /**
+   * Ce qui attend un geste : le chef instruit, la finance décide, la caisse verse.
+   * Les libellés sont joints : sans eux, la file de triage n'affiche pas le TYPE
+   * de la demande, et l'on ne distingue plus un prêt d'une demande de congé.
+   */
+  enAttente(): {
+    aInstruire: RequeteAffichable[]; aDecider: RequeteAffichable[]; aVerser: RequeteAffichable[];
+  } {
+    const habiller = (r: RequeteChauffeur): RequeteAffichable =>
+      ({ ...r, typeLabel: TYPE_LABEL[r.type], statutLabel: STATUT_LABEL[r.statut] });
     return {
-      aInstruire: this.list({ statut: 'deposee' }),
-      aDecider: this.list({ statut: 'instruite' }),
-      aVerser: this.list({ statut: 'accordee' }).filter((r) => TYPES_FINANCIERS.includes(r.type)),
+      aInstruire: this.list({ statut: 'deposee' }).map(habiller),
+      aDecider: this.list({ statut: 'instruite' }).map(habiller),
+      aVerser: this.list({ statut: 'accordee' }).filter((r) => TYPES_FINANCIERS.includes(r.type)).map(habiller),
     };
   }
 

@@ -63,7 +63,7 @@ export function TelematiqueSection({ suivi, onRafraichir, onDeclarerVol, onImmob
                 <div className="row between" style={{ gap: 10, flexWrap: 'wrap' }}>
                   <span className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
                     <span className="adm-pill lvl-rouge">{v.statut === 'transmis' ? 'Transmis' : 'Déclaré'}</span>
-                    <strong>{v.vehiculeId}</strong>
+                    <strong>{v.vehiculeNom ?? v.vehiculeId}</strong>
                     <span className="adm-muted" style={{ fontSize: 12 }}>déclaré {depuis(v.declareLe)} par {v.declarePar}</span>
                   </span>
                   <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
@@ -191,7 +191,9 @@ function VehiculeLigne({ v, ouvert, onBasculer, motifs, vitesseCoupureMax, peutA
       <dl className="adm-constat-corps">
         <dt>Locataire</dt>
         <dd>
-          <strong>{v.locataire.nom}</strong>{v.locataire.societe ? ` · ${v.locataire.societe}` : ''}
+          {/* Ne pas répéter la raison sociale quand elle sert déjà de nom. */}
+          <strong>{v.locataire.nom}</strong>
+          {v.locataire.societe && v.locataire.societe !== v.locataire.nom ? ` · ${v.locataire.societe}` : ''}
           <br />
           {/* On doit pouvoir appeler le locataire sans aller le chercher ailleurs. */}
           {v.locataire.telephone

@@ -356,15 +356,18 @@ export function createContainer(): Container {
 export async function seedDemoDrivers(c: Container): Promise<void> {
   // Plusieurs chauffeurs par niveau (Bronze→Diamant) répartis dans Abidjan,
   // afin que chaque niveau de course trouve un véhicule disponible.
-  const seeds: Array<{ name: string; lat: number; lng: number; category: string }> = [
-    { name: 'Konan Yao', lat: 5.3258, lng: -4.0205, category: 'bronze' },
-    { name: 'Awa Diomandé', lat: 5.331, lng: -4.012, category: 'bronze' },
-    { name: 'Aïcha Touré', lat: 5.3585, lng: -3.989, category: 'argent' },
-    { name: 'Ismaël Cissé', lat: 5.347, lng: -3.999, category: 'argent' },
-    { name: 'Mamadou Bamba', lat: 5.3402, lng: -4.0095, category: 'or' },
-    { name: 'Grace Kouamé', lat: 5.353, lng: -3.995, category: 'or' },
-    { name: 'Fatou Koné', lat: 5.301, lng: -3.998, category: 'diamant' },
-    { name: 'Serge Gbagbo', lat: 5.3265, lng: -4.0185, category: 'diamant' },
+  // Un numéro par chauffeur : la console affiche des boutons d'appel, et une fiche
+  // sans téléphone donne un « n° inconnu » qui ne sert à personne — y compris en
+  // développement, où c'est précisément ce qu'on veut pouvoir vérifier.
+  const seeds: Array<{ name: string; lat: number; lng: number; category: string; phone: string }> = [
+    { name: 'Konan Yao', lat: 5.3258, lng: -4.0205, category: 'bronze', phone: '+2250701020304' },
+    { name: 'Awa Diomandé', lat: 5.331, lng: -4.012, category: 'bronze', phone: '+2250702030405' },
+    { name: 'Aïcha Touré', lat: 5.3585, lng: -3.989, category: 'argent', phone: '+2250703040506' },
+    { name: 'Ismaël Cissé', lat: 5.347, lng: -3.999, category: 'argent', phone: '+2250704050607' },
+    { name: 'Mamadou Bamba', lat: 5.3402, lng: -4.0095, category: 'or', phone: '+2250705060708' },
+    { name: 'Grace Kouamé', lat: 5.353, lng: -3.995, category: 'or', phone: '+2250706070809' },
+    { name: 'Fatou Koné', lat: 5.301, lng: -3.998, category: 'diamant', phone: '+2250707080910' },
+    { name: 'Serge Gbagbo', lat: 5.3265, lng: -4.0185, category: 'diamant', phone: '+2250708091011' },
   ];
   for (const s of seeds) {
     const d = c.drivers.upsert({
@@ -372,6 +375,7 @@ export async function seedDemoDrivers(c: Container): Promise<void> {
       name: s.name,
       matricule: genMatricule(),
       category: s.category,
+      phone: s.phone,
       kycStatus: 'active',
       availability: 'offline',
       ratingAvg: 4.9,

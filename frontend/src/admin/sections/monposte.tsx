@@ -23,6 +23,37 @@ const TYPE_META: Record<string, { icone: string; label: string }> = {
 
 const SLOT_LABEL: Record<string, string> = { matin: 'Matin', soir: 'Soir', nuit: 'Nuit' };
 
+/**
+ * Le journal stocke des codes techniques (`caisse.decaisser`). Les afficher tels
+ * quels à un employé revient à lui demander de lire le code source de son propre
+ * travail. On les traduit, et on garde le code en dernier recours pour ne jamais
+ * afficher une ligne vide.
+ */
+export const ACTION_LABEL: Record<string, string> = {
+  'login.success': 'Connexion', 'login.failed': 'Échec de connexion',
+  'account.password_changed': 'Changement de mot de passe',
+  'account.create': 'Création d’un compte', 'account.reset': 'Réinitialisation d’un mot de passe',
+  'account.disable': 'Désactivation d’un compte', 'account.enable': 'Réactivation d’un compte',
+  'caisse.ouvrir': 'Ouverture de caisse', 'caisse.encaisser': 'Encaissement en caisse',
+  'caisse.decaisser': 'Sortie de caisse', 'caisse.arreter': 'Arrêté de caisse',
+  'caisse.valider': 'Validation d’un arrêté',
+  'crew.request': 'Dépôt d’une requête chauffeur', 'crew.instruire': 'Avis sur une requête',
+  'crew.accord': 'Requête accordée', 'crew.refus': 'Requête refusée',
+  'crew.verser': 'Versement à un chauffeur', 'crew.rembourser': 'Remboursement enregistré',
+  'sos.claim': 'Prise en charge d’une alerte SOS', 'sos.close': 'Clôture d’une alerte SOS',
+  'support.reply': 'Réponse au support', 'rental.tarifs': 'Modification des tarifs de location',
+  'rental.position': 'Consultation de position véhicule', 'rental.vol': 'Déclaration de vol',
+  'rental.immobiliser.armer': 'Coupure moteur armée', 'rental.immobiliser.confirmer': 'Coupure moteur confirmée',
+  'rental.immobiliser.lever': 'Coupure moteur levée', 'rental.signalement': 'Fiche de signalement éditée',
+  'team.message': 'Message à un membre d’équipe', 'team.rapport.demande': 'Demande de rapport',
+  'rapport.rendre': 'Rapport rendu', 'rapport.accepte': 'Rapport accepté', 'rapport.a_revoir': 'Rapport renvoyé',
+  'message.repondre': 'Réponse à un message',
+  'expense.approve': 'Note de frais approuvée', 'expense.reject': 'Note de frais refusée',
+  'driver.kyc': 'Validation de dossier chauffeur', 'driver.warn': 'Avertissement chauffeur',
+  'team.upsert': 'Équipe créée ou modifiée', 'team.fleet': 'Flotte d’équipe modifiée',
+};
+export const actionLisible = (a: string) => ACTION_LABEL[a] ?? a.replace(/[._]/g, ' ');
+
 const SEV_CLS: Record<string, string> = { critique: 'lvl-rouge', eleve: 'lvl-orange', moyen: 'lvl-jaune', info: '' };
 /** Jamais de code brut à l'écran : « eleve » ne veut rien dire pour un employé. */
 const SEV_LABEL: Record<string, string> = { critique: 'Critique', eleve: 'Élevé', moyen: 'Moyen', info: 'Information' };
@@ -364,7 +395,7 @@ export function MonPosteSection({ poste, onAller, onLireMessage, onRepondre, onR
           <ul className="adm-conv-list">
             {poste.monActivite.map((a, i) => (
               <li key={i}>
-                <span className="mono">{a.action}{a.target ? ` · ${a.target.slice(0, 12)}` : ''}</span>
+                <span>{actionLisible(a.action)}</span>
                 <span className="adm-muted">{heure(a.at)}</span>
               </li>
             ))}

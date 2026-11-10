@@ -557,7 +557,7 @@ export interface PositionVehicule {
   contact: boolean; batteriePct?: number; autonomieKm?: number; zone?: string; at: string;
 }
 export interface Immobilisation {
-  id: string; vehiculeId: string; reservationId?: string;
+  id: string; vehiculeId: string; vehiculeNom?: string; reservationId?: string;
   motif: string; commentaire: string; etat: 'aucune' | 'armee' | 'appliquee' | 'levee';
   armeePar: string; armeeLe: string; confirmeePar?: string; confirmeeLe?: string;
   appliqueeLe?: string; positionApplication?: { lat: number; lng: number };
@@ -565,6 +565,8 @@ export interface Immobilisation {
 }
 export interface DeclarationVol {
   id: string; vehiculeId: string; reservationId: string;
+  /** Nom commercial résolu par le serveur : « Huawei AITO M9 », pas « aito-m9 ». */
+  vehiculeNom?: string;
   declarePar: string; declareLe: string; circonstances: string;
   dernierePosition?: PositionVehicule; referencePlainte?: string;
   transmisLe?: string; transmisPar?: string; transmisA?: string;

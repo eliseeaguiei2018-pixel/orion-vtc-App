@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ContactRapide, Kpi, availLabel } from '../ui';
+import { actionLisible } from './monposte';
 import type { ContactHandler, PosteEquipe } from '../types';
 
 /**
@@ -94,7 +95,7 @@ export function PosteEquipeSection({ poste, equipes, equipeId, onChoisir, onCont
                       <td>{m.service_du_jour ? <span className="adm-pill av-online">{SLOT[m.service_du_jour.slot] ?? m.service_du_jour.slot}{m.service_du_jour.zoneId ? ` · ${m.service_du_jour.zoneId}` : ''}</span> : <span className="adm-muted">—</span>}</td>
                       <td className="r">
                         {m.actionsAujourdhui}
-                        {m.derniereAction && <><br /><span className="adm-muted" style={{ fontSize: 11 }}>{m.derniereAction.action}</span></>}
+                        {m.derniereAction && <><br /><span className="adm-muted" style={{ fontSize: 11 }}>{actionLisible(m.derniereAction.action)}</span></>}
                       </td>
                       <td>
                         {m.rapportsEnRetard > 0

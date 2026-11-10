@@ -2613,10 +2613,16 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
           silencieux: !position || Date.now() - Date.parse(position.at) > 3_600_000,
         };
       });
+      // Le nom commercial, pas l'identifiant de flotte : « Huawei AITO M9 » se dicte
+      // au téléphone à un commissariat, « aito-m9 » non.
+      const nommer = (v: { vehiculeId: string }) => ({
+        ...v,
+        vehiculeNom: container.rentalSettings.vehicule(v.vehiculeId)?.name ?? v.vehiculeId,
+      });
       return {
         vehicules,
-        vols: container.telematique.vols_({ actifs: true }),
-        immobilisations: container.telematique.immobilisations_({ actives: true }),
+        vols: container.telematique.vols_({ actifs: true }).map(nommer),
+        immobilisations: container.telematique.immobilisations_({ actives: true }).map(nommer),
         vitesseCoupureMax: VITESSE_COUPURE_MAX,
         motifs: IMMO_MOTIF_LABEL,
       };
