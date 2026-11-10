@@ -13,6 +13,7 @@ import { WalletService } from './modules/wallet/service.js';
 import { SubscriptionService } from './modules/subscriptions/service.js';
 import { RentalService } from './modules/rental/service.js';
 import { RentalSettingsService, type RentalTarifRecord } from './modules/rental/settings.js';
+import { TelematiqueService, type Immobilisation, type DeclarationVol } from './modules/rental/telematique.js';
 import { WeddingService } from './modules/wedding/service.js';
 import { InsuranceService, type InsuranceContribution } from './modules/insurance/service.js';
 import { PaymentRegistry } from './modules/payments/providers.js';
@@ -83,6 +84,8 @@ export interface Container {
   rental: RentalService;
   /** Tarifs de location pilotés depuis la console (prix journée, stocks, barème). */
   rentalSettings: RentalSettingsService;
+  /** Boîtiers embarqués des véhicules Signature : position, vol, coupure moteur. */
+  telematique: TelematiqueService;
   settings: SettingsService;
   clients: ClientStore;
   promos: PromoService;
@@ -244,6 +247,13 @@ export function createContainer(): Container {
     createRepository<DemandeRapport>('staff_rapports'),
   );
 
+  // Télématique des véhicules de location : position, déclaration de vol,
+  // immobilisation moteur à distance.
+  const telematique = new TelematiqueService(
+    createRepository<Immobilisation>('rental_immobilisations'),
+    createRepository<DeclarationVol>('rental_vols'),
+  );
+
   const safety = new SafetyService(realtime);
   // Portefeuille client (séparé du wallet chauffeur) : remboursements ORION Assurance.
   const clientWallet = new WalletService(createRepository<LedgerEntry>('client_wallet'));
@@ -279,6 +289,7 @@ export function createContainer(): Container {
     wedding: new WeddingService(createRepository<WeddingReservation>('wedding')),
     rental: rentalService,
     rentalSettings,
+    telematique,
     settings,
     promos,
     clients: new ClientStore(createRepository<Client>('clients')),

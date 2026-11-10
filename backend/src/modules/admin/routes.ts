@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { parse } from '../../core/validate.js';
 import { notFound, unauthorized, forbidden } from '../../core/errors.js';
-import { driverRoom } from '../realtime/hub.js';
+import { driverRoom, CONFIG_ROOM } from '../realtime/hub.js';
 import { AdminService, paginate } from './service.js';
 import { can, resolveAccount, ROLE_PERMISSIONS, ROLE_LABEL, type AdminAccount, type Permission, type Role } from './roles.js';
 import {
@@ -17,6 +17,7 @@ import {
   estEcriture, newCsrfToken, parseCookies,
 } from './cookies.js';
 import { SOS_PRESETS } from '../safety/service.js';
+import { MOTIF_LABEL as IMMO_MOTIF_LABEL, VITESSE_COUPURE_MAX } from '../rental/telematique.js';
 import { COUPURES, ECART_TOLERE, ORIGINE_LABEL, SORTIE_LABEL, totalComptage, type Comptage } from '../treasury/caisse.js';
 import { TYPE_LABEL as CREW_TYPE_LABEL, STATUT_LABEL as CREW_STATUT_LABEL, TYPES_FINANCIERS, PLAFOND_AVANCE, PLAFOND_PRET, MAX_ECHEANCES, type TypeRequete } from '../crew/requests.js';
 import { consoleForced, consoleReassigned } from '../driver-app/offers.js';
@@ -2555,6 +2556,271 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       const subscription = container.subscriptions.cancel(userId, body.raison);
       audit(req, 'subscription.cancel', userId, { raison: body.raison });
       return { subscription };
+    });
+
+    /* =================== TÉLÉMATIQUE DES VÉHICULES DE LOCATION ===================
+     *
+     * Confier une voiture à 900 000 F la journée à quelqu'un qu'on a vu une fois,
+     * sans savoir où elle est, est un risque qu'aucun loueur sérieux ne prend.
+     *
+     * Mais on ne suit pas un client, on suit un VÉHICULE : la position n'est
+     * consultable que pendant une location active ou un vol déclaré, et chaque
+     * consultation est journalisée au nom de l'agent.
+     */
+
+    /** Locations en cours : hors de là, personne n'a à regarder où est la voiture. */
+    const locationActive = (vehiculeId: string) => container.rental.list()
+      .find((r) => r.vehicle.id === vehiculeId
+        && (r.status === 'en_cours' || r.status === 'confirmee')
+        && Date.parse(r.fin) > Date.now() - 86_400_000);
+
+    scoped.get('/admin/rental/flotte/positions', async (req) => {
+      require(req, 'rental:read');
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const enCours = container.rental.list().filter((r) => r.status === 'en_cours' || r.status === 'confirmee');
+      const vehicules = enCours.map((r) => {
+        const position = container.telematique.position(r.vehicle.id, {
+          par: account.name, motif: 'Supervision de la flotte en location', reservationId: r.id,
+        });
+        const immo = container.telematique.immobilisationActive(r.vehicle.id);
+        const vol = container.telematique.volActif(r.vehicle.id);
+        return {
+          reservationId: r.id,
+          vehiculeId: r.vehicle.id,
+          vehiculeNom: r.vehicle.name,
+          statut: r.status,
+          debut: r.debut, fin: r.fin,
+          locataire: {
+            nom: r.contact?.nom ?? r.societe?.nom ?? r.userId,
+            telephone: r.contact?.telephone ?? null,
+            societe: r.societe?.nom ?? null,
+          },
+          chauffeurId: r.driverId ?? null,
+          position,
+          immobilisation: immo ? { id: immo.id, etat: immo.etat, motif: immo.motif, motifLabel: IMMO_MOTIF_LABEL[immo.motif] } : null,
+          vol: vol ? { id: vol.id, statut: vol.statut, declareLe: vol.declareLe } : null,
+          /** Vrai si le véhicule n'a rien remonté depuis plus d'une heure. */
+          silencieux: !position || Date.now() - Date.parse(position.at) > 3_600_000,
+        };
+      });
+      return {
+        vehicules,
+        vols: container.telematique.vols_({ actifs: true }),
+        immobilisations: container.telematique.immobilisations_({ actives: true }),
+        vitesseCoupureMax: VITESSE_COUPURE_MAX,
+        motifs: IMMO_MOTIF_LABEL,
+      };
+    });
+
+    /** Remontée du boîtier embarqué (ou de l'adaptateur constructeur). */
+    app.post('/rental/telematique/:vehiculeId', async (req) => {
+      const { vehiculeId } = req.params as { vehiculeId: string };
+      const body = parse(z.object({
+        lat: z.number().min(-90).max(90),
+        lng: z.number().min(-180).max(180),
+        vitesseKmh: z.number().min(0).max(400),
+        cap: z.number().min(0).max(360).optional(),
+        contact: z.boolean(),
+        batteriePct: z.number().min(0).max(100).optional(),
+        autonomieKm: z.number().min(0).max(2000).optional(),
+      }), req.body);
+      const zone = container.settings.zoneForPoint({ lat: body.lat, lng: body.lng })?.name;
+      const position = container.telematique.majPosition(vehiculeId, { ...body, zone });
+      container.realtime.publish(CONFIG_ROOM, 'rental.position', { vehiculeId, position });
+      return { position };
+    });
+
+    scoped.get('/admin/rental/vehicules/:vehiculeId/position', async (req) => {
+      require(req, 'rental:read');
+      const { vehiculeId } = req.params as { vehiculeId: string };
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const location = locationActive(vehiculeId);
+      const vol = container.telematique.volActif(vehiculeId);
+      // Hors location et hors vol, suivre un véhicule n'a aucun motif légitime.
+      if (!location && !vol) {
+        throw forbidden('Aucune location en cours ni vol déclaré sur ce véhicule : la position n’est pas consultable.');
+      }
+      const q = parse(z.object({ motif: z.string().max(140).optional() }), req.query ?? {});
+      const position = container.telematique.position(vehiculeId, {
+        par: account.name,
+        motif: q.motif ?? (vol ? 'Suivi d’un véhicule déclaré volé' : 'Suivi d’une location en cours'),
+        reservationId: location?.id,
+      });
+      audit(req, 'rental.position', vehiculeId, { motif: q.motif });
+      return { position, journal: container.telematique.journalAcces(vehiculeId).slice(0, 20) };
+    });
+
+    /* ------------------------------ Vol ------------------------------ */
+
+    scoped.post('/admin/rental/:id/vol', async (req, reply) => {
+      require(req, 'rental:write');
+      const { id } = req.params as { id: string };
+      const r = container.rental.get(id);
+      if (!r) throw notFound('Location introuvable');
+      const body = parse(z.object({ circonstances: z.string().min(10).max(1500) }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const vol = container.telematique.declarerVol({
+        vehiculeId: r.vehicle.id, reservationId: r.id,
+        circonstances: body.circonstances, par: account.name,
+      });
+      // Un vol concerne tout le monde : direction, sécurité, SAMU.
+      container.security.record({
+        username: account.username, name: account.name, role: account.role,
+        section: 'rental', path: `vol:${vol.id}`,
+      });
+      audit(req, 'rental.vol', vol.id, { vehiculeId: r.vehicle.id, reservationId: r.id });
+      reply.code(201);
+      return { vol, contactsPolice: container.contacts.list().filter((c) => c.categorie === 'secours') };
+    });
+
+    /**
+     * FICHE DE SIGNALEMENT pour les forces de l'ordre : tout ce dont un
+     * commissariat a besoin pour ouvrir une procédure, sur une seule page.
+     * Sans ce document, l'agent dicte au téléphone et se trompe d'immatriculation.
+     */
+    scoped.get('/admin/rental/vol/:volId/signalement.pdf', async (req, reply) => {
+      require(req, 'rental:read');
+      const { volId } = req.params as { volId: string };
+      const vol = container.telematique.getVol(volId);
+      if (!vol) throw notFound('Déclaration introuvable');
+      const r = container.rental.get(vol.reservationId);
+      const vehicule = container.rentalSettings.vehicule(vol.vehiculeId);
+      const position = container.telematique.positionBrute(vol.vehiculeId) ?? vol.dernierePosition;
+      const { simplePdf } = await import('../../core/pdf.js');
+
+      const lignes = [
+        'ORION COTE D IVOIRE — FICHE DE SIGNALEMENT DE VEHICULE',
+        'Document destine aux forces de l ordre (Police / Gendarmerie)',
+        '',
+        `Reference ORION : ${vol.id}`,
+        `Declare le : ${new Date(vol.declareLe).toLocaleString('fr-FR')}`,
+        `Declare par : ${vol.declarePar}`,
+        '',
+        '--- VEHICULE ---',
+        `Modele : ${vehicule?.name ?? vol.vehiculeId}`,
+        `Identifiant flotte : ${vol.vehiculeId}`,
+        `Energie : 100% electrique`,
+        '',
+        '--- DERNIERE POSITION CONNUE ---',
+        position
+          ? `Coordonnees : ${position.lat.toFixed(6)}, ${position.lng.toFixed(6)}`
+          : 'Aucune position remontee par le boitier.',
+        position ? `Zone : ${position.zone ?? 'non identifiee'}` : '',
+        position ? `Releve le : ${new Date(position.at).toLocaleString('fr-FR')}` : '',
+        position ? `Vitesse au releve : ${position.vitesseKmh} km/h — contact ${position.contact ? 'mis' : 'coupe'}` : '',
+        position ? `Lien cartographique : https://maps.google.com/?q=${position.lat},${position.lng}` : '',
+        '',
+        '--- LOCATAIRE ---',
+        `Nom : ${r?.contact?.nom ?? r?.societe?.nom ?? 'non renseigne'}`,
+        `Telephone : ${r?.contact?.telephone ?? 'non renseigne'}`,
+        `Societe : ${r?.societe?.nom ?? '—'}`,
+        `Numero contribuable : ${r?.societe?.contribuable ?? '—'}`,
+        `Identifiant client ORION : ${r?.userId ?? '—'}`,
+        '',
+        '--- CONTRAT DE LOCATION ---',
+        `Dossier : ${vol.reservationId}`,
+        r ? `Periode : du ${new Date(r.debut).toLocaleString('fr-FR')} au ${new Date(r.fin).toLocaleString('fr-FR')}` : '',
+        r ? `Lieu de prise en charge : ${r.lieu ?? 'non renseigne'}` : '',
+        r ? `Montant du contrat : ${r.total.toLocaleString('fr-FR')} F CFA` : '',
+        '',
+        '--- CIRCONSTANCES DECLAREES ---',
+        ...vol.circonstances.match(/.{1,78}/g) ?? [],
+        '',
+        '--- IMMOBILISATION A DISTANCE ---',
+        container.telematique.immobilisationActive(vol.vehiculeId)
+          ? 'Une immobilisation moteur est ARMEE sur ce vehicule. Elle s applique a l arret.'
+          : 'Aucune immobilisation armee a ce jour.',
+        '',
+        `Reference de plainte : ${vol.referencePlainte ?? '............................'}`,
+        '',
+        'ORION Cote d Ivoire — Abidjan. Document genere automatiquement.',
+      ].filter((l) => l !== '');
+
+      audit(req, 'rental.signalement', volId);
+      reply.header('content-type', 'application/pdf');
+      reply.header('content-disposition', `attachment; filename="signalement-${vol.id}.pdf"`);
+      return simplePdf(lignes);
+    });
+
+    scoped.post('/admin/rental/vol/:volId/transmis', async (req) => {
+      require(req, 'rental:write');
+      const { volId } = req.params as { volId: string };
+      const body = parse(z.object({
+        a: z.string().min(2).max(120),
+        referencePlainte: z.string().max(80).optional(),
+      }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const vol = container.telematique.marquerTransmis(volId, account.name, body.a, body.referencePlainte);
+      if (!vol) throw notFound('Déclaration introuvable');
+      audit(req, 'rental.vol.transmis', volId, { a: body.a, plainte: body.referencePlainte });
+      return { vol };
+    });
+
+    scoped.post('/admin/rental/vol/:volId/clore', async (req) => {
+      require(req, 'rental:write');
+      const { volId } = req.params as { volId: string };
+      const body = parse(z.object({ statut: z.enum(['retrouve', 'clos']), note: z.string().max(500).optional() }), req.body);
+      const vol = container.telematique.cloreVol(volId, body.statut, body.note);
+      if (!vol) throw notFound('Déclaration introuvable');
+      audit(req, 'rental.vol.clore', volId, { statut: body.statut });
+      return { vol };
+    });
+
+    /* ------------------------- Immobilisation moteur ------------------------- */
+
+    scoped.post('/admin/rental/vehicules/:vehiculeId/immobiliser', async (req, reply) => {
+      require(req, 'rental:write');
+      const { vehiculeId } = req.params as { vehiculeId: string };
+      const body = parse(z.object({
+        motif: z.enum(['vol', 'impaye', 'sortie_zone', 'fin_location', 'securite']),
+        commentaire: z.string().min(10).max(600),
+        reservationId: z.string().max(64).optional(),
+      }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const res = container.telematique.armer({ vehiculeId, ...body, par: account.name });
+      if (res === 'deja_armee') {
+        reply.code(409);
+        return { error: 'Une immobilisation est déjà en cours sur ce véhicule.' };
+      }
+      audit(req, 'rental.immobiliser.armer', res.id, { vehiculeId, motif: body.motif });
+      reply.code(201);
+      return {
+        immobilisation: res,
+        // On dit clairement ce qui va se passer : l'agent ne doit pas croire que
+        // le moteur vient de s'arrêter.
+        avertissement: `Ordre ARMÉ. Il doit être confirmé par une seconde personne, puis le boîtier l’appliquera lorsque le véhicule sera à l’arrêt (moins de ${VITESSE_COUPURE_MAX} km/h).`,
+      };
+    });
+
+    scoped.post('/admin/rental/immobilisations/:id/confirmer', async (req, reply) => {
+      require(req, 'rental:write');
+      const { id } = req.params as { id: string };
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const res = container.telematique.confirmer(id, account.name);
+      if (res === 'auto_confirmation') {
+        throw forbidden('Une immobilisation exige deux personnes : celui qui l’arme ne la confirme pas. Le client se retrouve à pied, parfois la nuit.');
+      }
+      if (res === 'deja_confirmee') { reply.code(409); return { error: 'Immobilisation déjà confirmée.' }; }
+      if (!res) throw notFound('Immobilisation introuvable');
+      audit(req, 'rental.immobiliser.confirmer', id, { etat: res.etat });
+      return {
+        immobilisation: res,
+        avertissement: res.etat === 'appliquee'
+          ? 'Véhicule à l’arrêt : la coupure est APPLIQUÉE.'
+          : `Confirmée. Le boîtier appliquera la coupure dès que le véhicule roulera à moins de ${VITESSE_COUPURE_MAX} km/h.`,
+      };
+    });
+
+    scoped.post('/admin/rental/immobilisations/:id/lever', async (req, reply) => {
+      require(req, 'rental:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ motif: z.string().min(3).max(300) }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const res = container.telematique.lever(id, account.name, body.motif);
+      if (res === 'non_active') { reply.code(409); return { error: 'Cette immobilisation n’est plus active.' }; }
+      if (!res) throw notFound('Immobilisation introuvable');
+      audit(req, 'rental.immobiliser.lever', id, { motif: body.motif });
+      return { immobilisation: res };
     });
 
     /* ==================== POSTE DE TRAVAIL DU CHEF D'ÉQUIPE ====================
