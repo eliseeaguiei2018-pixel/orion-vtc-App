@@ -7,7 +7,8 @@ import { RolesSection, SessionsSection, TeamsSection } from './sections/organisa
 import { OverviewSection, SamuSection, SecuritySection, SosDrawer } from './sections/supervision';
 import { RentalSection, RentalTarifsSection, SubscriptionsSection } from './sections/location';
 import { DirectionSection } from './sections/direction';
-import type { ActiveSession, Alert, Amortization, Announcement, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, ContactJournal, ContactUrgence, CopilotAnswer, ExecutiveBoard, MouvementPage, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, RentalTarifEtat, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
+import { VigilanceSection } from './sections/vigilance';
+import type { ActiveSession, Alert, Amortization, Announcement, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, ContactJournal, ContactUrgence, CopilotAnswer, ExecutiveBoard, MouvementPage, SanteVigilance, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, RentalTarifEtat, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
 import { ClientDrawer, DriverDrawer } from './ui';
 
 
@@ -129,10 +130,11 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'overview' | 'direction' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles';
+type Section = 'overview' | 'direction' | 'vigilance' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles';
 const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'overview', label: 'Vue d’ensemble', perm: 'overview:read', icon: '📊' },
   { id: 'direction', label: 'Direction Générale', perm: 'executive:read', icon: '👑' },
+  { id: 'vigilance', label: 'Vigilance ORION', perm: 'vigilance:read', icon: '🧭' },
   { id: 'alerts', label: 'Supervision SAMU', perm: 'alerts:read', icon: '🚨' },
   { id: 'support', label: 'Support & chat', perm: 'support:read', icon: '💬' },
   { id: 'notify', label: 'Notifications', perm: 'notify:read', icon: '📣' },
@@ -237,6 +239,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [execJours, setExecJours] = useState(30);
   const [livrePage, setLivrePage] = useState(1);
   const [livreFiltre, setLivreFiltre] = useState<{ sens?: 'entree' | 'sortie'; categorie?: string }>({});
+  const [vigilance, setVigilance] = useState<SanteVigilance | null>(null);
   /** Modale « accès refusé » : session verrouillée, tentative signalée à la direction. */
   const [denied, setDenied] = useState<string | null>(null);
   /** Bandeau d'erreur serveur (opération refusée ou indisponible) — non bloquant. */
@@ -279,6 +282,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setSubPlans(DEMO.subPlans); setSubscriptions(DEMO.subscriptions); setSubInvoices(DEMO.subInvoices); setSubStats(DEMO.subStats);
     setRentalTarifs(DEMO.rentalTarifs); setContacts(DEMO.contacts as ContactUrgence[]);
     setBoard(DEMO.executive as ExecutiveBoard); setLivre(DEMO.livre as MouvementPage);
+    setVigilance(DEMO.vigilance as SanteVigilance);
     setLive(false);
   }, [statsDays, ridesPage, driversPage, clientsPage]);
 
@@ -296,6 +300,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
       }
       if (has('security:read')) setSecurity((await adminGet<{ attempts: SecurityAttempt[] }>('/admin/security-alerts')).attempts);
       if (has('alerts:read')) setContacts((await adminGet<{ contacts: ContactUrgence[] }>('/admin/contacts')).contacts);
+      if (has('vigilance:read')) setVigilance(await adminGet<SanteVigilance>('/admin/vigilance'));
       if (has('executive:read')) {
         setBoard(await adminGet<ExecutiveBoard>(`/admin/executive?days=${execJours}`));
         const q = new URLSearchParams({ days: String(execJours), page: String(livrePage) });
@@ -1076,6 +1081,14 @@ function Console({ onLogout }: { onLogout: () => void }) {
             onFiltreLivre={(f) => { setLivreFiltre(f); setLivrePage(1); }}
             onExportCsv={() => void downloadCsv(`/admin/executive/livre.csv?days=${execJours}`, 'orion-grand-livre.csv', () => 'date;sens;categorie;libelle;montant_fcfa;en_caisse;contrepartie;reference;statut')}
             onRapportPdf={() => void downloadFile(`/admin/executive/rapport.pdf?days=${execJours}`, 'orion-rapport-executif.pdf')}
+          />
+        )}
+        {section === 'vigilance' && (
+          <VigilanceSection
+            sante={vigilance}
+            onAller={(s) => setSection(s as Section)}
+            onRafraichir={() => void refresh()}
+            onRapportPdf={() => void downloadFile('/admin/vigilance/rapport.pdf', 'orion-rapport-controle.pdf')}
           />
         )}
         {section === 'overview' && <OverviewSection ov={ov} fleet={fleet} openAlerts={openAlerts} stats={stats} statsDays={statsDays} onStatsDays={setStatsDays} />}

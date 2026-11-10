@@ -120,6 +120,22 @@ export function DirectionSection({ board, livre, jours, onJours, canAct, onAller
         )}
       </div>
 
+      {/* 1 bis. ÉTAT DU SYSTÈME — résultat du contrôle permanent. */}
+      {board.vigilance && (
+        <div className="adm-card">
+          <div className="adm-card-h">
+            <h3>État du système</h3>
+            <button className="adm-btn xs" onClick={() => onAller('vigilance')}>Ouvrir la session Vigilance</button>
+          </div>
+          <div className="adm-mini-kpis">
+            <div className="adm-mini-kpi"><span>Score de contrôle</span><strong>{board.vigilance.score} / 100</strong></div>
+            <div className="adm-mini-kpi"><span>État</span><strong style={{ color: board.vigilance.etat === 'critique' || board.vigilance.etat === 'degrade' ? '#ff6470' : 'var(--a-green2)' }}>{board.vigilance.etat}</strong></div>
+            <div className="adm-mini-kpi"><span>À traiter maintenant</span><strong>{board.vigilance.critiques}</strong></div>
+            <div className="adm-mini-kpi"><span>Dans la journée</span><strong>{board.vigilance.eleves}</strong></div>
+          </div>
+        </div>
+      )}
+
       {/* 2. ALERTES */}
       {board.alertes.length > 0 && (
         <div className="adm-card">

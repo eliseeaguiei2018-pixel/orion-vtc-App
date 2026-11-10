@@ -255,6 +255,21 @@ export interface RentalStats {
   total: number; parStatut: Record<string, number>; parFormule: Record<string, number>;
   chiffreAffaires: number; aVenir: number; tauxOccupation: number;
 }
+/* ----------------------- Moteur de vigilance ----------------------- */
+export type Severite = 'critique' | 'eleve' | 'moyen' | 'info';
+export interface Constat {
+  id: string; severite: Severite; domaine: string; titre: string;
+  constat: string; consequence: string; action: string; section: string;
+  elements?: string[]; detecteA: string;
+}
+export interface SanteVigilance {
+  score: number;
+  etat: 'sain' | 'surveiller' | 'degrade' | 'critique';
+  parSeverite: Record<Severite, number>;
+  parDomaine: Record<string, number>;
+  constats: Constat[];
+}
+
 /* ------------------ Direction Générale (poste du PDG) ------------------ */
 export interface Mouvement {
   id: string; at: string; sens: 'entree' | 'sortie'; categorie: string;
@@ -286,6 +301,8 @@ export interface ExecutiveBoard {
   alertes: AlerteDirection[];
   recentes: Array<{ at: string; actor: string; role: string; action: string; details?: Record<string, unknown> }>;
   effectif: { employes: number; chauffeurs: number; chauffeursEnLigne: number; clients: number; abonnes: number };
+  /** Résultat du moteur de vigilance, repris dans la session du PDG. */
+  vigilance?: { score: number; etat: string; critiques: number; eleves: number };
   generatedAt: string;
 }
 

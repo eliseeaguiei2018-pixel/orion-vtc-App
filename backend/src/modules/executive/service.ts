@@ -367,7 +367,7 @@ export class ExecutiveService {
   }
 
   /** Signaux à surveiller — formulés en clair, avec la section où agir. */
-  alertes(): AlerteDirection[] {
+  alertes(constatsCritiques: Array<{ titre: string; constat: string; section: string }> = []): AlerteDirection[] {
     const out: AlerteDirection[] = [];
     const cons = this.consolidation(30);
 
@@ -427,6 +427,11 @@ export class ExecutiveService {
       });
     }
 
+    // Les failles critiques relevées par le moteur de vigilance remontent jusqu'ici :
+    // le PDG n'a pas à ouvrir une autre session pour savoir que la plateforme est en danger.
+    for (const c of constatsCritiques) {
+      out.unshift({ id: `vigilance-${c.titre}`, gravite: 'critique', titre: c.titre, detail: c.constat, section: c.section });
+    }
     return out;
   }
 
@@ -443,23 +448,26 @@ export class ExecutiveService {
   }
 
   /** Tableau de bord complet du PDG, en un seul appel. */
-  tableauDeBord(jours = 30): {
+  async tableauDeBord(jours = 30): Promise<{
     consolidation: ConsolidationFinanciere;
     serie: ReturnType<ExecutiveService['serie']>;
     decisions: DecisionEnAttente[];
     alertes: AlerteDirection[];
     recentes: ReturnType<ExecutiveService['decisionsRecentes']>;
     effectif: { employes: number; chauffeurs: number; chauffeursEnLigne: number; clients: number; abonnes: number };
+    /** Résultat du moteur de vigilance : le PDG doit voir l'état réel du système. */
+    vigilance: { score: number; etat: string; critiques: number; eleves: number };
     generatedAt: string;
-  } {
+  }> {
     const drivers = this.c.drivers.list();
     // Effectif interne : les comptes de la console (employés ORION), pas les chauffeurs.
     const employes = adminUsers().length;
+    const sante = await this.c.vigilance.sante();
     return {
       consolidation: this.consolidation(jours),
       serie: this.serie(Math.min(jours, 90)),
       decisions: this.decisions(),
-      alertes: this.alertes(),
+      alertes: this.alertes(sante.constats.filter((c) => c.severite === 'critique')),
       recentes: this.decisionsRecentes(),
       effectif: {
         employes,
@@ -467,6 +475,10 @@ export class ExecutiveService {
         chauffeursEnLigne: drivers.filter((d) => d.availability === 'online' || d.availability === 'on_trip').length,
         clients: this.c.clients.list().length,
         abonnes: this.c.subscriptions.stats().actifs,
+      },
+      vigilance: {
+        score: sante.score, etat: sante.etat,
+        critiques: sante.parSeverite.critique, eleves: sante.parSeverite.eleve,
       },
       generatedAt: new Date().toISOString(),
     };

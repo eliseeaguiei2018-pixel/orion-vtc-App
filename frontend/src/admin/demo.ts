@@ -1,7 +1,7 @@
 import type {
   Overview, Alert, FleetUnit, RideRow, DriverRow, Client, DriverDetail, ClientDetail,
   PrestigeUnit, RentalAvailabilityRow, RentalRow, RentalStats, SubInvoiceRow, SubPlanRow,
-  ContactUrgence, ExecutiveBoard, MouvementPage, RentalTarifEtat, SubStats, SubscriptionRow,
+  ContactUrgence, ExecutiveBoard, MouvementPage, RentalTarifEtat, SanteVigilance, SubStats, SubscriptionRow,
 } from './types';
 
 /** Jeu de données de démonstration (console autonome, sans backend). */
@@ -636,6 +636,40 @@ const subInvoices: SubInvoiceRow[] = [
   { id: 'F-10C1', userId: 'client-7731', plan: 'bronze', amount: 25000, periodeDebut: iso(50000), periodeFin: dans(-2), status: 'echouee', method: 'mtn_momo', emiseLe: iso(12000), motifEchec: 'Solde insuffisant chez l’opérateur' },
 ];
 
+/* --------- Moteur de vigilance (démo) --------- */
+const vigilance: SanteVigilance = {
+  score: 63,
+  etat: 'critique',
+  parSeverite: { critique: 1, eleve: 1, moyen: 1, info: 0 },
+  parDomaine: { conformite: 1, exploitation: 1, finance: 1 },
+  constats: [
+    {
+      id: 'assurance-expiree', severite: 'critique', domaine: 'conformite',
+      titre: 'Des chauffeurs roulent avec une assurance expirée',
+      constat: '2 chauffeur(s) en service dont l’attestation d’assurance est périmée : ORION-CI-3391, ORION-CI-7788.',
+      consequence: 'En cas d’accident, ORION engage sa responsabilité et le passager n’est pas couvert.',
+      action: 'Suspendre ces chauffeurs jusqu’à présentation d’une attestation valide.',
+      section: 'drivers', elements: ['d4', 'd7'], detecteA: new Date().toISOString(),
+    },
+    {
+      id: 'location-sans-chauffeur', severite: 'eleve', domaine: 'exploitation',
+      titre: 'Location dans moins de 24 h sans chauffeur affecté',
+      constat: '1 dossier : LOC-C083 (NIO ES9).',
+      consequence: 'Un mariage ou une délégation sans chauffeur le jour J est un échec public, pas un incident interne.',
+      action: 'Affecter un chauffeur depuis la session Location Signature.',
+      section: 'rental', elements: ['LOC-C083'], detecteA: new Date().toISOString(),
+    },
+    {
+      id: 'abonnements-impayes', severite: 'moyen', domaine: 'finance',
+      titre: 'Prélèvements d’abonnement en échec',
+      constat: '1 facture(s) refusée(s) par l’opérateur, soit 25 000 F.',
+      consequence: 'L’abonné continue de profiter de ses avantages sans payer sa cotisation.',
+      action: 'Relancer le client, ou traiter les échéances pour suspendre après le délai de grâce.',
+      section: 'subscriptions', elements: ['F-10C1'], detecteA: new Date().toISOString(),
+    },
+  ],
+};
+
 /* --------- Direction Générale (démo) --------- */
 const serieExec = Array.from({ length: 30 }, (_, i) => {
   const date = new Date(Date.now() - (29 - i) * 86400000).toISOString().slice(0, 10);
@@ -695,6 +729,7 @@ const executive: ExecutiveBoard = {
     { at: iso(900), actor: 'Opérations', role: 'ops', action: 'dispatch.update', details: { radiusKm: 4 } },
   ],
   effectif: { employes: 13, chauffeurs: 96, chauffeursEnLigne: 58, clients: 2410, abonnes: 9 },
+  vigilance: { score: 63, etat: 'critique', critiques: 1, eleves: 1 },
   generatedAt: new Date().toISOString(),
 };
 
@@ -736,5 +771,5 @@ export const DEMO = {
   sos: alerts, sosPresets, sosDossier, security, supportStats, macros, triggers, reservations, csat, qualityTop, simulate,
   staffKpis, shifts, maintenance, squadPnl, fraud, elasticity, copilot,
   expiring, cashDebt, gateways, expenses, liquidity, amortization,
-  contacts, executive, livre, prestige, rentals, rentalDispos, rentalStats, rentalTarifs, subPlans, subscriptions, subInvoices, subStats,
+  contacts, executive, livre, vigilance, prestige, rentals, rentalDispos, rentalStats, rentalTarifs, subPlans, subscriptions, subInvoices, subStats,
 };

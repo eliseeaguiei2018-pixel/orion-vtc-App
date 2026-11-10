@@ -370,3 +370,17 @@ html[data-adm-theme='dark'] .samu-room .adm-card { background: #0a0d0b; }
 /* Courbe de trésorerie (Direction Générale) : tracé continu, pas des barres. */
 .adm-courbe { width: 100%; padding: 6px 0 2px; }
 .adm-courbe svg { display: block; overflow: visible; }
+
+/* Constat de vigilance : constat → conséquence → action, lisible d'un coup d'œil. */
+.adm-constat {
+  background: var(--a-panel2); border: 1px solid var(--a-stroke);
+  border-left-width: 3px; border-radius: 12px; padding: 12px 14px;
+}
+.adm-constat.critique { border-left-color: #ff4d5e; }
+.adm-constat.eleve { border-left-color: #ff9f43; }
+.adm-constat.moyen { border-left-color: #f5c451; }
+.adm-constat.info { border-left-color: var(--a-stroke); }
+.adm-constat-corps { display: grid; grid-template-columns: 110px 1fr; gap: 4px 12px; margin: 10px 0 8px; font-size: 13px; }
+.adm-constat-corps dt { color: var(--a-muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; padding-top: 2px; }
+.adm-constat-corps dd { margin: 0; color: var(--a-text); line-height: 1.5; }
+@media (max-width: 720px) { .adm-constat-corps { grid-template-columns: 1fr; gap: 2px; } }

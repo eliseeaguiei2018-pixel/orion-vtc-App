@@ -2083,6 +2083,55 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       return { sent: silent.length, code: promo.id, announcement: a };
     });
 
+    /* ========================= MOTEUR DE VIGILANCE ========================= */
+
+    /**
+     * Contrôle permanent de la plateforme. Chaque constat porte son chiffre, sa
+     * conséquence, l'action à mener et la session où la mener — pas une liste de
+     * voyants qu'il faudrait interpréter.
+     */
+    scoped.get('/admin/vigilance', async (req) => {
+      require(req, 'vigilance:read');
+      const q = parse(
+        z.object({
+          severite: z.enum(['critique', 'eleve', 'moyen', 'info']).optional(),
+          domaine: z.string().max(30).optional(),
+        }),
+        req.query,
+      );
+      const sante = await container.vigilance.sante();
+      const constats = sante.constats.filter(
+        (c) => (!q.severite || c.severite === q.severite) && (!q.domaine || c.domaine === q.domaine),
+      );
+      return { ...sante, constats };
+    });
+
+    /** Rapport de contrôle PDF — pièce de revue interne ou d'audit. */
+    scoped.get('/admin/vigilance/rapport.pdf', async (req, reply) => {
+      require(req, 'vigilance:read');
+      const sante = await container.vigilance.sante();
+      const { simplePdf } = await import('../../core/pdf.js');
+      const lignes = [
+        'ORION — RAPPORT DE CONTRÔLE (MOTEUR DE VIGILANCE)',
+        `Émis le ${new Date().toLocaleString('fr-FR')}`,
+        `État de la plateforme : ${sante.etat.toUpperCase()} · score ${sante.score}/100`,
+        `Constats : ${sante.parSeverite.critique} critique(s), ${sante.parSeverite.eleve} élevé(s), ${sante.parSeverite.moyen} moyen(s)`,
+        '',
+        ...sante.constats.flatMap((c) => [
+          `[${c.severite.toUpperCase()} · ${c.domaine}] ${c.titre}`,
+          `  Constat : ${c.constat}`,
+          `  Conséquence : ${c.consequence}`,
+          `  Action : ${c.action} (session « ${c.section} »)`,
+          '',
+        ]),
+        sante.constats.length === 0 ? 'Aucun constat : la plateforme est saine.' : '',
+      ].filter(Boolean);
+      audit(req, 'vigilance.rapport', undefined, { score: sante.score, constats: sante.constats.length });
+      reply.header('content-type', 'application/pdf');
+      reply.header('content-disposition', 'attachment; filename="orion-rapport-controle.pdf"');
+      return simplePdf(lignes);
+    });
+
     /* ======================= DIRECTION GÉNÉRALE (PDG) ======================= */
 
     /**
@@ -2159,7 +2208,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       require(req, 'executive:read');
       const q = parse(z.object({ days: z.coerce.number().int().min(1).max(365).optional() }), req.query);
       const jours = q.days ?? 30;
-      const t = container.executive.tableauDeBord(jours);
+      const t = await container.executive.tableauDeBord(jours);
       const c = t.consolidation;
       const { simplePdf } = await import('../../core/pdf.js');
       const f = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} F`;
