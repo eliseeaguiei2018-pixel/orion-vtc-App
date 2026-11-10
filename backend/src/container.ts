@@ -17,6 +17,7 @@ import { WeddingService } from './modules/wedding/service.js';
 import { InsuranceService, type InsuranceContribution } from './modules/insurance/service.js';
 import { PaymentRegistry } from './modules/payments/providers.js';
 import { SafetyService } from './modules/safety/service.js';
+import { EmergencyContactsService, type ContactJournalEntry } from './modules/safety/contacts.js';
 import { SettingsService, type PricingRecord } from './modules/settings/service.js';
 import { RealtimeHub, CONFIG_ROOM, DRIVER_CONFIG_ROOM, driverRoom } from './modules/realtime/hub.js';
 import { driverAppConfig } from './modules/driver-app/config.js';
@@ -58,6 +59,8 @@ export interface Container {
   payments: PaymentRegistry;
   safety: SafetyService;
   realtime: RealtimeHub;
+  /** Répertoire d'urgence + registre des contacts (poste SAMU). */
+  contacts: EmergencyContactsService;
   maps: MapsProvider;
   simulator: RideSimulator;
   wallet: WalletService;
@@ -206,6 +209,10 @@ export function createContainer(): Container {
     payments: new PaymentRegistry(),
     safety,
     realtime,
+    contacts: new EmergencyContactsService(
+      createRepository('contacts_urgence'),
+      createRepository<ContactJournalEntry>('contacts_journal'),
+    ),
     maps: createMapsProvider(),
     simulator: (() => {
       const sim = new RideSimulator(rides, realtime);

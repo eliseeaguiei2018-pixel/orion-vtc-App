@@ -1,7 +1,7 @@
 import type {
   Overview, Alert, FleetUnit, RideRow, DriverRow, Client, DriverDetail, ClientDetail,
   PrestigeUnit, RentalAvailabilityRow, RentalRow, RentalStats, SubInvoiceRow, SubPlanRow,
-  RentalTarifEtat, SubStats, SubscriptionRow,
+  ContactUrgence, RentalTarifEtat, SubStats, SubscriptionRow,
 } from './types';
 
 /** Jeu de données de démonstration (console autonome, sans backend). */
@@ -50,6 +50,8 @@ function sosDossier(id: string) {
     passenger: { id: a.userId, name: 'Awa Koffi', phone: '+225 07 08 09 10 11', phoneBatteryPct: 41, lastRides: [{ id: 'r1', status: 'rated', createdAt: iso(60) }, { id: 'r2', status: 'paid', createdAt: iso(300) }] },
     telemetry: { speedEstimateKmh: 54, points: trace.length, refreshSeconds: 1 },
     emergencyNumbers: { samu: '185', police: '170', pompiers: '180' },
+  contacts: contacts.filter((c) => c.actif).map((c) => ({ id: c.id, label: c.label, numero: c.numero, categorie: c.categorie, note: c.note ?? null })),
+  journalContacts: [],
   };
 }
 /** Alertes sécurité interne (tentatives d'accès non autorisé) — démo. */
@@ -634,6 +636,18 @@ const subInvoices: SubInvoiceRow[] = [
   { id: 'F-10C1', userId: 'client-7731', plan: 'bronze', amount: 25000, periodeDebut: iso(50000), periodeFin: dans(-2), status: 'echouee', method: 'mtn_momo', emiseLe: iso(12000), motifEchec: 'Solde insuffisant chez l’opérateur' },
 ];
 
+const contacts: ContactUrgence[] = [
+  { id: 'samu', label: 'SAMU', numero: '185', categorie: 'secours', ordre: 1, actif: true, note: 'Urgences médicales' },
+  { id: 'police', label: 'Police secours', numero: '170', categorie: 'secours', ordre: 2, actif: true },
+  { id: 'police-111', label: 'Police (ligne 111)', numero: '111', categorie: 'secours', ordre: 3, actif: true },
+  { id: 'pompiers', label: 'Sapeurs-pompiers (GSPM)', numero: '180', categorie: 'secours', ordre: 4, actif: true, note: 'Incendie, désincarcération' },
+  { id: 'astreinte-ops', label: 'Astreinte Opérations ORION', numero: '+2250700000001', categorie: 'interne', ordre: 10, actif: true, note: '24/7' },
+  { id: 'direction', label: 'Direction (DG)', numero: '+2250700000002', categorie: 'interne', ordre: 11, actif: true, note: 'Incident grave uniquement' },
+  { id: 'assurance', label: 'Assureur flotte', numero: '+2250700000003', categorie: 'partenaire', ordre: 20, actif: true, note: 'Déclaration de sinistre' },
+  { id: 'remorquage', label: 'Remorquage partenaire', numero: '+2250700000004', categorie: 'partenaire', ordre: 21, actif: true },
+  { id: 'garage', label: 'Garage électrique agréé', numero: '+2250700000005', categorie: 'partenaire', ordre: 22, actif: true, note: 'Véhicules haute tension' },
+];
+
 const rentalTarifs: RentalTarifEtat = {
   tarif: {
     coefs: { journee: 1, weekend: 1.8, semaine: 5.5, mois: 20 },
@@ -660,5 +674,5 @@ export const DEMO = {
   sos: alerts, sosPresets, sosDossier, security, supportStats, macros, triggers, reservations, csat, qualityTop, simulate,
   staffKpis, shifts, maintenance, squadPnl, fraud, elasticity, copilot,
   expiring, cashDebt, gateways, expenses, liquidity, amortization,
-  prestige, rentals, rentalDispos, rentalStats, rentalTarifs, subPlans, subscriptions, subInvoices, subStats,
+  contacts, prestige, rentals, rentalDispos, rentalStats, rentalTarifs, subPlans, subscriptions, subInvoices, subStats,
 };

@@ -28,6 +28,25 @@ export interface Alert {
   slaSeconds?: number;
 }
 export interface SosChat { from: 'agent' | 'usager'; author?: string; text: string; at: string }
+/** Une ligne joignable depuis le poste SAMU. */
+export interface ContactLigne {
+  id: string; label: string; numero: string;
+  categorie: 'secours' | 'interne' | 'partenaire' | 'course';
+  note?: string | null;
+}
+/** Une tentative de contact consignée. */
+export interface ContactJournal {
+  id: string; alertId: string; agent: string; contactId: string; label: string; numero: string;
+  canal: 'appel' | 'sms' | 'whatsapp';
+  issue: 'tentative' | 'joint' | 'non_joint' | 'messagerie';
+  message?: string; at: string;
+}
+/** Entrée du répertoire d'urgence (session Répertoire). */
+export interface ContactUrgence extends ContactLigne {
+  categorie: 'secours' | 'interne' | 'partenaire' | 'course';
+  ordre: number; actif: boolean;
+}
+
 export interface SosDossier {
   alert: Alert; presets: string[];
   ride: { id: string; status: string; origin: { lat: number; lng: number }; destination: { lat: number; lng: number }; trace: { lat: number; lng: number }[]; createdAt: string } | null;
@@ -36,6 +55,10 @@ export interface SosDossier {
   passenger: { id: string; name: string | null; phone: string | null; phoneBatteryPct: number; lastRides: { id: string; status: string; createdAt: string }[] };
   telemetry: { speedEstimateKmh: number | null; points: number; refreshSeconds: number };
   emergencyNumbers: Record<string, string>;
+  /** Poste de contact : répertoire + numéros propres au dossier. */
+  contacts?: ContactLigne[];
+  /** Tout ce qui a déjà été tenté sur ce dossier. */
+  journalContacts?: ContactJournal[];
 }
 export interface SecurityAttempt {
   id: string; username?: string; name: string; role: string;

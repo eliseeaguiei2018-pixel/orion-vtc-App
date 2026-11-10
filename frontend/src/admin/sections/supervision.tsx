@@ -7,7 +7,7 @@
 import { useState, type CSSProperties } from 'react';
 import { SupervisionMap } from '../SupervisionMap';
 import { fcfa } from '../api';
-import type { Alert, FleetUnit, Overview, SecurityAttempt, SosDossier, Stats } from '../types';
+import type { Alert, ContactLigne, ContactUrgence, FleetUnit, Overview, SecurityAttempt, SosDossier, Stats } from '../types';
 import { Drawer, Kpi, statusLabel } from '../ui';
 
 export function OverviewSection({ ov, fleet, openAlerts, stats, statsDays, onStatsDays }: { ov: Overview; fleet: FleetUnit[]; openAlerts: Alert[]; stats: Stats | null; statsDays: number; onStatsDays: (d: number) => void }) {
@@ -84,9 +84,12 @@ export const sla = (a: Alert) => {
   return `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min`;
 };
 
-export function SamuSection({ alerts, fleet, openAlerts, canWrite, onClaim, onOpen }: {
+export function SamuSection({ alerts, fleet, openAlerts, canWrite, contacts, onClaim, onOpen, onSaveContact, onDeleteContact }: {
   alerts: Alert[]; fleet: FleetUnit[]; openAlerts: Alert[]; canWrite: boolean;
+  contacts: ContactUrgence[];
   onClaim: (id: string) => void; onOpen: (id: string) => void;
+  onSaveContact: (c: { id?: string; label: string; numero: string; categorie?: 'secours' | 'interne' | 'partenaire'; actif?: boolean; note?: string }) => void;
+  onDeleteContact: (id: string) => void;
 }) {
   return (
     <div className="samu-room">
@@ -130,16 +133,103 @@ export function SamuSection({ alerts, fleet, openAlerts, canWrite, onClaim, onOp
           </div>
         </div>
       </div>
+      <RepertoireUrgence contacts={contacts} canWrite={canWrite} onSave={onSaveContact} onDelete={onDeleteContact} />
+    </div>
+  );
+}
+
+const CAT_REP: Record<string, string> = { secours: 'Secours', interne: 'ORION', partenaire: 'Partenaire' };
+
+/**
+ * RÉPERTOIRE D'URGENCE — éditable par l'équipe.
+ *
+ * Un numéro d'astreinte change, un garage partenaire change, un assureur change. Si
+ * ces numéros vivent dans le code, le poste de crise travaille un jour avec un
+ * répertoire périmé. Ils se corrigent donc ici, et les numéros de secours nationaux
+ * ne peuvent pas être supprimés par mégarde — seulement désactivés.
+ */
+function RepertoireUrgence({ contacts, canWrite, onSave, onDelete }: {
+  contacts: ContactUrgence[]; canWrite: boolean;
+  onSave: (c: { id?: string; label: string; numero: string; categorie?: 'secours' | 'interne' | 'partenaire'; actif?: boolean; note?: string }) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [label, setLabel] = useState('');
+  const [numero, setNumero] = useState('');
+  const [categorie, setCategorie] = useState<'interne' | 'partenaire'>('partenaire');
+  const [note, setNote] = useState('');
+
+  return (
+    <div className="adm-card">
+      <div className="adm-card-h">
+        <h3>Répertoire d’urgence</h3>
+        <span className="adm-muted">{contacts.filter((c) => c.actif).length} ligne(s) active(s) sur {contacts.length}</span>
+      </div>
+      <table className="adm-table sm">
+        <thead><tr><th>Ligne</th><th>Catégorie</th><th>Numéro</th><th>Précision</th><th>État</th>{canWrite && <th>Actions</th>}</tr></thead>
+        <tbody>
+          {contacts.map((c) => (
+            <tr key={c.id} style={{ opacity: c.actif ? 1 : 0.55 }}>
+              <td><strong>{c.label}</strong></td>
+              <td><span className="adm-pill">{CAT_REP[c.categorie] ?? c.categorie}</span></td>
+              <td className="mono">
+                {canWrite ? (
+                  <input
+                    className="adm-input-num" style={{ width: 160, textAlign: 'left' }} defaultValue={c.numero}
+                    onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== c.numero) onSave({ id: c.id, label: c.label, numero: v }); }}
+                  />
+                ) : c.numero}
+              </td>
+              <td className="adm-muted">{c.note ?? '—'}</td>
+              <td>
+                {canWrite ? (
+                  <button className={`adm-btn xs${c.actif ? ' solid' : ''}`}
+                    onClick={() => onSave({ id: c.id, label: c.label, numero: c.numero, actif: !c.actif })}>
+                    {c.actif ? 'Active' : 'Désactivée'}
+                  </button>
+                ) : <span className="adm-pill">{c.actif ? 'Active' : 'Désactivée'}</span>}
+              </td>
+              {canWrite && (
+                <td>
+                  {c.categorie === 'secours'
+                    ? <span className="adm-muted" style={{ fontSize: 11 }}>Numéro national — non supprimable</span>
+                    : <button className="adm-btn xs" onClick={() => onDelete(c.id)}>Supprimer</button>}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {canWrite && (
+        <div className="row" style={{ gap: 10, marginTop: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <label className="price-field"><span>Intitulé</span><input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Clinique partenaire" /></label>
+          <label className="price-field"><span>Numéro</span><input value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="+225…" /></label>
+          <label className="price-field"><span>Catégorie</span>
+            <select className="adm-select" value={categorie} onChange={(e) => setCategorie(e.target.value as 'interne' | 'partenaire')}>
+              <option value="partenaire">Partenaire</option>
+              <option value="interne">ORION (interne)</option>
+            </select>
+          </label>
+          <label className="price-field"><span>Précision</span><input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Urgences 24/7" /></label>
+          <button className="adm-btn solid" disabled={label.trim().length < 2 || numero.trim().length < 3}
+            onClick={() => { onSave({ label: label.trim(), numero: numero.trim(), categorie, note: note.trim() || undefined }); setLabel(''); setNumero(''); setNote(''); }}>
+            Ajouter au répertoire
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 /* -------- Dossier SAMU : identification, télémétrie, chat, clôture ----- */
-export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf, onCsv }: {
+export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf, onCsv, onContact, onIssue }: {
   d: SosDossier; canWrite: boolean; onClose: () => void;
   onMessage: (id: string, text: string) => void;
   onCloseAlert: (id: string, note: string) => void;
   onPdf: (id: string) => void; onCsv: (id: string) => void;
+  /** Mise en relation : consigne la tentative et ouvre le combiné de l'opérateur. */
+  onContact: (alertId: string, p: { canal: 'appel' | 'sms' | 'whatsapp'; contactId?: string; numero?: string; label?: string; message?: string }) => void;
+  /** Issue de l'appel, renseignée juste après. */
+  onIssue: (alertId: string, entryId: string, issue: 'joint' | 'non_joint' | 'messagerie', compteRendu?: string) => void;
 }) {
   const [text, setText] = useState('');
   const [note, setNote] = useState('');
@@ -189,12 +279,7 @@ export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf
         </>
       )}
 
-      <h4 className="adm-drawer-sec">Liaison secours</h4>
-      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-        {Object.entries(d.emergencyNumbers).map(([k, v]) => (
-          <span key={k} className="adm-pill lvl-rouge">📞 {k.toUpperCase()} {v}</span>
-        ))}
-      </div>
+      <PosteContact dossier={d} canWrite={canWrite} onContact={onContact} onIssue={onIssue} />
 
       <h4 className="adm-drawer-sec">Chat sécurisé discret</h4>
       <div className="adm-chat" style={{ maxHeight: 160 }}>
@@ -238,6 +323,123 @@ export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf
       )}
       {a.closingNote && <p className="adm-muted" style={{ fontSize: 12, marginTop: 8 }}>Note de synthèse : {a.closingNote}</p>}
     </Drawer>
+  );
+}
+
+
+const CANAL_LABEL: Record<string, string> = { appel: '📞 Appel', sms: '✉️ SMS', whatsapp: '💬 WhatsApp' };
+const ISSUE_LABEL: Record<string, string> = {
+  tentative: 'En cours', joint: '✅ Joint', non_joint: '❌ Injoignable', messagerie: '📩 Messagerie',
+};
+const CATEGORIE_LABEL: Record<string, string> = {
+  secours: 'Secours', interne: 'ORION', partenaire: 'Partenaire', course: 'Personnes de la course',
+};
+const ORDRE_CATEGORIES = ['secours', 'course', 'interne', 'partenaire'] as const;
+
+/**
+ * POSTE DE CONTACT DE L'OPÉRATEUR SOS.
+ *
+ * Les numéros étaient de simples étiquettes : l'opérateur les lisait et composait à la
+ * main, sans qu'aucune trace ne reste. Ici, chaque ligne est joignable en un clic, la
+ * tentative est consignée avant la composition, et l'issue se renseigne juste après.
+ * Le registre qui en résulte est la pièce produite à l'assureur, à la police ou au juge.
+ */
+function PosteContact({ dossier, canWrite, onContact, onIssue }: {
+  dossier: SosDossier; canWrite: boolean;
+  onContact: (alertId: string, p: { canal: 'appel' | 'sms' | 'whatsapp'; contactId?: string; numero?: string; label?: string; message?: string }) => void;
+  onIssue: (alertId: string, entryId: string, issue: 'joint' | 'non_joint' | 'messagerie', compteRendu?: string) => void;
+}) {
+  const [libre, setLibre] = useState('');
+  const [message, setMessage] = useState('');
+  const a = dossier.alert;
+  // Repli : si le serveur est d'une version antérieure, on affiche au moins les secours.
+  const lignes: ContactLigne[] = dossier.contacts ?? Object.entries(dossier.emergencyNumbers).map(([k, v]) => ({
+    id: k, label: k.toUpperCase(), numero: v, categorie: 'secours' as const, note: null,
+  }));
+  const journal = dossier.journalContacts ?? [];
+  const dejaJoint = (id: string) => journal.some((e) => e.contactId === id && e.issue === 'joint');
+
+  return (
+    <>
+      <h4 className="adm-drawer-sec">Poste de contact — joindre immédiatement</h4>
+      {!canWrite && <p className="adm-muted" style={{ fontSize: 12 }}>Lecture seule : vous ne pouvez pas déclencher de mise en relation.</p>}
+
+      {ORDRE_CATEGORIES.map((cat) => {
+        const groupe = lignes.filter((l) => l.categorie === cat);
+        if (groupe.length === 0) return null;
+        return (
+          <div key={cat} style={{ marginBottom: 10 }}>
+            <span className="adm-muted" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              {CATEGORIE_LABEL[cat]}
+            </span>
+            <div className="adm-contact-grid">
+              {groupe.map((l) => (
+                <div key={l.id} className={`adm-contact${cat === 'secours' ? ' urgent' : ''}${dejaJoint(l.id) ? ' joint' : ''}`}>
+                  <div className="adm-contact-id">
+                    <strong>{l.label}</strong>
+                    <span className="adm-muted mono">{l.numero}</span>
+                    {l.note && <span className="adm-muted" style={{ fontSize: 11 }}>{l.note}</span>}
+                  </div>
+                  <div className="row" style={{ gap: 4 }}>
+                    <button className="adm-btn xs solid" disabled={!canWrite} title={`Appeler ${l.label}`}
+                      onClick={() => onContact(a.id, { canal: 'appel', contactId: l.id, numero: l.numero, label: l.label })}>📞</button>
+                    <button className="adm-btn xs" disabled={!canWrite} title={`SMS à ${l.label}`}
+                      onClick={() => onContact(a.id, { canal: 'sms', contactId: l.id, numero: l.numero, label: l.label, message: message || undefined })}>✉️</button>
+                    <button className="adm-btn xs" disabled={!canWrite} title={`WhatsApp à ${l.label}`}
+                      onClick={() => onContact(a.id, { canal: 'whatsapp', contactId: l.id, numero: l.numero, label: l.label, message: message || undefined })}>💬</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+
+      {canWrite && (
+        <div className="row" style={{ gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+          <input className="adm-select" style={{ flex: '1 1 150px' }} placeholder="Numéro libre (+225…)"
+            value={libre} onChange={(e) => setLibre(e.target.value)} />
+          <input className="adm-select" style={{ flex: '2 1 220px' }} placeholder="Message joint au SMS / WhatsApp (facultatif)"
+            value={message} onChange={(e) => setMessage(e.target.value)} />
+          <button className="adm-btn xs solid" disabled={libre.trim().length < 3}
+            onClick={() => { onContact(a.id, { canal: 'appel', numero: libre.trim(), label: 'Numéro libre' }); setLibre(''); }}>
+            📞 Composer
+          </button>
+        </div>
+      )}
+
+      <h4 className="adm-drawer-sec">Registre des contacts ({journal.length})</h4>
+      {journal.length === 0 ? (
+        <p className="adm-muted" style={{ fontSize: 12 }}>Aucun contact encore tenté sur ce dossier.</p>
+      ) : (
+        <table className="adm-table sm">
+          <thead><tr><th>Heure</th><th>Destinataire</th><th>Canal</th><th>Agent</th><th>Issue</th></tr></thead>
+          <tbody>
+            {journal.map((e) => (
+              <tr key={e.id}>
+                <td className="mono">{new Date(e.at).toLocaleTimeString('fr-FR')}</td>
+                <td>{e.label}<br /><span className="adm-muted mono">{e.numero}</span></td>
+                <td>{CANAL_LABEL[e.canal] ?? e.canal}</td>
+                <td>{e.agent}</td>
+                <td>
+                  {e.issue === 'tentative' && canWrite ? (
+                    <div className="row" style={{ gap: 4 }}>
+                      <button className="adm-btn xs" onClick={() => onIssue(a.id, e.id, 'joint')}>Joint</button>
+                      <button className="adm-btn xs" onClick={() => onIssue(a.id, e.id, 'messagerie')}>Messagerie</button>
+                      <button className="adm-btn xs" onClick={() => onIssue(a.id, e.id, 'non_joint')}>Injoignable</button>
+                    </div>
+                  ) : (
+                    <span className={`adm-pill ${e.issue === 'joint' ? 'av-online' : e.issue === 'non_joint' ? 'kyc-manual_review' : ''}`}>
+                      {ISSUE_LABEL[e.issue] ?? e.issue}
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
   );
 }
 

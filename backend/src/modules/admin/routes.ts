@@ -677,7 +677,105 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         },
         telemetry: { speedEstimateKmh, points: trace.length, refreshSeconds: 1 },
         emergencyNumbers: { samu: '185', police: '170', pompiers: '180' },
+        /**
+         * POSTE DE CONTACT. Le répertoire éditable, plus les numéros propres au
+         * dossier (chauffeur, passager, contact de confiance) : l'opérateur joint
+         * qui il veut depuis l'écran, sans recopier un numéro à la main.
+         */
+        contacts: [
+          ...container.contacts.actifs().map((c) => ({
+            id: c.id, label: c.label, numero: c.numero, categorie: c.categorie, note: c.note ?? null,
+          })),
+          ...(driver?.phone ? [{ id: 'chauffeur', label: `Chauffeur — ${driver.name}`, numero: driver.phone, categorie: 'course' as const, note: driver.matricule }] : []),
+          ...(client?.phone ? [{ id: 'passager', label: `Passager — ${client.name ?? client.id}`, numero: client.phone, categorie: 'course' as const, note: null }] : []),
+          ...(ride?.trustedContact ? [{ id: 'contact_confiance', label: `Contact de confiance — ${ride.trustedContact.name}`, numero: ride.trustedContact.phone, categorie: 'course' as const, note: 'Désigné par le passager' }] : []),
+        ],
+        /** Tout ce qui a déjà été tenté sur ce dossier : qui, quand, par quel canal. */
+        journalContacts: container.contacts.pourAlerte(id),
       };
+    });
+
+    /**
+     * MISE EN RELATION depuis le poste SAMU.
+     *
+     * Consigne la tentative AVANT la composition : même un appel qui échoue doit
+     * laisser une trace, c'est la pièce qu'on produit à l'assureur ou au juge. Le
+     * serveur renvoie le lien que le combiné de l'opérateur ouvre.
+     */
+    scoped.post('/admin/sos/:id/contact', async (req) => {
+      require(req, 'alerts:write');
+      const { id } = req.params as { id: string };
+      const alert = container.safety.get(id);
+      if (!alert) throw notFound('Alerte introuvable');
+      assertSealedAccess(req, alert.sealed);
+      const body = parse(
+        z.object({
+          canal: z.enum(['appel', 'sms', 'whatsapp']),
+          contactId: z.string().max(60).optional(),
+          numero: z.string().max(30).optional(),
+          label: z.string().max(80).optional(),
+          message: z.string().max(400).optional(),
+        }),
+        req.body,
+      );
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const { entry, lien } = container.contacts.consigner({ alertId: id, agent: account.name, ...body });
+      // Le dossier d'alerte garde la trace du service prévenu (réquisition PDF).
+      if (!alert.dispatchedTo.includes(entry.label)) alert.dispatchedTo.push(entry.label);
+      audit(req, 'sos.contact', id, { cible: entry.label, canal: entry.canal, numero: entry.numero });
+      // La supervision voit en direct qui est en train d'être joint.
+      container.realtime.publish('emergency', 'sos.contact', { alertId: id, label: entry.label, canal: entry.canal, agent: account.name });
+      return { entry, lien, journal: container.contacts.pourAlerte(id) };
+    });
+
+    /** Issue de l'appel : joint, messagerie, injoignable — avec compte rendu. */
+    scoped.post('/admin/sos/:id/contact/:entryId', async (req) => {
+      require(req, 'alerts:write');
+      const { id, entryId } = req.params as { id: string; entryId: string };
+      const body = parse(
+        z.object({
+          issue: z.enum(['tentative', 'joint', 'non_joint', 'messagerie']),
+          compteRendu: z.string().max(400).optional(),
+        }),
+        req.body,
+      );
+      const entry = container.contacts.conclure(entryId, body.issue, body.compteRendu);
+      audit(req, 'sos.contact.issue', id, { entryId, issue: body.issue });
+      return { entry, journal: container.contacts.pourAlerte(id) };
+    });
+
+    /* --------------------- Répertoire d'urgence (éditable) --------------------- */
+
+    scoped.get('/admin/contacts', async (req) => {
+      require(req, 'alerts:read');
+      return { contacts: container.contacts.list(), journal: container.contacts.tout(100) };
+    });
+
+    scoped.put('/admin/contacts', async (req) => {
+      require(req, 'alerts:write');
+      const body = parse(
+        z.object({
+          id: z.string().max(60).optional(),
+          label: z.string().min(2).max(80),
+          numero: z.string().min(3).max(30),
+          categorie: z.enum(['secours', 'interne', 'partenaire']).optional(),
+          ordre: z.number().int().min(0).max(999).optional(),
+          actif: z.boolean().optional(),
+          note: z.string().max(120).optional(),
+        }),
+        req.body,
+      );
+      const contact = container.contacts.upsert(body);
+      audit(req, 'contacts.upsert', contact.id, { label: contact.label, numero: contact.numero });
+      return { contact, contacts: container.contacts.list() };
+    });
+
+    scoped.delete('/admin/contacts/:id', async (req) => {
+      require(req, 'alerts:write');
+      const { id } = req.params as { id: string };
+      container.contacts.remove(id);
+      audit(req, 'contacts.delete', id);
+      return { contacts: container.contacts.list() };
     });
 
     // RAPPORT DE RÉQUISITION PDF (procureur / police) — horodaté, certifié.

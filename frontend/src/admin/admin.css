@@ -355,3 +355,14 @@ html[data-adm-theme='dark'] .samu-room .adm-card { background: #0a0d0b; }
 }
 .adm-input-num:focus { border-color: var(--a-green2); outline: none; }
 .adm-input-num:disabled { opacity: 0.55; }
+
+/* Poste de contact du superviseur SOS : joindre un service en un geste. */
+.adm-contact-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; margin-top: 6px; }
+.adm-contact {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 10px; padding: 8px 10px;
+}
+.adm-contact.urgent { border-color: #ff4d5e66; background: linear-gradient(180deg, #ff4d5e12, transparent); }
+.adm-contact.joint { border-color: var(--a-green2); }
+.adm-contact-id { display: flex; flex-direction: column; gap: 1px; min-width: 0; font-size: 12.5px; }
+.adm-contact-id strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

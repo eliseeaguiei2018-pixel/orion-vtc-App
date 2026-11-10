@@ -6,7 +6,7 @@ import { ClientsSection, DispatchSection, DisputesSection, DriversSection, Foren
 import { RolesSection, SessionsSection, TeamsSection } from './sections/organisation';
 import { OverviewSection, SamuSection, SecuritySection, SosDrawer } from './sections/supervision';
 import { RentalSection, RentalTarifsSection, SubscriptionsSection } from './sections/location';
-import type { ActiveSession, Alert, Amortization, Announcement, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, CopilotAnswer, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, RentalTarifEtat, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
+import type { ActiveSession, Alert, Amortization, Announcement, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, ContactJournal, ContactUrgence, CopilotAnswer, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, RentalTarifEtat, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
 import { ClientDrawer, DriverDrawer } from './ui';
 
 
@@ -228,6 +228,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [subInvoices, setSubInvoices] = useState<SubInvoiceRow[]>([]);
   const [subStats, setSubStats] = useState<SubStats | null>(null);
   const [rentalTarifs, setRentalTarifs] = useState<RentalTarifEtat | null>(null);
+  const [contacts, setContacts] = useState<ContactUrgence[]>([]);
   /** Modale « accès refusé » : session verrouillée, tentative signalée à la direction. */
   const [denied, setDenied] = useState<string | null>(null);
   /** Bandeau d'erreur serveur (opération refusée ou indisponible) — non bloquant. */
@@ -268,7 +269,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setCorporate(DEMO.corporate as CorporateAccount[]);
     setRentals(DEMO.rentals); setPrestige(DEMO.prestige); setRentalStats(DEMO.rentalStats); setRentalDispos(DEMO.rentalDispos);
     setSubPlans(DEMO.subPlans); setSubscriptions(DEMO.subscriptions); setSubInvoices(DEMO.subInvoices); setSubStats(DEMO.subStats);
-    setRentalTarifs(DEMO.rentalTarifs);
+    setRentalTarifs(DEMO.rentalTarifs); setContacts(DEMO.contacts as ContactUrgence[]);
     setLive(false);
   }, [statsDays, ridesPage, driversPage, clientsPage]);
 
@@ -285,6 +286,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
         setAlerts((await adminGet<{ alerts: Alert[] }>('/admin/sos')).alerts);
       }
       if (has('security:read')) setSecurity((await adminGet<{ attempts: SecurityAttempt[] }>('/admin/security-alerts')).attempts);
+      if (has('alerts:read')) setContacts((await adminGet<{ contacts: ContactUrgence[] }>('/admin/contacts')).contacts);
       if (has('drivers:read')) {
         setFleet((await adminGet<{ fleet: FleetUnit[] }>('/admin/fleet/live')).fleet);
         const d = await adminGet<{ drivers: DriverRow[] } & PageMeta>(`/admin/drivers?page=${driversPage}&limit=${PAGE_SIZE}`);
@@ -567,6 +569,52 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const cancelReservation = async (id: string) => {
     if (LIVE && !(await safePost(`/admin/reservations/${id}/cancel`))) return;
     setReservations((xs) => xs.map((r) => (r.id === id ? { ...r, status: 'annulee' } : r)));
+  };
+
+  const saveContact = async (c: { id?: string; label: string; numero: string; categorie?: 'secours' | 'interne' | 'partenaire'; actif?: boolean; note?: string }) => {
+    if (!LIVE) { setContacts((xs) => xs.map((x) => (x.id === c.id ? { ...x, ...c } : x))); return; }
+    try { setContacts((await adminPut<{ contacts: ContactUrgence[] }>('/admin/contacts', c)).contacts); }
+    catch { /* refus déjà signalé */ }
+  };
+  const deleteContact = async (id: string) => {
+    if (!LIVE) { setContacts((xs) => xs.filter((x) => x.id !== id)); return; }
+    try { await adminDel(`/admin/contacts/${id}`); setContacts((await adminGet<{ contacts: ContactUrgence[] }>('/admin/contacts')).contacts); }
+    catch { /* refus déjà signalé (un numéro de secours ne se supprime pas) */ }
+  };
+
+  /* -------------------- Poste de contact SOS -------------------- */
+  /**
+   * Mise en relation depuis le dossier SOS. Le serveur consigne la tentative AVANT la
+   * composition et renvoie le lien ; le poste de l'opérateur l'ouvre (combiné, softphone).
+   * Si le serveur refuse, aucun lien n'est ouvert et l'erreur est affichée : on ne laisse
+   * pas croire qu'un secours a été prévenu alors que rien n'est parti.
+   */
+  const sosContact = async (
+    alertId: string,
+    p: { canal: 'appel' | 'sms' | 'whatsapp'; contactId?: string; numero?: string; label?: string; message?: string },
+  ) => {
+    if (!LIVE) {
+      // Mode démo : on ouvre quand même le lien, mais sans inventer d'entrée au registre.
+      if (p.numero) window.open(p.canal === 'appel' ? `tel:${p.numero}` : `sms:${p.numero}`, '_self');
+      return;
+    }
+    try {
+      const r = await adminPost<{ lien: string; journal: ContactJournal[] }>(`/admin/sos/${alertId}/contact`, p);
+      setSosSel((d) => (d && d.alert.id === alertId ? { ...d, journalContacts: r.journal } : d));
+      // Ouvre le combiné / l'application de messagerie du poste.
+      window.open(r.lien, '_self');
+    } catch { /* le refus est déjà remonté par la couche réseau */ }
+  };
+
+  const sosContactIssue = async (
+    alertId: string, entryId: string,
+    issue: 'joint' | 'non_joint' | 'messagerie', compteRendu?: string,
+  ) => {
+    if (!LIVE) return;
+    try {
+      const r = await adminPost<{ journal: ContactJournal[] }>(`/admin/sos/${alertId}/contact/${entryId}`, { issue, compteRendu });
+      setSosSel((d) => (d && d.alert.id === alertId ? { ...d, journalContacts: r.journal } : d));
+    } catch { /* refus déjà signalé */ }
   };
 
   /* ---------------- Location Signature & abonnements ---------------- */
@@ -992,7 +1040,13 @@ function Console({ onLogout }: { onLogout: () => void }) {
         </header>
 
         {section === 'overview' && <OverviewSection ov={ov} fleet={fleet} openAlerts={openAlerts} stats={stats} statsDays={statsDays} onStatsDays={setStatsDays} />}
-        {section === 'alerts' && <SamuSection alerts={alerts} fleet={fleet} openAlerts={openAlerts} canWrite={can('alerts:write')} onClaim={claimSos} onOpen={openSos} />}
+        {section === 'alerts' && (
+          <SamuSection
+            alerts={alerts} fleet={fleet} openAlerts={openAlerts} canWrite={can('alerts:write')}
+            contacts={contacts} onClaim={claimSos} onOpen={openSos}
+            onSaveContact={(c) => void saveContact(c)} onDeleteContact={(id) => void deleteContact(id)}
+          />
+        )}
         {section === 'support' && <SupportSection convs={support} stats={supportStats} macros={macros} canWrite={can('support:write')} canPromo={can('promos:write')} onReply={supportReply} onStatus={supportSetStatus} onCompensate={compensate} />}
         {section === 'rides' && (
           <>
@@ -1052,6 +1106,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
           onCloseAlert={closeSos}
           onPdf={(id) => void downloadFile(`/admin/sos/${id}/report.pdf`, `orion-requisition-${id.slice(0, 8)}.pdf`)}
           onCsv={(id) => void downloadFile(`/admin/sos/${id}/telemetry.csv`, `orion-telemetrie-${id.slice(0, 8)}.csv`)}
+          onContact={(id, p) => void sosContact(id, p)}
+          onIssue={(id, e, i, c) => void sosContactIssue(id, e, i, c)}
         />
       )}
       {denied && (
