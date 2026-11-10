@@ -11,6 +11,7 @@ import { RideSimulator } from './modules/rides/simulator.js';
 import { trafficInfo } from './modules/geo-ci/zones.js';
 import { WalletService } from './modules/wallet/service.js';
 import { SubscriptionService } from './modules/subscriptions/service.js';
+import { RentalService } from './modules/rental/service.js';
 import { WeddingService } from './modules/wedding/service.js';
 import { InsuranceService, type InsuranceContribution } from './modules/insurance/service.js';
 import { PaymentRegistry } from './modules/payments/providers.js';
@@ -37,8 +38,9 @@ import { StaffService } from './modules/staff/service.js';
 import { ExpenseService, type ExpenseTicket } from './modules/expenses/service.js';
 import type { Ride } from './modules/rides/store.js';
 import type { LedgerEntry } from './modules/wallet/service.js';
-import type { Subscription } from './modules/subscriptions/service.js';
+import type { Subscription, SubscriptionInvoice } from './modules/subscriptions/service.js';
 import type { WeddingReservation } from './modules/wedding/service.js';
+import type { RentalReservation } from './modules/rental/service.js';
 
 /**
  * Conteneur d'injection de dépendances. Centralise le câblage et facilite les tests
@@ -62,6 +64,8 @@ export interface Container {
   insurance: InsuranceService;
   subscriptions: SubscriptionService;
   wedding: WeddingService;
+  /** Location de véhicules Signature : événements, entreprises, mise à disposition. */
+  rental: RentalService;
   settings: SettingsService;
   clients: ClientStore;
   promos: PromoService;
@@ -199,8 +203,12 @@ export function createContainer(): Container {
     wallet: new WalletService(createRepository<LedgerEntry>('wallet_ledger')),
     clientWallet,
     insurance: new InsuranceService(createRepository<InsuranceContribution>('insurance'), clientWallet),
-    subscriptions: new SubscriptionService(createRepository<Subscription>('subscriptions')),
+    subscriptions: new SubscriptionService(
+      createRepository<Subscription>('subscriptions'),
+      createRepository<SubscriptionInvoice>('subscription_invoices'),
+    ),
     wedding: new WeddingService(createRepository<WeddingReservation>('wedding')),
+    rental: new RentalService(createRepository<RentalReservation>('rental')),
     settings,
     promos,
     clients: new ClientStore(createRepository<Client>('clients')),

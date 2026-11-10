@@ -35,14 +35,20 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
     if (!ride) throw notFound('Course introuvable');
     const reference = randomUUID();
     const deeplink = DEEPLINKS[body.method];
+    // Montant réellement dû : la part prise en charge par l'abonnement est déduite,
+    // sinon le lien profond enverrait le client payer une somme qu'il ne doit pas.
+    const prisEnCharge = (ride.subscription?.montantCouvert ?? 0) + (ride.subscription?.remise ?? 0);
+    const amount = Math.max(0, ride.quote.amount - prisEnCharge);
     return {
       reference,
       method: body.method,
-      amount: ride.quote.amount,
+      amount,
+      brut: ride.quote.amount,
+      subscription: ride.subscription ?? null,
       currency: 'XOF',
       // Mobile money → redirection vers l'app opérateur ; espèces/carte → pas de redirection.
-      redirect: deeplink ? `${deeplink}?ref=${reference}&amount=${ride.quote.amount}&to=ORION` : null,
-      status: 'pending',
+      redirect: deeplink && amount > 0 ? `${deeplink}?ref=${reference}&amount=${amount}&to=ORION` : null,
+      status: amount === 0 ? 'covered' : 'pending',
     };
   });
 
@@ -73,17 +79,35 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
     const freeWait = container.settings.getPricing().freeWaitMinutes;
     const billableWait = Math.max(0, (ride.waitMinutes ?? 0) - freeWait);
     const waitFee = billableWait * container.settings.getOps().waitFeePerMin;
-    const totalDue = ride.quote.amount + waitFee;
+    // Montant BRUT de la course : c'est lui qui rémunère le chauffeur.
+    const montantBrut = ride.quote.amount + waitFee;
+    // ABONNEMENT ORION : la part prise en charge et la remise d'abonné, figées à la
+    // commande, sont déduites de ce que le CLIENT paie. Le chauffeur, lui, continue
+    // d'être payé sur le brut — l'abonnement est un effort commercial d'ORION, pas
+    // une perte pour le chauffeur.
+    const prisEnCharge = (ride.subscription?.montantCouvert ?? 0) + (ride.subscription?.remise ?? 0);
+    const totalDue = Math.max(0, montantBrut - prisEnCharge);
 
-    const result = await container.idempotency.run(idempotencyKey(req), () =>
-      provider.charge({
-        method: body.method as PaymentMethod,
-        amount: totalDue,
-        currency: 'XOF',
-        phone: body.phone,
+    const result = totalDue === 0
+      // Course ENTIÈREMENT couverte par l'abonnement : rien à encaisser, on ne
+      // sollicite aucune passerelle (un appel à 0 F serait rejeté par l'opérateur).
+      ? {
         reference: randomUUID(),
-      }),
-    );
+        method: body.method as PaymentMethod,
+        amount: 0,
+        currency: 'XOF' as const,
+        status: 'captured' as const,
+        message: 'Course incluse dans votre abonnement ORION — rien à payer',
+      }
+      : await container.idempotency.run(idempotencyKey(req), () =>
+        provider.charge({
+          method: body.method as PaymentMethod,
+          amount: totalDue,
+          currency: 'XOF',
+          phone: body.phone,
+          reference: randomUUID(),
+        }),
+      );
 
     // Le paiement passe la course à l'état "paid" lorsqu'il est capturé/autorisé.
     let commission;
@@ -99,11 +123,13 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
         // Commission modulée : fidélité > verte réduite > standard (logique partagée
         // avec l'app chauffeur, qui affiche le même taux).
         const rate = effectiveCommissionRate(drv, ops);
-        commission = container.wallet.creditRide(ride.driverId, ride.id, totalDue, rate);
+        commission = container.wallet.creditRide(ride.driverId, ride.id, montantBrut, rate);
         // ESPÈCES : le chauffeur a encaissé le total en main propre. On l'inscrit au
         // ledger → son solde baisse du montant encaissé et la commission devient une
         // DETTE envers ORION (recouvrement + plafond console « dette espèces »).
-        if (body.method === 'cash') {
+        // En espèces, le chauffeur n'a encaissé que ce que le client a RÉELLEMENT
+        // payé (totalDue, part d'abonnement déduite) — pas le montant brut.
+        if (body.method === 'cash' && totalDue > 0) {
           container.wallet.credit(ride.driverId, -totalDue, 'cash_collected', 'Espèces encaissées (commission due à ORION)', ride.id);
         }
         // Compteur de courses électriques (fidélité verte).

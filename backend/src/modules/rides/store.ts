@@ -30,6 +30,20 @@ export interface Ride {
   corporateId?: string;
   /** Moyen de paiement annoncé par le client à la commande (affiché au chauffeur). */
   paymentMethod?: string;
+  /**
+   * ABONNEMENT ORION appliqué à la course, figé à la commande.
+   *
+   * `montantCouvert` est pris en charge par ORION (le chauffeur, lui, est payé sur
+   * le montant BRUT : l'abonnement est une remise commerciale, jamais une perte
+   * pour le chauffeur). `remise` est la ristourne d'abonné hors quota.
+   */
+  subscription?: {
+    plan: string;
+    montantCouvert: number;
+    remise: number;
+    aPayer: number;
+    raison: string;
+  };
   createdAt: string;
 }
 

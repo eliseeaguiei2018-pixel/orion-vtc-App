@@ -81,6 +81,30 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
         paymentMethod: body.paymentMethod,
         createdAt: new Date().toISOString(),
       };
+      // ABONNEMENT ORION : c'est ICI, à la commande, que le quota est consommé —
+      // jamais à l'estimation (consulter un prix ne doit rien coûter au client).
+      // Une course payée par un compte Entreprise n'entame pas le quota personnel.
+      if (!corporateId) {
+        const couverture = container.subscriptions.consumeRide(body.clientId, {
+          amount: quote.amount,
+          tier: quote.category,
+        });
+        if (couverture.plan && (couverture.covered || couverture.remise > 0)) {
+          created.subscription = {
+            plan: couverture.plan,
+            montantCouvert: couverture.montantCouvert,
+            remise: couverture.remise,
+            aPayer: couverture.aPayer,
+            raison: couverture.raison,
+          };
+          appendEvent(created, 'subscription_applied', {
+            plan: couverture.plan,
+            montantCouvert: couverture.montantCouvert,
+            remise: couverture.remise,
+            restantes: couverture.remaining,
+          });
+        }
+      }
       if (corporateId) appendEvent(created, 'corporate_charged', { corporateId, amount: quote.amount });
       appendEvent(created, 'created', { amount: quote.amount, currency: quote.currency });
       if (body.trustedContact) appendEvent(created, 'shared', { contact: body.trustedContact.name });

@@ -35,7 +35,13 @@ export async function pricingRoutes(app: FastifyInstance, container: Container):
       clientId: body.clientId,
     });
     container.rides.saveQuote(quote);
-    return { quote };
+    // ABONNEMENT ORION — APERÇU SEULEMENT : on montre ce que le forfait couvrirait
+    // sans consommer le quota. Le quota n'est débité qu'à la création de la course
+    // (même principe que le surge : une consultation ne modifie pas l'état).
+    const abonnement = body.clientId
+      ? container.subscriptions.apercu(body.clientId, { amount: quote.amount, tier: quote.category })
+      : null;
+    return { quote, abonnement };
   });
 
   app.get('/services', async () => ({ services: container.registry.list() }));

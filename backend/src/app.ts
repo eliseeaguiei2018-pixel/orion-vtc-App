@@ -21,6 +21,7 @@ import { fleetRoutes } from './modules/fleet/routes.js';
 import { countryRoutes } from './modules/countries/routes.js';
 import { subscriptionRoutes } from './modules/subscriptions/routes.js';
 import { weddingRoutes } from './modules/wedding/routes.js';
+import { rentalRoutes } from './modules/rental/routes.js';
 import { insuranceRoutes } from './modules/insurance/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { supportClientRoutes } from './modules/support/routes.js';
@@ -110,6 +111,8 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
   await countryRoutes(app, container);
   await subscriptionRoutes(app, container);
   await weddingRoutes(app, container);
+  // Location Signature : événements/mariages, entreprises & institutions, mise à disposition.
+  await rentalRoutes(app, container);
   await insuranceRoutes(app, container);
   await adminRoutes(app, container);
   await supportClientRoutes(app, container);
@@ -127,7 +130,7 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
     docs: '/docs (voir le dossier docs/ du dépôt)',
     services: container.registry.list(),
     tiers: ['bronze', 'argent', 'or', 'diamant'],
-    features: ['geo-ci', 'mobile-money', 'safety-samu', 'realtime-ws', 'live-tracking', 'wallet-commissions', 'subscriptions', 'wedding-rental', 'multi-country', 'insurance', 'trusted-contact-share', 'in-app-call', 'biometric-ready', 'google-maps-ready', 'admin-dashboard', 'samu-supervision'],
+    features: ['geo-ci', 'mobile-money', 'safety-samu', 'realtime-ws', 'live-tracking', 'wallet-commissions', 'subscriptions', 'wedding-rental', 'rental-signature', 'rental-corporate', 'rental-hourly', 'multi-country', 'insurance', 'trusted-contact-share', 'in-app-call', 'biometric-ready', 'google-maps-ready', 'admin-dashboard', 'samu-supervision'],
   }));
 
   return { app, container };
