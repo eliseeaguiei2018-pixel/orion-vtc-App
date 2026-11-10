@@ -95,12 +95,12 @@ export function VigilanceSection({ sante, onAller, onRapportPdf, onRafraichir }:
             {vues.map((c: Constat) => (
               <div key={c.id} className={`adm-constat ${c.severite}`}>
                 <div className="row between" style={{ alignItems: 'flex-start', gap: 12 }}>
-                  <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                  <div className="row grow" style={{ gap: 8, flexWrap: 'wrap' }}>
                     <span className={`adm-pill ${SEV_META[c.severite].cls}`}>{SEV_META[c.severite].label}</span>
                     <span className="adm-pill">{DOMAINE_LABEL[c.domaine] ?? c.domaine}</span>
                     <strong style={{ fontSize: 14.5 }}>{c.titre}</strong>
                   </div>
-                  <button className="adm-btn xs solid" onClick={() => onAller(c.section)}>Traiter</button>
+                  <button className="adm-btn xs solid" style={{ flex: 'none' }} onClick={() => onAller(c.section)}>Traiter</button>
                 </div>
                 <dl className="adm-constat-corps">
                   <dt>Constat</dt><dd>{c.constat}</dd>

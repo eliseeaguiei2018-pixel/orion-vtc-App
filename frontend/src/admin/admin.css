@@ -384,3 +384,24 @@ html[data-adm-theme='dark'] .samu-room .adm-card { background: #0a0d0b; }
 .adm-constat-corps dt { color: var(--a-muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; padding-top: 2px; }
 .adm-constat-corps dd { margin: 0; color: var(--a-text); line-height: 1.5; }
 @media (max-width: 720px) { .adm-constat-corps { grid-template-columns: 1fr; gap: 2px; } }
+
+/* ------------------------------------------------------------------
+ * UTILITAIRES DE MISE EN PAGE
+ *
+ * Défaut relevé lors de l'audit : la console utilisait « row » 104 fois,
+ * « between » 16 fois, « stack » 11 fois et « col » 3 fois — aucune de ces
+ * classes n'était définie dans sa feuille de style. Elles venaient de
+ * l'application cliente, que la console ne charge pas. Résultat : partout où
+ * le parent n'était pas déjà en flex, les éléments s'empilaient verticalement
+ * au lieu de s'aligner, et les espacements disparaissaient.
+ * ------------------------------------------------------------------ */
+.row { display: flex; align-items: center; gap: 12px; }
+.row.between, .between { justify-content: space-between; }
+.col { display: flex; flex-direction: column; }
+.grow { flex: 1; min-width: 0; }
+.gap-sm { gap: 8px; }
+.stack { display: flex; flex-direction: column; gap: 12px; }
+/* Hors tableau, ces utilitaires n'existaient pas non plus. */
+.mono { font-family: ui-monospace, monospace; }
+.pos { color: var(--a-green); }
+.neg { color: var(--a-amber); }
