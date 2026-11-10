@@ -846,8 +846,8 @@ export class AdminService {
   }
 
   /**
-   * COPILOTE (génératif, heuristique) : synthèse courte d'un litige, ou réponse à
-   * une requête en langage naturel simple (« CA électrique vs thermique »).
+   * Synthèse courte d'un litige, pour l'agent qui l'ouvre : le dossier en une phrase,
+   * avant de lire la description complète.
    */
   copilotSummary(disputeId: string): string | null {
     const d = this.c.disputes.get(disputeId);
@@ -860,6 +860,11 @@ export class AdminService {
       + `${d.description.slice(0, 120)}`;
   }
 
+  /**
+   * Ancienne réponse aux questions libres : trois expressions régulières, conservées
+   * comme filet. La route `/admin/copilot` passe désormais par `AssistantService`, qui
+   * couvre douze sujets et dit ce qu'il sait faire quand il ne comprend pas.
+   */
   copilotQuery(q: string) {
     const s = q.toLowerCase();
     if (/électr|electr|thermi|hybrid/.test(s)) {

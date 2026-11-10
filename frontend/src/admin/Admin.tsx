@@ -9,7 +9,7 @@ import { RentalSection, RentalTarifsSection, SubscriptionsSection } from './sect
 import { DirectionSection } from './sections/direction';
 import { VigilanceSection } from './sections/vigilance';
 import { MonPosteSection } from './sections/monposte';
-import type { ActiveSession, Alert, Amortization, Announcement, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, ContactJournal, ContactUrgence, CopilotAnswer, ExecutiveBoard, MonPoste, MouvementPage, SanteVigilance, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, RentalTarifEtat, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
+import type { ActiveSession, Alert, Amortization, Announcement, AssistantSujet, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, ContactJournal, ContactUrgence, CopilotAnswer, ExecutiveBoard, MonPoste, MouvementPage, SanteVigilance, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, RentalTarifEtat, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
 import { ClientDrawer, DriverDrawer } from './ui';
 
 
@@ -738,11 +738,17 @@ function Console({ onLogout }: { onLogout: () => void }) {
     try { return (await adminGet<{ pnl: SquadPnl }>(`/admin/teams/${teamId}/pnl`)).pnl; } catch { return null; }
   };
 
-  /* --- S9 IA : copilote conversationnel --- */
+  /* --- S9 IA : assistant ORION (moteur de questions sur les données réelles) --- */
   const askCopilot = async (q: string): Promise<CopilotAnswer | null> => {
     if (!LIVE) return DEMO.copilot(q);
     try { return await adminPost<CopilotAnswer>('/admin/copilot', { q }); } catch { return null; }
   };
+  // La liste des sujets vient du serveur : codée en dur dans l'écran, elle finissait par
+  // proposer des questions que le moteur ne savait plus traiter.
+  const assistantSujets = useCallback(async (): Promise<AssistantSujet[]> => {
+    if (!LIVE) return DEMO.assistantSujets();
+    try { return (await adminGet<{ sujets: AssistantSujet[] }>('/admin/copilot/sujets')).sujets; } catch { return []; }
+  }, []);
 
   /* --- S10 B2B : import de masse, web booker --- */
   const importMembers = async (id: string, memberIds: string[]) => {
@@ -1120,7 +1126,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'disputes' && <DisputesSection disputes={disputes} clients={clients} canWrite={can('support:write')} onContact={(p) => void contacter(p)} onDecide={decideDispute} onOpenRide={openForensic} onEscalate={escalateDispute} onQuarantine={quarantineDispute} onNote={noteDispute} onChargeback={(id) => void downloadFile(`/admin/disputes/${id}/chargeback.pdf`, `orion-chargeback-${id}.pdf`)} onDossier={(id) => void downloadFile(`/admin/disputes/${id}/dossier.pdf`, `orion-dossier-${id}.pdf`)} onLossCsv={() => void downloadCsv('/admin/disputes.csv', 'orion-pertes.csv', () => 'dossier,categorie,statut')} />}
         {section === 'green' && green && <GreenSection g={green} ops={ops} onPdf={() => void downloadCarbonPdf()} onEnergyCsv={() => void downloadCsv('/admin/green/energy.csv', 'orion-energie.csv', () => 'matricule,nom,motorisation,km_factures,kwh_estimes')} />}
         {section === 'teams' && <TeamsSection teams={teams} allDrivers={drivers} staffKpis={staffKpis} shifts={shifts} maintenance={maintenance} canWrite={can('teams:write')} onSave={saveTeam} onDelete={deleteTeam} onShift={assignShift} onRemoveShift={removeShift} onMaintenance={openMaintenance} onResolveMaintenance={resolveMaintenance} onBroadcast={microBroadcast} onPnl={loadSquadPnl} onHoursCsv={() => void downloadCsv('/admin/staff/hours.csv', 'orion-heures.csv', () => 'employe,identifiant,date,tranche,zone')} onEvalPdf={(u) => void downloadFile(`/admin/staff/${u}/eval.pdf`, `orion-eval-${u}.pdf`)} onContact={(p) => void contacter(p)} />}
-        {section === 'intel' && <IntelSection predict={predict} conversion={conversion} churn={churn} fraud={fraud} elasticity={elasticity} canNotify={can('notify:write')} onReengage={reengage} onCopilot={askCopilot} />}
+        {section === 'intel' && <IntelSection predict={predict} conversion={conversion} churn={churn} fraud={fraud} elasticity={elasticity} canNotify={can('notify:write')} onReengage={reengage} onCopilot={askCopilot} onSujets={assistantSujets} onAller={(sec) => setSection(sec as Section)} />}
         {section === 'b2b' && <CorporateSection accounts={corporate} canWrite={can('treasury:request')} canSettle={can('treasury:approve')} canBook={can('rides:write')} onSave={saveCorporate} onSettle={settleCorporate} onInvoice={exportInvoice} onEsg={(id) => void downloadFile(`/admin/corporate/${id}/esg.pdf`, `orion-esg-${id}.pdf`)} onInvoicePdf={(id) => void downloadFile(`/admin/corporate/${id}/invoice.pdf`, `facture-${id}.pdf`)} onImport={importMembers} onBook={webBook} onContact={(p) => void contacter(p)} />}
         {section === 'drivers' && <DriversSection drivers={drivers} expiring={expiring} canWrite={can('drivers:write')} onAction={driverAction} onSuspend={suspendDriver} onLoyalty={setLoyalty} onOpen={openDriver} meta={driversMeta} onPage={setDriversPage} onContract={(id) => void downloadFile(`/admin/drivers/${id}/contract.pdf`, `orion-contrat-${id.slice(0, 8)}.pdf`)} onFleetCsv={() => void downloadCsv('/admin/fleet.csv', 'orion-flotte.csv', () => 'matricule,nom,motorisation')} onContact={(p) => void contacter(p)} />}
         {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} onOpen={openClient} meta={clientsMeta} onPage={setClientsPage} onVip={setClientVip} onBlacklist={blacklistClient} onNoShow={noShowFee} onLtvCsv={() => void downloadCsv('/admin/clients.csv', 'orion-clients-ltv.csv', () => 'client,nom')} onBehaviorPdf={() => void downloadFile('/admin/clients/behavior.pdf', 'orion-comportement-clients.pdf')} onContact={(p) => void contacter(p)} />}

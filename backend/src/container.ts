@@ -40,6 +40,7 @@ import { StaffService } from './modules/staff/service.js';
 import { ExecutiveService } from './modules/executive/service.js';
 import { VigilanceService } from './modules/vigilance/service.js';
 import { WorkspaceService } from './modules/workspace/service.js';
+import { AssistantService } from './modules/assistant/service.js';
 import { ExpenseService, type ExpenseTicket } from './modules/expenses/service.js';
 import type { Ride } from './modules/rides/store.js';
 import type { LedgerEntry } from './modules/wallet/service.js';
@@ -100,6 +101,8 @@ export interface Container {
   vigilance: VigilanceService;
   /** « Mon poste » : la journée de travail de l'employé connecté. */
   workspace: WorkspaceService;
+  /** Assistant ORION : répond en français à des questions sur les données réelles. */
+  assistant: AssistantService;
 }
 
 export function createContainer(): Container {
@@ -258,12 +261,14 @@ export function createContainer(): Container {
     executive: undefined as unknown as ExecutiveService,
     vigilance: undefined as unknown as VigilanceService,
     workspace: undefined as unknown as WorkspaceService,
+    assistant: undefined as unknown as AssistantService,
   };
   // La direction générale ne stocke rien, elle lit les autres modules. On la câble
   // après coup pour qu'elle voie l'intégralité du conteneur.
   container.executive = new ExecutiveService(container);
   container.vigilance = new VigilanceService(container);
   container.workspace = new WorkspaceService(container);
+  container.assistant = new AssistantService(container);
   return container;
 }
 

@@ -98,7 +98,14 @@ export interface FraudReport {
   txRisk: { id: string; name: string | null; cancellations: number; warnings: number }[];
 }
 export interface ElasticityCell { cell: string; lat: number; lng: number; sessions: number; rate: number; recommended: number }
-export interface CopilotAnswer { query: string; answer: string; data: unknown }
+export interface CopilotAnswer {
+  query: string; answer: string; data: unknown;
+  /** Sessions de la console où creuser la réponse. */
+  sources: string[];
+  /** Vrai quand la question n'a pas été comprise : `data` porte alors la liste des sujets. */
+  incompris: boolean;
+}
+export interface AssistantSujet { id: string; exemple: string }
 /* --- S10 B2B --- */
 export interface TravelPolicy { days?: number[]; hourStart?: number; hourEnd?: number; zoneIds?: string[]; maxTier?: string }
 /* --- S11 Litiges --- */

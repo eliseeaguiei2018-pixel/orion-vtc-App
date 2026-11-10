@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { fcfa } from '../api';
-import type { Amortization, Announcement, AuditEntry, CashDebtor, ChurnReport, Client, ContactHandler, Conversation, ConversionCell, CopilotAnswer, CorporateAccount, ElasticityCell, ExpenseTicket, Finance, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, OpsConfig, PredictCell, Pricing, Promo, SearchResults, ServicesConfig, ShadowPricing, SupportStats, Transfer, Triggers, Zone } from '../types';
+import type { Amortization, Announcement, AssistantSujet, AuditEntry, CashDebtor, ChurnReport, Client, ContactHandler, Conversation, ConversionCell, CopilotAnswer, CorporateAccount, ElasticityCell, ExpenseTicket, Finance, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, OpsConfig, PredictCell, Pricing, Promo, SearchResults, ServicesConfig, ShadowPricing, SupportStats, Transfer, Triggers, Zone } from '../types';
 import { ContactRapide, Kpi, availLabel, rideStatusLabel } from '../ui';
 import { pct, slugify } from './operations';
 import { ago } from './organisation';
@@ -948,31 +948,85 @@ export function GreenSection({ g, ops, onPdf, onEnergyCsv }: { g: GreenReport; o
 }
 
 /* ---------------------- Intelligence & prédiction --------------------- */
-export function IntelSection({ predict, conversion, churn, fraud, elasticity, canNotify, onReengage, onCopilot }: {
+/** Nom affichable d'une session, pour renvoyer l'employé là où le sujet se traite. */
+const SECTION_LABEL: Record<string, string> = {
+  vigilance: 'Vigilance', direction: 'Direction générale', rental: 'Location',
+  rentalTarifs: 'Tarifs location', subscriptions: 'Abonnements', treasury: 'Trésorerie',
+  finance: 'Finance', drivers: 'Chauffeurs', dispatch: 'Dispatch', rides: 'Courses',
+  green: 'Flotte verte', disputes: 'Litiges', support: 'Support', security: 'Sécurité',
+  audit: 'Journal', zones: 'Zones',
+};
+
+export function IntelSection({ predict, conversion, churn, fraud, elasticity, canNotify, onReengage, onCopilot, onSujets, onAller }: {
   predict: { hour: number; cells: PredictCell[] } | null; conversion: ConversionCell[];
   churn: ChurnReport | null; fraud: FraudReport | null; elasticity: ElasticityCell[];
   canNotify: boolean; onReengage: () => void;
   onCopilot: (q: string) => Promise<CopilotAnswer | null>;
+  /** Ce que l'assistant sait réellement répondre — chargé depuis le serveur. */
+  onSujets: () => Promise<AssistantSujet[]>;
+  onAller: (section: string) => void;
 }) {
   const [cq, setCq] = useState('');
   const [ans, setAns] = useState<CopilotAnswer | null>(null);
   const [thinking, setThinking] = useState(false);
-  const ask = async () => { if (!cq.trim()) return; setThinking(true); try { setAns(await onCopilot(cq.trim())); } finally { setThinking(false); } };
+  const [sujets, setSujets] = useState<AssistantSujet[]>([]);
+
+  // Les suggestions viennent du serveur : affichées en dur, elles finissaient par
+  // proposer des questions que le moteur ne savait plus traiter.
+  useEffect(() => { void onSujets().then(setSujets); }, [onSujets]);
+
+  const ask = async (q?: string) => {
+    const texte = (q ?? cq).trim();
+    if (!texte) return;
+    setCq(texte);
+    setThinking(true);
+    try { setAns(await onCopilot(texte)); } finally { setThinking(false); }
+  };
+
   return (
     <>
-      {/* Copilote génératif */}
+      {/* Assistant ORION — moteur de questions sur les données réelles. */}
       <div className="adm-card">
-        <div className="adm-card-h"><h3>🤖 Copilote d'administration</h3><span className="adm-muted">assistant génératif — questions en langage naturel</span></div>
+        <div className="adm-card-h">
+          <h3>🔎 Assistant ORION</h3>
+          <span className="adm-muted">interroge les données réelles de la plateforme</span>
+        </div>
         <div className="adm-chat-input">
-          <input value={cq} onChange={(e) => setCq(e.target.value)} placeholder="Ex. « CA électrique vs thermique », « état de la flotte »…" onKeyDown={(e) => { if (e.key === 'Enter') void ask(); }} />
+          <input
+            value={cq}
+            onChange={(e) => setCq(e.target.value)}
+            placeholder="Ex. « la plateforme va-t-elle bien ? », « chiffre d’affaires des locations ce mois-ci »…"
+            onKeyDown={(e) => { if (e.key === 'Enter') void ask(); }}
+          />
           <button className="adm-btn solid" onClick={() => void ask()} disabled={thinking}>{thinking ? '…' : 'Demander'}</button>
         </div>
-        {ans && <div className="adm-role-card" style={{ marginTop: 10 }}><p style={{ margin: 0, fontSize: 14 }}>{ans.answer}</p></div>}
+
+        {ans && (
+          <div className="adm-role-card" style={{ marginTop: 10 }}>
+            <p style={{ margin: 0, fontSize: 14, whiteSpace: 'pre-line' }}>{ans.answer}</p>
+            {ans.sources.length > 0 && (
+              <div className="row" style={{ gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+                <span className="adm-muted" style={{ fontSize: 12 }}>Creuser dans :</span>
+                {ans.sources.map((sec) => (
+                  <button key={sec} className="adm-btn xs" onClick={() => onAller(sec)}>{SECTION_LABEL[sec] ?? sec} →</button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Quand la question n'est pas comprise, on le dit — et on montre quoi demander. */}
         <div className="row" style={{ gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-          {['CA électrique vs thermique', 'chiffre d’affaires du mois', 'état de la flotte'].map((s) => (
-            <button key={s} className="adm-btn xs" onClick={() => { setCq(s); }}>{s}</button>
+          {sujets.map((s) => (
+            <button key={s.id} className="adm-btn xs" onClick={() => void ask(s.exemple)}>{s.exemple}</button>
           ))}
         </div>
+
+        <p className="adm-muted" style={{ fontSize: 12, marginTop: 10, lineHeight: 1.6 }}>
+          L’assistant lit les modules de la plateforme et répond avec les chiffres du moment.
+          Il ne rédige rien d’inventé : aucun modèle de langage n’intervient, et quand il ne
+          comprend pas une question, il le dit au lieu de produire une réponse plausible.
+        </p>
       </div>
 
       {/* Moteur anti-fraude */}
@@ -1012,7 +1066,7 @@ export function IntelSection({ predict, conversion, churn, fraud, elasticity, ca
       {/* Élasticité-prix */}
       {elasticity.length > 0 && (
         <div className="adm-card">
-          <div className="adm-card-h"><h3>📈 Élasticité-prix (surge neural)</h3><span className="adm-muted">multiplicateur recommandé par cellule</span></div>
+          <div className="adm-card-h"><h3>📈 Élasticité-prix</h3><span className="adm-muted">multiplicateur recommandé d’après le taux de conversion observé</span></div>
           <table className="adm-table">
             <thead><tr><th>Cellule</th><th className="r">Sessions</th><th className="r">Conversion</th><th className="r">Multiplicateur optimal</th></tr></thead>
             <tbody>
@@ -1027,8 +1081,10 @@ export function IntelSection({ predict, conversion, churn, fraud, elasticity, ca
             </tbody>
           </table>
           <p className="adm-muted" style={{ margin: '8px 0 0', fontSize: 12 }}>
-            L'IA maximise le revenu SANS casser la conversion : une zone à faible conversion n'est jamais majorée
-            (elle ferait fuir les clients), une zone à forte conversion supporte un léger surge.
+            Règle appliquée, sur les 12 dernières heures et à partir de 5 sessions dans la cellule :
+            conversion ≥ 60 % → ×1,50 ; ≥ 40 % → ×1,25 ; en dessous → aucune majoration, car majorer une
+            zone qui convertit mal ferait fuir les clients restants. C’est un barème, pas une prédiction :
+            le multiplicateur reste plafonné par l’incitation verte définie dans Tarification.
           </p>
         </div>
       )}

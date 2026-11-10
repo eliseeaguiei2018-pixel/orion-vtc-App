@@ -1587,7 +1587,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     // Élasticité-prix : multiplicateur recommandé par cellule (surge neural).
     scoped.get('/admin/elasticity', async (req) => { require(req, 'rides:read'); return { cells: admin.elasticity() }; });
 
-    // Copilote génératif : synthèse de litige + requêtes en langage naturel.
+    // Assistant ORION : synthèse de litige + questions sur les données réelles.
     scoped.get('/admin/disputes/:id/summary', async (req) => {
       require(req, 'support:read');
       const { id } = req.params as { id: string };
@@ -1596,10 +1596,21 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       return { summary };
     });
 
+    // L'assistant lit les modules réels et répond en français. Aucun modèle de langage
+    // n'intervient : brancher un vrai assistant conversationnel demanderait une clé d'API
+    // externe, et se ferait derrière cette même route sans rien changer à la console.
     scoped.post('/admin/copilot', async (req) => {
       require(req, 'overview:read');
       const body = parse(z.object({ q: z.string().min(2).max(200) }), req.body);
-      return admin.copilotQuery(body.q);
+      const r = await container.assistant.repondre(body.q);
+      // `query`/`answer` conservés : l'app console et les tests existants s'y appuient.
+      return { query: r.question, answer: r.reponse, data: r.data, sources: r.sources, incompris: r.incompris === true };
+    });
+
+    /** Ce que l'assistant sait répondre — affiché dans la console comme aide de saisie. */
+    scoped.get('/admin/copilot/sujets', async (req) => {
+      require(req, 'overview:read');
+      return { sujets: container.assistant.sujets() };
     });
 
     // --- Gestion chauffeurs (actions) ---

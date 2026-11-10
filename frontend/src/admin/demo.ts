@@ -233,11 +233,60 @@ const elasticity = [
   { cell: '737:-554', lat: 5.3064, lng: -3.9888, sessions: 145, rate: 26, recommended: 1 },
   { cell: '742:-561', lat: 5.3424, lng: -4.0392, sessions: 98, rate: 48, recommended: 1.25 },
 ];
+/**
+ * Sujets de l'assistant en mode démonstration. Les mêmes libellés que le serveur :
+ * une démo qui promet autre chose que la vraie console trompe celui qui l'évalue.
+ */
+function assistantSujets() {
+  return [
+    { id: 'sante', exemple: 'La plateforme va-t-elle bien ?' },
+    { id: 'a_faire', exemple: 'Qu’est-ce qui est urgent aujourd’hui ?' },
+    { id: 'location', exemple: 'Combien ont rapporté les locations ce mois-ci ?' },
+    { id: 'abonnement', exemple: 'Où en sont les abonnements ?' },
+    { id: 'tresorerie', exemple: 'Quel est le solde de caisse sur 30 jours ?' },
+    { id: 'finance', exemple: 'Quel chiffre d’affaires sur les 7 derniers jours ?' },
+    { id: 'flotte', exemple: 'Combien de chauffeurs sont en ligne ?' },
+    { id: 'courses', exemple: 'Combien de courses hier, et combien annulées ?' },
+    { id: 'vert', exemple: 'Quelle part des trajets est 100 % électrique ?' },
+    { id: 'support', exemple: 'Combien de litiges sont en attente ?' },
+    { id: 'securite', exemple: 'Y a-t-il eu des tentatives d’accès non autorisé ?' },
+    { id: 'zones', exemple: 'Quelles zones manquent de véhicules ?' },
+  ];
+}
+
 function copilot(q: string) {
   const s = q.toLowerCase();
-  if (/électr|electr|thermi/.test(s)) return { query: q, answer: '86 % des trajets sont 100 % électriques (128 400 km), 14 % hybrides. CO2 évité : 18 425 kg. Revenu total encaissé : 1 263 500 F CFA.', data: null };
-  if (/flotte|chauffeur/.test(s)) return { query: q, answer: '10 chauffeurs (8 en ligne, 4 en course). 12 courses actives.', data: null };
-  return { query: q, answer: 'GMV 1 263 500 F CFA · revenu encaissé 1 263 500 F CFA · commission ORION 227 430 F CFA.', data: null };
+  if (/va bien|sant|ne va pas|urgent|vigilance/.test(s)) {
+    return {
+      query: q, incompris: false, sources: ['vigilance', 'direction'], data: null,
+      answer: 'État : surveiller, score 88/100. 2 constat(s) : 0 critique(s), 1 élevé(s), 1 moyen(s). Le plus grave : Des chauffeurs roulent sans KYC validé — Suspendre ces chauffeurs jusqu’à validation du dossier.',
+    };
+  }
+  if (/location|louer|signature/.test(s)) {
+    return { query: q, incompris: false, sources: ['rental', 'rentalTarifs'], data: null,
+      answer: '4 location(s) sur les 30 derniers jours, pour 6 480 000 F. Modèle le plus demandé : Maextro S800 (2 dossier(s)). Flotte Signature engagée à 24 %.' };
+  }
+  if (/abonn|forfait|mrr/.test(s)) {
+    return { query: q, incompris: false, sources: ['subscriptions'], data: null,
+      answer: '38 abonné(s) actif(s) sur 51 compte(s), pour 760 000 F de revenu récurrent mensuel. 214 course(s) prise(s) en charge, soit 412 300 F rendus aux clients. Aucun impayé.' };
+  }
+  if (/électr|electr|thermi|co2|vert/.test(s)) {
+    return { query: q, incompris: false, sources: ['green'], data: null,
+      answer: '10 véhicule(s) 100 % électriques sur 10 (100 %). Aucun sous 20 % de batterie.' };
+  }
+  if (/flotte|chauffeur/.test(s)) {
+    return { query: q, incompris: false, sources: ['drivers', 'dispatch'], data: null,
+      answer: '10 chauffeur(s) enregistré(s) : 8 en ligne, 4 en course. Répartition des disponibles : bronze 2, argent 3, or 2, diamant 1.' };
+  }
+  if (/chiffre|revenu|ca\b|commission|gmv|tva|caisse|trésor|tresor/.test(s)) {
+    return { query: q, incompris: false, sources: ['direction', 'finance'], data: null,
+      answer: 'Volume d’affaires sur les 30 derniers jours : 1 263 500 F (mobilité 1 263 500 F, location 0 F, abonnements 0 F). Revenu ORION : 227 430 F — sur une course, l’essentiel revient au chauffeur. TVA collectée pour l’État : 22 743 F.' };
+  }
+  // Mode démonstration comme en vrai : on avoue ne pas comprendre plutôt que d'inventer.
+  return {
+    query: q, incompris: true, sources: [], data: assistantSujets(),
+    answer: 'Je n’ai pas compris la question. Voici ce que je sais répondre, avec les données réelles de la plateforme :',
+  };
 }
 
 /* --- S12-S15 (démo) --- */
@@ -796,7 +845,7 @@ export const DEMO = {
   finance, broadcasts, treasury, sessions, search, driverDetail, clientDetail, ops, quality, disputes, rideForensic,
   green, teams, predict, conversion, churn, corporate,
   sos: alerts, sosPresets, sosDossier, security, supportStats, macros, triggers, reservations, csat, qualityTop, simulate,
-  staffKpis, shifts, maintenance, squadPnl, fraud, elasticity, copilot,
+  staffKpis, shifts, maintenance, squadPnl, fraud, elasticity, copilot, assistantSujets,
   expiring, cashDebt, gateways, expenses, liquidity, amortization,
   contacts, executive, livre, vigilance, monPoste, prestige, rentals, rentalDispos, rentalStats, rentalTarifs, subPlans, subscriptions, subInvoices, subStats,
 };
