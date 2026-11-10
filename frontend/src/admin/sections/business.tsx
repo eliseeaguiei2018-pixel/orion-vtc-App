@@ -1101,9 +1101,11 @@ export function IntelSection({ predict, conversion, churn, fraud, elasticity, ca
 }
 
 /* ------------------------ Comptes Entreprises (B2B) ------------------- */
-export function CorporateSection({ accounts, canWrite, canSettle, canBook, onSave, onSettle, onInvoice, onEsg, onInvoicePdf, onImport, onBook }: {
+export function CorporateSection({ accounts, canWrite, canSettle, canBook, onSave, onSettle, onInvoice, onEsg, onInvoicePdf, onImport, onBook, onContact }: {
   accounts: CorporateAccount[]; canWrite: boolean; canSettle: boolean; canBook: boolean;
-  onSave: (i: { id?: string; name: string; contactEmail?: string; creditLimit: number; nif?: string; kickbackRate?: number }) => void;
+  onSave: (i: { id?: string; name: string; contactEmail?: string; contactPhone?: string; creditLimit: number; nif?: string; kickbackRate?: number }) => void;
+  /** Relancer un compte en dépassement se fait au téléphone, pas par courriel. */
+  onContact: ContactHandler;
   onSettle: (id: string) => void; onInvoice: (id: string) => void; onEsg: (id: string) => void;
   onInvoicePdf: (id: string) => void;
   onImport: (id: string, memberIds: string[]) => void;
@@ -1113,6 +1115,7 @@ export function CorporateSection({ accounts, canWrite, canSettle, canBook, onSav
   const [email, setEmail] = useState('');
   const [limit, setLimit] = useState(500_000);
   const [nif, setNif] = useState('');
+  const [tel, setTel] = useState('');
   const [kickback, setKickback] = useState(0);
   const doImport = (id: string) => {
     const raw = window.prompt('Import de masse — identifiants clients ORION séparés par des virgules :', 'client-1, client-2, client-3');
@@ -1143,7 +1146,8 @@ export function CorporateSection({ accounts, canWrite, canSettle, canBook, onSav
             <label className="price-field"><span>E-mail de facturation</span><input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="compta@hotel.ci" /></label>
             <label className="price-field"><span>Ligne de crédit (F / mois)</span><input type="number" min={0} step={50000} value={limit} onChange={(e) => setLimit(Number(e.target.value))} /></label>
             <label className="price-field"><span>Rétrocommission (%)</span><input type="number" min={0} max={50} value={kickback} onChange={(e) => setKickback(Number(e.target.value))} /></label>
-            <button className="adm-btn solid" onClick={() => { if (name.trim()) { onSave({ name: name.trim(), contactEmail: email.trim() || undefined, creditLimit: limit, nif: nif.trim() || undefined, kickbackRate: kickback ? kickback / 100 : undefined }); setName(''); setEmail(''); setNif(''); setKickback(0); } }}>Créer</button>
+            <label className="price-field"><span>Téléphone du donneur d’ordre</span><input value={tel} onChange={(e) => setTel(e.target.value)} placeholder="+225…" /></label>
+            <button className="adm-btn solid" onClick={() => { if (name.trim()) { onSave({ name: name.trim(), contactEmail: email.trim() || undefined, contactPhone: tel.trim() || undefined, creditLimit: limit, nif: nif.trim() || undefined, kickbackRate: kickback ? kickback / 100 : undefined }); setName(''); setEmail(''); setTel(''); setNif(''); setKickback(0); } }}>Créer</button>
           </div>
           <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
             Filiales/départements, politiques de déplacement (horaires/zones/gammes), import de masse des
@@ -1163,6 +1167,9 @@ export function CorporateSection({ accounts, canWrite, canSettle, canBook, onSav
                 <tr key={a.id}>
                   <td>{a.name}
                     <div className="adm-muted" style={{ fontSize: 11 }}>{a.contactEmail ?? '—'}{a.nif ? ` · NIF ${a.nif}` : ''}{a.parentId ? ` · filiale de ${a.parentId}` : ''}</div>
+                    <div style={{ marginTop: 4 }}>
+                      <ContactRapide type="entreprise" id={a.id} numero={a.contactPhone} nom={a.name} onContact={onContact} />
+                    </div>
                     <div className="row" style={{ gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
                       {a.kickbackRate ? <span className="adm-pill av-online" title="Rétrocommission">↩ {Math.round(a.kickbackRate * 100)} %</span> : null}
                       {(a.members?.length ?? 0) > 0 ? <span className="adm-pill">👥 {a.members!.length}</span> : null}

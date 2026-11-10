@@ -24,6 +24,12 @@ export interface CorporateAccount {
   id: string;            // code société (saisi à la commande)
   name: string;
   contactEmail?: string;
+  /**
+   * Téléphone du donneur d'ordre. Un compte entreprise se relance au téléphone, pas
+   * par courriel : sans ce champ, la console affichait une société en dépassement de
+   * ligne de crédit sans aucun moyen de la joindre.
+   */
+  contactPhone?: string;
   creditLimit: number;   // plafond mensuel (F CFA)
   balanceUsed: number;   // crédit consommé sur la période en cours
   active: boolean;
@@ -50,7 +56,7 @@ export class CorporateService {
   }
 
   upsert(input: {
-    id?: string; name: string; contactEmail?: string; creditLimit: number; active?: boolean;
+    id?: string; name: string; contactEmail?: string; contactPhone?: string; creditLimit: number; active?: boolean;
     nif?: string; billingAddress?: string; parentId?: string; policy?: TravelPolicy; kickbackRate?: number;
   }): CorporateAccount {
     const id = (input.id ?? input.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24) + '-' + randomUUID().slice(0, 4));
@@ -59,6 +65,7 @@ export class CorporateService {
       id,
       name: input.name,
       contactEmail: input.contactEmail ?? existing?.contactEmail,
+      contactPhone: input.contactPhone ?? existing?.contactPhone,
       creditLimit: Math.max(0, Math.round(input.creditLimit)),
       balanceUsed: existing?.balanceUsed ?? 0,
       active: input.active ?? existing?.active ?? true,

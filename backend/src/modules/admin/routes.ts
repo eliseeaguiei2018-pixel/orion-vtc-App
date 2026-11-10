@@ -244,6 +244,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         id: z.string().min(2).max(40).optional(),
         name: z.string().min(2).max(80),
         contactEmail: z.string().email().optional(),
+        contactPhone: z.string().min(8).max(20).optional(),
         creditLimit: z.number().min(0).max(1_000_000_000),
         active: z.boolean().optional(),
         // CRM B2B avancé : filiales, NIF, politique de déplacement, rétrocommission.

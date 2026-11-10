@@ -6,13 +6,16 @@
  */
 import { useState } from 'react';
 import { fcfa } from '../api';
-import type { ActiveSession, DriverRow, MaintenanceTicket, Me, Shift, SquadPnl, StaffKpi, Team } from '../types';
+import type { ActiveSession, ContactHandler, DriverRow, MaintenanceTicket, Me, Shift, SquadPnl, StaffKpi, Team } from '../types';
+import { ContactRapide } from '../ui';
 
 export const SLOT_LABEL: Record<string, string> = { matin: '🌅 Matin', soir: '🌇 Soir', nuit: '🌙 Nuit' };
 export const MAINT_LABEL: Record<string, string> = { controle_technique: 'Contrôle technique', batterie_soh: 'Batterie (SoH)', reparation: 'Réparation', nettoyage: 'Nettoyage', assurance: 'Assurance' };
 
-export function TeamsSection({ teams, allDrivers, staffKpis, shifts, maintenance, canWrite, onSave, onDelete, onShift, onRemoveShift, onMaintenance, onResolveMaintenance, onBroadcast, onPnl, onHoursCsv, onEvalPdf }: {
+export function TeamsSection({ teams, allDrivers, staffKpis, shifts, maintenance, canWrite, onSave, onDelete, onShift, onRemoveShift, onMaintenance, onResolveMaintenance, onBroadcast, onPnl, onHoursCsv, onEvalPdf, onContact }: {
   teams: Team[]; allDrivers: DriverRow[]; staffKpis: StaffKpi[]; shifts: Shift[]; maintenance: MaintenanceTicket[]; canWrite: boolean;
+  /** Joindre le chauffeur dont le véhicule est immobilisé. */
+  onContact: ContactHandler;
   onSave: (i: { id?: string; name: string; managerUsername: string; managerName?: string; driverIds?: string[] }) => void;
   onDelete: (id: string) => void;
   onShift: (i: { username: string; name: string; date: string; slot: string; zoneId?: string }) => void;
@@ -115,7 +118,26 @@ export function TeamsSection({ teams, allDrivers, staffKpis, shifts, maintenance
         <div className="stack" style={{ gap: 6 }}>
           {maintenance.map((t) => (
             <div key={t.id} className="row between" style={{ padding: '8px 10px', background: 'var(--a-panel2)', borderRadius: 8 }}>
-              <div><strong style={{ fontSize: 13 }}>{MAINT_LABEL[t.kind] ?? t.kind}</strong> · {t.title}<div className="adm-muted mono" style={{ fontSize: 11 }}>{t.driverId.slice(0, 8)}{t.assignee ? ` · agent ${t.assignee}` : ''}</div></div>
+              {/* Le ticket n'affichait qu'un identifiant technique : le gestionnaire
+                  voyait « a1b2c3d4 » sans savoir quel véhicule ni qui appeler. */}
+              <div>
+                <strong style={{ fontSize: 13 }}>{MAINT_LABEL[t.kind] ?? t.kind}</strong> · {t.title}
+                <div className="adm-muted" style={{ fontSize: 11 }}>
+                  {(() => {
+                    const d = allDrivers.find((x) => x.id === t.driverId);
+                    return d ? `${d.name} · ${d.matricule}` : `Chauffeur ${t.driverId.slice(0, 8)}`;
+                  })()}
+                  {t.assignee ? ` · agent ${t.assignee}` : ''}
+                </div>
+                <div style={{ marginTop: 4 }}>
+                  <ContactRapide
+                    type="chauffeur" id={t.driverId}
+                    numero={allDrivers.find((x) => x.id === t.driverId)?.phone}
+                    nom={allDrivers.find((x) => x.id === t.driverId)?.name}
+                    onContact={onContact}
+                  />
+                </div>
+              </div>
               <div className="row" style={{ gap: 6 }}>
                 <span className={`adm-pill ${t.status === 'resolu' ? 'av-online' : 'tr-pending'}`}>{t.status}</span>
                 {canWrite && t.status !== 'resolu' && <button className="adm-btn xs" onClick={() => onResolveMaintenance(t.id)}>Résoudre</button>}

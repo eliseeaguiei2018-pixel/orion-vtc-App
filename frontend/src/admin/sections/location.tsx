@@ -223,7 +223,11 @@ export function RentalSection({ reservations, fleet, stats, dispos, drivers, can
 const LABEL_FACTURE: Record<string, string> = { en_attente: 'En attente', payee: 'Payée', echouee: 'Échec' };
 const PILL_FACTURE: Record<string, string> = { en_attente: 'cap', payee: 'av-online', echouee: 'kyc-manual_review' };
 
-export function SubscriptionsSection({ plans, subscriptions, invoices, stats, canWrite, onPayInvoice, onEcheances, onResilier }: {
+export function SubscriptionsSection({ plans, subscriptions, invoices, stats, canWrite, clients, onPayInvoice, onEcheances, onResilier, onContact }: {
+  /** Fiches clients, pour retrouver le numéro de l'abonné. */
+  clients: Array<{ id: string; name?: string; phone?: string }>;
+  /** Relancer un impayé suppose de pouvoir joindre l'abonné. */
+  onContact: ContactHandler;
   plans: SubPlanRow[];
   subscriptions: SubscriptionRow[];
   invoices: SubInvoiceRow[];
@@ -278,7 +282,7 @@ export function SubscriptionsSection({ plans, subscriptions, invoices, stats, ca
         {subscriptions.length === 0 ? <p className="adm-muted">Aucun abonné.</p> : (
           <table className="adm-table">
             <thead>
-              <tr><th>Client</th><th>Forfait</th><th>Échéance</th><th className="r">Quota du jour</th><th className="r">Pris en charge</th><th>État</th>{canWrite && <th>Actions</th>}</tr>
+              <tr><th>Client</th><th>Joindre</th><th>Forfait</th><th>Échéance</th><th className="r">Quota du jour</th><th className="r">Pris en charge</th><th>État</th>{canWrite && <th>Actions</th>}</tr>
             </thead>
             <tbody>
               {subscriptions.map((s) => {
@@ -287,7 +291,15 @@ export function SubscriptionsSection({ plans, subscriptions, invoices, stats, ca
                 const pill = etat === 'Actif' ? 'av-online' : etat === 'Résilié' ? '' : 'kyc-manual_review';
                 return (
                   <tr key={s.id}>
-                    <td className="mono">{s.userId}</td>
+                    <td>{clients.find((c) => c.id === s.userId)?.name ?? <span className="mono">{s.userId}</span>}</td>
+                    <td>
+                      <ContactRapide
+                        type="client" id={s.userId}
+                        numero={clients.find((c) => c.id === s.userId)?.phone}
+                        nom={clients.find((c) => c.id === s.userId)?.name ?? s.userId}
+                        onContact={onContact}
+                      />
+                    </td>
                     <td>{nomForfait(s.plan)}</td>
                     <td>{dt(s.renewsAt)}{s.autoRenew && <><br /><span className="adm-muted">renouvellement auto.</span></>}</td>
                     <td className="r">{s.usedToday} / {s.ridesPerDay}</td>

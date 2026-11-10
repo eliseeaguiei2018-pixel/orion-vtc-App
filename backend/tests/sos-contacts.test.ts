@@ -187,3 +187,25 @@ test('contacter exige le droit correspondant au dossier', async (t) => {
   assert.ok(!ROLE_PERMISSIONS.financial_analyst.includes('clients:read'));
   assert.ok(!ROLE_PERMISSIONS.financial_analyst.includes('drivers:read'));
 });
+
+test('un compte entreprise peut enfin porter un numéro de donneur d’ordre', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  const cree = await app.inject({
+    method: 'PUT', url: '/admin/corporate', headers: JETON,
+    payload: { name: 'Ambassade du Ghana', contactEmail: 'protocole@example.ci', contactPhone: '+2250708091011', creditLimit: 5_000_000 },
+  });
+  assert.equal(cree.statusCode, 200);
+  const liste = await app.inject({ method: 'GET', url: '/admin/corporate', headers: JETON });
+  const compte = liste.json().accounts.find((a: { name: string }) => a.name === 'Ambassade du Ghana');
+  assert.equal(compte.contactPhone, '+2250708091011', 'le numéro est conservé');
+
+  // Un compte en dépassement de ligne de crédit se relance au téléphone.
+  const appel = await app.inject({
+    method: 'POST', url: '/admin/contact', headers: JETON,
+    payload: { dossierType: 'entreprise', dossierId: compte.id, canal: 'appel', numero: compte.contactPhone, label: compte.name },
+  });
+  assert.equal(appel.statusCode, 200);
+  assert.equal(appel.json().entry.dossierType, 'entreprise');
+});

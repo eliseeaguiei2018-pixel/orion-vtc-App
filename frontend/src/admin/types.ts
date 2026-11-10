@@ -204,7 +204,7 @@ export interface ChurnReport {
   drivers: { id: string; name: string; matricule: string; idleSince?: string }[];
 }
 export interface CorporateAccount {
-  id: string; name: string; contactEmail?: string; creditLimit: number; balanceUsed: number; active: boolean; createdAt: string;
+  id: string; name: string; contactEmail?: string; contactPhone?: string; creditLimit: number; balanceUsed: number; active: boolean; createdAt: string;
   nif?: string; billingAddress?: string; parentId?: string; policy?: TravelPolicy; kickbackRate?: number; members?: string[];
 }
 export interface QualityRow { id: string; name: string; matricule: string; category: string; rating: number; trips: number; warnings: number; kycStatus: string; vip?: boolean; below: boolean }
