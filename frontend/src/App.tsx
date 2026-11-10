@@ -16,7 +16,7 @@ import {
   ABIDJAN_PLACES, COUNTRIES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { EMERGENCY_NUMBERS, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, fetchSubPlans, fetchSubscription, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, subscribePlan, type Announcement, type AppConfig, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
+import { EMERGENCY_NUMBERS, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, fetchSubPlans, fetchSubscription, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, paySubscriptionInvoice, previewDelivery, registerClientProfile, previewQuote, rateRide, rideSocketUrl, sos, subscribePlan, type Announcement, type AppConfig, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
 import { LANGUAGES, useI18n, type Lang } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
@@ -79,6 +79,8 @@ export function App() {
   const [insurance, setInsurance] = useState(false);
   const [payment, setPayment] = useState<string>('orange_money');
   const [quote, setQuote] = useState<Quote | null>(null);
+  /** Nom saisi à l'inscription — enregistré côté serveur après vérification du numéro. */
+  const [clientName, setClientName] = useState('');
   /** Ce que l'abonnement ORION couvrirait sur cette course (aperçu, rien n'est consommé). */
   const [coverage, setCoverage] = useState<SubCoverage | null>(null);
   const [locked, setLocked] = useState(isBiometricEnabled());
@@ -322,8 +324,19 @@ export function App() {
 
         {screen === 'splash' && <Splash onDone={() => setScreen('onboarding')} />}
         {screen === 'onboarding' && <Onboarding onStart={() => setScreen('auth')} onLang={() => setScreen('settings')} />}
-        {screen === 'auth' && <AuthScreen phone={phone} setPhone={setPhone} onBack={() => setScreen('onboarding')} onNext={() => setScreen('otp')} onWhatsApp={(msg) => { showToast(msg); setScreen('otp'); }} />}
-        {screen === 'otp' && <OtpScreen phone={phone} onBack={() => setScreen('auth')} onVerified={() => setScreen('permissions')} />}
+        {screen === 'auth' && <AuthScreen phone={phone} setPhone={setPhone} name={clientName} setName={setClientName} onBack={() => setScreen('onboarding')} onNext={() => setScreen('otp')} onWhatsApp={(msg) => { showToast(msg); setScreen('otp'); }} />}
+        {screen === 'otp' && (
+          <OtpScreen
+            phone={phone}
+            onBack={() => setScreen('auth')}
+            onVerified={() => {
+              // Le numéro est vérifié : on enregistre la fiche pour que le support
+              // puisse rappeler. Sans cela, la console n'affiche qu'un identifiant.
+              void registerClientProfile(clientName, phone);
+              setScreen('permissions');
+            }}
+          />
+        )}
         {screen === 'permissions' && <PermissionsScreen onDone={() => setScreen('home')} />}
 
         {screen === 'home' && (
@@ -521,11 +534,12 @@ function Onboarding({ onStart, onLang }: { onStart: () => void; onLang: () => vo
 }
 
 /* --------------------------- Inscription ----------------------------- */
-function AuthScreen({ phone, setPhone, onBack, onNext, onWhatsApp }: {
-  phone: string; setPhone: (v: string) => void; onBack: () => void; onNext: () => void; onWhatsApp: (msg: string) => void;
+function AuthScreen({ phone, setPhone, name, setName, onBack, onNext, onWhatsApp }: {
+  phone: string; setPhone: (v: string) => void;
+  name: string; setName: (v: string) => void;
+  onBack: () => void; onNext: () => void; onWhatsApp: (msg: string) => void;
 }) {
   const { t } = useI18n();
-  const [name, setName] = useState('');
   const valid = phone.replace(/\D/g, '').length >= 8;
   return (
     <div className="screen page">

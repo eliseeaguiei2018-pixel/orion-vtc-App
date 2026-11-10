@@ -104,3 +104,57 @@ test('mon activité du jour reprend ce que J’AI fait, pas ce que d’autres on
   assert.ok(p.monActivite.some((a: { action: string }) => a.action.startsWith('pricing')));
   assert.equal(p.bilan.actionsAujourdhui, p.monActivite.length);
 });
+
+test('on n’affiche plus des gens qu’on ne peut pas joindre', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  // 1) Un chauffeur créé par les opérations peut porter un numéro, normalisé.
+  const drv = await app.inject({
+    method: 'POST', url: '/drivers',
+    payload: { name: 'Awa Diomandé', category: 'argent', phone: '07 08 09 10 11' },
+  });
+  assert.equal(drv.statusCode, 201);
+  const driverId = drv.json().driver.id as string;
+  assert.equal(drv.json().driver.phone, '+2250708091011', 'numéro mis au format international');
+
+  // 2) Le client enregistre sa fiche après vérification de son numéro.
+  const prof = await app.inject({
+    method: 'POST', url: '/clients/profile',
+    payload: { clientId: 'client-8842', name: 'Kouassi Aya', phone: '0102030405' },
+  });
+  assert.equal(prof.statusCode, 200);
+  assert.equal(prof.json().client.phone, '+2250102030405');
+  assert.equal(prof.json().client.name, 'Kouassi Aya');
+
+  // Les deux écritures du même numéro donnent la même fiche, pas deux.
+  await app.inject({
+    method: 'POST', url: '/clients/profile',
+    payload: { clientId: 'client-8842', phone: '+225 01 02 03 04 05' },
+  });
+  const liste = await app.inject({ method: 'GET', url: '/admin/clients', headers: A });
+  const fiches = liste.json().clients.filter((c: { id: string }) => c.id === 'client-8842');
+  assert.equal(fiches.length, 1, 'une seule fiche par personne');
+  assert.equal(fiches[0].phone, '+2250102030405');
+
+  // 3) La liste des courses sert les deux numéros : le radar devient joignable.
+  await app.inject({ method: 'POST', url: `/drivers/${driverId}/online`, payload: { position: { lat: 5.324, lng: -4.021 } } });
+  const est = await app.inject({
+    method: 'POST', url: '/pricing/estimate',
+    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9876 }, category: 'argent', clientId: 'client-8842' },
+  });
+  await app.inject({
+    method: 'POST', url: '/rides',
+    payload: {
+      clientId: 'client-8842', lockId: est.json().quote.lockId, paymentMethod: 'wave',
+      trustedContact: { name: 'Mme Kouassi', phone: '+2250102030406' },
+    },
+  });
+
+  const rides = await app.inject({ method: 'GET', url: '/admin/rides?limit=5', headers: A });
+  const r = rides.json().rides[0];
+  assert.equal(r.clientName, 'Kouassi Aya');
+  assert.equal(r.clientPhone, '+2250102030405');
+  assert.equal(r.driverPhone, '+2250708091011');
+  assert.equal(r.trustedContact.name, 'Mme Kouassi', 'le contact de confiance est joignable aussi');
+});

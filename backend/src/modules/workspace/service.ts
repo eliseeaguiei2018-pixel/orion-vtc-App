@@ -71,6 +71,21 @@ const DROIT_SECTION: Record<string, Permission> = {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+/** Libellés en clair : un employé ne doit jamais lire un code interne à l'écran. */
+const KIND_ALERTE: Record<string, string> = {
+  sos: 'SOS déclenché', crash: 'Choc détecté', deviation: 'Déviation d’itinéraire',
+  immobilisation: 'Immobilisation anormale', mot_sensible: 'Mot sensible signalé',
+};
+const NIVEAU_ALERTE: Record<string, string> = { rouge: 'rouge', orange: 'orange', jaune: 'jaune' };
+const KIND_LITIGE: Record<string, string> = {
+  objet_perdu: 'objet oublié', trajet: 'contestation de trajet',
+  facturation: 'erreur de facturation', comportement: 'comportement',
+};
+const STATUT_DEMANDE: Record<string, string> = {
+  pending: 'en attente de décision', approved: 'approuvée', rejected: 'refusée',
+  info: 'complément demandé', paid: 'versée',
+};
+
 export class WorkspaceService {
   constructor(private readonly c: Container) {}
 
@@ -87,7 +102,7 @@ export class WorkspaceService {
       if (a.status === 'resolved' || a.status === 'cancelled') continue;
       mesDossiers.push({
         id: a.id, type: 'sos', priorite: 1,
-        titre: `Alerte ${a.level ?? 'rouge'} — ${a.kind}`,
+        titre: `Alerte ${NIVEAU_ALERTE[a.level ?? 'rouge'] ?? a.level} — ${KIND_ALERTE[a.kind] ?? a.kind}`,
         detail: `${a.zoneName ?? 'zone inconnue'} · usager ${a.userId.slice(0, 10)}`,
         depuis: a.claimedAt ?? a.createdAt, section: 'alerts',
       });
@@ -108,7 +123,7 @@ export class WorkspaceService {
       if (d.status === 'resolved' || d.status === 'rejected') continue;
       mesDossiers.push({
         id: d.id, type: 'litige', priorite: d.escalation ? 2 : 4,
-        titre: `Litige ${d.kind}${d.escalation ? ` (escaladé — ${d.escalation})` : ''}`,
+        titre: `Litige ${KIND_LITIGE[d.kind] ?? d.kind}${d.escalation ? ` (escaladé — ${d.escalation})` : ''}`,
         detail: d.description.slice(0, 90),
         depuis: d.createdAt, section: 'disputes',
       });
@@ -136,7 +151,8 @@ export class WorkspaceService {
       mesDemandes.push({
         id: t.id, type: 'note_de_frais',
         libelle: `${t.category} — ${t.description.slice(0, 60)}`,
-        montant: t.amount, statut: t.status, depuis: t.createdAt, section: 'finance',
+        montant: t.amount, statut: STATUT_DEMANDE[t.status] ?? t.status,
+        depuis: t.createdAt, section: 'finance',
       });
     }
 

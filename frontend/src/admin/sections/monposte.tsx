@@ -24,6 +24,8 @@ const TYPE_META: Record<string, { icone: string; label: string }> = {
 const SLOT_LABEL: Record<string, string> = { matin: 'Matin', soir: 'Soir', nuit: 'Nuit' };
 
 const SEV_CLS: Record<string, string> = { critique: 'lvl-rouge', eleve: 'lvl-orange', moyen: 'lvl-jaune', info: '' };
+/** Jamais de code brut à l'écran : « eleve » ne veut rien dire pour un employé. */
+const SEV_LABEL: Record<string, string> = { critique: 'Critique', eleve: 'Élevé', moyen: 'Moyen', info: 'Information' };
 
 const dt = (iso: string) => new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 const heure = (iso: string) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -103,7 +105,7 @@ export function MonPosteSection({ poste, onAller }: {
             {poste.aTraiter.map((c) => (
               <div key={c.id} className="row between" style={{ gap: 12, flexWrap: 'wrap' }}>
                 <span className="row grow" style={{ gap: 8, flexWrap: 'wrap' }}>
-                  <span className={`adm-pill ${SEV_CLS[c.severite] ?? ''}`}>{c.severite}</span>
+                  <span className={`adm-pill ${SEV_CLS[c.severite] ?? ''}`}>{SEV_LABEL[c.severite] ?? c.severite}</span>
                   <strong style={{ fontSize: 13.5 }}>{c.titre}</strong>
                   <span className="adm-muted" style={{ fontSize: 12.5 }}>— {c.action}</span>
                 </span>

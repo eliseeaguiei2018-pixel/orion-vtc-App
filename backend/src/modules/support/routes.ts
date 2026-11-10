@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { parse } from '../../core/validate.js';
 import { notFound } from '../../core/errors.js';
+import { normalizePhone } from '../driver-app/auth.js';
 
 /**
  * Endpoints SUPPORT côté client (app cliente) + config publique.
@@ -11,6 +12,31 @@ import { notFound } from '../../core/errors.js';
 export async function supportClientRoutes(app: FastifyInstance, container: Container): Promise<void> {
   // Config publique : services activés + ville ouverte (l'app cliente adapte son hub).
   app.get('/config', async () => ({ ...container.settings.getServices(), currency: 'XOF' }));
+
+  /**
+   * FICHE CLIENT — enregistrée depuis l'app après vérification du numéro.
+   *
+   * Le client saisissait son nom et son téléphone à l'inscription, et rien n'était
+   * conservé côté serveur : la console affichait « client-8842 » sans aucun moyen de
+   * le joindre. Un support qui ne peut pas rappeler n'est pas un support.
+   */
+  app.post('/clients/profile', async (req) => {
+    const body = parse(
+      z.object({
+        clientId: z.string().min(1).max(64),
+        name: z.string().min(1).max(80).optional(),
+        phone: z.string().min(8).max(20).optional(),
+      }),
+      req.body,
+    );
+    // Normalisation ivoirienne : « 07 08 09 10 11 » et « +2250708091011 » sont le
+    // même numéro — sans cela, deux fiches cohabitent pour une seule personne.
+    // On réutilise LE normaliseur de la plateforme : deux implémentations finiraient
+    // par diverger, et le même numéro donnerait deux fiches pour une seule personne.
+    const phone = body.phone ? (normalizePhone(body.phone) ?? undefined) : undefined;
+    const client = container.clients.touch(body.clientId, { name: body.name, phone });
+    return { client: { id: client.id, name: client.name ?? null, phone: client.phone ?? null } };
+  });
 
   // Annonces publiques (bannière app cliente).
   app.get('/announcements', async () => ({ announcements: container.notifications.forAudience('clients') }));

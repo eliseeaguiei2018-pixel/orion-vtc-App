@@ -185,6 +185,20 @@ export async function estimateWithCoverage(
   return { quote: localEstimate(origin, destination, tier, opts), coverage: null };
 }
 
+/**
+ * Enregistre la fiche du client après vérification de son numéro.
+ *
+ * Le nom et le téléphone saisis à l'inscription restaient dans le navigateur : la
+ * console affichait « client-8842 » sans aucun moyen de rappeler. Un support qui ne
+ * peut pas joindre le client n'est pas un support.
+ */
+export async function registerClientProfile(name: string, phone: string): Promise<void> {
+  await tryFetch('/clients/profile', {
+    method: 'POST',
+    body: JSON.stringify({ clientId: clientId(), name: name.trim() || undefined, phone: phone.trim() || undefined }),
+  });
+}
+
 /** Numéros de secours en Côte d'Ivoire, à composer si l'alerte ne part pas. */
 export const EMERGENCY_NUMBERS = { samu: '185', police: '170', pompiers: '180' } as const;
 

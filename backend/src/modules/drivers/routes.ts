@@ -8,10 +8,17 @@ import { config } from '../../config/index.js';
 import { fromDriverApp } from '../driver-app/auth.js';
 import { driverRoom, rideRoom } from '../realtime/hub.js';
 import { genMatricule } from './store.js';
+import { normalizePhone } from '../driver-app/auth.js';
 
 const registerSchema = z.object({
   name: z.string().min(1),
   category: z.string().default('bronze'),
+  /**
+   * Numéro du chauffeur. Il était impossible à renseigner à la création : seuls les
+   * chauffeurs inscrits eux-mêmes par OTP en avaient un, et la console affichait les
+   * autres sans aucun moyen de les joindre.
+   */
+  phone: z.string().min(8).max(20).optional(),
 });
 
 const onlineSchema = z.object({ position: latLng });
@@ -29,6 +36,7 @@ export async function driverRoutes(app: FastifyInstance, container: Container): 
       availability: 'offline',
       ratingAvg: 0,
       ratingCount: 0,
+      phone: (body.phone ? normalizePhone(body.phone) : undefined) ?? undefined,
     });
     reply.code(201);
     return { driver };
