@@ -2156,7 +2156,11 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
      * qui porte SON nom, et uniquement ce que ses droits lui permettent de traiter.
      */
     scoped.get('/admin/mon-poste', async (req) => {
-      require(req, 'overview:read');
+      // Tout compte connecté a un poste de travail, y compris un chauffeur qui n'a
+      // que `crew:self` : c'est sa seule vue de la plateforme, lui en interdire
+      // l'accès reviendrait à lui donner un compte qui n'ouvre sur rien.
+      const { admin: a } = req as FastifyRequest & { admin: AdminAccount };
+      if (!can(a.role, 'overview:read') && !can(a.role, 'crew:self')) require(req, 'overview:read');
       const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
       const poste = await container.workspace.monPoste(account);
       return { ...poste, identite: { ...poste.identite, roleLabel: ROLE_LABEL[account.role] } };
@@ -2551,6 +2555,141 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       const subscription = container.subscriptions.cancel(userId, body.raison);
       audit(req, 'subscription.cancel', userId, { raison: body.raison });
       return { subscription };
+    });
+
+    /* ==================== POSTE DE TRAVAIL DU CHEF D'ÉQUIPE ====================
+     *
+     * La session Équipes montrait des équipes : un nom, un manager, des chauffeurs.
+     * On pouvait la regarder, pas y travailler. Diriger une équipe, c'est savoir ce
+     * que chacun a fait aujourd'hui, pouvoir l'appeler, lui écrire, lui demander un
+     * bilan — et voir ce qui n'a pas été rendu.
+     */
+
+    /** Le manager n'ouvre que ses équipes ; l'agent, que la sienne. */
+    const assertMonEquipe = (req: FastifyRequest, teamId: string): void => {
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      if (!container.teamWorkspace.peutOuvrir(account, teamId)) {
+        throw forbidden('Cette équipe n’est pas la vôtre.');
+      }
+    };
+
+    scoped.get('/admin/teams/:id/poste', async (req) => {
+      require(req, 'teams:read');
+      const { id } = req.params as { id: string };
+      assertMonEquipe(req, id);
+      const q = parse(z.object({ jours: z.coerce.number().int().min(1).max(90).optional() }), req.query ?? {});
+      const poste = container.teamWorkspace.poste(id, q.jours ?? 7);
+      if (!poste) throw notFound('Équipe introuvable');
+      return { poste };
+    });
+
+    /** Écrire à un membre de son équipe, dans la console — pas sur son téléphone perso. */
+    scoped.post('/admin/teams/:id/messages', async (req, reply) => {
+      require(req, 'teams:read');
+      const { id } = req.params as { id: string };
+      assertMonEquipe(req, id);
+      const body = parse(z.object({
+        a: z.string().min(1).max(60),
+        sujet: z.string().max(120).optional(),
+        texte: z.string().min(1).max(2000),
+        urgent: z.boolean().optional(),
+        reponseAttendue: z.boolean().optional(),
+      }), req.body);
+      const destinataire = container.accounts.get(body.a);
+      if (!destinataire) throw notFound('Destinataire introuvable');
+      // On écrit aux gens de son équipe, pas à toute l'entreprise.
+      if (destinataire.teamId !== id && container.teams.get(id)?.managerUsername !== destinataire.username) {
+        throw forbidden('Ce destinataire n’appartient pas à cette équipe.');
+      }
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      if (!account.username) throw forbidden('Jeton statique : impossible d’écrire en votre nom.');
+      const message = container.staffComms.ecrire({
+        de: account.username, deNom: account.name,
+        a: destinataire.username, aNom: destinataire.name,
+        teamId: id,
+        sujet: body.sujet, texte: body.texte,
+        urgent: body.urgent, reponseAttendue: body.reponseAttendue,
+      });
+      audit(req, 'team.message', id, { a: destinataire.username, urgent: body.urgent === true });
+      reply.code(201);
+      return { message };
+    });
+
+    /** Demander un rapport : un livrable daté, pas un message de plus. */
+    scoped.post('/admin/teams/:id/rapports', async (req, reply) => {
+      require(req, 'teams:write');
+      const { id } = req.params as { id: string };
+      assertMonEquipe(req, id);
+      const body = parse(z.object({
+        destinataire: z.string().min(1).max(60),
+        titre: z.string().min(3).max(140),
+        consigne: z.string().min(3).max(1200),
+        echeance: z.string().min(8).max(30),
+      }), req.body);
+      const membre = container.accounts.get(body.destinataire);
+      if (!membre) throw notFound('Membre introuvable');
+      if (membre.teamId !== id) throw forbidden('Ce membre n’appartient pas à cette équipe.');
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      if (!account.username) throw forbidden('Jeton statique : impossible de demander en votre nom.');
+      const rapport = container.staffComms.demanderRapport({
+        teamId: id,
+        demandePar: account.username, demandeParNom: account.name,
+        destinataire: membre.username, destinataireNom: membre.name,
+        titre: body.titre, consigne: body.consigne, echeance: body.echeance,
+      });
+      audit(req, 'team.rapport.demande', rapport.id, { destinataire: membre.username, echeance: body.echeance });
+      reply.code(201);
+      return { rapport };
+    });
+
+    /* --- Côté membre : lire, répondre, rendre son rapport --- */
+
+    scoped.post('/admin/messages/:id/lu', async (req, reply) => {
+      const { id } = req.params as { id: string };
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const res = container.staffComms.marquerLu(id, account.username ?? '');
+      if (res === 'pas_destinataire') { reply.code(403); return { error: 'Ce message ne vous est pas adressé.' }; }
+      if (!res) throw notFound('Message introuvable');
+      return { message: res };
+    });
+
+    scoped.post('/admin/messages/:id/repondre', async (req, reply) => {
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ texte: z.string().min(1).max(2000) }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const res = container.staffComms.repondre(id, account.username ?? '', account.name, body.texte);
+      if (res === 'hors_conversation') { reply.code(403); return { error: 'Vous ne participez pas à cet échange.' }; }
+      if (!res) throw notFound('Message introuvable');
+      audit(req, 'message.repondre', id);
+      return { message: res };
+    });
+
+    scoped.post('/admin/rapports/:id/rendre', async (req, reply) => {
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ texte: z.string().min(3).max(8000) }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const res = container.staffComms.rendre(id, account.username ?? '', body.texte);
+      if (res === 'pas_destinataire') { reply.code(403); return { error: 'Ce rapport n’est pas demandé à vous.' }; }
+      if (res === 'deja_accepte') { reply.code(409); return { error: 'Ce rapport a déjà été accepté.' }; }
+      if (!res) throw notFound('Rapport introuvable');
+      audit(req, 'rapport.rendre', id);
+      return { rapport: res };
+    });
+
+    scoped.post('/admin/rapports/:id/statuer', async (req, reply) => {
+      require(req, 'teams:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({
+        decision: z.enum(['accepte', 'a_revoir']),
+        texte: z.string().max(1000).optional(),
+      }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const res = container.staffComms.statuer(id, account.username ?? '', body.decision, body.texte);
+      if (res === 'pas_demandeur') { reply.code(403); return { error: 'Seul le demandeur statue sur ce rapport.' }; }
+      if (res === 'rien_rendu') { reply.code(409); return { error: 'Rien n’a encore été rendu.' }; }
+      if (!res) throw notFound('Rapport introuvable');
+      audit(req, `rapport.${body.decision}`, id);
+      return { rapport: res };
     });
 
     /* ======================= CAISSE NOMINATIVE (Trésorerie) =======================

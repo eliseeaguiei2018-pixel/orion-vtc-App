@@ -42,6 +42,8 @@ import { StaffService } from './modules/staff/service.js';
 import { StaffAccountService, type StaffAccount } from './modules/staff/accounts.js';
 import { CrewRequestService, type RequeteChauffeur } from './modules/crew/requests.js';
 import { CrewService } from './modules/crew/service.js';
+import { StaffCommsService, type MessageInterne, type DemandeRapport } from './modules/staff/comms.js';
+import { TeamWorkspaceService } from './modules/teams/workspace.js';
 import { ExecutiveService } from './modules/executive/service.js';
 import { VigilanceService } from './modules/vigilance/service.js';
 import { WorkspaceService } from './modules/workspace/service.js';
@@ -106,6 +108,10 @@ export interface Container {
   caisses: CaisseService;
   /** Session Équipages : le dossier complet d'un chauffeur, agrégé. */
   crew: CrewService;
+  /** Communication interne : messages et demandes de rapport entre employés. */
+  staffComms: StaffCommsService;
+  /** Poste de travail du chef d'équipe : ses membres, sa flotte, son bilan. */
+  teamWorkspace: TeamWorkspaceService;
   /** Notes de frais & avances (self-service + validation CFO). */
   expenses: ExpenseService;
   /** Direction générale : consolidation de TOUS les flux financiers (poste du PDG). */
@@ -231,6 +237,13 @@ export function createContainer(): Container {
   // décidées par la finance, versées par la trésorerie.
   const requetesChauffeurs = new CrewRequestService(createRepository<RequeteChauffeur>('crew_requests'));
 
+  // Messagerie interne et demandes de rapport : un chef écrit à ses membres et leur
+  // demande des bilans, et l'on sait qui a lu, qui a répondu, qui n'a rien rendu.
+  const comms = new StaffCommsService(
+    createRepository<MessageInterne>('staff_messages'),
+    createRepository<DemandeRapport>('staff_rapports'),
+  );
+
   const safety = new SafetyService(realtime);
   // Portefeuille client (séparé du wallet chauffeur) : remboursements ORION Assurance.
   const clientWallet = new WalletService(createRepository<LedgerEntry>('client_wallet'));
@@ -282,6 +295,7 @@ export function createContainer(): Container {
     staff: new StaffService(createRepository('staff_shifts'), createRepository('staff_tickets')),
     accounts: comptes,
     crewRequests: requetesChauffeurs,
+    staffComms: comms,
     caisses: new CaisseService(createRepository<Caisse>('caisses'), createRepository<MouvementCaisse>('caisse_mouvements')),
     expenses: new ExpenseService(createRepository<ExpenseTicket>('expenses')),
     // Renseigné juste après : la consolidation a besoin du conteneur complet.
@@ -289,6 +303,7 @@ export function createContainer(): Container {
     vigilance: undefined as unknown as VigilanceService,
     workspace: undefined as unknown as WorkspaceService,
     crew: undefined as unknown as CrewService,
+    teamWorkspace: undefined as unknown as TeamWorkspaceService,
     assistant: undefined as unknown as AssistantService,
   };
   // La direction générale ne stocke rien, elle lit les autres modules. On la câble
@@ -297,6 +312,7 @@ export function createContainer(): Container {
   container.vigilance = new VigilanceService(container);
   container.workspace = new WorkspaceService(container);
   container.crew = new CrewService(container);
+  container.teamWorkspace = new TeamWorkspaceService(container);
   container.assistant = new AssistantService(container);
 
   // INTERCONNEXION : une requête chauffeur qui bouge réveille les sessions qui en

@@ -1,5 +1,6 @@
 import type { Container } from '../../container.js';
 import { ROLE_PERMISSIONS, type AdminAccount, type Permission } from '../admin/roles.js';
+import { STATUT_RAPPORT_LABEL } from '../staff/comms.js';
 
 /**
  * « MON POSTE » — la journée de travail d'un employé ORION.
@@ -39,7 +40,11 @@ export interface DemandePersonnelle {
 }
 
 export interface MonPoste {
-  identite: { nom: string; role: string; roleLabel: string; permissions: string[] };
+  identite: {
+    nom: string; role: string; roleLabel: string; permissions: string[];
+    username?: string; service?: string; teamId?: string; driverId?: string;
+    mustChangePassword?: boolean;
+  };
   /** Service du jour (astreinte / tranche horaire), s'il y en a un. */
   service: { date: string; slot: string; zoneId?: string } | null;
   /** Dossiers qui portent son nom et attendent son geste. */
@@ -53,8 +58,49 @@ export interface MonPoste {
   aTraiter: Array<{ id: string; severite: string; titre: string; action: string; section: string }>;
   /** Ce qu'il a fait aujourd'hui (journal d'audit filtré sur son nom). */
   monActivite: Array<{ at: string; action: string; target?: string }>;
+  /**
+   * MESSAGES INTERNES reçus — ce que son chef ou un collègue lui a écrit. Sans
+   * cela, un message envoyé dans la console n'est jamais lu : personne n'ouvre
+   * une boîte qu'il ne voit pas.
+   */
+  messages: Array<{
+    id: string; deNom: string; sujet?: string; texte: string; at: string;
+    urgent: boolean; reponseAttendue: boolean; lu: boolean; reponses: number;
+  }>;
+  /** RAPPORTS qu'on lui a demandés et qu'il doit rendre. */
+  rapports: Array<{
+    id: string; titre: string; consigne: string; echeance: string; statut: string;
+    statutLabel: string; demandeParNom: string; enRetard: boolean;
+    rendu?: { texte: string; at: string }; retour?: { texte: string; at: string };
+  }>;
+  /** SA CAISSE, s'il en tient une : le poste de travail d'une trésorière. */
+  caisse: {
+    id: string; emplacement?: string; ouverteLe: string;
+    fondDeCaisse: number; entrees: number; sorties: number; soldeTheorique: number;
+    nbMouvements: number;
+  } | null;
+  /** SES ÉQUIPES, s'il en dirige : chacune avec ce qui y attend un geste. */
+  equipes: Array<{
+    id: string; name: string; mission?: string;
+    membres: number; flotte: number;
+    rapportsEnRetard: number; requetesOuvertes: number; alertesFlotte: number;
+  }>;
+  /** SA FLOTTE ACCRÉDITÉE : les chauffeurs dont il répond, et qui a besoin de lui. */
+  flotte: Array<{
+    driverId: string; matricule: string; name: string; phone: string | null;
+    availability: string; requetesOuvertes: number; alertes: number;
+  }>;
+  /** SON PROPRE DOSSIER, s'il est chauffeur : c'est sa seule vue de la plateforme. */
+  monDossier: {
+    matricule: string; courses: number; revenus: number; solde: number;
+    resteDu: number; requetes: Array<{ id: string; type: string; statut: string; montant?: number; createdAt: string }>;
+    alertes: Array<{ severite: string; texte: string }>;
+  } | null;
   /** Compteurs du jour. */
-  bilan: { dossiers: number; demandes: number; aTraiter: number; actionsAujourdhui: number };
+  bilan: {
+    dossiers: number; demandes: number; aTraiter: number; actionsAujourdhui: number;
+    messagesNonLus: number; rapportsARendre: number;
+  };
   genereA: string;
 }
 
@@ -67,6 +113,7 @@ const DROIT_SECTION: Record<string, Permission> = {
   services: 'services:read', rental: 'rental:read', rentalTarifs: 'rental:read',
   subscriptions: 'rental:read', green: 'overview:read', teams: 'teams:read',
   security: 'security:read', audit: 'audit:read',
+  crew: 'crew:read', equipages: 'crew:read', caisses: 'caisse:read',
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -187,18 +234,115 @@ export class WorkspaceService {
     /* ---------------------------- Son service ---------------------------- */
     const shift = this.c.staff.listShifts(today()).find((s) => s.username === account.username);
 
+    /* ------------------------- Messages et rapports ------------------------- */
+    const username = account.username ?? '';
+    const messages = this.c.staffComms.recus(username).slice(0, 20).map((m) => ({
+      id: m.id, deNom: m.deNom, sujet: m.sujet, texte: m.texte, at: m.at,
+      urgent: m.urgent, reponseAttendue: m.reponseAttendue,
+      lu: Boolean(m.luLe), reponses: m.reponses.length,
+    }));
+
+    const maintenant = Date.now();
+    const rapports = this.c.staffComms.rapports_({ destinataire: username })
+      .filter((r) => r.statut !== 'accepte')
+      .map((r) => ({
+        id: r.id, titre: r.titre, consigne: r.consigne, echeance: r.echeance,
+        statut: r.statut, statutLabel: STATUT_RAPPORT_LABEL[r.statut],
+        demandeParNom: r.demandeParNom,
+        enRetard: r.statut === 'demande' && Date.parse(r.echeance) < maintenant,
+        rendu: r.rendu, retour: r.retour,
+      }));
+
+    /* ------------------------------ Sa caisse ------------------------------ */
+    const ouverte = username ? this.c.caisses.caisseOuverteDe(username) : undefined;
+    const etatCaisse = ouverte ? this.c.caisses.etat(ouverte.id) : null;
+    const caisse = etatCaisse
+      ? {
+        id: etatCaisse.id, emplacement: etatCaisse.emplacement, ouverteLe: etatCaisse.ouverteLe,
+        fondDeCaisse: etatCaisse.fondDeCaisse, entrees: etatCaisse.entrees, sorties: etatCaisse.sorties,
+        soldeTheorique: etatCaisse.soldeTheorique, nbMouvements: etatCaisse.mouvements.length,
+      }
+      : null;
+
+    /* --------------------------- Ses équipes --------------------------- */
+    const sesEquipes = this.c.teamWorkspace.mesEquipes(account);
+    const equipes = (account.role === 'manager' ? sesEquipes : []).map((t) => {
+      const poste = this.c.teamWorkspace.poste(t.id, 7);
+      return {
+        id: t.id, name: t.name, mission: t.mission,
+        membres: poste?.membres.length ?? 0,
+        flotte: t.driverIds.length,
+        rapportsEnRetard: poste?.bilan.rapportsEnRetard ?? 0,
+        requetesOuvertes: poste?.bilan.requetesOuvertes ?? 0,
+        alertesFlotte: poste?.flotte.reduce((n, f) => n + f.alertes, 0) ?? 0,
+      };
+    });
+
+    /* ------------------------ Sa flotte accréditée ------------------------ */
+    const flotte = (account.role === 'manager' || account.role === 'agent')
+      ? [...new Set(sesEquipes.flatMap((t) => t.driverIds))]
+        .map((id) => {
+          const d = this.c.drivers.get(id);
+          if (!d) return null;
+          const dossier = this.c.crew.dossier(id, 7);
+          return {
+            driverId: d.id, matricule: d.matricule, name: d.name, phone: d.phone ?? null,
+            availability: d.availability,
+            requetesOuvertes: this.c.crewRequests.list({ driverId: id })
+              .filter((r) => r.statut !== 'cloturee' && r.statut !== 'refusee').length,
+            alertes: dossier?.alertes.length ?? 0,
+          };
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null)
+        // Ce qui demande une attention remonte en tête : une liste alphabétique
+        // oblige à parcourir trente lignes pour trouver les deux qui comptent.
+        .sort((a, b) => (b.alertes + b.requetesOuvertes) - (a.alertes + a.requetesOuvertes))
+      : [];
+
+    /* --------------------------- Son propre dossier --------------------------- */
+    const fiche = username ? this.c.accounts.get(username) : undefined;
+    const monDossier = fiche?.driverId
+      ? (() => {
+        const d = this.c.crew.dossier(fiche.driverId!, 30);
+        if (!d) return null;
+        return {
+          matricule: d.identite.matricule,
+          courses: d.activite.courses,
+          revenus: d.activite.revenus,
+          solde: d.argent.solde,
+          resteDu: d.argent.resteDu,
+          requetes: d.requetes.map((r) => ({
+            id: r.id, type: r.typeLabel, statut: r.statutLabel, montant: r.montantAccorde ?? r.montant, createdAt: r.createdAt,
+          })),
+          alertes: d.alertes,
+        };
+      })()
+      : null;
+
     return {
-      identite: { nom, role: account.role, roleLabel: account.role, permissions },
+      identite: {
+        nom, role: account.role, roleLabel: account.role, permissions,
+        username: account.username, service: fiche?.service, teamId: fiche?.teamId,
+        driverId: fiche?.driverId, mustChangePassword: fiche?.mustChangePassword,
+      },
       service: shift ? { date: shift.date, slot: shift.slot, zoneId: shift.zoneId } : null,
       mesDossiers,
       mesDemandes,
       aTraiter,
       monActivite,
+      messages,
+      rapports,
+      caisse,
+      equipes,
+      flotte,
+      monDossier,
       bilan: {
         dossiers: mesDossiers.length,
         demandes: mesDemandes.length,
         aTraiter: aTraiter.length,
         actionsAujourdhui: monActivite.length,
+        messagesNonLus: messages.filter((m) => !m.lu).length,
+        rapportsARendre: rapports.filter((r) => r.statut === 'demande' || r.statut === 'a_revoir').length,
       },
       genereA: new Date().toISOString(),
     };
