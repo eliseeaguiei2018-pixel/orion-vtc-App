@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react';
 import { fcfa } from '../api';
 import { Kpi } from '../ui';
 import type {
-  DriverRow, PrestigeUnit, RentalAvailabilityRow, RentalRow, RentalStats, SubInvoiceRow,
-  SubPlanRow, SubStats, SubscriptionRow,
+  DriverRow, PrestigeUnit, RentalAvailabilityRow, RentalRow, RentalStats, RentalTarif,
+  RentalTarifEtat, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow,
 } from '../types';
 
 /**
@@ -327,6 +327,178 @@ export function SubscriptionsSection({ plans, subscriptions, invoices, stats, ca
               ))}
             </tbody>
           </table>
+        )}
+      </div>
+    </>
+  );
+}
+
+/* ------------------------- Barème de location ------------------------- */
+
+/** Un champ numérique du barème, avec son unité et son explication. */
+function ChampTarif({ label, aide, valeur, suffixe, pas = 1, onChange }: {
+  label: string; aide?: string; valeur: number; suffixe?: string; pas?: number; onChange: (v: number) => void;
+}) {
+  return (
+    <label className="price-field" title={aide}>
+      <span>{label}{suffixe ? ` (${suffixe})` : ''}</span>
+      <input type="number" step={pas} value={valeur} onChange={(e) => onChange(Number(e.target.value))} />
+    </label>
+  );
+}
+
+/**
+ * ÉDITEUR DU BARÈME DE LOCATION.
+ *
+ * Les prix journaliers et tout le barème vivaient en dur dans le code : il fallait un
+ * développeur pour ajuster un tarif. C'est une décision commerciale — elle appartient
+ * à l'équipe. Chaque modification est bornée côté serveur, journalisée avec son auteur,
+ * et prend effet sur le devis suivant, sans redéploiement.
+ */
+export function RentalTarifsSection({ etat, canWrite, onSave, onReset }: {
+  etat: RentalTarifEtat | null;
+  canWrite: boolean;
+  onSave: (patch: { tarif?: Partial<RentalTarif> & { coefs?: Partial<RentalTarif['coefs']> }; vehicules?: Record<string, { prixJour?: number; exemplaires?: number; actif?: boolean }> }) => void;
+  onReset: () => void;
+}) {
+  const [brouillon, setBrouillon] = useState<RentalTarifEtat | null>(null);
+  // On repart de l'état serveur à chaque rafraîchissement tant que rien n'est modifié.
+  const courant = brouillon ?? etat;
+  if (!courant) return <p className="adm-muted">Chargement du barème…</p>;
+
+  const t = courant.tarif;
+  const modifie = brouillon !== null;
+  const majT = (patch: Partial<RentalTarif>) => setBrouillon({ ...courant, tarif: { ...t, ...patch } });
+  const majCoef = (cle: keyof RentalTarif['coefs'], v: number) =>
+    setBrouillon({ ...courant, tarif: { ...t, coefs: { ...t.coefs, [cle]: v } } });
+  const majVeh = (id: string, patch: Partial<PrestigeUnit & { actif: boolean }>) =>
+    setBrouillon({ ...courant, vehicules: courant.vehicules.map((v) => (v.id === id ? { ...v, ...patch } : v)) });
+
+  const enregistrer = () => {
+    if (!etat) return;
+    // On n'envoie que les véhicules RÉELLEMENT modifiés : le journal doit montrer la
+    // décision, pas une liste de valeurs réécrites à l'identique.
+    const vehicules: Record<string, { prixJour?: number; exemplaires?: number; actif?: boolean }> = {};
+    for (const v of courant.vehicules) {
+      const ref = etat.vehicules.find((x) => x.id === v.id);
+      if (!ref) continue;
+      const d: { prixJour?: number; exemplaires?: number; actif?: boolean } = {};
+      if (v.prixJour !== ref.prixJour) d.prixJour = v.prixJour;
+      if (v.exemplaires !== ref.exemplaires) d.exemplaires = v.exemplaires;
+      if (v.actif !== ref.actif) d.actif = v.actif;
+      if (Object.keys(d).length) vehicules[v.id] = d;
+    }
+    onSave({ tarif: t, vehicules: Object.keys(vehicules).length ? vehicules : undefined });
+    setBrouillon(null);
+  };
+
+  /** Simulation : ce que coûte une journée nue avec le barème en cours d'édition. */
+  const exemple = courant.vehicules.find((v) => v.actif) ?? courant.vehicules[0];
+
+  return (
+    <>
+      <div className="adm-card">
+        <div className="adm-card-h">
+          <h3>Prix des véhicules Signature</h3>
+          <span className="adm-muted">
+            {courant.origine.modifieLe
+              ? `Dernier ajustement : ${new Date(courant.origine.modifieLe).toLocaleString('fr-FR')}${courant.origine.modifiePar ? ` · ${courant.origine.modifiePar}` : ''}`
+              : 'Barème d’origine (jamais ajusté)'}
+          </span>
+        </div>
+        <table className="adm-table">
+          <thead>
+            <tr><th>Modèle</th><th>Classe</th><th className="r">Prix / jour (F)</th><th className="r">Exemplaires</th><th>Proposé à la location</th></tr>
+          </thead>
+          <tbody>
+            {courant.vehicules.map((v) => (
+              <tr key={v.id}>
+                <td><strong>{v.name}</strong><br /><span className="adm-muted">{v.places} places · {v.autonomieKm} km</span></td>
+                <td><span className="adm-pill">{v.classe === 'presidentielle' ? 'Présidentielle' : 'Signature'}</span></td>
+                <td className="r">
+                  <input
+                    className="adm-input-num" type="number" step={5000} value={v.prixJour} disabled={!canWrite}
+                    onChange={(e) => majVeh(v.id, { prixJour: Number(e.target.value) })}
+                  />
+                </td>
+                <td className="r">
+                  <input
+                    className="adm-input-num" type="number" step={1} min={0} value={v.exemplaires} disabled={!canWrite}
+                    onChange={(e) => majVeh(v.id, { exemplaires: Number(e.target.value) })}
+                  />
+                </td>
+                <td>
+                  <button
+                    className={`adm-btn xs${v.actif ? ' solid' : ''}`} disabled={!canWrite}
+                    onClick={() => majVeh(v.id, { actif: !v.actif })}
+                  >{v.actif ? 'En vente' : 'Retiré'}</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="adm-muted" style={{ marginTop: 10, fontSize: 12 }}>
+          Un modèle « retiré » disparaît aussitôt de l’application cliente sans être supprimé :
+          utile pour une immobilisation, une révision ou un modèle pas encore livré.
+        </p>
+      </div>
+
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Durées et majorations</h3></div>
+        <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <ChampTarif label="Journée" aide="Multiplicateur du prix journée (référence = 1)" valeur={t.coefs.journee} pas={0.05} onChange={(v) => majCoef('journee', v)} />
+          <ChampTarif label="Week-end" aide="Deux jours" valeur={t.coefs.weekend} pas={0.1} onChange={(v) => majCoef('weekend', v)} />
+          <ChampTarif label="Semaine" aide="Sept jours — dégressif" valeur={t.coefs.semaine} pas={0.1} onChange={(v) => majCoef('semaine', v)} />
+          <ChampTarif label="Mois" aide="Trente jours — contrat entreprise" valeur={t.coefs.mois} pas={0.5} onChange={(v) => majCoef('mois', v)} />
+          <ChampTarif label="Part horaire" suffixe="du prix journée" aide="17 % par heure par défaut, plafonné au tarif journée" valeur={t.ratioHeure} pas={0.01} onChange={(v) => majT({ ratioHeure: v })} />
+          <ChampTarif label="Heures min." valeur={t.minHeures} onChange={(v) => majT({ minHeures: v })} />
+          <ChampTarif label="Heures max." valeur={t.maxHeures} onChange={(v) => majT({ maxHeures: v })} />
+          <ChampTarif label="Mobilisation jour J" suffixe="part" aide="Majoration quand la location démarre le jour même" valeur={t.majorationJourJ} pas={0.01} onChange={(v) => majT({ majorationJourJ: v })} />
+          <ChampTarif label="Remise cortège" suffixe="part" aide="Remise sur chaque véhicule supplémentaire" valeur={t.remiseCortege} pas={0.01} onChange={(v) => majT({ remiseCortege: v })} />
+          <ChampTarif label="Caution" suffixe="part du HT" aide="Restituée à la restitution du véhicule" valeur={t.tauxCaution} pas={0.01} onChange={(v) => majT({ tauxCaution: v })} />
+          <ChampTarif label="Délai express min." suffixe="min" aide="Flotte libre" valeur={t.delaiExpressMin} onChange={(v) => majT({ delaiExpressMin: v })} />
+          <ChampTarif label="Délai express max." suffixe="min" aide="Flotte chargée" valeur={t.delaiExpressMax} onChange={(v) => majT({ delaiExpressMax: v })} />
+        </div>
+      </div>
+
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Options et kilométrage</h3></div>
+        <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <ChampTarif label="Décoration florale" suffixe="F" valeur={t.decoration} pas={5000} onChange={(v) => majT({ decoration: v })} />
+          <ChampTarif label="Tapis rouge" suffixe="F" valeur={t.tapisRouge} pas={5000} onChange={(v) => majT({ tapisRouge: v })} />
+          <ChampTarif label="Hôtesse / jour" suffixe="F" valeur={t.hotesse} pas={5000} onChange={(v) => majT({ hotesse: v })} />
+          <ChampTarif label="Escorte & ouvreur" suffixe="F" valeur={t.escorte} pas={5000} onChange={(v) => majT({ escorte: v })} />
+          <ChampTarif label="Plaque personnalisée" suffixe="F" valeur={t.plaque} pas={5000} onChange={(v) => majT({ plaque: v })} />
+          <ChampTarif label="Second chauffeur" suffixe="F" valeur={t.secondChauffeur} pas={5000} onChange={(v) => majT({ secondChauffeur: v })} />
+          <ChampTarif label="Rafraîchissements" suffixe="F" valeur={t.rafraichissements} pas={5000} onChange={(v) => majT({ rafraichissements: v })} />
+          <ChampTarif label="Km inclus / jour" valeur={t.kmInclusParJour} pas={10} onChange={(v) => majT({ kmInclusParJour: v })} />
+          <ChampTarif label="Km supplémentaire" suffixe="F" valeur={t.prixKmSupp} pas={50} onChange={(v) => majT({ prixKmSupp: v })} />
+          <ChampTarif label="Km illimité" suffixe="part" aide="Majoration du poste véhicule" valeur={t.majorationKmIllimite} pas={0.01} onChange={(v) => majT({ majorationKmIllimite: v })} />
+        </div>
+
+        {exemple && (
+          <p className="adm-muted" style={{ marginTop: 12, fontSize: 12.5 }}>
+            Simulation — {exemple.name}, journée nue : <strong>{fcfa(Math.round(exemple.prixJour * t.coefs.journee))}</strong> ·
+            week-end : <strong>{fcfa(Math.round(exemple.prixJour * t.coefs.weekend))}</strong> ·
+            semaine : <strong>{fcfa(Math.round(exemple.prixJour * t.coefs.semaine))}</strong> ·
+            3 h : <strong>{fcfa(Math.round(exemple.prixJour * Math.min(3 * t.ratioHeure, 1)))}</strong>
+          </p>
+        )}
+
+        {canWrite && (
+          <div className="row" style={{ gap: 10, marginTop: 14 }}>
+            <button className="adm-btn solid" disabled={!modifie} onClick={enregistrer}>
+              {modifie ? 'Appliquer le nouveau barème' : 'Aucune modification'}
+            </button>
+            {modifie && <button className="adm-btn" onClick={() => setBrouillon(null)}>Annuler mes changements</button>}
+            <button className="adm-btn ghost" onClick={onReset}>Revenir au barème d’origine</button>
+          </div>
+        )}
+        {modifie && (
+          <p className="adm-muted" style={{ marginTop: 8, fontSize: 12 }}>
+            ⚠️ Rien n’est enregistré tant que vous n’avez pas appliqué. Le changement sera
+            journalisé à votre nom et prendra effet sur le devis suivant.
+          </p>
         )}
       </div>
     </>

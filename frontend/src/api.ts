@@ -394,6 +394,20 @@ export interface RentalCatalogue {
   live: boolean;
 }
 
+/**
+ * Changement de barème diffusé par la console. L'écran de location s'y abonne pour
+ * rafraîchir ses prix sans que le client ait à rouvrir l'application : un tarif ajusté
+ * par l'équipe commerciale doit être visible tout de suite.
+ */
+const abonnesTarif = new Set<() => void>();
+export function onRentalTariffChange(fn: () => void): () => void {
+  abonnesTarif.add(fn);
+  return () => abonnesTarif.delete(fn);
+}
+export function notifyRentalTariffChange(): void {
+  for (const fn of abonnesTarif) { try { fn(); } catch { /* un abonné fautif n'en bloque pas d'autres */ } }
+}
+
 export async function fetchRentalCatalogue(): Promise<RentalCatalogue> {
   const r = await tryFetch<Omit<RentalCatalogue, 'live'>>('/rental/catalogue');
   if (r?.vehicles?.length) return { ...r, live: true };

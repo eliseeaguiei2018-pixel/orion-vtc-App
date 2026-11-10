@@ -5,8 +5,8 @@ import { AuditSection, CorporateSection, FinanceSection, GlobalSearch, GreenSect
 import { ClientsSection, DispatchSection, DisputesSection, DriversSection, ForensicDrawer, QualitySection, ReservationsCard, RidesSection } from './sections/operations';
 import { RolesSection, SessionsSection, TeamsSection } from './sections/organisation';
 import { OverviewSection, SamuSection, SecuritySection, SosDrawer } from './sections/supervision';
-import { RentalSection, SubscriptionsSection } from './sections/location';
-import type { ActiveSession, Alert, Amortization, Announcement, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, CopilotAnswer, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
+import { RentalSection, RentalTarifsSection, SubscriptionsSection } from './sections/location';
+import type { ActiveSession, Alert, Amortization, Announcement, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, CopilotAnswer, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, RentalTarifEtat, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
 import { ClientDrawer, DriverDrawer } from './ui';
 
 
@@ -128,7 +128,7 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'overview' | 'alerts' | 'rental' | 'subscriptions' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles';
+type Section = 'overview' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles';
 const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'overview', label: 'Vue d’ensemble', perm: 'overview:read', icon: '📊' },
   { id: 'alerts', label: 'Supervision SAMU', perm: 'alerts:read', icon: '🚨' },
@@ -142,6 +142,7 @@ const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'intel', label: 'Intelligence', perm: 'rides:read', icon: '🧠' },
   { id: 'b2b', label: 'Entreprises (B2B)', perm: 'finance:read', icon: '🏢' },
   { id: 'rental', label: 'Location Signature', perm: 'rental:read', icon: '💎' },
+  { id: 'rentalTarifs', label: 'Tarifs location', perm: 'rental:read', icon: '🏷️' },
   { id: 'subscriptions', label: 'Abonnements', perm: 'rental:read', icon: '🎫' },
   { id: 'disputes', label: 'Litiges', perm: 'support:read', icon: '⚖️' },
   { id: 'drivers', label: 'Chauffeurs', perm: 'drivers:read', icon: '🧑‍✈️' },
@@ -226,6 +227,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
   const [subInvoices, setSubInvoices] = useState<SubInvoiceRow[]>([]);
   const [subStats, setSubStats] = useState<SubStats | null>(null);
+  const [rentalTarifs, setRentalTarifs] = useState<RentalTarifEtat | null>(null);
   /** Modale « accès refusé » : session verrouillée, tentative signalée à la direction. */
   const [denied, setDenied] = useState<string | null>(null);
   /** Bandeau d'erreur serveur (opération refusée ou indisponible) — non bloquant. */
@@ -266,6 +268,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setCorporate(DEMO.corporate as CorporateAccount[]);
     setRentals(DEMO.rentals); setPrestige(DEMO.prestige); setRentalStats(DEMO.rentalStats); setRentalDispos(DEMO.rentalDispos);
     setSubPlans(DEMO.subPlans); setSubscriptions(DEMO.subscriptions); setSubInvoices(DEMO.subInvoices); setSubStats(DEMO.subStats);
+    setRentalTarifs(DEMO.rentalTarifs);
     setLive(false);
   }, [statsDays, ridesPage, driversPage, clientsPage]);
 
@@ -346,6 +349,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
         setRentals(loc.reservations); setPrestige(loc.fleet); setRentalStats(loc.stats); setRentalDispos(loc.disponibilites);
         const abo = await adminGet<{ plans: SubPlanRow[]; subscriptions: SubscriptionRow[]; invoices: SubInvoiceRow[]; stats: SubStats }>('/admin/subscriptions');
         setSubPlans(abo.plans); setSubscriptions(abo.subscriptions); setSubInvoices(abo.invoices); setSubStats(abo.stats);
+        setRentalTarifs(await adminGet<RentalTarifEtat>('/admin/rental/tarifs'));
       }
       if (has('audit:read')) setAudit((await adminGet<{ entries: AuditEntry[] }>('/admin/audit')).entries);
     } catch { loadDemo(); }
@@ -587,6 +591,19 @@ function Console({ onLogout }: { onLogout: () => void }) {
   };
   const runEcheances = async () => {
     if (LIVE && !(await safePost('/admin/subscriptions/echeances'))) return;
+    void refresh();
+  };
+  const saveRentalTarifs = async (patch: { tarif?: unknown; vehicules?: unknown }) => {
+    if (LIVE) {
+      try { setRentalTarifs(await adminPut<RentalTarifEtat>('/admin/rental/tarifs', patch)); void refresh(); }
+      catch { /* le refus est déjà remonté par la couche réseau */ }
+      return;
+    }
+    // Mode démo : on applique localement pour que l'écran reste cohérent.
+    setRentalTarifs((e) => (e ? { ...e, tarif: { ...e.tarif, ...(patch.tarif as object ?? {}) } } : e));
+  };
+  const resetRentalTarifs = async () => {
+    if (LIVE && !(await safePost('/admin/rental/tarifs/reset'))) return;
     void refresh();
   };
   const cancelSub = async (userId: string) => {
@@ -1006,6 +1023,9 @@ function Console({ onLogout }: { onLogout: () => void }) {
             onAssign={assignRental} onStatus={setRentalStatus} onCancel={cancelRental}
             onBon={(id) => void downloadFile(`/admin/rental/${id}/bon.pdf`, `orion-location-${id}.pdf`)}
           />
+        )}
+        {section === 'rentalTarifs' && (
+          <RentalTarifsSection etat={rentalTarifs} canWrite={can('rental:write')} onSave={saveRentalTarifs} onReset={resetRentalTarifs} />
         )}
         {section === 'subscriptions' && (
           <SubscriptionsSection

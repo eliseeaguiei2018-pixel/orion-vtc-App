@@ -19,7 +19,7 @@ const OPTIONS_PAR_FORMULE: Record<RentalFormula, readonly string[]> = {
 };
 import {
   cancelRental, clientId, fetchRentalAvailability, fetchRentalCatalogue, listMyRentals,
-  quoteRental, reserveRental, type RentalCatalogue,
+  onRentalTariffChange, quoteRental, reserveRental, type RentalCatalogue,
 } from '../api';
 import type {
   PrestigeVehicle, RentalAvailability, RentalDuree, RentalFormula, RentalOptions, RentalQuote,
@@ -82,12 +82,17 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
   const [quote, setQuote] = useState<RentalQuote | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
-  // Catalogue : la gamme et le barème font foi côté serveur.
+  // Catalogue : la gamme et le barème font foi côté serveur. On se réabonne aux
+  // changements de barème pilotés depuis la console (diffusés en WebSocket).
   useEffect(() => {
-    void fetchRentalCatalogue().then((c) => {
-      setCatalogue(c);
-      setVehicleId((v) => v || (c.vehicles[0]?.id ?? ''));
-    });
+    const charger = () => {
+      void fetchRentalCatalogue().then((c) => {
+        setCatalogue(c);
+        setVehicleId((v) => (v && c.vehicles.some((x) => x.id === v) ? v : (c.vehicles[0]?.id ?? '')));
+      });
+    };
+    charger();
+    return onRentalTariffChange(charger);
   }, []);
 
   const vehicles = catalogue?.vehicles ?? [];

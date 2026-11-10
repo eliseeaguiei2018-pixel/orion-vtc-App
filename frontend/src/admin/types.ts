@@ -226,6 +226,22 @@ export interface RentalStats {
   total: number; parStatut: Record<string, number>; parFormule: Record<string, number>;
   chiffreAffaires: number; aVenir: number; tauxOccupation: number;
 }
+/** Barème de location réglé depuis la console. */
+export interface RentalTarif {
+  coefs: { journee: number; weekend: number; semaine: number; mois: number };
+  ratioHeure: number; minHeures: number; maxHeures: number;
+  decoration: number; tapisRouge: number; hotesse: number; escorte: number; plaque: number;
+  secondChauffeur: number; rafraichissements: number;
+  remiseCortege: number; kmInclusParJour: number; prixKmSupp: number;
+  majorationKmIllimite: number; majorationJourJ: number; tauxCaution: number;
+  delaiExpressMin: number; delaiExpressMax: number;
+}
+export interface RentalTarifEtat {
+  tarif: RentalTarif;
+  vehicules: Array<PrestigeUnit & { actif: boolean }>;
+  origine: { modifiePar: string | null; modifieLe: string | null };
+}
+
 export interface SubPlanRow {
   id: string; label: string; ridesPerDay: number; monthlyPrice: number; perRideCap: number;
   tiers: string[]; remiseHorsQuota: number; remiseLocation: number; benefits: string[]; accent: string;

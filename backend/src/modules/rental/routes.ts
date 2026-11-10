@@ -2,11 +2,12 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { parse } from '../../core/validate.js';
-import { PRESTIGE } from '../fleet/prestige.js';
+import { badRequest } from '../../core/errors.js';
+
 import { finDeLocation, quoteRental } from './service.js';
 import {
-  COEF_DUREE, DUREES, FRAIS, HEURES_PAR_JOURNEE, JOURS_DUREE, LABEL_DUREE, LABEL_FORMULE,
-  LABEL_OPTION, MAX_HEURES, MIN_HEURES, RATIO_HEURE, type RentalDuree,
+  DUREES, HEURES_PAR_JOURNEE, JOURS_DUREE, LABEL_DUREE, LABEL_FORMULE, LABEL_OPTION,
+  MAX_HEURES, MIN_HEURES, type RentalDuree,
 } from './tariff.js';
 
 const optionsSchema = z.object({
@@ -34,29 +35,48 @@ const baseSchema = z.object({
 
 export async function rentalRoutes(app: FastifyInstance, container: Container): Promise<void> {
   /**
+   * Contexte de calcul d'un devis : barème et prix EN VIGUEUR (console), TVA, remise
+   * d'abonné et disponibilité réelle. Centralisé pour que le devis consulté et le
+   * devis réservé ne puissent jamais diverger.
+   */
+  const contexte = (vehicleId: string, debut: Date, fin: Date, userId?: string) => {
+    const vehicle = container.rentalSettings.vehicule(vehicleId);
+    if (!vehicle) throw badRequest('Véhicule de location inconnu');
+    if (!container.rentalSettings.estActif(vehicleId)) {
+      throw badRequest('Ce véhicule n’est pas proposé à la location actuellement');
+    }
+    return {
+      tvaRate: container.settings.getPricing().tvaRate,
+      remiseAbonnement: userId ? container.subscriptions.remiseLocation(userId) : 0,
+      disponibilite: container.rental.disponibilite(vehicleId, debut, fin),
+      tarif: container.rentalSettings.getTarif(),
+      vehicle,
+    };
+  };
+
+  /**
    * Catalogue complet : gamme Signature, formules, durées, options et barème.
    * L'app cliente et la console lisent TOUT ici — aucune liste de prix dupliquée
    * côté interface, donc aucun écart possible entre l'affiché et le facturé.
    */
-  app.get('/rental/catalogue', async () => ({
-    vehicles: PRESTIGE,
+  app.get('/rental/catalogue', async () => {
+    const tarif = container.rentalSettings.getTarif();
+    return {
+    vehicles: container.rentalSettings.catalogue(),
     formules: (['evenement', 'entreprise', 'mise_a_disposition'] as const).map((f) => ({ id: f, label: LABEL_FORMULE[f] })),
     durees: DUREES.map((d) => ({
       id: d,
       label: LABEL_DUREE[d],
-      coef: d === 'heures' ? null : COEF_DUREE[d],
+      coef: d === 'heures' ? null : tarif.coefs[d],
       jours: d === 'heures' ? null : JOURS_DUREE[d],
     })),
     options: (Object.keys(LABEL_OPTION) as Array<keyof typeof LABEL_OPTION>).map((k) => ({ id: k, label: LABEL_OPTION[k] })),
-    bareme: {
-      ...FRAIS,
-      ratioHeure: RATIO_HEURE,
-      minHeures: MIN_HEURES,
-      maxHeures: MAX_HEURES,
-      heuresParJournee: HEURES_PAR_JOURNEE,
-    },
+    // Barème EN VIGUEUR (réglé depuis la console) : l'app cliente n'affiche jamais un
+    // prix différent de celui qui sera facturé.
+    bareme: { ...tarif, heuresParJournee: HEURES_PAR_JOURNEE },
     currency: 'XOF',
-  }));
+    };
+  });
 
   /** Disponibilité de toute la gamme sur une période (écran de choix du véhicule). */
   app.get('/rental/disponibilites', async (req) => {
@@ -87,11 +107,7 @@ export async function rentalRoutes(app: FastifyInstance, container: Container): 
     const body = parse(baseSchema, req.body);
     const debut = body.debut ? new Date(body.debut) : new Date();
     const fin = finDeLocation(debut, (body.duree ?? 'journee') as RentalDuree, body.heures);
-    const quote = quoteRental(body, {
-      tvaRate: container.settings.getPricing().tvaRate,
-      remiseAbonnement: body.userId ? container.subscriptions.remiseLocation(body.userId) : 0,
-      disponibilite: container.rental.disponibilite(body.vehicleId, debut, fin),
-    });
+    const quote = quoteRental(body, contexte(body.vehicleId, debut, fin, body.userId));
     return { quote };
   });
 
@@ -116,11 +132,7 @@ export async function rentalRoutes(app: FastifyInstance, container: Container): 
     );
     const debut = body.debut ? new Date(body.debut) : new Date();
     const fin = finDeLocation(debut, (body.duree ?? 'journee') as RentalDuree, body.heures);
-    const quote = quoteRental(body, {
-      tvaRate: container.settings.getPricing().tvaRate,
-      remiseAbonnement: container.subscriptions.remiseLocation(body.userId),
-      disponibilite: container.rental.disponibilite(body.vehicleId, debut, fin),
-    });
+    const quote = quoteRental(body, contexte(body.vehicleId, debut, fin, body.userId));
     const reservation = container.rental.reserve(body.userId, quote, {
       contact: body.contact,
       societe: body.societe,

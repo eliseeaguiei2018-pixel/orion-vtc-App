@@ -2027,6 +2027,78 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       return simplePdf(lignes);
     });
 
+    /** Barème de location EN VIGUEUR : prix journée, stocks, options, majorations. */
+    scoped.get('/admin/rental/tarifs', async (req) => {
+      require(req, 'rental:read');
+      return container.rentalSettings.etat();
+    });
+
+    /**
+     * Ajustement des tarifs de location. C'est une décision COMMERCIALE : elle
+     * appartient à l'équipe, pas au code source. Chaque changement est journalisé avec
+     * son auteur, et comparé à l'ancien barème pour que la direction voie l'écart.
+     */
+    scoped.put('/admin/rental/tarifs', async (req) => {
+      require(req, 'rental:write');
+      const nombre = z.number().finite();
+      const body = parse(
+        z.object({
+          tarif: z.object({
+            coefs: z.object({
+              journee: nombre.optional(), weekend: nombre.optional(),
+              semaine: nombre.optional(), mois: nombre.optional(),
+            }).optional(),
+            ratioHeure: nombre.optional(), minHeures: nombre.optional(), maxHeures: nombre.optional(),
+            decoration: nombre.optional(), tapisRouge: nombre.optional(), hotesse: nombre.optional(),
+            escorte: nombre.optional(), plaque: nombre.optional(), secondChauffeur: nombre.optional(),
+            rafraichissements: nombre.optional(), remiseCortege: nombre.optional(),
+            kmInclusParJour: nombre.optional(), prixKmSupp: nombre.optional(),
+            majorationKmIllimite: nombre.optional(), majorationJourJ: nombre.optional(),
+            tauxCaution: nombre.optional(),
+            delaiExpressMin: nombre.optional(), delaiExpressMax: nombre.optional(),
+          }).optional(),
+          vehicules: z.record(
+            z.string(),
+            z.object({ prixJour: nombre.optional(), exemplaires: nombre.optional(), actif: z.boolean().optional() }),
+          ).optional(),
+        }),
+        req.body,
+      );
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const avant = container.rentalSettings.etat();
+      const apres = container.rentalSettings.update({ ...body, acteur: account.name });
+      // Journal : on enregistre les ÉCARTS, pas l'objet entier — c'est ce qu'un
+      // directeur veut lire six mois plus tard.
+      const ecarts: Record<string, { avant: number | boolean; apres: number | boolean }> = {};
+      for (const [cle, val] of Object.entries(body.tarif ?? {})) {
+        if (cle === 'coefs' || val === undefined) continue;
+        const ancien = (avant.tarif as unknown as Record<string, number>)[cle];
+        if (ancien !== val) ecarts[cle] = { avant: ancien!, apres: val as number };
+      }
+      for (const [cle, val] of Object.entries(body.tarif?.coefs ?? {})) {
+        const ancien = avant.tarif.coefs[cle as 'journee'];
+        if (val !== undefined && ancien !== val) ecarts[`coef.${cle}`] = { avant: ancien, apres: val };
+      }
+      for (const [id, v] of Object.entries(body.vehicules ?? {})) {
+        const ancien = avant.vehicules.find((x) => x.id === id);
+        if (!ancien) continue;
+        if (v.prixJour !== undefined && v.prixJour !== ancien.prixJour) ecarts[`${id}.prixJour`] = { avant: ancien.prixJour, apres: v.prixJour };
+        if (v.exemplaires !== undefined && v.exemplaires !== ancien.exemplaires) ecarts[`${id}.exemplaires`] = { avant: ancien.exemplaires, apres: v.exemplaires };
+        if (v.actif !== undefined && v.actif !== ancien.actif) ecarts[`${id}.actif`] = { avant: ancien.actif, apres: v.actif };
+      }
+      audit(req, 'rental.tarifs', undefined, { ecarts });
+      return { tarif: apres.tarif, vehicules: container.rentalSettings.etat().vehicules, ecarts };
+    });
+
+    /** Retour au barème d'origine (catalogue de référence). */
+    scoped.post('/admin/rental/tarifs/reset', async (req) => {
+      require(req, 'rental:write');
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      container.rentalSettings.reset(account.name);
+      audit(req, 'rental.tarifs.reset');
+      return container.rentalSettings.etat();
+    });
+
     /* ------------------------------ ABONNEMENTS ORION ------------------------------ */
 
     /** Parc d'abonnés, revenu récurrent, valeur réellement rendue, impayés. */

@@ -1,12 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { badRequest, conflict, notFound } from '../../core/errors.js';
 import type { Repository } from '../../core/db/repository.js';
-import { PRESTIGE, prestigeById, type PrestigeVehicle } from '../fleet/prestige.js';
-import {
-  COEF_DUREE, DELAI_EXPRESS_MAX, DELAI_EXPRESS_MIN, FRAIS, HEURES_PAR_JOURNEE, JOURS_DUREE,
-  MAX_HEURES, MIN_HEURES, coefHeures, isDuree, tauxAnnulation,
-  type RentalDuree, type RentalFormula, type RentalOptions,
-} from './tariff.js';
+import type { PrestigeVehicle } from '../fleet/prestige.js';
+import { HEURES_PAR_JOURNEE, JOURS_DUREE, isDuree, tauxAnnulation, type RentalDuree, type RentalFormula, type RentalOptions } from './tariff.js';
+import type { RentalSettingsService, RentalTarif } from './settings.js';
 
 /**
  * LOCATION ORION — devis, disponibilité et réservations.
@@ -99,8 +96,8 @@ const HEURE_MS = 3_600_000;
 const JOUR_MS = 86_400_000;
 
 /** Fin de la période d'immobilisation du véhicule. */
-export function finDeLocation(debut: Date, duree: RentalDuree, heures?: number): Date {
-  if (duree === 'heures') return new Date(debut.getTime() + (heures ?? MIN_HEURES) * HEURE_MS);
+export function finDeLocation(debut: Date, duree: RentalDuree, heures = 3): Date {
+  if (duree === 'heures') return new Date(debut.getTime() + heures * HEURE_MS);
   return new Date(debut.getTime() + JOURS_DUREE[duree] * JOUR_MS);
 }
 
@@ -126,6 +123,10 @@ export interface RentalQuoteContext {
   remiseAbonnement?: number;
   /** Disponibilité calculée par le service (injectée pour garder le devis pur). */
   disponibilite: Disponibilite;
+  /** Barème EN VIGUEUR, tel que la console l'a réglé. */
+  tarif: RentalTarif;
+  /** Véhicule au prix EN VIGUEUR (le catalogue du code n'est qu'un point de départ). */
+  vehicle: PrestigeVehicle;
 }
 
 /**
@@ -134,8 +135,9 @@ export interface RentalQuoteContext {
  * une simple consultation ne doit jamais modifier l'état du système).
  */
 export function quoteRental(input: RentalQuoteInput, ctx: RentalQuoteContext): RentalQuote {
-  const vehicle = prestigeById(input.vehicleId);
-  if (!vehicle) throw badRequest('Véhicule de location inconnu');
+  const vehicle = ctx.vehicle;
+  const T = ctx.tarif;
+  if (!vehicle || vehicle.id !== input.vehicleId) throw badRequest('Véhicule de location inconnu');
 
   const formula = input.formula as RentalFormula;
   if (!['evenement', 'entreprise', 'mise_a_disposition'].includes(formula)) {
@@ -147,16 +149,18 @@ export function quoteRental(input: RentalQuoteInput, ctx: RentalQuoteContext): R
 
   let heures: number | undefined;
   if (duree === 'heures') {
-    heures = Math.round(input.heures ?? MIN_HEURES);
-    if (heures < MIN_HEURES) throw badRequest(`Location à l’heure : ${MIN_HEURES} h minimum`);
-    if (heures > MAX_HEURES) throw badRequest(`Au-delà de ${MAX_HEURES} h, choisissez la journée entière`);
+    heures = Math.round(input.heures ?? T.minHeures);
+    if (heures < T.minHeures) throw badRequest(`Location à l’heure : ${T.minHeures} h minimum`);
+    if (heures > T.maxHeures) throw badRequest(`Au-delà de ${T.maxHeures} h, choisissez la journée entière`);
   }
 
   const debutDate = input.debut ? new Date(input.debut) : new Date();
   if (Number.isNaN(debutDate.getTime())) throw badRequest('Date de début invalide');
   const finDate = finDeLocation(debutDate, duree, heures);
 
-  const coef = duree === 'heures' ? coefHeures(heures!) : COEF_DUREE[duree];
+  // Coefficient horaire PLAFONNÉ à 1 : le client ne paie jamais plus cher à l'heure
+  // que la journée entière, quel que soit le ratio réglé dans la console.
+  const coef = duree === 'heures' ? Math.min(heures! * T.ratioHeure, 1) : T.coefs[duree];
   const jours = duree === 'heures' ? heures! / HEURES_PAR_JOURNEE : JOURS_DUREE[duree];
   const joursFactures = Math.max(1, Math.ceil(jours));
 
@@ -186,23 +190,23 @@ export function quoteRental(input: RentalQuoteInput, ctx: RentalQuoteContext): R
 
   const vehiculeBase = Math.round(vehicle.prixJour * coef);
   const kilometrageIllimite = opts.kilometrageIllimite
-    ? Math.round(vehiculeBase * FRAIS.majorationKmIllimite)
+    ? Math.round(vehiculeBase * T.majorationKmIllimite)
     : 0;
-  const cortege = opts.cortege * Math.round(vehicle.prixJour * coef * (1 - FRAIS.remiseCortege));
+  const cortege = opts.cortege * Math.round(vehicle.prixJour * coef * (1 - T.remiseCortege));
 
   const options =
-    (opts.decoration ? FRAIS.decoration : 0) +
-    (opts.tapisRouge ? FRAIS.tapisRouge : 0) +
-    opts.hotesses * FRAIS.hotesse * joursFactures +
-    (opts.escorte ? FRAIS.escorte : 0) +
-    (opts.plaque ? FRAIS.plaque : 0) +
-    (opts.secondChauffeur ? FRAIS.secondChauffeur : 0) +
-    (opts.rafraichissements ? FRAIS.rafraichissements : 0);
+    (opts.decoration ? T.decoration : 0) +
+    (opts.tapisRouge ? T.tapisRouge : 0) +
+    opts.hotesses * T.hotesse * joursFactures +
+    (opts.escorte ? T.escorte : 0) +
+    (opts.plaque ? T.plaque : 0) +
+    (opts.secondChauffeur ? T.secondChauffeur : 0) +
+    (opts.rafraichissements ? T.rafraichissements : 0);
 
   const sousTotal = vehiculeBase + kilometrageIllimite + cortege + options;
 
   const jourJ = memeJour(debutDate, new Date());
-  const majorationJourJ = jourJ ? Math.round(sousTotal * FRAIS.majorationJourJ) : 0;
+  const majorationJourJ = jourJ ? Math.round(sousTotal * T.majorationJourJ) : 0;
 
   const tauxRemise = Math.max(0, Math.min(0.3, ctx.remiseAbonnement ?? 0));
   const remiseAbonnement = Math.round((sousTotal + majorationJourJ) * tauxRemise);
@@ -226,11 +230,11 @@ export function quoteRental(input: RentalQuoteInput, ctx: RentalQuoteContext): R
     jours,
     options: opts,
     secondChauffeurRequis,
-    kmInclus: opts.kilometrageIllimite ? null : FRAIS.kmInclusParJour * joursFactures,
-    prixKmSupp: FRAIS.prixKmSupp,
+    kmInclus: opts.kilometrageIllimite ? null : T.kmInclusParJour * joursFactures,
+    prixKmSupp: T.prixKmSupp,
     breakdown: { vehicule: vehiculeBase, kilometrageIllimite, cortege, options, majorationJourJ, remiseAbonnement, ht, tva },
     total,
-    caution: Math.round(ht * FRAIS.tauxCaution),
+    caution: Math.round(ht * T.tauxCaution),
     jourJ,
     disponibilite: ctx.disponibilite,
     currency: 'XOF',
@@ -240,7 +244,15 @@ export function quoteRental(input: RentalQuoteInput, ctx: RentalQuoteContext): R
 export class RentalService {
   private readonly items = new Map<string, RentalReservation>();
 
-  constructor(private readonly repo?: Repository<RentalReservation>) {
+  /**
+   * `settings` porte les prix et les stocks RÉGLÉS DEPUIS LA CONSOLE. La disponibilité
+   * doit s'appuyer dessus : si l'exploitation retire un véhicule de la flotte, il doit
+   * cesser d'être vendu à la seconde, sans redéploiement.
+   */
+  constructor(
+    private readonly settings: RentalSettingsService,
+    private readonly repo?: Repository<RentalReservation>,
+  ) {
     for (const r of repo?.all() ?? []) this.items.set(r.id, r);
   }
 
@@ -249,8 +261,7 @@ export class RentalService {
    * ceux déjà engagés (une réservation avec cortège en immobilise plusieurs).
    */
   disponibilite(vehicleId: string, debut: Date, fin: Date): Disponibilite {
-    const vehicule = prestigeById(vehicleId);
-    const total = vehicule?.exemplaires ?? 0;
+    const total = this.settings.exemplaires(vehicleId);
     const d = debut.getTime();
     const f = fin.getTime();
     let reserves = 0;
@@ -264,15 +275,16 @@ export class RentalService {
     const occupation = total > 0 ? Math.min(1, reserves / total) : 1;
     // Engagement « disponible en quelques minutes, même le jour J » : on chiffre le
     // délai réel au lieu de le promettre en l'air.
+    const t = this.settings.getTarif();
     const delaiMinutes = memeJour(debut, new Date())
-      ? DELAI_EXPRESS_MIN + Math.round(occupation * (DELAI_EXPRESS_MAX - DELAI_EXPRESS_MIN))
+      ? t.delaiExpressMin + Math.round(occupation * (t.delaiExpressMax - t.delaiExpressMin))
       : 0;
     return { vehicleId, total, reserves, restants, disponible: restants > 0, delaiMinutes };
   }
 
   /** Disponibilité de TOUTE la gamme Signature sur une période (écran de choix). */
   disponibilites(debut: Date, fin: Date): Disponibilite[] {
-    return PRESTIGE.map((v) => this.disponibilite(v.id, debut, fin));
+    return this.settings.catalogue().map((v) => this.disponibilite(v.id, debut, fin));
   }
 
   reserve(
@@ -389,7 +401,7 @@ export class RentalService {
       if (STATUTS_BLOQUANTS.includes(r.status) && Date.parse(r.debut) > Date.now()) aVenir += 1;
       if (STATUTS_BLOQUANTS.includes(r.status)) engages += 1 + r.options.cortege;
     }
-    const flotte = PRESTIGE.reduce((s, v) => s + v.exemplaires, 0);
+    const flotte = this.settings.catalogue().reduce((s, v) => s + v.exemplaires, 0);
     return {
       total: this.items.size, parStatut, parFormule, chiffreAffaires, aVenir,
       tauxOccupation: flotte > 0 ? Math.min(1, engages / flotte) : 0,

@@ -363,3 +363,56 @@ test('app chauffeur : une location affectée est visible par le chauffeur concer
   const apresAnnul = await app.inject({ method: 'GET', url: `/drivers/${driverId}/rentals`, headers: auth });
   assert.equal(apresAnnul.json().total, 0);
 });
+
+test('console : ajuster un prix de location change le devis client, sans redéploiement', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+  const jeton = { 'x-admin-token': 'orion-admin-dev' };
+  const debut = new Date(Date.now() + 12 * 86_400_000).toISOString();
+  const devis = async () => (await app.inject({
+    method: 'POST', url: '/rental/quote',
+    payload: { formula: 'evenement', vehicleId: 'stelato-s9', debut, duree: 'journee' },
+  })).json().quote;
+
+  const avant = await devis();
+  assert.equal(avant.breakdown.vehicule, 440_000);
+
+  // L'équipe ajuste le prix depuis la console.
+  const maj = await app.inject({
+    method: 'PUT', url: '/admin/rental/tarifs', headers: jeton,
+    payload: { vehicules: { 'stelato-s9': { prixJour: 470_000 } }, tarif: { decoration: 40_000 } },
+  });
+  assert.equal(maj.statusCode, 200);
+  // La réponse montre l'ÉCART : c'est ce qu'un directeur relit six mois plus tard.
+  assert.deepEqual(maj.json().ecarts['stelato-s9.prixJour'], { avant: 440_000, apres: 470_000 });
+  assert.deepEqual(maj.json().ecarts['decoration'], { avant: 35_000, apres: 40_000 });
+
+  const apres = await devis();
+  assert.equal(apres.breakdown.vehicule, 470_000, 'le devis client suit immédiatement');
+
+  // Le catalogue public expose le barème EN VIGUEUR : aucun écart affiché/facturé.
+  const cat = await app.inject({ method: 'GET', url: '/rental/catalogue' });
+  assert.equal(cat.json().bareme.decoration, 40_000);
+  assert.equal(cat.json().vehicles.find((v: { id: string }) => v.id === 'stelato-s9').prixJour, 470_000);
+
+  // Le changement est journalisé avec son auteur.
+  const journal = await app.inject({ method: 'GET', url: '/admin/audit', headers: jeton });
+  assert.ok(journal.json().entries.some((e: { action: string }) => e.action === 'rental.tarifs'));
+
+  // Retrait de la vente : le modèle disparaît du catalogue et ne peut plus être réservé.
+  await app.inject({
+    method: 'PUT', url: '/admin/rental/tarifs', headers: jeton,
+    payload: { vehicules: { 'stelato-s9': { actif: false } } },
+  });
+  const cat2 = await app.inject({ method: 'GET', url: '/rental/catalogue' });
+  assert.ok(!cat2.json().vehicles.some((v: { id: string }) => v.id === 'stelato-s9'));
+  const refus = await app.inject({
+    method: 'POST', url: '/rental/quote',
+    payload: { formula: 'evenement', vehicleId: 'stelato-s9', debut, duree: 'journee' },
+  });
+  assert.equal(refus.statusCode, 400, 'un modèle retiré ne peut plus être devisé');
+
+  // Remise à zéro : on retrouve la grille d'origine.
+  await app.inject({ method: 'POST', url: '/admin/rental/tarifs/reset', headers: jeton });
+  assert.equal((await devis()).breakdown.vehicule, 440_000);
+});

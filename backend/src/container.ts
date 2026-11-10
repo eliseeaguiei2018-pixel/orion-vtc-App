@@ -12,6 +12,7 @@ import { trafficInfo } from './modules/geo-ci/zones.js';
 import { WalletService } from './modules/wallet/service.js';
 import { SubscriptionService } from './modules/subscriptions/service.js';
 import { RentalService } from './modules/rental/service.js';
+import { RentalSettingsService, type RentalTarifRecord } from './modules/rental/settings.js';
 import { WeddingService } from './modules/wedding/service.js';
 import { InsuranceService, type InsuranceContribution } from './modules/insurance/service.js';
 import { PaymentRegistry } from './modules/payments/providers.js';
@@ -66,6 +67,8 @@ export interface Container {
   wedding: WeddingService;
   /** Location de véhicules Signature : événements, entreprises, mise à disposition. */
   rental: RentalService;
+  /** Tarifs de location pilotés depuis la console (prix journée, stocks, barème). */
+  rentalSettings: RentalSettingsService;
   settings: SettingsService;
   clients: ClientStore;
   promos: PromoService;
@@ -179,6 +182,16 @@ export function createContainer(): Container {
   // …et chaque modification de fiche (KYC, suspension motivée, avertissement, VIP,
   // fidélité, disponibilité) poussée en direct au chauffeur concerné.
   drivers.onChange((d) => realtime.publish(driverRoom(d.id), 'driver.update', { driver: d }));
+  // Tarifs de location : réglés depuis la console, persistés, diffusés en direct aux
+  // apps clientes connectées — un ajustement de prix prend effet sans redéploiement.
+  const rentalSettings = new RentalSettingsService(createRepository<RentalTarifRecord>('rental_tarifs'));
+  const rentalService = new RentalService(rentalSettings, createRepository<RentalReservation>('rental'));
+  rentalSettings.onChange(() => realtime.publish(CONFIG_ROOM, 'rental-config.update', {
+    tarif: rentalSettings.getTarif(),
+    vehicles: rentalSettings.catalogue(),
+    currency: 'XOF',
+  }));
+
   const safety = new SafetyService(realtime);
   // Portefeuille client (séparé du wallet chauffeur) : remboursements ORION Assurance.
   const clientWallet = new WalletService(createRepository<LedgerEntry>('client_wallet'));
@@ -208,7 +221,8 @@ export function createContainer(): Container {
       createRepository<SubscriptionInvoice>('subscription_invoices'),
     ),
     wedding: new WeddingService(createRepository<WeddingReservation>('wedding')),
-    rental: new RentalService(createRepository<RentalReservation>('rental')),
+    rental: rentalService,
+    rentalSettings,
     settings,
     promos,
     clients: new ClientStore(createRepository<Client>('clients')),

@@ -346,3 +346,12 @@ html[data-adm-theme='dark'] .samu-room .adm-card { background: #0a0d0b; }
 .adm-dot { width: 9px; height: 9px; border-radius: 999px; display: inline-block; }
 .adm-dot.green { background: var(--a-green); box-shadow: 0 0 6px rgba(43,255,166,0.5); }
 .adm-dot.red { background: var(--a-danger); }
+
+/* Saisie numérique en ligne dans un tableau (barème de location, grilles tarifaires). */
+.adm-input-num {
+  width: 120px; text-align: right;
+  background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 8px;
+  color: var(--a-text); font-family: var(--a-mono, monospace); font-size: 13px; padding: 6px 8px;
+}
+.adm-input-num:focus { border-color: var(--a-green2); outline: none; }
+.adm-input-num:disabled { opacity: 0.55; }

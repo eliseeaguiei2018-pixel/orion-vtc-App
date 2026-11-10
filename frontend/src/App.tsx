@@ -16,7 +16,7 @@ import {
   ABIDJAN_PLACES, COUNTRIES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { EMERGENCY_NUMBERS, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, fetchSubPlans, fetchSubscription, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, estimateDelivery, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, subscribePlan, type Announcement, type AppConfig, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
+import { EMERGENCY_NUMBERS, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, fetchSubPlans, fetchSubscription, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, subscribePlan, type Announcement, type AppConfig, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
 import { LANGUAGES, useI18n, type Lang } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
@@ -129,6 +129,9 @@ export function App() {
           // `connected` porte l'état courant (config) ; `config.update` la nouvelle (data).
           if (msg.type === 'connected') apply(msg.config);
           else if (msg.type === 'config.update') apply(msg.data);
+          // Barème de location ajusté depuis la console : l'écran de location se
+          // rafraîchit sans que le client ait à rouvrir l'application.
+          else if (msg.type === 'rental-config.update') notifyRentalTariffChange();
         } catch { /* trame ignorée */ }
       };
       ws.onclose = () => { if (!closed) retry = window.setTimeout(connect, 4000); };

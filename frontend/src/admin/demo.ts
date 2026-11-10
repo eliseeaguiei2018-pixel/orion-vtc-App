@@ -1,7 +1,7 @@
 import type {
   Overview, Alert, FleetUnit, RideRow, DriverRow, Client, DriverDetail, ClientDetail,
   PrestigeUnit, RentalAvailabilityRow, RentalRow, RentalStats, SubInvoiceRow, SubPlanRow,
-  SubStats, SubscriptionRow,
+  RentalTarifEtat, SubStats, SubscriptionRow,
 } from './types';
 
 /** Jeu de données de démonstration (console autonome, sans backend). */
@@ -634,6 +634,20 @@ const subInvoices: SubInvoiceRow[] = [
   { id: 'F-10C1', userId: 'client-7731', plan: 'bronze', amount: 25000, periodeDebut: iso(50000), periodeFin: dans(-2), status: 'echouee', method: 'mtn_momo', emiseLe: iso(12000), motifEchec: 'Solde insuffisant chez l’opérateur' },
 ];
 
+const rentalTarifs: RentalTarifEtat = {
+  tarif: {
+    coefs: { journee: 1, weekend: 1.8, semaine: 5.5, mois: 20 },
+    ratioHeure: 0.17, minHeures: 3, maxHeures: 12,
+    decoration: 35000, tapisRouge: 45000, hotesse: 60000, escorte: 120000, plaque: 25000,
+    secondChauffeur: 50000, rafraichissements: 30000,
+    remiseCortege: 0.15, kmInclusParJour: 100, prixKmSupp: 450,
+    majorationKmIllimite: 0.18, majorationJourJ: 0.12, tauxCaution: 0.15,
+    delaiExpressMin: 25, delaiExpressMax: 45,
+  },
+  vehicules: prestige.map((v) => ({ ...v, actif: true })),
+  origine: { modifiePar: null, modifieLe: null },
+};
+
 const subStats: SubStats = {
   total: subscriptions.length, actifs: 2, parPlan: { gold: 1, argent: 1, bronze: 1 }, mrr: 93000,
   impayees: 2, montantImpaye: 63000, totalCouvert: 322_500, coursesCouvertes: 88,
@@ -646,5 +660,5 @@ export const DEMO = {
   sos: alerts, sosPresets, sosDossier, security, supportStats, macros, triggers, reservations, csat, qualityTop, simulate,
   staffKpis, shifts, maintenance, squadPnl, fraud, elasticity, copilot,
   expiring, cashDebt, gateways, expenses, liquidity, amortization,
-  prestige, rentals, rentalDispos, rentalStats, subPlans, subscriptions, subInvoices, subStats,
+  prestige, rentals, rentalDispos, rentalStats, rentalTarifs, subPlans, subscriptions, subInvoices, subStats,
 };
