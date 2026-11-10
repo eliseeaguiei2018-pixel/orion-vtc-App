@@ -172,3 +172,60 @@ test('la session Direction Générale est fermée aux autres rôles', async (t) 
     assert.ok(!ROLE_PERMISSIONS[role].includes('executive:read'), `${role} n’a pas accès`);
   }
 });
+
+test('le volume d’affaires couvre toutes les activités, et le revenu reste en dessous', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  const course = await coursePayee(app, 'client-dg-4', 'card');
+  const debut = new Date(Date.now() + 7 * 86_400_000).toISOString();
+  const loc = await app.inject({
+    method: 'POST', url: '/rental/reserve',
+    payload: { formula: 'evenement', vehicleId: 'zeekr-8x', debut, duree: 'journee', userId: 'client-dg-4' },
+  });
+  const montantLocation = loc.json().reservation.total as number;
+
+  const tb = await app.inject({ method: 'GET', url: '/admin/executive?days=30', headers: DG });
+  const c = tb.json().consolidation;
+
+  // Ne compter que les courses donnait un revenu SUPÉRIEUR au volume d'affaires —
+  // un chiffre impossible à lire pour un dirigeant.
+  assert.equal(c.gmvParActivite.mobilite, course.montant);
+  assert.equal(c.gmvParActivite.location, montantLocation);
+  assert.equal(c.gmv, c.gmvParActivite.mobilite + c.gmvParActivite.location + c.gmvParActivite.abonnement);
+  assert.ok(c.revenu <= c.gmv, 'le revenu ne peut pas dépasser le volume d’affaires');
+  // Sur une course, seule la commission reste à ORION.
+  assert.ok(c.revenu - montantLocation < course.montant, 'la course ne rapporte que sa commission');
+});
+
+test('la commission due sur les espèces ne se noie pas dans les gains électroniques', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  // Un même chauffeur enchaîne une course carte puis une course espèces : son solde
+  // reste positif. Calculer la dette depuis le solde la rendrait invisible.
+  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Konan', category: 'bronze' } });
+  const driverId = drv.json().driver.id as string;
+  await app.inject({ method: 'POST', url: `/drivers/${driverId}/online`, payload: { position: { lat: 5.324, lng: -4.021 } } });
+
+  let especes = 0;
+  for (const method of ['card', 'cash'] as const) {
+    const est = await app.inject({
+      method: 'POST', url: '/pricing/estimate',
+      payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9876 }, category: 'bronze', clientId: 'client-dg-5' },
+    });
+    const quote = est.json().quote;
+    if (method === 'cash') especes = quote.amount;
+    const ride = await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-dg-5', lockId: quote.lockId, paymentMethod: method } });
+    const id = ride.json().ride.id as string;
+    for (const to of ['driver_en_route', 'arrived', 'in_progress', 'completed']) {
+      await app.inject({ method: 'POST', url: `/rides/${id}/transition`, payload: { to } });
+    }
+    await app.inject({ method: 'POST', url: `/rides/${id}/pay`, payload: { method } });
+  }
+
+  const tb = await app.inject({ method: 'GET', url: '/admin/executive?days=30', headers: DG });
+  const c = tb.json().consolidation;
+  assert.equal(c.especesChauffeurs, especes, 'les espèces encaissées sont suivies');
+  assert.ok(c.dettesEspeces > 0, 'la commission due est visible malgré un solde positif');
+});

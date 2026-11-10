@@ -50,8 +50,14 @@ export interface Mouvement {
 
 export interface ConsolidationFinanciere {
   currency: 'XOF';
-  /** Volume d'affaires brut encaissé auprès des clients. */
+  /**
+   * Volume d'affaires TOTAL facturé aux clients, toutes activités confondues :
+   * courses, livraisons, locations et abonnements. Ne le confondez pas avec le
+   * revenu : sur une course, l'essentiel revient au chauffeur.
+   */
   gmv: number;
+  /** Détail du volume d'affaires par activité. */
+  gmvParActivite: { mobilite: number; location: number; abonnement: number };
   /** Ce qui revient réellement à ORION (commissions + frais + locations + abonnements). */
   revenu: number;
   entrees: number;
@@ -238,35 +244,44 @@ export class ExecutiveService {
     // GMV et revenu plateforme : repris du module Finances pour qu'aucune session ne
     // montre un chiffre différent d'une autre.
     const seuil = debutDe(depuisJours);
-    let gmv = 0;
+    let gmvMobilite = 0;
     let tvaCollectee = 0;
     let commission = 0;
+    // Commission due à ORION sur les courses encaissées EN ESPÈCES par les chauffeurs :
+    // l'argent est dans leur poche, ORION doit le récupérer. Se calculer à partir des
+    // soldes de portefeuille serait faux — un gain électronique masquerait la dette.
+    let dettesEspeces = 0;
     for (const r of this.c.rides.listAll()) {
       if (r.status !== 'paid' && r.status !== 'rated') continue;
       if (Date.parse(r.createdAt) < seuil) continue;
-      gmv += r.quote.amount;
+      gmvMobilite += r.quote.amount;
       tvaCollectee += r.quote.breakdown.tva ?? 0;
       commission += r.quote.breakdown.fee ?? 0;
+      if (r.paymentMethod === 'cash') dettesEspeces += r.quote.breakdown.fee ?? 0;
     }
 
     const caLocation = parCategorie['location']?.entrees ?? 0;
     const caAbonnement = parCategorie['abonnement']?.entrees ?? 0;
     const subStats = this.c.subscriptions.stats();
+    // Le volume d'affaires couvre TOUTES les activités. Ne compter que les courses
+    // donnait un revenu supérieur au volume — un chiffre impossible à lire.
+    const gmvTotal = gmvMobilite + caLocation + caAbonnement;
 
     // Dû aux chauffeurs : somme des soldes positifs non encore retirés.
     let dusChauffeurs = 0;
-    let dettesEspeces = 0;
     for (const d of this.c.drivers.list()) {
       const solde = this.c.wallet.balance(d.id);
       if (solde > 0) dusChauffeurs += solde;
-      else dettesEspeces += Math.abs(solde); // commission due sur les espèces encaissées
     }
 
     const encoursEntreprises = this.c.corporate.list().reduce((n, a) => n + a.balanceUsed, 0);
 
     return {
       currency: 'XOF',
-      gmv,
+      gmv: gmvTotal,
+      gmvParActivite: { mobilite: gmvMobilite, location: caLocation, abonnement: caAbonnement },
+      // Ce qui reste réellement à ORION : la commission sur la mobilité (le reste va au
+      // chauffeur) plus l'intégralité des locations et des abonnements.
       revenu: commission + caLocation + caAbonnement,
       entrees, sorties, solde: entrees - sorties,
       parCategorie,

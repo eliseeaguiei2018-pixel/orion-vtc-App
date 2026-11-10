@@ -661,7 +661,7 @@ const livre: MouvementPage = {
 
 const executive: ExecutiveBoard = {
   consolidation: {
-    currency: 'XOF', gmv: 18_420_000, revenu: 3_265_400,
+    currency: 'XOF', gmv: 20_380_000, gmvParActivite: { mobilite: 18_420_000, location: 1_567_000, abonnement: 393_000 }, revenu: 3_265_400,
     entrees: 14_880_000, sorties: 11_340_000, solde: 3_540_000,
     parCategorie: {
       course: { entrees: 12_100_000, sorties: 0, nombre: 1842 },

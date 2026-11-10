@@ -50,12 +50,12 @@ function CourbeTresorerie({ serie }: { serie: ExecutiveBoard['serie'] }) {
         <path d={ligne('entrees')} fill="none" stroke="var(--a-green2)" strokeWidth={2} />
         <path d={ligne('sorties')} fill="none" stroke="#ff6470" strokeWidth={2} strokeDasharray="4 3" />
       </svg>
-      <div className="row between" style={{ fontSize: 11.5, marginTop: 4 }}>
+      <div className="row between" style={{ fontSize: 11.5, marginTop: 6, gap: 16 }}>
         <span className="adm-muted">{serie[0] ? jourCourt(serie[0].date) : ''}</span>
-        <span>
-          <span style={{ color: 'var(--a-green2)' }}>— Entrées</span>{'  '}
-          <span style={{ color: '#ff6470' }}>-- Sorties</span>{'  '}
-          <span className="adm-muted">max {fcfa(max)}</span>
+        <span className="row" style={{ gap: 14 }}>
+          <span style={{ color: 'var(--a-green2)' }}>━ Entrées</span>
+          <span style={{ color: '#ff6470' }}>┄ Sorties</span>
+          <span className="adm-muted">plafond {fcfa(max)}</span>
         </span>
         <span className="adm-muted">{serie.length ? jourCourt(serie[serie.length - 1]!.date) : ''}</span>
       </div>
@@ -148,13 +148,32 @@ export function DirectionSection({ board, livre, jours, onJours, canAct, onAller
         <Kpi label="Entrées en caisse" value={fcfa(c.entrees)} sub={`sur ${jours} jours`} tone="green" />
         <Kpi label="Sorties de caisse" value={fcfa(c.sorties)} sub="reversements, virements, frais" tone={c.sorties > c.entrees ? 'red' : 'blue'} />
         <Kpi label="Solde de la période" value={fcfa(c.solde)} sub={c.solde >= 0 ? 'excédent' : 'déficit'} tone={c.solde >= 0 ? 'green' : 'red'} />
-        <Kpi label="Revenu ORION" value={fcfa(c.revenu)} sub={`GMV ${fcfa(c.gmv)}`} tone="green" />
+        <Kpi
+          label="Revenu ORION"
+          value={fcfa(c.revenu)}
+          sub={`sur ${fcfa(c.gmv)} de volume d’affaires`}
+          tone="green"
+        />
       </div>
       <div className="adm-kpis">
         <Kpi label="Revenu récurrent" value={fcfa(c.mrr)} sub="abonnements actifs / mois" tone="green" />
         <Kpi label="Dû aux chauffeurs" value={fcfa(c.dusChauffeurs)} sub="soldes non encore retirés" tone="blue" />
         <Kpi label="Espèces chez les chauffeurs" value={fcfa(c.especesChauffeurs)} sub={`${fcfa(c.dettesEspeces)} de commission due`} tone={c.dettesEspeces > 0 ? 'red' : 'blue'} />
         <Kpi label="TVA collectée" value={fcfa(c.tvaCollectee)} sub="à reverser à l’État — pas du revenu" tone="blue" />
+      </div>
+
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Volume d’affaires par activité</h3><span className="adm-muted">ce que les clients ont facturé — pas ce qui reste à ORION</span></div>
+        <div className="adm-mini-kpis">
+          <div className="adm-mini-kpi"><span>Mobilité (courses & livraisons)</span><strong>{fcfa(c.gmvParActivite.mobilite)}</strong></div>
+          <div className="adm-mini-kpi"><span>Location Signature</span><strong>{fcfa(c.gmvParActivite.location)}</strong></div>
+          <div className="adm-mini-kpi"><span>Abonnements</span><strong>{fcfa(c.gmvParActivite.abonnement)}</strong></div>
+          <div className="adm-mini-kpi"><span>Total</span><strong>{fcfa(c.gmv)}</strong></div>
+        </div>
+        <p className="adm-muted" style={{ fontSize: 12, marginTop: 8 }}>
+          Sur une course, l’essentiel revient au chauffeur : seule la commission reste à ORION.
+          Une location ou un abonnement, au contraire, est entièrement du revenu.
+        </p>
       </div>
 
       <div className="adm-card">

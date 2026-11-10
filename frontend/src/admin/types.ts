@@ -260,7 +260,7 @@ export interface MouvementPage {
   entrees: number; sorties: number;
 }
 export interface ConsolidationFinanciere {
-  currency: string; gmv: number; revenu: number; entrees: number; sorties: number; solde: number;
+  currency: string; gmv: number; gmvParActivite: { mobilite: number; location: number; abonnement: number }; revenu: number; entrees: number; sorties: number; solde: number;
   parCategorie: Record<string, { entrees: number; sorties: number; nombre: number }>;
   mrr: number; tvaCollectee: number; dusChauffeurs: number;
   especesChauffeurs: number; dettesEspeces: number;
