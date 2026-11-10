@@ -23,6 +23,7 @@ import { RealtimeHub, CONFIG_ROOM, DRIVER_CONFIG_ROOM, driverRoom } from './modu
 import { driverAppConfig } from './modules/driver-app/config.js';
 import { createMapsProvider, type MapsProvider } from './modules/maps/service.js';
 import { createRepository } from './core/db/repository.js';
+import { brancherAnnuaire, identifiantsDeConfiguration } from './modules/admin/auth.js';
 import { genMatricule, type Driver } from './modules/drivers/store.js';
 import { ClientStore, type Client } from './modules/clients/store.js';
 import { PromoService, type Promo } from './modules/promos/service.js';
@@ -37,6 +38,7 @@ import { CorporateService, type CorporateAccount } from './modules/corporate/ser
 import { SecurityAlertsService } from './modules/admin/security.js';
 import { ReservationService, type Reservation } from './modules/reservations/service.js';
 import { StaffService } from './modules/staff/service.js';
+import { StaffAccountService, type StaffAccount } from './modules/staff/accounts.js';
 import { ExecutiveService } from './modules/executive/service.js';
 import { VigilanceService } from './modules/vigilance/service.js';
 import { WorkspaceService } from './modules/workspace/service.js';
@@ -93,6 +95,8 @@ export interface Container {
   reservations: ReservationService;
   /** Personnel interne : shifts, pointage, maintenance, squads (session Équipes). */
   staff: StaffService;
+  /** Annuaire du personnel : un identifiant de connexion par employé et par chauffeur. */
+  accounts: StaffAccountService;
   /** Notes de frais & avances (self-service + validation CFO). */
   expenses: ExpenseService;
   /** Direction générale : consolidation de TOUS les flux financiers (poste du PDG). */
@@ -207,6 +211,13 @@ export function createContainer(): Container {
     currency: 'XOF',
   }));
 
+  // Annuaire du personnel : branché à l'authentification de la console pour que les
+  // comptes créés à l'écran puissent effectivement se connecter. Les identifiants
+  // définis dans la configuration sont protégés contre toute écriture depuis l'écran.
+  const comptes = new StaffAccountService(createRepository<StaffAccount>('staff_accounts'));
+  comptes.protege(identifiantsDeConfiguration());
+  brancherAnnuaire(() => comptes.asAdminUsers());
+
   const safety = new SafetyService(realtime);
   // Portefeuille client (séparé du wallet chauffeur) : remboursements ORION Assurance.
   const clientWallet = new WalletService(createRepository<LedgerEntry>('client_wallet'));
@@ -256,6 +267,7 @@ export function createContainer(): Container {
     security: new SecurityAlertsService(),
     reservations: new ReservationService(createRepository<Reservation>('reservations')),
     staff: new StaffService(createRepository('staff_shifts'), createRepository('staff_tickets')),
+    accounts: comptes,
     expenses: new ExpenseService(createRepository<ExpenseTicket>('expenses')),
     // Renseigné juste après : la consolidation a besoin du conteneur complet.
     executive: undefined as unknown as ExecutiveService,

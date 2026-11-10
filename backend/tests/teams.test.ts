@@ -50,9 +50,20 @@ test('équipes : création, flotte affiliée, portée manager imposée côté se
   const koWarn = await app.inject({ method: 'POST', url: `/admin/drivers/${d2}/warn`, headers: awa });
   assert.equal(koWarn.statusCode, 403);
 
-  // Un manager ne peut pas créer d'équipe (teams:write réservé direction/flotte).
-  const koCreate = await app.inject({ method: 'PUT', url: '/admin/teams', headers: awa, payload: { name: 'X', managerUsername: 'chef.awa' } });
-  assert.equal(koCreate.statusCode, 403);
+  // Le chef d'équipe monte SES équipes lui-même — c'est son métier.
+  const okCreate = await app.inject({ method: 'PUT', url: '/admin/teams', headers: awa, payload: { name: 'Astreinte nuit', managerUsername: 'chef.awa', mission: 'Permanence 22 h – 6 h' } });
+  assert.equal(okCreate.statusCode, 200, okCreate.body);
+  assert.equal(okCreate.json().team.managerUsername, 'chef.awa');
+
+  // Mais il ne crée pas une équipe au nom d'un autre : une ligne hiérarchique
+  // qu'on peut s'attribuer soi-même n'en est plus une.
+  const koAutre = await app.inject({ method: 'PUT', url: '/admin/teams', headers: awa, payload: { name: 'Équipe de Yao', managerUsername: 'chef.yao' } });
+  assert.equal(koAutre.statusCode, 403);
+
+  // Et il ne reprend pas une équipe existante dirigée par quelqu'un d'autre.
+  const equipeYao = all.json().teams.find((t: { name: string }) => t.name === 'Équipe Marcory');
+  const koReprise = await app.inject({ method: 'PUT', url: '/admin/teams', headers: awa, payload: { id: equipeYao.id, name: 'Équipe Marcory', managerUsername: 'chef.awa' } });
+  assert.equal(koReprise.statusCode, 403);
 });
 
 test('CRM chauffeur : dossier véhicule + formation éco-conduite (QCM serveur)', async (t) => {

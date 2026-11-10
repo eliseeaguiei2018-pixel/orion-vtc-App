@@ -23,7 +23,7 @@ export function hashPassword(password: string, salt = randomBytes(16).toString('
 }
 
 /** Vérifie un mot de passe en temps constant (anti-timing). */
-function verifyPassword(password: string, salt: string, expectedHex: string): boolean {
+export function verifyPassword(password: string, salt: string, expectedHex: string): boolean {
   let actual: Buffer;
   try {
     actual = scryptSync(password, salt, KEYLEN);
@@ -51,10 +51,28 @@ export interface AdminUser {
 }
 
 /**
+ * ANNUAIRE DU PERSONNEL, branché au démarrage par le conteneur.
+ *
+ * Les comptes de la console ne pouvaient venir que de la configuration du serveur :
+ * ouvrir un accès à une nouvelle trésorière imposait d'éditer une variable
+ * d'environnement et de redémarrer. On branche ici l'annuaire persisté, qui se
+ * gère depuis la console. Les comptes de configuration restent prioritaires :
+ * le compte de secours de l'administrateur technique ne doit jamais pouvoir être
+ * masqué par un homonyme créé à l'écran.
+ */
+let annuaire: (() => AdminUser[]) | null = null;
+export function brancherAnnuaire(source: () => AdminUser[]): void { annuaire = source; }
+
+/** Identifiants définis dans la configuration — non modifiables depuis l'écran. */
+export function identifiantsDeConfiguration(): string[] {
+  return comptesDeConfiguration().map((u) => u.username);
+}
+
+/**
  * Liste des comptes de connexion. ADMIN_USERS (JSON, mots de passe hachés) si fourni ;
  * sinon un compte super_admin par défaut dérivé de ADMIN_USERNAME / ADMIN_PASSWORD.
  */
-export function adminUsers(): AdminUser[] {
+function comptesDeConfiguration(): AdminUser[] {
   const raw = config.ADMIN_USERS?.trim();
   if (raw) {
     try {
@@ -72,6 +90,15 @@ export function adminUsers(): AdminUser[] {
   }
   const { salt, hash } = hashPassword(config.ADMIN_PASSWORD);
   return [{ username: config.ADMIN_USERNAME, name: 'Super Admin', role: 'super_admin', salt, hash }];
+}
+
+/** Tous les comptes : configuration d'abord, puis l'annuaire du personnel. */
+export function adminUsers(): AdminUser[] {
+  const base = comptesDeConfiguration();
+  const connus = new Set(base.map((u) => u.username));
+  const tous = [...base];
+  for (const u of annuaire?.() ?? []) if (!connus.has(u.username)) tous.push(u);
+  return tous;
 }
 
 /** Vérifie les identifiants et renvoie l'utilisateur COMPLET (avec secret TOTP) ou null. */

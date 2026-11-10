@@ -13,6 +13,11 @@ export interface Team {
   /** Identifiant de connexion du manager (compte console, rôle 'manager'). */
   managerUsername: string;
   managerName?: string;
+  /**
+   * Mission de l'équipe : ce dont elle répond. Une équipe sans mission écrite est
+   * une liste de noms — personne ne sait à qui adresser quoi.
+   */
+  mission?: string;
   /** Flotte affiliée (ids chauffeurs). */
   driverIds: string[];
   createdAt: string;
@@ -25,13 +30,14 @@ export class TeamService {
     for (const t of repo?.all() ?? []) this.teams.set(t.id, t);
   }
 
-  upsert(input: { id?: string; name: string; managerUsername: string; managerName?: string; driverIds?: string[] }): Team {
+  upsert(input: { id?: string; name: string; managerUsername: string; managerName?: string; mission?: string; driverIds?: string[] }): Team {
     const existing = input.id ? this.teams.get(input.id) : undefined;
     const team: Team = {
       id: existing?.id ?? input.id ?? randomUUID().slice(0, 8),
       name: input.name,
       managerUsername: input.managerUsername,
       managerName: input.managerName ?? existing?.managerName,
+      mission: input.mission ?? existing?.mission,
       driverIds: input.driverIds ?? existing?.driverIds ?? [],
       createdAt: existing?.createdAt ?? new Date().toISOString(),
     };

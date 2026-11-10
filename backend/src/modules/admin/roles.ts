@@ -20,6 +20,10 @@ export type Role =
   | 'fleet_manager'     // Gestionnaire de flotte — validation chauffeurs, véhicules, dispatch
   | 'financial_analyst' // Analyste financier — exports, factures, paiements (lecture)
   | 'manager'           // Chef d'équipe — supervise SON équipe et sa flotte affiliée
+  | 'agent'             // Membre d'équipe — gère la flotte que son manager lui accrédite
+  | 'daf'               // Directeur Administratif et Financier — demande ET statue
+  | 'tresorier'         // Trésorier(ère) — tient sa caisse, compte les espèces, verse
+  | 'chauffeur'         // Chauffeur ORION — son dossier et ses requêtes, rien d'autre
   | 'ops'         // Équipe opérations / dispatch
   | 'finance'     // Équipe finance (lecture trésorerie, pas de demande)
   | 'support'     // Support client
@@ -36,7 +40,15 @@ export type Permission =
   | 'services:read' | 'services:write'
   | 'support:read' | 'support:write'
   | 'finance:read'
+  /** Statuer sur une demande financière (note de frais, avance, prêt chauffeur). */
+  | 'finance:write'
   | 'treasury:read' | 'treasury:request' | 'treasury:approve'
+  /**
+   * CAISSE NOMINATIVE : ouvrir sa caisse, y enregistrer les espèces reçues, les
+   * compter coupure par coupure et arrêter la caisse. Chaque trésorier ne touche
+   * QUE la sienne — la portée est imposée côté serveur.
+   */
+  | 'caisse:read' | 'caisse:write'
   | 'sessions:read' | 'sessions:write'
   | 'teams:read' | 'teams:write'
   | 'search:read'
@@ -51,6 +63,14 @@ export type Permission =
   | 'executive:read'
   /** Moteur de vigilance : constats et état de santé de la plateforme. */
   | 'vigilance:read'
+  /**
+   * ÉQUIPAGES : le dossier des chauffeurs ORION et leurs requêtes.
+   * `crew:self` est le droit minimal du chauffeur lui-même — il ne voit que SON
+   * dossier et ne dépose que SES requêtes.
+   */
+  | 'crew:read' | 'crew:write' | 'crew:self'
+  /** Annuaire du personnel : créer et gérer les identifiants de connexion. */
+  | 'accounts:read' | 'accounts:write'
   /** Alertes sécurité interne (tentatives d'accès non autorisé) — direction uniquement. */
   | 'security:read'
   | 'roles:read';
@@ -63,6 +83,9 @@ const ALL: Permission[] = [
   'sessions:read', 'sessions:write', 'teams:read', 'teams:write', 'search:read',
   'notify:read', 'notify:write', 'audit:read', 'security:read', 'roles:read',
   'rental:read', 'rental:write', 'executive:read', 'vigilance:read',
+  'finance:write', 'caisse:read', 'caisse:write',
+  'crew:read', 'crew:write', 'crew:self',
+  'accounts:read', 'accounts:write',
 ];
 
 /** Matrice rôle → permissions (couches d'accès selon le poste). */
@@ -73,14 +96,26 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   daa: ALL,
   coo: ALL,
   // CFO : pilotage financier complet + DEMANDE de virement — jamais l'approbation.
-  cfo: ['overview:read', 'rides:read', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'finance:read', 'treasury:read', 'treasury:request', 'search:read', 'notify:read', 'audit:read', 'security:read', 'roles:read', 'rental:read', 'executive:read', 'vigilance:read'],
+  cfo: ['overview:read', 'rides:read', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'finance:read', 'finance:write', 'treasury:read', 'treasury:request', 'caisse:read', 'search:read', 'notify:read', 'audit:read', 'security:read', 'roles:read', 'rental:read', 'executive:read', 'vigilance:read', 'crew:read'],
+  // DAF : même périmètre financier que le CFO. Il DÉPOSE des demandes et STATUE sur
+  // celles des autres — jamais sur la sienne, la séparation est imposée au service.
+  daf: ['overview:read', 'rides:read', 'drivers:read', 'pricing:read', 'promos:read', 'services:read', 'finance:read', 'finance:write', 'treasury:read', 'treasury:request', 'caisse:read', 'caisse:write', 'search:read', 'notify:read', 'audit:read', 'roles:read', 'rental:read', 'executive:read', 'vigilance:read', 'crew:read', 'crew:write', 'teams:read'],
+  // Trésorier(ère) : sa caisse, les espèces qu'il/elle encaisse, ses versements et ses
+  // demandes. Aucune approbation : compter et faire approuver sont deux métiers.
+  tresorier: ['overview:read', 'finance:read', 'treasury:read', 'treasury:request', 'caisse:read', 'caisse:write', 'drivers:read', 'search:read', 'notify:read', 'crew:read'],
   // Gestionnaire de flotte : validation chauffeurs (KYC), véhicules, surveillance dispatch.
   fleet_manager: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'alerts:read', 'teams:read', 'teams:write', 'search:read', 'notify:read', 'rental:read', 'rental:write', 'vigilance:read'],
   // Analyste financier : accès RESTREINT en lecture — exports, factures, paiements chauffeurs.
   financial_analyst: ['overview:read', 'rides:read', 'finance:read', 'treasury:read', 'search:read', 'audit:read', 'rental:read'],
   // Chef d'équipe : supervise SON équipe (portée réduite imposée côté serveur sur /admin/teams
   // et sur les actions chauffeurs — uniquement les membres de sa flotte affiliée).
-  manager: ['overview:read', 'rides:read', 'drivers:read', 'drivers:write', 'teams:read', 'search:read', 'notify:read'],
+  manager: ['overview:read', 'rides:read', 'drivers:read', 'drivers:write', 'teams:read', 'teams:write', 'accounts:read', 'accounts:write', 'search:read', 'notify:read', 'notify:write', 'crew:read', 'crew:write', 'alerts:read', 'support:read', 'rental:read'],
+  // Agent d'équipe : travaille sur la flotte que SON manager lui a accréditée.
+  // Hors de cette flotte, il ne voit rien et ne peut rien faire.
+  agent: ['overview:read', 'rides:read', 'drivers:read', 'drivers:write', 'teams:read', 'search:read', 'notify:read', 'crew:read', 'crew:write', 'alerts:read', 'support:read'],
+  // Chauffeur : son dossier, ses courses, ses revenus, ses requêtes. Rien d'autre.
+  // Aucune donnée d'un autre chauffeur, aucun chiffre d'entreprise.
+  chauffeur: ['crew:self'],
   ops: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'support:read', 'support:write', 'services:read', 'search:read', 'notify:read', 'notify:write', 'rental:read', 'rental:write', 'vigilance:read'],
   finance: ['overview:read', 'rides:read', 'pricing:read', 'promos:read', 'promos:write', 'services:read', 'finance:read', 'treasury:read', 'search:read', 'notify:read'],
   support: ['overview:read', 'rides:read', 'clients:read', 'clients:write', 'alerts:read', 'support:read', 'support:write', 'promos:read', 'search:read', 'notify:read', 'notify:write', 'rental:read', 'rental:write', 'vigilance:read'],
@@ -97,6 +132,10 @@ export const ROLE_LABEL: Record<Role, string> = {
   fleet_manager: 'Gestionnaire de Flotte',
   financial_analyst: 'Analyste Financier',
   manager: 'Chef d’équipe',
+  agent: 'Agent d’équipe',
+  daf: 'Directeur Administratif et Financier (DAF)',
+  tresorier: 'Trésorier(ère)',
+  chauffeur: 'Chauffeur ORION',
   ops: 'Opérations / Dispatch',
   finance: 'Équipe Finance',
   support: 'Support client',

@@ -5,7 +5,7 @@ import { parse } from '../../core/validate.js';
 import { notFound, unauthorized, forbidden } from '../../core/errors.js';
 import { driverRoom } from '../realtime/hub.js';
 import { AdminService, paginate } from './service.js';
-import { can, resolveAccount, ROLE_PERMISSIONS, ROLE_LABEL, type AdminAccount, type Permission } from './roles.js';
+import { can, resolveAccount, ROLE_PERMISSIONS, ROLE_LABEL, type AdminAccount, type Permission, type Role } from './roles.js';
 import {
   authenticate, issueToken, verifyToken, bearerToken,
   lockedFor, recordLoginFailure, clearLoginFailures,
@@ -70,6 +70,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     }
 
     clearLoginFailures(body.username);
+    container.accounts.marquerConnexion(user.username);
     const account = { name: user.name, role: user.role, username: user.username };
     const { token, expiresAt, jti } = issueToken(account);
     registerSession({
@@ -89,7 +90,14 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       // scripts) ; la console, elle, ne le conserve plus.
       csrfToken: csrf,
       token, expiresAt,
-      account: { name: account.name, role: account.role, roleLabel: ROLE_LABEL[account.role], permissions: ROLE_PERMISSIONS[account.role] },
+      account: {
+        name: account.name, role: account.role, roleLabel: ROLE_LABEL[account.role],
+        permissions: ROLE_PERMISSIONS[account.role],
+        // Mot de passe provisoire non encore remplacé : la console exigera le
+        // changement avant de laisser travailler. Un mot de passe dicté au
+        // téléphone et jamais changé est un mot de passe partagé.
+        mustChangePassword: container.accounts.get(user.username)?.mustChangePassword ?? false,
+      },
     };
   });
 
@@ -173,11 +181,18 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     // Identité + permissions du compte connecté (le front adapte l'affichage).
     scoped.get('/admin/me', async (req) => {
       const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const fiche = account.username ? container.accounts.get(account.username) : undefined;
       return {
         name: account.name,
         role: account.role,
         roleLabel: ROLE_LABEL[account.role],
         permissions: ROLE_PERMISSIONS[account.role],
+        username: account.username,
+        service: fiche?.service,
+        teamId: fiche?.teamId,
+        /** Compte chauffeur : la fiche à laquelle il donne accès. */
+        driverId: fiche?.driverId,
+        mustChangePassword: fiche?.mustChangePassword ?? false,
       };
     });
 
@@ -1427,8 +1442,25 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         name: z.string().min(2).max(60),
         managerUsername: z.string().min(1).max(80),
         managerName: z.string().max(80).optional(),
+        /** Mission de l'équipe : ce dont elle répond (maintenance, zone, grands comptes…). */
+        mission: z.string().max(200).optional(),
         driverIds: z.array(z.string()).max(500).optional(),
       }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      // Le chef d'équipe monte SON équipe — c'est lui qui la crée, comme demandé —
+      // mais il ne crée ni ne reprend celle d'un autre : une équipe qu'on peut
+      // s'attribuer n'est plus une ligne hiérarchique.
+      if (account.role === 'manager') {
+        if (body.managerUsername !== account.username) {
+          throw forbidden('Un chef d’équipe ne crée que ses propres équipes.');
+        }
+        if (body.id) {
+          const existante = container.teams.get(body.id);
+          if (existante && existante.managerUsername !== account.username) {
+            throw forbidden('Cette équipe est dirigée par un autre chef d’équipe.');
+          }
+        }
+      }
       const team = container.teams.upsert(body);
       audit(req, 'team.upsert', team.id, { name: team.name, manager: team.managerUsername, fleet: team.driverIds.length });
       return { team };
@@ -2517,6 +2549,188 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       const subscription = container.subscriptions.cancel(userId, body.raison);
       audit(req, 'subscription.cancel', userId, { raison: body.raison });
       return { subscription };
+    });
+
+    /* ================= ANNUAIRE DU PERSONNEL (identifiants de connexion) =================
+     *
+     * Les comptes ne venaient que de la configuration du serveur : ouvrir un accès à une
+     * nouvelle trésorière ou à un chauffeur imposait d'éditer une variable d'environnement
+     * et de redémarrer. Autant dire que personne n'aurait eu de compte. Cela se gère ici.
+     *
+     * Portée du chef d'équipe : il crée des comptes pour SON équipe, et seulement des
+     * agents ou des chauffeurs. Nul ne se fabrique un supérieur hiérarchique.
+     */
+    const ROLES_DELEGUES: Role[] = ['agent', 'chauffeur'];
+
+    /** Vérifie qu'un chef d'équipe reste dans son périmètre ; la direction passe partout. */
+    const assertPorteeComptes = (req: FastifyRequest, cible: { role?: Role; teamId?: string | null }): void => {
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      if (account.role !== 'manager') return;
+      if (cible.role && !ROLES_DELEGUES.includes(cible.role)) {
+        throw forbidden('Un chef d’équipe ne crée que des comptes agent ou chauffeur.');
+      }
+      const siennes = new Set(container.teams.listByManager(account.username ?? '').map((t) => t.id));
+      if (!cible.teamId || !siennes.has(cible.teamId)) {
+        throw forbidden('Un chef d’équipe ne gère que les comptes de ses propres équipes.');
+      }
+    };
+
+    scoped.get('/admin/accounts', async (req) => {
+      require(req, 'accounts:read');
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const q = parse(z.object({
+        role: z.string().max(40).optional(),
+        teamId: z.string().max(64).optional(),
+        actif: z.enum(['true', 'false']).optional(),
+        q: z.string().max(80).optional(),
+      }), req.query ?? {});
+      const filtre = {
+        role: q.role as Role | undefined,
+        teamId: q.teamId,
+        actif: q.actif === undefined ? undefined : q.actif === 'true',
+        q: q.q,
+      };
+      // Le chef d'équipe ne voit que les siens : l'annuaire complet n'est pas son affaire.
+      let comptes = container.accounts.liste(filtre);
+      if (account.role === 'manager') {
+        const siennes = new Set(container.teams.listByManager(account.username ?? '').map((t) => t.id));
+        comptes = comptes.filter((c) => c.teamId && siennes.has(c.teamId));
+      }
+      return {
+        accounts: comptes,
+        stats: container.accounts.stats(),
+        roles: Object.entries(ROLE_LABEL).map(([id, label]) => ({ id, label, permissions: ROLE_PERMISSIONS[id as Role].length })),
+        delegables: ROLES_DELEGUES,
+      };
+    });
+
+    scoped.post('/admin/accounts', async (req, reply) => {
+      require(req, 'accounts:write');
+      const body = parse(z.object({
+        name: z.string().min(2).max(80),
+        role: z.string().min(2).max(40),
+        username: z.string().min(3).max(60).regex(/^[a-z0-9._-]+$/, 'lettres minuscules, chiffres, point, tiret').optional(),
+        service: z.string().max(60).optional(),
+        phone: z.string().min(8).max(20).optional(),
+        email: z.string().email().optional(),
+        matricule: z.string().max(40).optional(),
+        teamId: z.string().max(64).optional(),
+        driverId: z.string().max(64).optional(),
+      }), req.body);
+      if (!(body.role in ROLE_PERMISSIONS)) throw notFound('Rôle inconnu');
+      const role = body.role as Role;
+      assertPorteeComptes(req, { role, teamId: body.teamId });
+
+      // Un compte chauffeur doit pointer sur une fiche chauffeur qui existe : sans cela
+      // la personne se connecte sur un dossier vide et ne comprend pas pourquoi.
+      if (role === 'chauffeur') {
+        if (!body.driverId) throw forbidden('Un compte chauffeur doit être rattaché à une fiche chauffeur.');
+        if (!container.drivers.get(body.driverId)) throw notFound('Fiche chauffeur introuvable');
+      }
+
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const res = container.accounts.creer({ ...body, role, createdBy: account.name });
+      if (!res.ok) {
+        reply.code(409);
+        return {
+          error: res.raison === 'identifiant_pris'
+            ? 'Cet identifiant est déjà utilisé.'
+            : 'Ce chauffeur a déjà un compte de connexion.',
+        };
+      }
+      audit(req, 'account.create', res.account.username, { role, teamId: body.teamId });
+      // Le mot de passe provisoire n'est montré QU'ICI, une seule fois : il n'est stocké
+      // nulle part en clair et ne pourra plus être relu, seulement réinitialisé.
+      return { account: res.account, motDePasseProvisoire: res.motDePasseProvisoire };
+    });
+
+    scoped.put('/admin/accounts/:username', async (req) => {
+      require(req, 'accounts:write');
+      const { username } = req.params as { username: string };
+      if (container.accounts.estProtege(username)) {
+        throw forbidden('Compte défini dans la configuration du serveur — non modifiable depuis la console.');
+      }
+      const existant = container.accounts.get(username);
+      if (!existant) throw notFound('Compte introuvable');
+      const body = parse(z.object({
+        name: z.string().min(2).max(80).optional(),
+        role: z.string().min(2).max(40).optional(),
+        service: z.string().max(60).optional(),
+        phone: z.string().min(8).max(20).optional(),
+        email: z.string().email().optional(),
+        matricule: z.string().max(40).optional(),
+        teamId: z.string().max(64).nullable().optional(),
+      }), req.body);
+      if (body.role && !(body.role in ROLE_PERMISSIONS)) throw notFound('Rôle inconnu');
+      assertPorteeComptes(req, { role: (body.role as Role) ?? existant.role, teamId: body.teamId ?? existant.teamId });
+      const account = container.accounts.modifier(username, { ...body, role: body.role as Role | undefined });
+      audit(req, 'account.update', username, { role: body.role });
+      return { account };
+    });
+
+    scoped.post('/admin/accounts/:username/reset', async (req) => {
+      require(req, 'accounts:write');
+      const { username } = req.params as { username: string };
+      if (container.accounts.estProtege(username)) {
+        throw forbidden('Compte défini dans la configuration du serveur — non modifiable depuis la console.');
+      }
+      const existant = container.accounts.get(username);
+      if (!existant) throw notFound('Compte introuvable');
+      assertPorteeComptes(req, { role: existant.role, teamId: existant.teamId });
+      const res = container.accounts.reinitialiser(username);
+      if (!res) throw notFound('Compte introuvable');
+      audit(req, 'account.reset', username);
+      return res;
+    });
+
+    scoped.post('/admin/accounts/:username/active', async (req) => {
+      require(req, 'accounts:write');
+      const { username } = req.params as { username: string };
+      if (container.accounts.estProtege(username)) {
+        throw forbidden('Compte défini dans la configuration du serveur — non modifiable depuis la console.');
+      }
+      const existant = container.accounts.get(username);
+      if (!existant) throw notFound('Compte introuvable');
+      assertPorteeComptes(req, { role: existant.role, teamId: existant.teamId });
+      const body = parse(z.object({ active: z.boolean(), reason: z.string().max(200).optional() }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      if (!body.active && username === account.username) {
+        throw forbidden('On ne désactive pas son propre compte — personne ne doit pouvoir se verrouiller dehors.');
+      }
+      const maj = body.active
+        ? container.accounts.reactiver(username)
+        : container.accounts.desactiver(username, body.reason ?? 'Non précisé');
+      audit(req, body.active ? 'account.enable' : 'account.disable', username, { reason: body.reason });
+      return { account: maj };
+    });
+
+    /**
+     * Changement de son PROPRE mot de passe. Aucune permission particulière : tout
+     * compte connecté doit pouvoir le faire, et c'est obligatoire après une création
+     * ou une réinitialisation.
+     */
+    scoped.post('/admin/password', async (req, reply) => {
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      if (!account.username) {
+        throw forbidden('Jeton statique : aucun mot de passe à changer.');
+      }
+      const body = parse(z.object({
+        ancien: z.string().min(1).max(200),
+        nouveau: z.string().min(10, 'Au moins 10 caractères').max(200),
+      }), req.body);
+      const res = container.accounts.changerMotDePasse(account.username, body.ancien, body.nouveau);
+      if (res === 'ok') {
+        audit(req, 'account.password_changed', account.username);
+        return { ok: true };
+      }
+      reply.code(res === 'inconnu' ? 404 : 400);
+      const messages: Record<string, string> = {
+        ancien_invalide: 'Mot de passe actuel incorrect.',
+        trop_court: 'Le nouveau mot de passe doit faire au moins 10 caractères.',
+        identique: 'Le nouveau mot de passe doit être différent de l’ancien.',
+        inconnu: 'Compte de configuration : le mot de passe se change côté serveur.',
+      };
+      return { error: messages[res] };
     });
 
     // --- Journal d'audit ---
