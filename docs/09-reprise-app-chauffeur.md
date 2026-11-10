@@ -134,6 +134,7 @@ Ne pas les réécrire — les consommer.
 | `POST` | `/rides/:id/wait` | Attente facturée (minutes de courtoisie gérées côté serveur) |
 | `POST` | `/rides/:id/sos` | Alerte SOS depuis la course |
 | `GET` | `/config` | Config publique (maintenance, services, passerelles) |
+| `GET` | `/drivers/:id/rentals` | **Locations Signature confiées à ce chauffeur** (session chauffeur requise) |
 
 **Données chauffeur déjà modélisées** (`backend/src/modules/drivers/store.ts`) :
 `suspensionReason`, `loyaltyTier`, `commissionOverride`, `electricRides`, `batteryKwh`,
@@ -162,6 +163,53 @@ La console (17 sessions) contrôle notamment :
 **et** s'abonne à `GET /ws/config` pour appliquer les changements en direct
 (voir `frontend/src/api.ts` → `fetchAppConfig()`, `configSocketUrl()` et l'effet
 correspondant dans `frontend/src/App.tsx`). **L'app Chauffeur doit faire pareil.**
+
+---
+
+## 5 bis. LOCATION SIGNATURE — ce que l'app Chauffeur doit ajouter
+
+Un service de **location de véhicules électriques ultra-premium** a été ajouté
+(`backend/src/modules/rental/`, flotte dans `backend/src/modules/fleet/prestige.ts`) :
+Huawei Maextro S800, BYD Yangwang Altior, Huawei AITO M9, NIO ES9, NIO ET9,
+Huawei Stelato S9, Zeekr 8X. Trois formules : **événement & mariage**,
+**entreprise & institution**, et **course en mise à disposition** (la voiture pour
+N heures, ou privatisée à la journée / au week-end / à la semaine / au mois).
+
+La console affecte un chauffeur à une location (session « Location Signature »).
+**Côté app Chauffeur, il reste à faire :**
+
+1. **Écran « Mes locations »** alimenté par `GET /drivers/:id/rentals` (jeton chauffeur
+   obligatoire). La réponse donne le dossier, le véhicule, la période, les heures de
+   mise à disposition, le lieu de prise en charge, le contact sur place, la société et
+   le bon de commande le cas échéant, le statut et **les options à préparer**
+   (décoration, tapis rouge, hôtesses, escorte, rafraîchissements…).
+   Le montant facturé au client n'est **pas** exposé au chauffeur : il reçoit la
+   prestation à assurer, pas la facture.
+2. **Notification temps réel** : à l'affectation, le serveur publie `rental.assigned`
+   sur le canal personnel du chauffeur (`/ws/drivers/:id`) et crée une notification.
+   L'app doit l'afficher comme elle affiche déjà une offre de course.
+3. **Préparation du véhicule** : les options cochées impliquent une préparation
+   (décoration florale, tapis rouge). Prévoir une case « véhicule préparé » si le
+   porteur du projet le demande — rien n'est encore implémenté côté serveur.
+
+> ⚠️ Une location n'est **pas** une course : pas de `lockId`, pas de machine à états
+> de course, pas de commission au km. Ne pas l'injecter dans le flux `rides`.
+
+---
+
+## 5 ter. ABONNEMENT ORION — ce que le chauffeur doit savoir
+
+L'abonnement client a été rendu **effectif** (il était purement décoratif) :
+une course peut être prise en charge, en tout ou partie, par le forfait du client.
+
+**Conséquence directe pour l'app Chauffeur** : le client peut payer **0 F** à la fin
+d'une course, alors que le chauffeur est rémunéré sur le **montant brut**. C'est déjà
+le comportement du serveur (`POST /rides/:id/pay` crédite `montantBrut`), mais l'app
+Chauffeur ne doit pas en conclure à un impayé ni afficher « non payé ».
+
+- En **espèces**, le chauffeur n'encaisse que le reste dû (part d'abonnement déduite) ;
+  sa dette espèces n'est débitée que de ce montant-là.
+- L'écran « gains » doit continuer d'afficher le **brut** et la commission habituelle.
 
 ---
 

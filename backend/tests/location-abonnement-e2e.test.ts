@@ -305,3 +305,61 @@ test('console : la session Location est refusée sans droit, et signalée à la 
   assert.ok(!ROLE_PERMISSIONS.viewer.includes('rental:write'));
   assert.equal(container.security.count(), 0);
 });
+
+test('app chauffeur : une location affectée est visible par le chauffeur concerné', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  const jeton = { 'x-admin-token': 'orion-admin-dev' };
+  const debut = new Date(Date.now() + 2 * 86_400_000).toISOString();
+  const res = await app.inject({
+    method: 'POST', url: '/rental/reserve',
+    payload: {
+      formula: 'evenement', vehicleId: 'nio-et9', debut, duree: 'journee',
+      options: { decoration: true, tapisRouge: true },
+      userId: 'client-mariage-2', lieu: 'Mairie du Plateau',
+      contact: { nom: 'Témoin', telephone: '+2250101010101' },
+    },
+  });
+  const id = res.json().reservation.id as string;
+
+  // Le chauffeur s'inscrit depuis SON application (OTP) : c'est sa session qui
+  // autorise la lecture de ses locations, pas un accès anonyme.
+  const otp = await app.inject({ method: 'POST', url: '/drivers/auth/otp', payload: { phone: '0505060708' } });
+  const verif = await app.inject({
+    method: 'POST', url: '/drivers/auth/verify',
+    payload: { phone: '0505060708', code: otp.json().devCode, name: 'Grace Kouamé' },
+  });
+  const driverId = verif.json().driver.id as string;
+  const auth = { authorization: `Bearer ${verif.json().token}` };
+
+  // Sans session chauffeur, la liste est refusée (elle contient des coordonnées de clients).
+  const anonyme = await app.inject({ method: 'GET', url: `/drivers/${driverId}/rentals` });
+  assert.equal(anonyme.statusCode, 401);
+
+  // Avant affectation : le chauffeur n'a aucune location.
+  const avant = await app.inject({ method: 'GET', url: `/drivers/${driverId}/rentals`, headers: auth });
+  assert.equal(avant.statusCode, 200);
+  assert.equal(avant.json().total, 0);
+
+  await app.inject({ method: 'POST', url: `/admin/rental/${id}/assign`, headers: jeton, payload: { driverId } });
+
+  // Après : il voit le dossier, le lieu, le contact et les options à préparer.
+  const apres = await app.inject({ method: 'GET', url: `/drivers/${driverId}/rentals`, headers: auth });
+  assert.equal(apres.json().total, 1);
+  const loc = apres.json().rentals[0];
+  assert.equal(loc.id, id);
+  assert.equal(loc.vehicle.name, 'NIO ET9');
+  assert.equal(loc.lieu, 'Mairie du Plateau');
+  assert.equal(loc.contact.nom, 'Témoin');
+  assert.equal(loc.options.decoration, true);
+  // Le montant facturé au client ne regarde pas le chauffeur : il reçoit la prestation
+  // à assurer, pas la facture.
+  assert.equal(loc.total, undefined);
+  assert.equal(loc.breakdown, undefined);
+
+  // Une location annulée disparaît de sa liste.
+  await app.inject({ method: 'POST', url: `/admin/rental/${id}/annuler`, headers: jeton, payload: { raison: 'report' } });
+  const apresAnnul = await app.inject({ method: 'GET', url: `/drivers/${driverId}/rentals`, headers: auth });
+  assert.equal(apresAnnul.json().total, 0);
+});

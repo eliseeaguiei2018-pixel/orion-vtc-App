@@ -177,6 +177,40 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
     return { ride: activeOf(id) };
   });
 
+  /* ----------------------- Locations Signature ----------------------- */
+
+  /**
+   * Locations confiées à ce chauffeur (mariages, délégations, mise à disposition).
+   * Il y trouve tout ce qu'il doit savoir avant de se présenter : le véhicule, la
+   * période, le lieu, le contact sur place et les options à préparer (décoration,
+   * tapis rouge, rafraîchissements…).
+   */
+  app.get('/drivers/:id/rentals', async (req) => {
+    const { id } = req.params as { id: string };
+    requireDriver(req, id);
+    if (!container.drivers.get(id)) throw notFound('Chauffeur introuvable');
+    const rentals = container.rental.listByDriver(id).map((r) => ({
+      id: r.id,
+      formula: r.formula,
+      duree: r.duree,
+      heures: r.heures,
+      heuresService: r.heuresService,
+      vehicle: r.vehicle,
+      debut: r.debut,
+      fin: r.fin,
+      lieu: r.lieu ?? null,
+      contact: r.contact ?? null,
+      societe: r.societe ?? null,
+      status: r.status,
+      options: r.options,
+      jourJ: r.jourJ,
+      // Le chauffeur n'a pas à connaître le montant facturé au client ; il a besoin
+      // de la prestation à assurer. Le prix reste à la console et au client.
+      kmInclus: r.kmInclus,
+    }));
+    return { rentals, total: rentals.length };
+  });
+
   /* ------------------------------ Offres ------------------------------ */
 
   // Accepter l'offre (dans le délai console) → course confirmée.

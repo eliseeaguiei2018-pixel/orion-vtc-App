@@ -314,6 +314,17 @@ export class RentalService {
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
   }
 
+  /**
+   * Locations confiées à un chauffeur. Sans cette liste, la console pouvait
+   * « affecter » un chauffeur qui n'en saurait jamais rien : une affectation
+   * invisible de l'autre côté n'est pas une affectation.
+   */
+  listByDriver(driverId: string): RentalReservation[] {
+    return [...this.items.values()]
+      .filter((r) => r.driverId === driverId && r.status !== 'annulee')
+      .sort((a, b) => Date.parse(a.debut) - Date.parse(b.debut));
+  }
+
   /** Vue console : filtrable par statut et par formule. */
   list(filtre: { status?: RentalStatus; formula?: RentalFormula } = {}): RentalReservation[] {
     return [...this.items.values()]

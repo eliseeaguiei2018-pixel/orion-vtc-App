@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { parse } from '../../core/validate.js';
 import { notFound, unauthorized, forbidden } from '../../core/errors.js';
+import { driverRoom } from '../realtime/hub.js';
 import { AdminService, paginate } from './service.js';
 import { can, resolveAccount, ROLE_PERMISSIONS, ROLE_LABEL, type AdminAccount, type Permission } from './roles.js';
 import {
@@ -1947,6 +1948,21 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       const { id } = req.params as { id: string };
       const body = parse(z.object({ driverId: z.string().min(1) }), req.body);
       const reservation = container.rental.assign(id, body.driverId);
+      // Le chauffeur est prévenu en direct sur son canal : une affectation qu'il
+      // découvrirait le jour J n'en serait pas une.
+      container.realtime.publish(driverRoom(body.driverId), 'rental.assigned', {
+        id: reservation.id,
+        vehicle: reservation.vehicle.name,
+        debut: reservation.debut,
+        fin: reservation.fin,
+        lieu: reservation.lieu ?? null,
+        formula: reservation.formula,
+      });
+      container.notifications.notify(
+        { driverId: body.driverId },
+        'Nouvelle location Signature 💎',
+        `${reservation.vehicle.name} — ${new Date(reservation.debut).toLocaleString('fr-FR')}${reservation.lieu ? ` · ${reservation.lieu}` : ''}`,
+      );
       audit(req, 'rental.assign', id, { driverId: body.driverId });
       return { reservation };
     });
