@@ -62,6 +62,10 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
   await app.register(rateLimit, {
     max: config.RATE_LIMIT_MAX,
     timeWindow: config.RATE_LIMIT_WINDOW,
+    // Se DÉCONNECTER doit toujours rester possible : un administrateur bloqué par
+    // le limiteur garderait sinon une session ouverte, ce qui est exactement
+    // l'inverse du but recherché. La route ne fait que révoquer une session.
+    allowList: (req) => req.url.split('?')[0] === '/admin/logout',
   });
 
   // Gestion d'erreur homogène : codes métier stables + pas de fuite de stack en prod.

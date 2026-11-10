@@ -154,3 +154,28 @@ test('Déconnexion : les cookies sont effacés et la session révoquée', async 
   const apres = await app.inject({ method: 'GET', url: '/admin/overview', headers: { cookie: `orion_admin=${session}` } });
   assert.equal(apres.statusCode, 401, 'le jeton révoqué ne rouvre pas la session');
 });
+
+test('Le limiteur de débit ne peut jamais empêcher une déconnexion', async (t) => {
+  const { buildApp } = await import('../src/app.js');
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  const login = await connecter(app);
+  const session = cookieDe(login.headers['set-cookie'], 'orion_admin')!;
+
+  // On sature volontairement le limiteur (120 requêtes/minute par défaut).
+  let vu429 = false;
+  for (let i = 0; i < 140; i += 1) {
+    const r = await app.inject({ method: 'GET', url: '/' });
+    if (r.statusCode === 429) { vu429 = true; break; }
+  }
+  assert.ok(vu429, 'le limiteur s’est bien déclenché (prérequis du test)');
+
+  // La déconnexion doit rester possible : sinon l'administrateur bloqué garderait
+  // une session ouverte, exactement l'inverse du but du limiteur.
+  const out = await app.inject({ method: 'POST', url: '/admin/logout', headers: { cookie: `orion_admin=${session}` } });
+  assert.notEqual(out.statusCode, 429, 'la déconnexion n’est pas bloquée par le limiteur');
+  assert.equal(out.statusCode, 200);
+  // La révocation elle-même est vérifiée par le test de déconnexion ci-dessus ; ici
+  // le limiteur étant saturé, toute autre route répondrait 429 et masquerait le 401.
+});
