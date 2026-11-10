@@ -209,3 +209,43 @@ test('un compte entreprise peut enfin porter un numéro de donneur d’ordre', a
   assert.equal(appel.statusCode, 200);
   assert.equal(appel.json().entry.dossierType, 'entreprise');
 });
+
+test('la file de triage nomme l’usager au lieu de son identifiant technique', async (t) => {
+  const { app, container } = await buildApp();
+  t.after(() => app.close());
+
+  // Le défaut : la file affichait « usager client-bro » — un identifiant tronqué.
+  // L'agent SAMU ne pouvait ni nommer la personne ni l'appeler sans ouvrir le dossier.
+  container.clients.touch('client-brou', { name: 'Brou Kacou', phone: '+2250709182736' });
+  container.safety.raiseSos({
+    userId: 'client-brou',
+    location: { lat: 5.3456, lng: -4.0864 },
+    note: 'Altercation à la prise en charge.',
+  });
+
+  const r = await app.inject({ method: 'GET', url: '/admin/sos', headers: { 'x-admin-token': 'orion-admin-dev' } });
+  assert.equal(r.statusCode, 200);
+  const a = r.json().alerts.find((x: { userId: string }) => x.userId === 'client-brou');
+  assert.ok(a, 'alerte absente de la file');
+  assert.equal(a.userName, 'Brou Kacou');
+  assert.equal(a.userPhone, '+2250709182736');
+  assert.equal(a.userKind, 'client');
+});
+
+test('une alerte déclenchée par un chauffeur le désigne comme chauffeur, joignable', async (t) => {
+  const { app, container } = await buildApp();
+  t.after(() => app.close());
+
+  const d = container.drivers.upsert({
+    id: 'sos-drv-1', name: 'Konan Yao', matricule: 'AB-114-CI', category: 'or',
+    kycStatus: 'active', availability: 'online', ratingAvg: 4.9, ratingCount: 40,
+    phone: '+2250701020304',
+  });
+  container.safety.raiseSos({ userId: d.id, location: { lat: 5.33, lng: -4.02 }, note: 'Agression signalée.', source: 'chauffeur' });
+
+  const r = await app.inject({ method: 'GET', url: '/admin/sos', headers: { 'x-admin-token': 'orion-admin-dev' } });
+  const a = r.json().alerts.find((x: { userId: string }) => x.userId === 'sos-drv-1');
+  assert.equal(a.userName, 'Konan Yao');
+  assert.equal(a.userKind, 'chauffeur');
+  assert.equal(a.userPhone, '+2250701020304');
+});

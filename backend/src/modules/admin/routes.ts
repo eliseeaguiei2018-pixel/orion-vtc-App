@@ -547,7 +547,23 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     scoped.get('/admin/fleet/live', async (req) => { require(req, 'drivers:read'); return { fleet: await admin.fleetLive() }; });
 
     // --- Supervision SAMU ---
-    scoped.get('/admin/alerts', async (req) => { require(req, 'alerts:read'); return { alerts: container.safety.list() }; });
+    /**
+     * Qui est derrière une alerte. La file de triage n'affichait que l'identifiant
+     * technique tronqué — « usager client-bro » — et l'agent SAMU ne pouvait ni nommer
+     * la personne, ni l'appeler sans ouvrir le dossier. Une seconde compte, ici.
+     */
+    const usagerDeAlerte = (userId: string) => {
+      const client = container.clients.get(userId);
+      if (client) return { userName: client.name ?? null, userPhone: client.phone ?? null, userKind: 'client' as const };
+      const driver = container.drivers.get(userId);
+      if (driver) return { userName: driver.name, userPhone: driver.phone ?? null, userKind: 'chauffeur' as const };
+      return { userName: null, userPhone: null, userKind: 'inconnu' as const };
+    };
+
+    scoped.get('/admin/alerts', async (req) => {
+      require(req, 'alerts:read');
+      return { alerts: container.safety.list().map((a) => ({ ...a, ...usagerDeAlerte(a.userId) })) };
+    });
 
     /** Dossier scellé : lecture réservée à la direction après clôture. */
     const assertSealedAccess = (req: FastifyRequest, sealed?: boolean): void => {
@@ -580,6 +596,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       const now = Date.now();
       const alerts = container.safety.triage().map((a) => ({
         ...a,
+        ...usagerDeAlerte(a.userId),
         slaSeconds: Math.max(0, Math.round((now - Date.parse(a.createdAt)) / 1000)),
       }));
       return { alerts, presets: SOS_PRESETS };

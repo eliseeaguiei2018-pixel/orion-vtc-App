@@ -120,9 +120,20 @@ export function SamuSection({ alerts, fleet, openAlerts, canWrite, contacts, onC
                     <span className={`adm-status ${a.status}`}>{a.sealed ? '🔏 Scellée' : statusLabel(a.status)}</span>
                   </div>
                   <div className="adm-alert-meta">
-                    {a.zoneName ?? 'Zone inconnue'}{a.impactG ? ` · impact ${a.impactG} g` : ''} · usager {a.userId.slice(0, 10)}
+                    {a.zoneName ?? 'Zone inconnue'}{a.impactG ? ` · impact ${a.impactG} g` : ''}
+                    {' · '}
+                    {a.userName
+                      ? <>{a.userKind === 'chauffeur' ? 'chauffeur' : 'usager'} <strong>{a.userName}</strong>{a.userPhone ? ` · ${a.userPhone}` : ''}</>
+                      : <>usager non identifié</>}
                     {a.agent ? <> · <strong>pris en charge : {a.agent}</strong></> : ' · non assignée'}
                   </div>
+                  {/* Joindre la personne sans ouvrir le dossier : une seconde compte. */}
+                  {open && a.userPhone && (
+                    <div className="row" style={{ gap: 6, marginTop: 4 }}>
+                      <a className="adm-btn xs solid" href={`tel:${a.userPhone}`}>📞 Appeler</a>
+                      <a className="adm-btn xs" href={`sms:${a.userPhone}`}>✉️ SMS</a>
+                    </div>
+                  )}
                   <div className="adm-alert-actions">
                     {canWrite && open && !a.agent && <button className="adm-btn xs solid" onClick={() => onClaim(a.id)}>Accepter l’alerte</button>}
                     <button className="adm-btn xs" onClick={() => onOpen(a.id)}>{a.sealed ? 'Dossier scellé' : 'Ouvrir le dossier'}</button>

@@ -16,6 +16,8 @@ export interface Overview {
 }
 export interface Alert {
   id: string; kind: string; status: string; rideId?: string; userId: string;
+  /** Qui est derrière l'alerte, résolu côté serveur : un identifiant ne se compose pas. */
+  userName?: string | null; userPhone?: string | null; userKind?: 'client' | 'chauffeur' | 'inconnu';
   location: { lat: number; lng: number }; zoneName?: string; impactG?: number;
   dispatchedTo: string[]; createdAt: string; note?: string;
   /* --- Session SAMU : triage, prise en charge nominative, chat, scellement --- */
