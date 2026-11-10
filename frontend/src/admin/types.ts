@@ -123,7 +123,14 @@ export interface Liquidity {
 }
 export interface Amortization { vehicles: number; totalBookValue: number; rows: { id: string; matricule: string; km: number; purchase: number; depreciation: number; bookValue: number }[] }
 export interface FleetUnit { id: string; lat: number; lng: number; name: string; matricule: string | null; category: string; availability: string; }
-export interface RideRow { id: string; clientId: string; driverName: string | null; matricule: string | null; status: string; amount: number; currency: string; trafficLevel: string; anomaly?: string | null; createdAt: string; }
+export interface RideRow {
+  id: string; clientId: string; clientName?: string | null; clientPhone?: string | null;
+  driverId?: string | null; driverName: string | null; driverPhone?: string | null; matricule: string | null;
+  status: string; amount: number; currency: string; trafficLevel: string;
+  anomaly?: string | null; paymentMethod?: string | null;
+  trustedContact?: { name: string; phone: string } | null;
+  createdAt: string;
+}
 export interface DriverRow { id: string; name: string; matricule: string; category: string; kycStatus: string; availability: string; rating: number; trips: number; balance: number; vip?: boolean; loyaltyTier?: string | null; electricRides?: number; suspensionReason?: string | null; phone?: string | null; }
 export interface Pricing {
   baseFare: number; perKm: number; perMinute: number; minFare: number; avgSpeedKmh: number;

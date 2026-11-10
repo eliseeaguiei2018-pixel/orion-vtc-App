@@ -16,20 +16,42 @@ export const ANOMALY_LABEL: Record<string, string> = {
   sans_chauffeur: '🟠 Sans chauffeur', immobile: '🔴 Immobile',
 };
 
-export function RidesSection({ rides, meta, onPage, canWrite, onReassign, onOpen, onForce, onDest }: {
+export function RidesSection({ rides, meta, onPage, canWrite, onReassign, onOpen, onForce, onDest, onContact }: {
   rides: RideRow[]; meta: PageMeta; onPage: (p: number) => void; canWrite: boolean;
   onReassign: (id: string) => void; onOpen: (id: string) => void;
   onForce: (id: string, action: 'complete' | 'cancel') => void; onDest: (id: string) => void;
+  /** Joindre le passager, le chauffeur ou le contact de confiance d'une course. */
+  onContact: ContactHandler;
 }) {
   return (
     <div className="adm-card">
       <div className="adm-card-h"><h3>Courses (radar temps réel)</h3><span className="adm-muted">{meta.total} · anomalies en surbrillance · cliquer = fiche (tracé GPS, tarif)</span></div>
       <table className="adm-table">
-        <thead><tr><th>Course</th><th>Chauffeur</th><th>Statut</th><th>Anomalie</th><th>Trafic</th><th className="r">Montant</th>{canWrite && <th>Interventions</th>}</tr></thead>
+        <thead><tr><th>Course</th><th>Passager</th><th>Chauffeur</th><th>Statut</th><th>Anomalie</th><th>Trafic</th><th className="r">Montant</th>{canWrite && <th>Interventions</th>}</tr></thead>
         <tbody>
           {rides.map((r) => (
             <tr key={r.id} className={`adm-row-click${r.anomaly ? ' anomaly' : ''}`} onClick={() => onOpen(r.id)}>
-              <td className="mono">{r.id.slice(0, 8)}</td><td>{r.driverName ?? '—'}</td>
+              <td className="mono">{r.id.slice(0, 8)}{r.paymentMethod && <><br /><span className="adm-muted" style={{ fontSize: 11 }}>{r.paymentMethod}</span></>}</td>
+              <td onClick={(e) => e.stopPropagation()}>
+                {r.clientName ?? r.clientId.slice(0, 10)}
+                <div style={{ marginTop: 3 }}>
+                  <ContactRapide type="course" id={r.id} numero={r.clientPhone} nom={r.clientName ?? r.clientId} onContact={onContact} />
+                </div>
+                {r.trustedContact && (
+                  <div style={{ marginTop: 3 }}>
+                    <span className="adm-muted" style={{ fontSize: 11 }}>Contact de confiance : {r.trustedContact.name}</span>
+                    <ContactRapide type="course" id={r.id} numero={r.trustedContact.phone} nom={r.trustedContact.name} onContact={onContact} />
+                  </div>
+                )}
+              </td>
+              <td onClick={(e) => e.stopPropagation()}>
+                {r.driverName ?? '—'}
+                {r.driverName && (
+                  <div style={{ marginTop: 3 }}>
+                    <ContactRapide type="course" id={r.id} numero={r.driverPhone} nom={r.driverName} onContact={onContact} />
+                  </div>
+                )}
+              </td>
               <td><span className={`adm-pill s-${r.status}`}>{rideStatusLabel(r.status)}</span></td>
               <td>{r.anomaly ? <span className="adm-pill tr-rejected">{ANOMALY_LABEL[r.anomaly] ?? r.anomaly}</span> : <span className="adm-muted">—</span>}</td>
               <td>{trafficLabel(r.trafficLevel)}</td><td className="r">{fcfa(r.amount)}</td>
@@ -377,7 +399,11 @@ export const DISPUTE_STATUS: Record<string, { label: string; cls: string }> = {
 
 export const ESCALATION_LABEL: Record<string, string> = { sinistre: '🚑 Sinistre/Accident', chargeback: '💳 Fraude bancaire', harcelement: '⚠️ Harcèlement/Agression', degradation: '🔧 Dégradation véhicule' };
 
-export function DisputesSection({ disputes, canWrite, onDecide, onOpenRide, onEscalate, onQuarantine, onNote, onChargeback, onDossier, onLossCsv }: {
+export function DisputesSection({ disputes, clients, canWrite, onDecide, onOpenRide, onEscalate, onQuarantine, onNote, onChargeback, onDossier, onLossCsv, onContact }: {
+  /** Fiches clients, pour retrouver le numéro du plaignant. */
+  clients: Client[];
+  /** Joindre le client — un litige se dénoue souvent en deux minutes au téléphone. */
+  onContact: ContactHandler;
   disputes: Dispute[]; canWrite: boolean;
   onDecide: (id: string, s: 'investigating' | 'resolved' | 'rejected', resolution?: string, refund?: number) => void;
   onOpenRide: (rideId: string) => void;
@@ -420,7 +446,14 @@ export function DisputesSection({ disputes, canWrite, onDecide, onOpenRide, onEs
                   {d.lockedBy && <span className="adm-pill tr-pending" title="Dossier verrouillé (claim lock)">🔒 {d.lockedBy}</span>}
                   {d.quarantined && <span className="adm-pill tr-rejected" title="Quarantaine active">❄️ Quarantaine</span>}
                   <button className="adm-btn xs mono" onClick={() => onOpenRide(d.rideId)}>📍 {d.rideId.slice(0, 8)}</button>
-                  <span className="adm-muted mono" style={{ fontSize: 11 }}>{d.clientId}</span>
+                  <span className="adm-muted mono" style={{ fontSize: 11 }}>{clients.find((x) => x.id === d.clientId)?.name ?? d.clientId}</span>
+                  {/* Un litige se dénoue souvent en deux minutes au téléphone. */}
+                  <ContactRapide
+                    type="client" id={d.clientId}
+                    numero={clients.find((x) => x.id === d.clientId)?.phone}
+                    nom={clients.find((x) => x.id === d.clientId)?.name ?? d.clientId}
+                    onContact={onContact}
+                  />
                 </div>
                 <span className="adm-muted" style={{ fontSize: 12 }}>{new Date(d.createdAt).toLocaleString('fr-FR')}</span>
               </div>

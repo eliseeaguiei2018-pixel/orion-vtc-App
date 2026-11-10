@@ -61,12 +61,12 @@ const security = [
 ];
 
 const rides: RideRow[] = [
-  { id: 'r10a2f9c1', clientId: 'client-8842', driverName: 'Awa Diomandé', matricule: 'ORION-CI-2210', status: 'in_progress', amount: 3150, currency: 'XOF', trafficLevel: 'dense', createdAt: iso(4) },
-  { id: 'r22b7e004', clientId: 'client-1190', driverName: 'Ismaël Cissé', matricule: 'ORION-CI-3391', status: 'driver_en_route', amount: 5400, currency: 'XOF', trafficLevel: 'jam', createdAt: iso(6) },
-  { id: 'r0091cd7a', clientId: 'client-7781', driverName: 'Fatou Koné', matricule: 'ORION-CI-7788', status: 'in_progress', amount: 12250, currency: 'XOF', trafficLevel: 'fluid', createdAt: iso(11) },
-  { id: 'r55aa120e', clientId: 'client-3345', driverName: 'Mamadou Bamba', matricule: 'ORION-CI-9034', status: 'completed', amount: 7150, currency: 'XOF', trafficLevel: 'dense', createdAt: iso(20) },
-  { id: 'r7c3390fd', clientId: 'client-9902', driverName: 'Konan Yao', matricule: 'ORION-CI-1042', status: 'paid', amount: 2650, currency: 'XOF', trafficLevel: 'fluid', createdAt: iso(33) },
-  { id: 'r3e1180ab', clientId: 'client-2214', driverName: null, matricule: null, status: 'searching', amount: 4100, currency: 'XOF', trafficLevel: 'dense', createdAt: iso(1) },
+  { id: 'r10a2f9c1', clientId: 'client-8842', driverName: 'Awa Diomandé', matricule: 'ORION-CI-2210', status: 'in_progress', amount: 3150, currency: 'XOF', trafficLevel: 'dense', clientName: 'Kouassi Aya', clientPhone: '+22501018842', driverPhone: '+225071020308', paymentMethod: 'wave', createdAt: iso(4) },
+  { id: 'r22b7e004', clientId: 'client-1190', driverName: 'Ismaël Cissé', matricule: 'ORION-CI-3391', status: 'driver_en_route', amount: 5400, currency: 'XOF', trafficLevel: 'jam', clientName: 'Brou Serge', clientPhone: '+22501011190', driverPhone: '+225071020301', paymentMethod: 'wave', createdAt: iso(6) },
+  { id: 'r0091cd7a', clientId: 'client-7781', driverName: 'Fatou Koné', matricule: 'ORION-CI-7788', status: 'in_progress', amount: 12250, currency: 'XOF', trafficLevel: 'fluid', clientName: 'Diallo Mariam', clientPhone: '+22501017781', driverPhone: '+225071020307', paymentMethod: 'wave', createdAt: iso(11) },
+  { id: 'r55aa120e', clientId: 'client-3345', driverName: 'Mamadou Bamba', matricule: 'ORION-CI-9034', status: 'completed', amount: 7150, currency: 'XOF', trafficLevel: 'dense', clientName: 'Client 3345', clientPhone: '+22501013345', driverPhone: '+225071020303', paymentMethod: 'wave', createdAt: iso(20) },
+  { id: 'r7c3390fd', clientId: 'client-9902', driverName: 'Konan Yao', matricule: 'ORION-CI-1042', status: 'paid', amount: 2650, currency: 'XOF', trafficLevel: 'fluid', clientName: 'Client 9902', clientPhone: '+22501019902', driverPhone: '+225071020309', paymentMethod: 'wave', createdAt: iso(33) },
+  { id: 'r3e1180ab', clientId: 'client-2214', driverName: null, matricule: null, status: 'searching', amount: 4100, currency: 'XOF', trafficLevel: 'dense', clientName: 'Client 2214', clientPhone: '+22501012214', driverPhone: '+225071020302', paymentMethod: 'wave', createdAt: iso(1) },
 ];
 // Volume réaliste pour la pagination (démo) : ~60 courses réparties sur 24 h.
 {
@@ -92,6 +92,7 @@ const drivers: DriverRow[] = fleet.map((f, i) => ({
   kycStatus: i === 8 ? 'manual_review' : i === 6 ? 'docs_submitted' : i === 7 ? 'draft' : 'active',
   availability: f.availability, rating: 4.7 + (i % 3) * 0.1, trips: 800 + i * 137, balance: 15000 + i * 4200,
   vip: i === 2, loyaltyTier: i === 2 ? 'gold' : i === 4 ? 'silver' : null,
+  phone: `+22507${String(10203040 + i * 11111).slice(0, 8)}`,
   electricRides: 200 + i * 110, suspensionReason: null,
 }));
 

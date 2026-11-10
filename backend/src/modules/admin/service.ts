@@ -106,12 +106,21 @@ export class AdminService {
     const { items, meta } = paginate(list, opts.page, opts.limit);
     const rides = items.map((r) => {
       const driver = r.driverId ? this.c.drivers.get(r.driverId) : undefined;
+      const client = this.c.clients.get(r.clientId);
       return {
         id: r.id,
         clientId: r.clientId,
+        // Le dispatcher voyait le chauffeur mais pas le passager, et ne pouvait
+        // joindre ni l'un ni l'autre : une course en difficulté se règle au téléphone.
+        clientName: client?.name ?? null,
+        clientPhone: client?.phone ?? null,
         driverId: r.driverId ?? null,
         driverName: driver?.name ?? null,
+        driverPhone: driver?.phone ?? null,
         matricule: driver?.matricule ?? null,
+        /** Contact de confiance désigné par le passager (partage de course). */
+        trustedContact: r.trustedContact ?? null,
+        paymentMethod: r.paymentMethod ?? null,
         status: r.status,
         amount: r.quote.amount,
         currency: r.quote.currency,
