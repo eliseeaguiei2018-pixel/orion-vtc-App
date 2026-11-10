@@ -28,6 +28,7 @@ const SEV_CLS: Record<string, string> = { critique: 'lvl-rouge', eleve: 'lvl-ora
 const SEV_LABEL: Record<string, string> = { critique: 'Critique', eleve: 'Élevé', moyen: 'Moyen', info: 'Information' };
 
 const dt = (iso: string) => new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+const fcfa = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} F`;
 const heure = (iso: string) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
 /** Depuis combien de temps un dossier attend — un chiffre parle plus qu'une date. */
@@ -39,13 +40,20 @@ function depuis(iso: string): string {
   return `${Math.round(h / 24)} j`;
 }
 
-export function MonPosteSection({ poste, onAller }: {
+export function MonPosteSection({ poste, onAller, onLireMessage, onRepondre, onRendreRapport, onOuvrirChauffeur, onChangerMotDePasse }: {
   poste: MonPoste | null;
   onAller: (section: string) => void;
+  onLireMessage: (id: string) => void;
+  onRepondre: (id: string, texte: string) => void;
+  onRendreRapport: (id: string, texte: string) => void;
+  onOuvrirChauffeur: (driverId: string) => void;
+  onChangerMotDePasse: () => void;
 }) {
   if (!poste) return <p className="adm-muted">Chargement de votre poste…</p>;
 
-  const rienAFaire = poste.mesDossiers.length === 0 && poste.aTraiter.length === 0;
+  const rienAFaire = poste.mesDossiers.length === 0 && poste.aTraiter.length === 0
+    && poste.messages.length === 0 && poste.rapports.length === 0
+    && !poste.caisse && poste.equipes.length === 0 && !poste.monDossier;
 
   return (
     <>
@@ -61,11 +69,216 @@ export function MonPosteSection({ poste, onAller }: {
         </div>
         <div className="adm-kpis" style={{ margin: 0 }}>
           <Kpi label="Mes dossiers" value={String(poste.bilan.dossiers)} sub="pris en charge, en attente de votre geste" tone={poste.bilan.dossiers ? 'teal' : 'green'} />
-          <Kpi label="À traiter" value={String(poste.bilan.aTraiter)} sub="constats relevant de vos droits" tone={poste.bilan.aTraiter ? 'blue' : 'green'} />
-          <Kpi label="Mes demandes" value={String(poste.bilan.demandes)} sub="en attente de la décision d’un autre" tone="blue" />
+          <Kpi label="Messages" value={String(poste.bilan.messagesNonLus)} sub={`${poste.messages.length} reçu(s) · non lus`} tone={poste.bilan.messagesNonLus ? 'blue' : 'green'} />
+          <Kpi label="Rapports à rendre" value={String(poste.bilan.rapportsARendre)} sub={poste.rapports.some((r) => r.enRetard) ? 'dont au moins un en retard' : 'dans les délais'} tone={poste.rapports.some((r) => r.enRetard) ? 'red' : poste.bilan.rapportsARendre ? 'blue' : 'green'} />
           <Kpi label="Mes actions du jour" value={String(poste.bilan.actionsAujourdhui)} sub="enregistrées au journal" tone="green" />
         </div>
+        {poste.identite.mustChangePassword && (
+          <p className="adm-muted" style={{ fontSize: 12.5, marginBottom: 0 }}>
+            Votre mot de passe est encore celui qu’on vous a communiqué — donc partagé.{' '}
+            <button className="adm-btn xs solid" onClick={onChangerMotDePasse}>Le changer maintenant</button>
+          </p>
+        )}
       </div>
+
+      {/* SA CAISSE : le poste de travail d'une trésorière commence ici. */}
+      {poste.caisse && (
+        <div className="adm-card">
+          <div className="adm-card-h">
+            <h3>Ma caisse</h3>
+            <span className="adm-muted">{poste.caisse.emplacement ?? 'emplacement non précisé'} · ouverte le {dt(poste.caisse.ouverteLe)}</span>
+          </div>
+          <div className="row between" style={{ gap: 14, flexWrap: 'wrap' }}>
+            <div className="row" style={{ gap: 24, flexWrap: 'wrap' }}>
+              <span><span className="adm-muted" style={{ fontSize: 12 }}>Fond</span><br /><strong>{fcfa(poste.caisse.fondDeCaisse)}</strong></span>
+              <span><span className="adm-muted" style={{ fontSize: 12 }}>Encaissé</span><br /><strong className="pos">{fcfa(poste.caisse.entrees)}</strong></span>
+              <span><span className="adm-muted" style={{ fontSize: 12 }}>Sorti</span><br /><strong className="neg">{fcfa(poste.caisse.sorties)}</strong></span>
+              <span><span className="adm-muted" style={{ fontSize: 12 }}>Devrait être en caisse</span><br /><strong style={{ fontSize: 18 }}>{fcfa(poste.caisse.soldeTheorique)}</strong></span>
+            </div>
+            <button className="adm-btn solid" onClick={() => onAller('caisses')}>Ouvrir ma caisse</button>
+          </div>
+        </div>
+      )}
+
+      {/* SON DOSSIER : pour un chauffeur, c'est sa seule vue de la plateforme. */}
+      {poste.monDossier && (
+        <div className="adm-card">
+          <div className="adm-card-h">
+            <h3>Mon dossier</h3>
+            <span className="adm-muted mono">{poste.monDossier.matricule}</span>
+          </div>
+          <div className="adm-kpis" style={{ margin: 0 }}>
+            <Kpi label="Mes courses" value={String(poste.monDossier.courses)} sub="sur 30 jours" tone="teal" />
+            <Kpi label="Mes revenus" value={fcfa(poste.monDossier.revenus)} sub="ma part, hors commission" tone="green" />
+            <Kpi label="Mon solde" value={fcfa(poste.monDossier.solde)} sub="disponible au retrait" tone={poste.monDossier.solde < 0 ? 'red' : 'green'} />
+            <Kpi label="Reste à rembourser" value={fcfa(poste.monDossier.resteDu)} sub="prêts et avances en cours" tone={poste.monDossier.resteDu > 0 ? 'blue' : 'green'} />
+          </div>
+          {poste.monDossier.alertes.length > 0 && (
+            <div className="stack" style={{ gap: 6, marginTop: 10 }}>
+              {poste.monDossier.alertes.map((a, i) => (
+                <div key={i} className="row" style={{ gap: 8 }}>
+                  <span className={`adm-pill ${SEV_CLS[a.severite] ?? ''}`}>{SEV_LABEL[a.severite] ?? a.severite}</span>
+                  <span style={{ fontSize: 13 }}>{a.texte}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {poste.monDossier.requetes.length > 0 && (
+            <table className="adm-table sm" style={{ marginTop: 10 }}>
+              <thead><tr><th>Ma demande</th><th className="r">Montant</th><th>Où elle en est</th><th>Déposée le</th></tr></thead>
+              <tbody>
+                {poste.monDossier.requetes.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.type}</td>
+                    <td className="r">{r.montant ? fcfa(r.montant) : '—'}</td>
+                    <td><span className="adm-pill">{r.statut}</span></td>
+                    <td className="adm-muted">{dt(r.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <button className="adm-btn xs solid" style={{ marginTop: 10 }} onClick={() => onOuvrirChauffeur(poste.identite.driverId!)}>
+            Ouvrir mon dossier complet
+          </button>
+        </div>
+      )}
+
+      {/* MESSAGES : un message qu'on ne voit pas n'est jamais lu. */}
+      {poste.messages.length > 0 && (
+        <div className="adm-card">
+          <div className="adm-card-h">
+            <h3>Mes messages</h3>
+            <span className="adm-muted">{poste.bilan.messagesNonLus} non lu(s)</span>
+          </div>
+          <div className="stack" style={{ gap: 10 }}>
+            {poste.messages.map((m) => (
+              <div key={m.id} className={`adm-role-card ${m.lu ? '' : 'on'}`}>
+                <div className="row between" style={{ gap: 10, flexWrap: 'wrap' }}>
+                  <span className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                    {m.urgent && <span className="adm-pill lvl-rouge">Urgent</span>}
+                    {!m.lu && <span className="adm-pill lvl-jaune">Non lu</span>}
+                    <strong>{m.sujet || 'Sans objet'}</strong>
+                    <span className="adm-muted" style={{ fontSize: 12 }}>de {m.deNom}</span>
+                  </span>
+                  <span className="adm-muted" style={{ fontSize: 12 }}>{dt(m.at)}</span>
+                </div>
+                <p style={{ margin: '6px 0', fontSize: 13, whiteSpace: 'pre-line' }}>{m.texte}</p>
+                <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                  {!m.lu && <button className="adm-btn xs" onClick={() => onLireMessage(m.id)}>Marquer lu</button>}
+                  {m.reponseAttendue && (
+                    <button
+                      className="adm-btn xs solid"
+                      onClick={() => {
+                        const t = prompt('Votre réponse :');
+                        if (t) onRepondre(m.id, t);
+                      }}
+                    >
+                      Répondre
+                    </button>
+                  )}
+                  {m.reponses > 0 && <span className="adm-muted" style={{ fontSize: 12 }}>{m.reponses} réponse(s)</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* RAPPORTS : un livrable daté, dont l'absence se voit. */}
+      {poste.rapports.length > 0 && (
+        <div className="adm-card">
+          <div className="adm-card-h">
+            <h3>Rapports à rendre</h3>
+            <span className="adm-muted">{poste.rapports.filter((r) => r.enRetard).length} en retard</span>
+          </div>
+          <div className="stack" style={{ gap: 10 }}>
+            {poste.rapports.map((r) => (
+              <div key={r.id} className="adm-role-card">
+                <div className="row between" style={{ gap: 10, flexWrap: 'wrap' }}>
+                  <span className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                    <span className={`adm-pill ${r.enRetard ? 'lvl-rouge' : r.statut === 'a_revoir' ? 'lvl-orange' : ''}`}>
+                      {r.enRetard ? 'En retard' : r.statutLabel}
+                    </span>
+                    <strong>{r.titre}</strong>
+                    <span className="adm-muted" style={{ fontSize: 12 }}>demandé par {r.demandeParNom} · échéance {new Date(r.echeance).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</span>
+                  </span>
+                </div>
+                <p className="adm-muted" style={{ margin: '4px 0', fontSize: 12.5 }}>{r.consigne}</p>
+                {r.retour?.texte && <p style={{ margin: '4px 0', fontSize: 12.5 }}><strong>À revoir :</strong> {r.retour.texte}</p>}
+                {r.rendu && <p className="adm-muted" style={{ margin: '4px 0', fontSize: 12 }}>Rendu le {dt(r.rendu.at)}</p>}
+                {(r.statut === 'demande' || r.statut === 'a_revoir') && (
+                  <button
+                    className="adm-btn xs solid"
+                    onClick={() => {
+                      const t = prompt(`${r.titre}\n\n${r.consigne}\n\nVotre rapport :`, r.rendu?.texte ?? '');
+                      if (t && t.trim().length >= 3) onRendreRapport(r.id, t.trim());
+                    }}
+                  >
+                    {r.statut === 'a_revoir' ? 'Corriger et rendre' : 'Rendre le rapport'}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* SES ÉQUIPES : pour un chef, le raccourci vers son poste de direction. */}
+      {poste.equipes.length > 0 && (
+        <div className="adm-card">
+          <div className="adm-card-h"><h3>Mes équipes</h3><span className="adm-muted">{poste.equipes.length} équipe(s) dirigée(s)</span></div>
+          <table className="adm-table sm">
+            <thead><tr><th>Équipe</th><th>Mission</th><th className="r">Membres</th><th className="r">Flotte</th><th>À traiter</th><th>Ouvrir</th></tr></thead>
+            <tbody>
+              {poste.equipes.map((e) => (
+                <tr key={e.id}>
+                  <td><strong>{e.name}</strong></td>
+                  <td className="adm-muted">{e.mission ?? '—'}</td>
+                  <td className="r">{e.membres}</td>
+                  <td className="r">{e.flotte}</td>
+                  <td>
+                    {e.rapportsEnRetard > 0 && <span className="adm-pill lvl-rouge">{e.rapportsEnRetard} rapport(s) en retard</span>}
+                    {e.requetesOuvertes > 0 && <> <span className="adm-pill tr-pending">{e.requetesOuvertes} requête(s)</span></>}
+                    {e.alertesFlotte > 0 && <> <span className="adm-pill lvl-orange">{e.alertesFlotte} alerte(s)</span></>}
+                    {e.rapportsEnRetard + e.requetesOuvertes + e.alertesFlotte === 0 && <span className="adm-muted">rien</span>}
+                  </td>
+                  <td><button className="adm-btn xs solid" onClick={() => onAller('posteEquipe')}>Mon équipe</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* SA FLOTTE : triée par ce qui demande une attention. */}
+      {poste.flotte.length > 0 && (
+        <div className="adm-card">
+          <div className="adm-card-h">
+            <h3>Ma flotte accréditée</h3>
+            <span className="adm-muted">{poste.flotte.length} chauffeur(s) — les plus urgents en tête</span>
+          </div>
+          <table className="adm-table sm">
+            <thead><tr><th>Matricule</th><th>Chauffeur</th><th>État</th><th>À traiter</th><th>Joindre</th><th>Dossier</th></tr></thead>
+            <tbody>
+              {poste.flotte.map((f) => (
+                <tr key={f.driverId}>
+                  <td className="mono"><strong>{f.matricule}</strong></td>
+                  <td>{f.name}</td>
+                  <td className="adm-muted">{f.availability === 'online' ? 'En ligne' : f.availability === 'on_trip' ? 'En course' : 'Hors-ligne'}</td>
+                  <td>
+                    {f.alertes > 0 && <span className="adm-pill lvl-orange">{f.alertes} alerte(s)</span>}
+                    {f.requetesOuvertes > 0 && <> <span className="adm-pill tr-pending">{f.requetesOuvertes} requête(s)</span></>}
+                    {f.alertes === 0 && f.requetesOuvertes === 0 && <span className="adm-muted">—</span>}
+                  </td>
+                  <td>{f.phone ? <a className="adm-btn xs solid" href={`tel:${f.phone}`}>📞 Appeler</a> : <span className="adm-muted">n° inconnu</span>}</td>
+                  <td><button className="adm-btn xs" onClick={() => onOuvrirChauffeur(f.driverId)}>Ouvrir</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {rienAFaire && (
         <div className="adm-card">

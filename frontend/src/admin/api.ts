@@ -167,6 +167,14 @@ export async function adminDel(p: string): Promise<void> { const r = await fetch
 export async function safePost(p: string, b?: unknown): Promise<boolean> {
   try { await adminPost(p, b); return true; } catch { return false; }
 }
+/**
+ * Comme `safePost`, mais rend la RÉPONSE du serveur. Certaines actions produisent
+ * quelque chose qu'il faut montrer une seule fois — un mot de passe provisoire, un
+ * avertissement sur une coupure moteur — et un simple booléen le perdrait.
+ */
+export async function safePostData<T>(p: string, b?: unknown): Promise<T | null> {
+  try { return await adminPost<T>(p, b); } catch { return null; }
+}
 export async function safePut(p: string, b: unknown): Promise<boolean> {
   try { await adminPut(p, b); return true; } catch { return false; }
 }

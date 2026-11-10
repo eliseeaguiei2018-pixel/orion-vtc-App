@@ -149,7 +149,14 @@ export interface Pricing {
   cleaningLight?: number; cleaningMajor?: number; longPickupPerKm?: number; longPickupThresholdKm?: number;
 }
 export interface ShadowPricing { sampled: number; realRevenue: number; simulatedRevenue: number; impactPercent: number }
-export interface Me { name: string; role: string; roleLabel: string; permissions: string[] }
+export interface Me {
+  name: string; role: string; roleLabel: string; permissions: string[];
+  username?: string; service?: string; teamId?: string;
+  /** Compte chauffeur : la fiche à laquelle il donne accès. */
+  driverId?: string;
+  /** Mot de passe provisoire non encore remplacé — la console exige le changement. */
+  mustChangePassword?: boolean;
+}
 export interface Client { id: string; name?: string; phone?: string; status: string; rides: number; greenPoints?: number; vipTier?: string; noSurgeLock?: boolean; createdAt: string; lastSeenAt: string }
 export interface Promo { id: string; kind: 'percent' | 'amount'; value: number; active: boolean; uses: number; maxUses?: number; createdAt: string }
 export interface ServicesConfig { city: string; open: boolean; services: Record<string, boolean> }
@@ -281,13 +288,52 @@ export interface DemandePersonnelle {
   libelle: string; montant: number; statut: string; depuis: string; section: string;
 }
 export interface MonPoste {
-  identite: { nom: string; role: string; roleLabel: string; permissions: string[] };
+  identite: {
+    nom: string; role: string; roleLabel: string; permissions: string[];
+    username?: string; service?: string; teamId?: string; driverId?: string;
+    mustChangePassword?: boolean;
+  };
   service: { date: string; slot: string; zoneId?: string } | null;
   mesDossiers: TacheAssignee[];
   mesDemandes: DemandePersonnelle[];
   aTraiter: Array<{ id: string; severite: string; titre: string; action: string; section: string }>;
   monActivite: Array<{ at: string; action: string; target?: string }>;
-  bilan: { dossiers: number; demandes: number; aTraiter: number; actionsAujourdhui: number };
+  /** Messages internes reçus — ce que son chef ou un collègue lui a écrit. */
+  messages: Array<{
+    id: string; deNom: string; sujet?: string; texte: string; at: string;
+    urgent: boolean; reponseAttendue: boolean; lu: boolean; reponses: number;
+  }>;
+  /** Rapports qu'on lui a demandés et qu'il doit rendre. */
+  rapports: Array<{
+    id: string; titre: string; consigne: string; echeance: string; statut: string;
+    statutLabel: string; demandeParNom: string; enRetard: boolean;
+    rendu?: { texte: string; at: string }; retour?: { texte: string; at: string };
+  }>;
+  /** Sa caisse, s'il en tient une. */
+  caisse: {
+    id: string; emplacement?: string; ouverteLe: string;
+    fondDeCaisse: number; entrees: number; sorties: number; soldeTheorique: number; nbMouvements: number;
+  } | null;
+  /** Ses équipes, s'il en dirige. */
+  equipes: Array<{
+    id: string; name: string; mission?: string; membres: number; flotte: number;
+    rapportsEnRetard: number; requetesOuvertes: number; alertesFlotte: number;
+  }>;
+  /** Sa flotte accréditée, triée par ce qui demande une attention. */
+  flotte: Array<{
+    driverId: string; matricule: string; name: string; phone: string | null;
+    availability: string; requetesOuvertes: number; alertes: number;
+  }>;
+  /** Son propre dossier, s'il est chauffeur : sa seule vue de la plateforme. */
+  monDossier: {
+    matricule: string; courses: number; revenus: number; solde: number; resteDu: number;
+    requetes: Array<{ id: string; type: string; statut: string; montant?: number; createdAt: string }>;
+    alertes: Array<{ severite: string; texte: string }>;
+  } | null;
+  bilan: {
+    dossiers: number; demandes: number; aTraiter: number; actionsAujourdhui: number;
+    messagesNonLus: number; rapportsARendre: number;
+  };
   genereA: string;
 }
 
@@ -374,4 +420,167 @@ export interface SubInvoiceRow {
 export interface SubStats {
   total: number; actifs: number; parPlan: Record<string, number>; mrr: number;
   impayees: number; montantImpaye: number; totalCouvert: number; coursesCouvertes: number;
+}
+
+/* --- Annuaire du personnel : un identifiant par employé et par chauffeur --- */
+export interface StaffAccountRow {
+  username: string; name: string; role: string; roleLabel: string;
+  service?: string; phone?: string; email?: string; matricule?: string;
+  teamId?: string; driverId?: string;
+  active: boolean; mustChangePassword: boolean;
+  createdAt: string; createdBy: string; updatedAt?: string; lastLoginAt?: string;
+  disabledReason?: string; has2fa: boolean; permissions: number;
+}
+export interface AccountsStats { total: number; actifs: number; parRole: Record<string, number>; aChangerMdp: number }
+export interface RoleOption { id: string; label: string; permissions: number }
+
+/* --- Session Équipages --- */
+export interface EquipageRow {
+  driverId: string; matricule: string; name: string; phone: string | null;
+  category: string; kycStatus: string; availability: string; rating: number;
+  teamId?: string; teamName?: string;
+  courses: number; revenus: number; solde: number; resteDu: number;
+  requetesOuvertes: number; aUnAcces: boolean;
+}
+export interface EcheancePret { numero: number; montant: number; dueDate: string; payeeLe?: string }
+export interface RequeteChauffeur {
+  id: string; driverId: string; driverName: string; matricule: string;
+  type: string; typeLabel: string; statut: string; statutLabel: string;
+  montant?: number; montantAccorde?: number; echeances?: number;
+  du?: string; au?: string; motif: string; createdAt: string; teamId?: string;
+  avis?: string; avisPar?: string; avisNote?: string; avisAt?: string;
+  decidePar?: string; decisionNote?: string; decideAt?: string;
+  verseLe?: string; versePar?: string; canalVersement?: string;
+  plan?: EcheancePret[]; rembourse?: number; clotureLe?: string;
+}
+export interface DossierEquipage {
+  identite: {
+    driverId: string; matricule: string; name: string; phone: string | null;
+    category: string; kycStatus: string; availability: string; rating: number; trips: number;
+    licenseNo?: string; birthDate?: string; insuranceExpiry?: string; appLinkedAt?: string;
+  };
+  vehicule: { model?: string; plate?: string; color?: string; engine: string; batteryPct?: number; batteryHealthPct?: number };
+  equipe: { id: string; name: string; mission?: string; managerName?: string; managerUsername: string } | null;
+  acces: { username: string; active: boolean; lastLoginAt?: string; mustChangePassword: boolean } | null;
+  activite: {
+    periodeJours: number; courses: number; coursesAnnulees: number; kilometres: number;
+    revenus: number; commissionVersee: number; noteMoyenne: number; nbNotes: number; joursTravailles: number;
+  };
+  argent: {
+    solde: number; detteEspeces: number; resteDu: number;
+    dernieresEcritures: Array<{ at: string; type: string; amount: number; note: string }>;
+  };
+  requetes: RequeteChauffeur[];
+  litiges: Array<{ id: string; kind: string; status: string; createdAt: string; description: string }>;
+  maintenance: Array<{ id: string; kind: string; title: string; status: string; dueDate?: string }>;
+  alertes: Array<{ severite: string; texte: string }>;
+  genereA: string;
+}
+export interface CrewTableau {
+  effectif: { total: number; enService: number; avecAcces: number; kycEnAttente: number };
+  requetes: {
+    total: number; parStatut: Record<string, number>; parType: Record<string, number>;
+    encours: number; verseeCeMois: number; delaiMoyenHeures: number;
+  };
+  attente: { aInstruire: RequeteChauffeur[]; aDecider: RequeteChauffeur[]; aVerser: RequeteChauffeur[] };
+  encoursPrets: number; sansEquipe: number;
+}
+
+/* --- Caisse nominative (Trésorerie) --- */
+export interface MouvementCaisse {
+  id: string; caisseId: string; sens: 'entree' | 'sortie'; montant: number;
+  origine?: string; sortie?: string; tiers?: string; reference?: string; note?: string;
+  at: string; par: string;
+}
+export interface CaisseEtat {
+  id: string; titulaire: string; titulaireNom: string; emplacement?: string;
+  statut: 'ouverte' | 'arretee'; fondDeCaisse: number; ouverteLe: string; arreteeLe?: string;
+  comptage?: Record<string, number>; montantCompte?: number; montantAttendu?: number;
+  ecart?: number; motifEcart?: string; verseEnBanque?: number;
+  valideLe?: string; validePar?: string;
+  mouvements: MouvementCaisse[]; entrees: number; sorties: number;
+  soldeTheorique: number; parOrigine: Record<string, number>;
+}
+export interface CaisseConsolidation {
+  caissesOuvertes: number; especesEnCaisse: number; encaisseSurPeriode: number;
+  verseEnBanque: number; ecartCumule: number; arretesNonValides: number;
+  parOrigine: Record<string, number>;
+  parTresorier: Array<{ titulaire: string; titulaireNom: string; encaisse: number; ecart: number; arretes: number }>;
+}
+export interface CaisseReferentiel {
+  coupures: number[]; ecartTolere: number;
+  origines: Record<string, string>; sorties: Record<string, string>;
+}
+
+/* --- Poste de travail du chef d'équipe --- */
+export interface MembreEquipe {
+  username: string; name: string; role: string; roleLabel: string;
+  phone?: string; email?: string; service?: string;
+  active: boolean; lastLoginAt?: string; mustChangePassword: boolean;
+  actionsAujourdhui: number; derniereAction?: { at: string; action: string };
+  rapportsAttendus: number; rapportsEnRetard: number; messagesNonLus: number;
+  service_du_jour?: { slot: string; zoneId?: string };
+}
+export interface DemandeRapport {
+  id: string; teamId: string; demandePar: string; demandeParNom: string;
+  destinataire: string; destinataireNom: string;
+  titre: string; consigne: string; echeance: string; statut: string; createdAt: string;
+  rendu?: { texte: string; at: string }; retour?: { texte: string; at: string; par: string };
+}
+export interface MessageInterne {
+  id: string; de: string; deNom: string; a: string; aNom: string;
+  teamId?: string; sujet?: string; texte: string; urgent: boolean;
+  reponseAttendue: boolean; at: string; luLe?: string;
+  reponses: Array<{ de: string; deNom: string; texte: string; at: string }>;
+}
+export interface PosteEquipe {
+  equipe: { id: string; name: string; mission?: string; managerUsername: string; managerName?: string; createdAt: string };
+  membres: MembreEquipe[];
+  flotte: Array<{
+    driverId: string; matricule: string; name: string; phone: string | null;
+    category: string; kycStatus: string; availability: string;
+    coursesPeriode: number; revenusPeriode: number; requetesOuvertes: number; alertes: number;
+  }>;
+  bilan: {
+    periodeJours: number; courses: number; revenusChauffeurs: number; commissionOrion: number;
+    noteMoyenne: number; chauffeursEnService: number; requetesOuvertes: number;
+    rapportsEnRetard: number; ticketsMaintenance: number;
+  };
+  rapports: DemandeRapport[];
+  messages: MessageInterne[];
+  genereA: string;
+}
+
+/* --- Télématique des véhicules de location --- */
+export interface PositionVehicule {
+  lat: number; lng: number; vitesseKmh: number; cap?: number;
+  contact: boolean; batteriePct?: number; autonomieKm?: number; zone?: string; at: string;
+}
+export interface Immobilisation {
+  id: string; vehiculeId: string; reservationId?: string;
+  motif: string; commentaire: string; etat: 'aucune' | 'armee' | 'appliquee' | 'levee';
+  armeePar: string; armeeLe: string; confirmeePar?: string; confirmeeLe?: string;
+  appliqueeLe?: string; positionApplication?: { lat: number; lng: number };
+  leveePar?: string; leveeLe?: string; motifLevee?: string;
+}
+export interface DeclarationVol {
+  id: string; vehiculeId: string; reservationId: string;
+  declarePar: string; declareLe: string; circonstances: string;
+  dernierePosition?: PositionVehicule; referencePlainte?: string;
+  transmisLe?: string; transmisPar?: string; transmisA?: string;
+  statut: 'declare' | 'transmis' | 'retrouve' | 'clos'; retrouveLe?: string; note?: string;
+}
+export interface VehiculeSuivi {
+  reservationId: string; vehiculeId: string; vehiculeNom: string; statut: string;
+  debut: string; fin: string;
+  locataire: { nom: string; telephone: string | null; societe: string | null };
+  chauffeurId: string | null;
+  position: PositionVehicule | null;
+  immobilisation: { id: string; etat: string; motif: string; motifLabel: string } | null;
+  vol: { id: string; statut: string; declareLe: string } | null;
+  silencieux: boolean;
+}
+export interface SuiviFlotte {
+  vehicules: VehiculeSuivi[]; vols: DeclarationVol[]; immobilisations: Immobilisation[];
+  vitesseCoupureMax: number; motifs: Record<string, string>;
 }

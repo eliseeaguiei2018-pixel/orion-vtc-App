@@ -52,12 +52,24 @@ body { margin: 0; background: var(--a-bg); color: var(--a-text); font-family: 'I
 
 /* Éditeur de prix */
 .price-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.price-field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--a-muted); }
+/* Champ étiqueté. `.field` est le nom général ; `.price-field` est l'ancien nom,
+   conservé pour les écrans qui l'emploient déjà. Une seule règle pour les deux :
+   deux copies finiraient par diverger. */
+.price-field, .field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--a-muted); }
 .price-field.cap span { text-transform: capitalize; }
-.price-field input { background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 10px;
-  padding: 10px 12px; color: var(--a-text); font-size: 15px; font-weight: 600; outline: none; }
-.price-field input:focus { border-color: var(--a-green2); }
-.price-field input:disabled { opacity: 0.6; }
+.price-field input, .field input, .field textarea,
+.adm-input { background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 10px;
+  padding: 10px 12px; color: var(--a-text); font-size: 15px; font-weight: 600; outline: none;
+  font-family: inherit; width: 100%; box-sizing: border-box; }
+.field textarea { font-weight: 500; font-size: 14px; resize: vertical; min-height: 60px; }
+.price-field input:focus, .field input:focus, .field textarea:focus,
+.adm-input:focus { border-color: var(--a-green2); }
+.price-field input:disabled, .field input:disabled, .adm-input:disabled { opacity: 0.6; }
+.field select { width: 100%; }
+
+/* Lien sobre dans un tableau ou une fiche. */
+.adm-link { color: var(--a-green); text-decoration: underline; text-underline-offset: 2px; }
+.adm-link:hover { color: var(--a-green2); }
 
 .adm-role-card { border: 1px solid var(--a-stroke); border-radius: 12px; padding: 12px 14px; background: var(--a-panel2); }
 .adm-role-card.on { border-color: var(--a-green2); box-shadow: 0 0 0 1px rgba(43,255,166,0.2) inset; }
@@ -182,6 +194,14 @@ textarea.adm-select { resize: vertical; font-family: inherit; width: 100%; }
 /* --- Fiches détaillées (drawer) --- */
 .adm-row-click { cursor: pointer; transition: background .12s; }
 .adm-row-click:hover { background: rgba(43,255,166,0.05); }
+/* Boîte de dialogue centrée (changement de mot de passe, confirmation). Le tiroir
+   latéral existant est fait pour une fiche que l'on consulte, pas pour une action
+   qui doit bloquer l'écran. */
+.adm-modal-wrap { position: fixed; inset: 0; background: rgba(2,10,7,0.65); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center; z-index: 70; padding: 20px; animation: adm-fade .15s ease; }
+.adm-modal { width: min(440px, 100%); background: var(--a-panel); border: 1px solid var(--a-stroke);
+  border-radius: 16px; padding: 20px; box-shadow: 0 30px 80px rgba(0,0,0,0.5); }
+
 .adm-drawer-wrap { position: fixed; inset: 0; background: rgba(2,10,7,0.55); backdrop-filter: blur(3px); display: flex; justify-content: flex-end; z-index: 60; animation: adm-fade .15s ease; }
 .adm-drawer { width: min(460px, 100%); height: 100%; background: var(--a-panel); border-left: 1px solid var(--a-stroke); box-shadow: -20px 0 60px rgba(0,0,0,0.4); display: flex; flex-direction: column; animation: adm-slide .2s ease; }
 @keyframes adm-fade { from { opacity: 0; } to { opacity: 1; } }

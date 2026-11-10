@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { DEMO } from './demo';
-import { API, LIVE, AdminError, H, PAGE_SIZE, adminDel, adminGet, adminPost, adminPut, clearSession, expKey, fcfa, logout, onUnauthorized, setCsrf, setDemoSession, pageSlice, reportResponse, safePost, safePut, sessionValid, setAdminErrorSink } from './api';
+import { API, LIVE, AdminError, H, PAGE_SIZE, adminDel, adminGet, adminPost, adminPut, clearSession, expKey, fcfa, logout, onUnauthorized, setCsrf, setDemoSession, pageSlice, reportResponse, safePost, safePostData, safePut, sessionValid, setAdminErrorSink } from './api';
 import { AuditSection, CorporateSection, FinanceSection, GlobalSearch, GreenSection, IntelSection, NotifySection, PricingEditor, PromosSection, ServicesSection, SupportSection, TreasurySection, ZonesSection } from './sections/business';
 import { ClientsSection, DispatchSection, DisputesSection, DriversSection, ForensicDrawer, QualitySection, ReservationsCard, RidesSection } from './sections/operations';
 import { RolesSection, SessionsSection, TeamsSection } from './sections/organisation';
@@ -9,7 +9,12 @@ import { RentalSection, RentalTarifsSection, SubscriptionsSection } from './sect
 import { DirectionSection } from './sections/direction';
 import { VigilanceSection } from './sections/vigilance';
 import { MonPosteSection } from './sections/monposte';
-import type { ActiveSession, Alert, Amortization, Announcement, AssistantSujet, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, ContactJournal, ContactUrgence, CopilotAnswer, ExecutiveBoard, MonPoste, MouvementPage, SanteVigilance, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, RentalTarifEtat, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
+import { EquipagesSection } from './sections/equipages';
+import { CaisseSection } from './sections/caisse';
+import { PosteEquipeSection } from './sections/posteequipe';
+import { TelematiqueSection } from './sections/telematique';
+import { AnnuaireSection, ChangerMotDePasse } from './sections/annuaire';
+import type { AccountsStats, ActiveSession, Alert, Amortization, Announcement, AssistantSujet, CaisseConsolidation, CaisseEtat, CaisseReferentiel, CrewTableau, DossierEquipage, EquipageRow, PosteEquipe, RoleOption, StaffAccountRow, SuiviFlotte, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, ContactJournal, ContactUrgence, CopilotAnswer, ExecutiveBoard, MonPoste, MouvementPage, SanteVigilance, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, RentalTarifEtat, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
 import { ClientDrawer, DriverDrawer } from './ui';
 
 
@@ -131,9 +136,10 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'monPoste' | 'overview' | 'direction' | 'vigilance' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles';
+type Section = 'monPoste' | 'posteEquipe' | 'crew' | 'caisses' | 'telematique' | 'comptes' | 'overview' | 'direction' | 'vigilance' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles';
 const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'monPoste', label: 'Mon poste', perm: 'overview:read', icon: '🗂️' },
+  { id: 'posteEquipe', label: 'Mon équipe', perm: 'teams:read', icon: '🧭' },
   { id: 'overview', label: 'Vue d’ensemble', perm: 'overview:read', icon: '📊' },
   { id: 'direction', label: 'Direction Générale', perm: 'executive:read', icon: '👑' },
   { id: 'vigilance', label: 'Vigilance ORION', perm: 'vigilance:read', icon: '🧭' },
@@ -145,16 +151,19 @@ const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'quality', label: 'Qualité & notes', perm: 'drivers:read', icon: '⭐' },
   { id: 'green', label: 'Mobilité verte', perm: 'overview:read', icon: '🌱' },
   { id: 'teams', label: 'Équipes', perm: 'teams:read', icon: '🧑‍🤝‍🧑' },
+  { id: 'crew', label: 'Équipages', perm: 'crew:read', icon: '🪪' },
   { id: 'intel', label: 'Intelligence', perm: 'rides:read', icon: '🧠' },
   { id: 'b2b', label: 'Entreprises (B2B)', perm: 'finance:read', icon: '🏢' },
   { id: 'rental', label: 'Location Signature', perm: 'rental:read', icon: '💎' },
   { id: 'rentalTarifs', label: 'Tarifs location', perm: 'rental:read', icon: '🏷️' },
+  { id: 'telematique', label: 'Suivi véhicules', perm: 'rental:read', icon: '📡' },
   { id: 'subscriptions', label: 'Abonnements', perm: 'rental:read', icon: '🎫' },
   { id: 'disputes', label: 'Litiges', perm: 'support:read', icon: '⚖️' },
   { id: 'drivers', label: 'Chauffeurs', perm: 'drivers:read', icon: '🧑‍✈️' },
   { id: 'clients', label: 'Clients', perm: 'clients:read', icon: '👥' },
   { id: 'finance', label: 'Finances', perm: 'finance:read', icon: '📈' },
   { id: 'treasury', label: 'Trésorerie', perm: 'treasury:read', icon: '🏦' },
+  { id: 'caisses', label: 'Caisses espèces', perm: 'caisse:read', icon: '💵' },
   { id: 'pricing', label: 'Tarification', perm: 'pricing:read', icon: '💰' },
   { id: 'zones', label: 'Zones & tarifs', perm: 'pricing:read', icon: '🗺️' },
   { id: 'promos', label: 'Codes promo', perm: 'promos:read', icon: '🎟️' },
@@ -162,6 +171,7 @@ const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'audit', label: 'Journal', perm: 'audit:read', icon: '📜' },
   { id: 'sessions', label: 'Sessions actives', perm: 'sessions:read', icon: '🖥️' },
   { id: 'security', label: 'Alertes sécurité', perm: 'security:read', icon: '🛑' },
+  { id: 'comptes', label: 'Personnel & accès', perm: 'accounts:read', icon: '🪪' },
   { id: 'roles', label: 'Rôles & accès', perm: 'roles:read', icon: '🛡️' },
 ];
 
@@ -205,6 +215,23 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [corporate, setCorporate] = useState<CorporateAccount[]>([]);
   const [sosSel, setSosSel] = useState<SosDossier | null>(null);
   const [security, setSecurity] = useState<SecurityAttempt[]>([]);
+  /* --- Équipages, caisses, poste d'équipe, télématique, annuaire --- */
+  const [equipages, setEquipages] = useState<EquipageRow[]>([]);
+  const [crewTableau, setCrewTableau] = useState<CrewTableau | null>(null);
+  const [crewQ, setCrewQ] = useState('');
+  const [dossierCrew, setDossierCrew] = useState<DossierEquipage | null>(null);
+  const [caisses, setCaisses] = useState<CaisseEtat[]>([]);
+  const [maCaisse, setMaCaisse] = useState<CaisseEtat | null>(null);
+  const [caisseConso, setCaisseConso] = useState<CaisseConsolidation | null>(null);
+  const [caisseRef, setCaisseRef] = useState<CaisseReferentiel | null>(null);
+  const [posteEquipe, setPosteEquipe] = useState<PosteEquipe | null>(null);
+  const [equipeSel, setEquipeSel] = useState('');
+  const [suiviFlotte, setSuiviFlotte] = useState<SuiviFlotte | null>(null);
+  const [comptes, setComptes] = useState<StaffAccountRow[]>([]);
+  const [comptesStats, setComptesStats] = useState<AccountsStats | null>(null);
+  const [rolesDispo, setRolesDispo] = useState<RoleOption[]>([]);
+  const [delegables, setDelegables] = useState<string[]>([]);
+  const [mdpOuvert, setMdpOuvert] = useState(false);
   const [supportStats, setSupportStats] = useState<SupportStats | null>(null);
   const [macros, setMacros] = useState<Macro[]>([]);
   const [triggers, setTriggers] = useState<Triggers | null>(null);
@@ -307,6 +334,19 @@ function Console({ onLogout }: { onLogout: () => void }) {
       if (has('vigilance:read')) setVigilance(await adminGet<SanteVigilance>('/admin/vigilance'));
       // « Mon poste » n'exige aucun droit particulier : chacun y voit ce qui porte son nom.
       setMonPoste(await adminGet<MonPoste>('/admin/mon-poste'));
+      if (has('crew:read') || has('crew:self')) {
+        const c = await adminGet<{ equipages: EquipageRow[]; tableau: CrewTableau | null }>(`/admin/crew${crewQ ? `?q=${encodeURIComponent(crewQ)}` : ''}`);
+        setEquipages(c.equipages); setCrewTableau(c.tableau);
+      }
+      if (has('caisse:read')) {
+        const c = await adminGet<{ caisses: CaisseEtat[]; maCaisse: CaisseEtat | null; consolidation: CaisseConsolidation | null; referentiel: CaisseReferentiel }>('/admin/caisses');
+        setCaisses(c.caisses); setMaCaisse(c.maCaisse); setCaisseConso(c.consolidation); setCaisseRef(c.referentiel);
+      }
+      if (has('accounts:read')) {
+        const a = await adminGet<{ accounts: StaffAccountRow[]; stats: AccountsStats; roles: RoleOption[]; delegables: string[] }>('/admin/accounts');
+        setComptes(a.accounts); setComptesStats(a.stats); setRolesDispo(a.roles); setDelegables(a.delegables);
+      }
+      if (has('rental:read')) setSuiviFlotte(await adminGet<SuiviFlotte>('/admin/rental/flotte/positions'));
       if (has('executive:read')) {
         setBoard(await adminGet<ExecutiveBoard>(`/admin/executive?days=${execJours}`));
         const q = new URLSearchParams({ days: String(execJours), page: String(livrePage) });
@@ -351,7 +391,17 @@ function Console({ onLogout }: { onLogout: () => void }) {
       if (has('rides:read')) setOps((await adminGet<{ ops: OpsConfig }>('/admin/dispatch')).ops);
       if (has('overview:read')) setGreen(await adminGet<GreenReport>('/admin/green'));
       if (has('teams:read')) {
-        setTeams((await adminGet<{ teams: Team[] }>('/admin/teams')).teams);
+        const mesEquipes = (await adminGet<{ teams: Team[] }>('/admin/teams')).teams;
+        setTeams(mesEquipes);
+        // Poste d'équipe : on ouvre celle qui est sélectionnée, sinon la première.
+        const cible = mesEquipes.some((t) => t.id === equipeSel) ? equipeSel : mesEquipes[0]?.id;
+        if (cible) {
+          if (cible !== equipeSel) setEquipeSel(cible);
+          try { setPosteEquipe((await adminGet<{ poste: PosteEquipe }>(`/admin/teams/${cible}/poste`)).poste); }
+          catch { setPosteEquipe(null); }
+        } else {
+          setPosteEquipe(null);
+        }
         setStaffKpis((await adminGet<{ staff: StaffKpi[] }>('/admin/staff/productivity')).staff);
         setShifts((await adminGet<{ shifts: Shift[] }>('/admin/shifts')).shifts);
         setMaintenance((await adminGet<{ tickets: MaintenanceTicket[] }>('/admin/maintenance')).tickets);
@@ -738,6 +788,179 @@ function Console({ onLogout }: { onLogout: () => void }) {
     try { return (await adminGet<{ pnl: SquadPnl }>(`/admin/teams/${teamId}/pnl`)).pnl; } catch { return null; }
   };
 
+  /* =============== Équipages : dossiers chauffeurs et requêtes =============== */
+  const ouvrirChauffeur = async (driverId: string) => {
+    setSection('crew');
+    if (!LIVE) { setDossierCrew(DEMO.dossierCrew(driverId)); return; }
+    try { setDossierCrew((await adminGet<{ dossier: DossierEquipage }>(`/admin/crew/${driverId}`)).dossier); }
+    catch { setDossierCrew(null); }
+  };
+  const chercherEquipages = async (q: string) => {
+    setCrewQ(q);
+    if (!LIVE) return;
+    try {
+      const c = await adminGet<{ equipages: EquipageRow[]; tableau: CrewTableau | null }>(`/admin/crew?q=${encodeURIComponent(q)}`);
+      setEquipages(c.equipages); setCrewTableau(c.tableau);
+    } catch { /* l'erreur est déjà remontée par adminGet */ }
+  };
+  /** Recharge le dossier ouvert après une action, pour que l'écran dise le vrai. */
+  const rafraichirDossier = async () => {
+    if (!LIVE || !dossierCrew) { void refresh(); return; }
+    try { setDossierCrew((await adminGet<{ dossier: DossierEquipage }>(`/admin/crew/${dossierCrew.identite.driverId}`)).dossier); }
+    catch { /* ignoré */ }
+    void refresh();
+  };
+  const deposerRequete = async (driverId: string, p: Record<string, unknown>) => {
+    if (!LIVE) { alert('Requête déposée (démo).'); return; }
+    if (await safePost(`/admin/crew/${driverId}/requetes`, p)) void rafraichirDossier();
+  };
+  const instruireRequete = async (id: string, avis: 'favorable' | 'defavorable', note: string) => {
+    if (!LIVE) { alert(`Avis ${avis} enregistré (démo).`); return; }
+    if (await safePost(`/admin/crew/requetes/${id}/instruire`, { avis, note: note || undefined })) void rafraichirDossier();
+  };
+  const deciderRequete = async (id: string, decision: 'accord' | 'refus', montantAccorde: number | undefined, note: string) => {
+    if (!LIVE) { alert(`Requête ${decision === 'accord' ? 'accordée' : 'refusée'} (démo).`); return; }
+    if (await safePost(`/admin/crew/requetes/${id}/decider`, { decision, montantAccorde, note: note || undefined })) void rafraichirDossier();
+  };
+  const verserRequete = async (id: string, canal: string) => {
+    if (!LIVE) { alert('Versement enregistré (démo).'); return; }
+    if (await safePost(`/admin/crew/requetes/${id}/verser`, { canal })) void rafraichirDossier();
+  };
+  const rembourserRequete = async (id: string, montant: number) => {
+    if (!LIVE) { alert('Remboursement enregistré (démo).'); return; }
+    if (await safePost(`/admin/crew/requetes/${id}/rembourser`, { montant })) void rafraichirDossier();
+  };
+
+  /* ====================== Annuaire du personnel ====================== */
+  /** Le mot de passe provisoire ne s'affiche qu'une fois : on le montre clairement. */
+  const annoncerMotDePasse = (nom: string, username: string, mdp: string) => {
+    alert(`Accès créé pour ${nom}.\n\nIdentifiant : ${username}\nMot de passe provisoire : ${mdp}\n\nCommuniquez-le à l'intéressé : il ne sera plus affiché, et devra être changé à la première connexion.`);
+  };
+  const creerCompte = async (p: Record<string, unknown>) => {
+    if (!LIVE) { alert('Compte créé (démo).'); return; }
+    const r = await safePostData<{ account: StaffAccountRow; motDePasseProvisoire: string }>('/admin/accounts', p);
+    if (r) { annoncerMotDePasse(r.account.name, r.account.username, r.motDePasseProvisoire); void refresh(); }
+  };
+  const creerAccesChauffeur = async (driverId: string, nom: string, matricule: string) => {
+    if (!LIVE) { alert('Accès chauffeur créé (démo).'); return; }
+    const r = await safePostData<{ account: StaffAccountRow; motDePasseProvisoire: string }>('/admin/accounts', { name: nom, role: 'chauffeur', driverId, matricule });
+    if (r) { annoncerMotDePasse(nom, r.account.username, r.motDePasseProvisoire); void refresh(); }
+  };
+  const modifierCompte = async (username: string, p: Record<string, unknown>) => {
+    if (!LIVE) { alert('Compte modifié (démo).'); return; }
+    if (await safePut(`/admin/accounts/${username}`, p)) void refresh();
+  };
+  const reinitialiserCompte = async (username: string) => {
+    if (!LIVE) { alert('Mot de passe réinitialisé (démo).'); return; }
+    const r = await safePostData<{ account: StaffAccountRow; motDePasseProvisoire: string }>(`/admin/accounts/${username}/reset`, {});
+    if (r) { annoncerMotDePasse(r.account.name, r.account.username, r.motDePasseProvisoire); void refresh(); }
+  };
+  const activerCompte = async (username: string, active: boolean) => {
+    const reason = active ? undefined : prompt('Motif de la désactivation (départ, suspension…) :') ?? undefined;
+    if (!active && !reason) return;
+    if (!LIVE) { alert('Compte mis à jour (démo).'); return; }
+    if (await safePost(`/admin/accounts/${username}/active`, { active, reason })) void refresh();
+  };
+  const changerMotDePasse = async (ancien: string, nouveau: string) => {
+    if (!LIVE) { setMdpOuvert(false); alert('Mot de passe changé (démo).'); return; }
+    if (await safePost('/admin/password', { ancien, nouveau })) {
+      setMdpOuvert(false);
+      alert('Mot de passe changé.');
+      void refresh();
+    }
+  };
+
+  /* ====================== Caisse nominative ====================== */
+  const ouvrirCaisse = async (fondDeCaisse: number, emplacement: string) => {
+    if (!LIVE) { alert('Caisse ouverte (démo).'); return; }
+    if (await safePost('/admin/caisses', { fondDeCaisse, emplacement: emplacement || undefined })) void refresh();
+  };
+  const encaisser = async (id: string, p: Record<string, unknown>) => {
+    if (!LIVE) { alert('Encaissement enregistré (démo).'); return; }
+    if (await safePost(`/admin/caisses/${id}/encaisser`, p)) void refresh();
+  };
+  const decaisser = async (id: string, p: Record<string, unknown>) => {
+    if (!LIVE) { alert('Sortie enregistrée (démo).'); return; }
+    if (await safePost(`/admin/caisses/${id}/decaisser`, p)) void refresh();
+  };
+  const arreterCaisse = async (id: string, p: Record<string, unknown>) => {
+    if (!LIVE) { alert('Caisse arrêtée (démo).'); return; }
+    if (await safePost(`/admin/caisses/${id}/arreter`, p)) void refresh();
+  };
+  const validerCaisse = async (id: string) => {
+    if (!LIVE) { alert('Arrêté validé (démo).'); return; }
+    if (await safePost(`/admin/caisses/${id}/valider`, {})) void refresh();
+  };
+
+  /* ====================== Poste de travail d'équipe ====================== */
+  const choisirEquipe = async (id: string) => {
+    setEquipeSel(id);
+    if (!LIVE) { setPosteEquipe(DEMO.posteEquipe(id)); return; }
+    try { setPosteEquipe((await adminGet<{ poste: PosteEquipe }>(`/admin/teams/${id}/poste`)).poste); }
+    catch { setPosteEquipe(null); }
+  };
+  const ecrireMembre = async (teamId: string, a: string, sujet: string, texte: string, urgent: boolean) => {
+    if (!LIVE) { alert('Message envoyé (démo).'); return; }
+    if (await safePost(`/admin/teams/${teamId}/messages`, { a, sujet: sujet || undefined, texte, urgent, reponseAttendue: true })) void choisirEquipe(teamId);
+  };
+  const demanderRapport = async (teamId: string, destinataire: string, titre: string, consigne: string, echeance: string) => {
+    if (!LIVE) { alert('Rapport demandé (démo).'); return; }
+    if (await safePost(`/admin/teams/${teamId}/rapports`, { destinataire, titre, consigne, echeance })) void choisirEquipe(teamId);
+  };
+  const statuerRapport = async (id: string, decision: 'accepte' | 'a_revoir', texte: string) => {
+    if (!LIVE) { alert('Rapport traité (démo).'); return; }
+    if (await safePost(`/admin/rapports/${id}/statuer`, { decision, texte: texte || undefined })) void choisirEquipe(equipeSel);
+  };
+  const lireMessage = async (id: string) => {
+    if (!LIVE) return;
+    if (await safePost(`/admin/messages/${id}/lu`, {})) void refresh();
+  };
+  const repondreMessage = async (id: string, texte: string) => {
+    if (!LIVE) { alert('Réponse envoyée (démo).'); return; }
+    if (await safePost(`/admin/messages/${id}/repondre`, { texte })) void refresh();
+  };
+  const rendreRapport = async (id: string, texte: string) => {
+    if (!LIVE) { alert('Rapport rendu (démo).'); return; }
+    if (await safePost(`/admin/rapports/${id}/rendre`, { texte })) void refresh();
+  };
+
+  /* ====================== Télématique de location ====================== */
+  const rafraichirSuivi = async () => {
+    if (!LIVE) { setSuiviFlotte(DEMO.suiviFlotte()); return; }
+    try { setSuiviFlotte(await adminGet<SuiviFlotte>('/admin/rental/flotte/positions')); }
+    catch { /* ignoré */ }
+  };
+  const declarerVol = async (reservationId: string, circonstances: string) => {
+    if (!LIVE) { alert('Vol déclaré (démo).'); return; }
+    if (await safePost(`/admin/rental/${reservationId}/vol`, { circonstances })) void rafraichirSuivi();
+  };
+  const immobiliser = async (vehiculeId: string, motif: string, commentaire: string, reservationId?: string) => {
+    if (!LIVE) { alert('Coupure armée (démo).'); return; }
+    const r = await safePostData<{ avertissement: string }>(`/admin/rental/vehicules/${vehiculeId}/immobiliser`, { motif, commentaire, reservationId });
+    if (r) { alert(r.avertissement); void rafraichirSuivi(); }
+  };
+  const confirmerImmobilisation = async (id: string) => {
+    if (!LIVE) { alert('Immobilisation confirmée (démo).'); return; }
+    const r = await safePostData<{ avertissement: string }>(`/admin/rental/immobilisations/${id}/confirmer`, {});
+    if (r) { alert(r.avertissement); void rafraichirSuivi(); }
+  };
+  const leverImmobilisation = async (id: string, motif: string) => {
+    if (!LIVE) { alert('Immobilisation levée (démo).'); return; }
+    if (await safePost(`/admin/rental/immobilisations/${id}/lever`, { motif })) void rafraichirSuivi();
+  };
+  const volTransmis = async (volId: string, a: string, reference: string) => {
+    if (!LIVE) { alert('Transmission enregistrée (démo).'); return; }
+    if (await safePost(`/admin/rental/vol/${volId}/transmis`, { a, referencePlainte: reference || undefined })) void rafraichirSuivi();
+  };
+  const cloreVol = async (volId: string, statut: 'retrouve' | 'clos', note: string) => {
+    if (!LIVE) { alert('Dossier clos (démo).'); return; }
+    if (await safePost(`/admin/rental/vol/${volId}/clore`, { statut, note: note || undefined })) void rafraichirSuivi();
+  };
+  const telechargerSignalement = (volId: string) => {
+    if (!LIVE) { alert('Fiche de signalement (démo).'); return; }
+    window.open(`${API}/admin/rental/vol/${volId}/signalement.pdf`, '_blank');
+  };
+
   /* --- S9 IA : assistant ORION (moteur de questions sur les données réelles) --- */
   const askCopilot = async (q: string): Promise<CopilotAnswer | null> => {
     if (!LIVE) return DEMO.copilot(q);
@@ -1096,7 +1319,96 @@ function Console({ onLogout }: { onLogout: () => void }) {
           />
         )}
         {section === 'monPoste' && (
-          <MonPosteSection poste={monPoste} onAller={(s) => setSection(s as Section)} />
+          <MonPosteSection
+            poste={monPoste}
+            onAller={(s) => setSection(s as Section)}
+            onLireMessage={lireMessage}
+            onRepondre={repondreMessage}
+            onRendreRapport={rendreRapport}
+            onOuvrirChauffeur={ouvrirChauffeur}
+            onChangerMotDePasse={() => setMdpOuvert(true)}
+          />
+        )}
+        {section === 'crew' && (
+          <EquipagesSection
+            lignes={equipages}
+            tableau={crewTableau}
+            dossier={dossierCrew}
+            onOuvrir={ouvrirChauffeur}
+            onFermer={() => setDossierCrew(null)}
+            onRechercher={chercherEquipages}
+            onContact={contacter}
+            onDeposer={deposerRequete}
+            onInstruire={instruireRequete}
+            onDecider={deciderRequete}
+            onVerser={verserRequete}
+            onRembourser={rembourserRequete}
+            onCreerAcces={creerAccesChauffeur}
+            droits={{
+              instruire: can('crew:write'),
+              decider: can('finance:write'),
+              verser: can('caisse:write'),
+              comptes: can('accounts:write'),
+            }}
+          />
+        )}
+        {section === 'caisses' && (
+          <CaisseSection
+            maCaisse={maCaisse}
+            caisses={caisses}
+            consolidation={caisseConso}
+            referentiel={caisseRef}
+            peutTenir={can('caisse:write')}
+            peutValider={can('finance:write')}
+            onOuvrir={ouvrirCaisse}
+            onEncaisser={encaisser}
+            onDecaisser={decaisser}
+            onArreter={arreterCaisse}
+            onValider={validerCaisse}
+            onVoir={(id) => { const c = caisses.find((x) => x.id === id); if (c) setMaCaisse(c); }}
+          />
+        )}
+        {section === 'posteEquipe' && (
+          <PosteEquipeSection
+            poste={posteEquipe}
+            equipes={teams.map((t) => ({ id: t.id, name: t.name }))}
+            equipeId={equipeSel}
+            onChoisir={choisirEquipe}
+            onContact={contacter}
+            onEcrire={ecrireMembre}
+            onDemanderRapport={demanderRapport}
+            onStatuerRapport={statuerRapport}
+            onOuvrirChauffeur={ouvrirChauffeur}
+          />
+        )}
+        {section === 'telematique' && (
+          <TelematiqueSection
+            suivi={suiviFlotte}
+            onRafraichir={rafraichirSuivi}
+            onDeclarerVol={declarerVol}
+            onImmobiliser={immobiliser}
+            onConfirmer={confirmerImmobilisation}
+            onLever={leverImmobilisation}
+            onTransmis={volTransmis}
+            onClore={cloreVol}
+            onSignalement={telechargerSignalement}
+            peutAgir={can('rental:write')}
+          />
+        )}
+        {section === 'comptes' && (
+          <AnnuaireSection
+            comptes={comptes}
+            stats={comptesStats}
+            roles={rolesDispo}
+            delegables={me?.role === 'manager' ? delegables : []}
+            equipes={teams.map((t) => ({ id: t.id, name: t.name }))}
+            peutEcrire={can('accounts:write')}
+            onCreer={creerCompte}
+            onModifier={modifierCompte}
+            onReinitialiser={reinitialiserCompte}
+            onActiver={activerCompte}
+            onContact={contacter}
+          />
         )}
         {section === 'vigilance' && (
           <VigilanceSection
@@ -1162,6 +1474,13 @@ function Console({ onLogout }: { onLogout: () => void }) {
       </main>
 
       {driverSel && <DriverDrawer d={driverSel} onClose={() => setDriverSel(null)} />}
+      {(mdpOuvert || me?.mustChangePassword) && (
+        <ChangerMotDePasse
+          obligatoire={Boolean(me?.mustChangePassword)}
+          onChanger={changerMotDePasse}
+          onFermer={() => setMdpOuvert(false)}
+        />
+      )}
       {clientSel && <ClientDrawer c={clientSel} onClose={() => setClientSel(null)} onOpenSupport={() => { setClientSel(null); setSection('support'); }} />}
       {forensic && <ForensicDrawer f={forensic} onClose={() => setForensic(null)} />}
       {sosSel && (

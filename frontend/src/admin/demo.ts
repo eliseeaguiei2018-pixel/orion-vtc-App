@@ -1,4 +1,6 @@
 import type {
+  AccountsStats, CaisseConsolidation, CaisseEtat, CaisseReferentiel, CrewTableau,
+  DossierEquipage, EquipageRow, PosteEquipe, RoleOption, StaffAccountRow, SuiviFlotte,
   Overview, Alert, FleetUnit, RideRow, DriverRow, Client, DriverDetail, ClientDetail,
   PrestigeUnit, RentalAvailabilityRow, RentalRow, RentalStats, SubInvoiceRow, SubPlanRow,
   ContactUrgence, ExecutiveBoard, MonPoste, MouvementPage, RentalTarifEtat, SanteVigilance, SubStats, SubscriptionRow,
@@ -708,9 +710,232 @@ const monPoste: MonPoste = {
     { at: iso(60), action: 'rental.tarifs' },
     { at: iso(150), action: 'support.reply', target: 'c3' },
   ],
-  bilan: { dossiers: 3, demandes: 2, aTraiter: 2, actionsAujourdhui: 3 },
+  messages: [
+    { id: 'm1', deNom: 'Serge Kouadio', sujet: 'Contrôle technique AB-114-CI', texte: 'Peux-tu caler le passage cette semaine ? Le véhicule roule encore.', at: iso(45), urgent: true, reponseAttendue: true, lu: false, reponses: 0 },
+    { id: 'm2', deNom: 'Rose Aké', sujet: 'Remise d’espèces', texte: 'La tournée du vendredi est encaissée, caisse arrêtée à 18 h.', at: iso(220), urgent: false, reponseAttendue: false, lu: true, reponses: 1 },
+  ],
+  rapports: [
+    { id: 'r1', titre: 'Bilan hebdomadaire flotte Nord', consigne: 'État des véhicules, incidents, kilométrage.', echeance: dans(2), statut: 'demande', statutLabel: 'Attendu', demandeParNom: 'Serge Kouadio', enRetard: false },
+    { id: 'r2', titre: 'Point sur les retards de restitution', consigne: 'Trois lignes suffisent.', echeance: dans(-1), statut: 'demande', statutLabel: 'Attendu', demandeParNom: 'Idrissa Barry', enRetard: true },
+  ],
+  caisse: {
+    id: 'c-884', emplacement: 'Siège — Plateau', ouverteLe: iso(380),
+    fondDeCaisse: 50_000, entrees: 318_500, sorties: 40_000, soldeTheorique: 328_500, nbMouvements: 9,
+  },
+  equipes: [
+    { id: 'flotte-nord', name: 'Flotte Nord (Cocody · Riviera)', mission: 'Cocody, Riviera et Deux-Plateaux', membres: 3, flotte: 12, rapportsEnRetard: 1, requetesOuvertes: 2, alertesFlotte: 3 },
+    { id: 'flotte-sud', name: 'Flotte Sud (Marcory · Treichville)', mission: 'Marcory, Treichville, Koumassi', membres: 2, flotte: 12, rapportsEnRetard: 0, requetesOuvertes: 1, alertesFlotte: 0 },
+  ],
+  flotte: [
+    { driverId: 'd-114', matricule: 'AB-114-CI', name: 'Konan Yao', phone: '+2250701020304', availability: 'online', requetesOuvertes: 2, alertes: 2 },
+    { driverId: 'd-220', matricule: 'AB-220-CI', name: 'Awa Diomandé', phone: '+2250709182736', availability: 'on_trip', requetesOuvertes: 1, alertes: 0 },
+    { driverId: 'd-330', matricule: 'AB-330-CI', name: 'Mamadou Bamba', phone: '+2250744556677', availability: 'offline', requetesOuvertes: 0, alertes: 0 },
+  ],
+  monDossier: null,
+  bilan: { dossiers: 3, demandes: 2, aTraiter: 2, actionsAujourdhui: 3, messagesNonLus: 1, rapportsARendre: 2 },
   genereA: new Date().toISOString(),
 };
+
+
+/* --------- Équipages, caisses, poste d'équipe, télématique (démo) --------- */
+const equipages: EquipageRow[] = [
+  { driverId: 'd-114', matricule: 'AB-114-CI', name: 'Konan Yao', phone: '+2250701020304', category: 'or', kycStatus: 'active', availability: 'online', rating: 4.9, teamId: 'flotte-nord', teamName: 'Flotte Nord', courses: 68, revenus: 412_500, solde: 86_400, resteDu: 133_334, requetesOuvertes: 2, aUnAcces: true },
+  { driverId: 'd-220', matricule: 'AB-220-CI', name: 'Awa Diomandé', phone: '+2250709182736', category: 'argent', kycStatus: 'active', availability: 'on_trip', rating: 4.7, teamId: 'flotte-nord', teamName: 'Flotte Nord', courses: 54, revenus: 298_000, solde: 42_100, resteDu: 0, requetesOuvertes: 1, aUnAcces: true },
+  { driverId: 'd-330', matricule: 'AB-330-CI', name: 'Mamadou Bamba', phone: '+2250744556677', category: 'diamant', kycStatus: 'docs_submitted', availability: 'offline', rating: 4.5, teamName: undefined, courses: 12, revenus: 94_000, solde: -3_200, resteDu: 0, requetesOuvertes: 0, aUnAcces: false },
+];
+
+const crewTableau: CrewTableau = {
+  effectif: { total: 44, enService: 31, avecAcces: 28, kycEnAttente: 3 },
+  requetes: { total: 17, parStatut: { deposee: 3, instruite: 2, accordee: 1, versee: 6, cloturee: 5 }, parType: { pret: 4, avance: 6, conge: 3, materiel: 2, reparation: 2 }, encours: 486_000, verseeCeMois: 310_000, delaiMoyenHeures: 19 },
+  attente: {
+    aInstruire: [
+      { id: 'q1', driverId: 'd-114', driverName: 'Konan Yao', matricule: 'AB-114-CI', type: 'pret', typeLabel: 'Prêt', statut: 'deposee', statutLabel: 'Déposée', montant: 300_000, echeances: 3, motif: 'Réparation de la toiture avant les pluies.', createdAt: iso(300) },
+      { id: 'q2', driverId: 'd-220', driverName: 'Awa Diomandé', matricule: 'AB-220-CI', type: 'materiel', typeLabel: 'Matériel', statut: 'deposee', statutLabel: 'Déposée', montant: 25_000, motif: 'Chargeur de téléphone hors service.', createdAt: iso(90) },
+    ],
+    aDecider: [
+      { id: 'q3', driverId: 'd-330', driverName: 'Mamadou Bamba', matricule: 'AB-330-CI', type: 'avance', typeLabel: 'Avance sur revenus', statut: 'instruite', statutLabel: 'Instruite par le chef d’équipe', montant: 120_000, motif: 'Frais de scolarité de la rentrée.', createdAt: iso(1200), avis: 'favorable', avisPar: 'Serge Kouadio', avisNote: 'Chauffeur régulier, aucune dette en cours.' },
+    ],
+    aVerser: [
+      { id: 'q4', driverId: 'd-220', driverName: 'Awa Diomandé', matricule: 'AB-220-CI', type: 'reparation', typeLabel: 'Réparation', statut: 'accordee', statutLabel: 'Accordée', montant: 85_000, montantAccorde: 85_000, motif: 'Pneu arrière droit à remplacer.', createdAt: iso(2600), decidePar: 'Franck Yeboua (DAF)' },
+    ],
+  },
+  encoursPrets: 486_000,
+  sansEquipe: 1,
+};
+
+function dossierCrew(driverId: string): DossierEquipage {
+  const l = equipages.find((e) => e.driverId === driverId) ?? equipages[0]!;
+  return {
+    identite: { driverId: l.driverId, matricule: l.matricule, name: l.name, phone: l.phone, category: l.category, kycStatus: l.kycStatus, availability: l.availability, rating: l.rating, trips: 1240, licenseNo: 'CI-PL-884213', insuranceExpiry: dans(48), appLinkedAt: iso(43200) },
+    vehicule: { model: 'BYD Dolphin 2024', plate: l.matricule, color: 'Blanc nacré', engine: 'electric', batteryPct: 64, batteryHealthPct: 92 },
+    equipe: { id: 'flotte-nord', name: 'Flotte Nord (Cocody · Riviera)', mission: 'Cocody, Riviera et Deux-Plateaux', managerName: 'Serge Kouadio', managerUsername: 'serge.kouadio' },
+    acces: { username: 'konan.yao', active: true, lastLoginAt: iso(180), mustChangePassword: false },
+    activite: { periodeJours: 30, courses: l.courses, coursesAnnulees: 4, kilometres: 918, revenus: l.revenus, commissionVersee: 82_400, noteMoyenne: 4.8, nbNotes: 52, joursTravailles: 22 },
+    argent: {
+      solde: l.solde, detteEspeces: 14_300, resteDu: l.resteDu,
+      dernieresEcritures: [
+        { at: iso(30), type: 'ride_earning', amount: 4_800, note: 'Course Cocody → Plateau' },
+        { at: iso(30), type: 'commission', amount: -960, note: 'Commission ORION (verte 12 %)' },
+        { at: iso(1400), type: 'payout', amount: -60_000, note: 'Retrait Orange Money' },
+      ],
+    },
+    requetes: [
+      { id: 'q1', driverId: l.driverId, driverName: l.name, matricule: l.matricule, type: 'pret', typeLabel: 'Prêt', statut: 'versee', statutLabel: 'Versée', montant: 300_000, montantAccorde: 200_000, echeances: 3, motif: 'Réparation de la toiture avant les pluies.', createdAt: iso(4200), avis: 'favorable', avisPar: 'Serge Kouadio', avisNote: 'Chauffeur régulier depuis deux ans.', decidePar: 'Franck Yeboua (DAF)', decisionNote: 'Accordé à hauteur de 200 000 F.', verseLe: iso(4100), versePar: 'Rose Aké', canalVersement: 'wave', rembourse: 66_666, plan: [
+        { numero: 1, montant: 66_668, dueDate: dans(-30), payeeLe: iso(4000) },
+        { numero: 2, montant: 66_666, dueDate: dans(1) },
+        { numero: 3, montant: 66_666, dueDate: dans(31) },
+      ] },
+    ],
+    litiges: [],
+    maintenance: [{ id: 'mt-1', kind: 'batterie_soh', title: 'Santé batterie à 92 % — contrôle semestriel', status: 'ouvert', dueDate: dans(14) }],
+    alertes: [{ severite: 'moyen', texte: 'Échéance de prêt à régler dans 1 jour.' }],
+    genereA: new Date().toISOString(),
+  };
+}
+
+const caisseRef: CaisseReferentiel = {
+  coupures: [10000, 5000, 2000, 1000, 500, 250, 200, 100, 50, 25, 10, 5],
+  ecartTolere: 500,
+  origines: {
+    commission_chauffeur: 'Commission chauffeur (espèces)', location: 'Location Signature',
+    abonnement: 'Abonnement ORION', reliquat_note_frais: 'Reliquat de note de frais',
+    remboursement_pret: 'Remboursement de prêt', autre: 'Autre encaissement',
+  },
+  sorties: {
+    versement_banque: 'Versement en banque', avance_chauffeur: 'Avance / prêt remis en espèces',
+    depense: 'Dépense réglée en caisse', transfert_caisse: 'Transfert à une autre caisse',
+  },
+};
+
+const maCaisse: CaisseEtat = {
+  id: 'c-884', titulaire: 'rose.ake', titulaireNom: 'Rose Aké', emplacement: 'Siège — Plateau',
+  statut: 'ouverte', fondDeCaisse: 50_000, ouverteLe: iso(380),
+  entrees: 318_500, sorties: 40_000, soldeTheorique: 328_500,
+  parOrigine: { commission_chauffeur: 118_500, location: 180_000, abonnement: 20_000 },
+  mouvements: [
+    { id: 'm1', caisseId: 'c-884', sens: 'entree', montant: 12_500, origine: 'commission_chauffeur', tiers: 'Konan Yao (AB-114-CI)', at: iso(40), par: 'Rose Aké' },
+    { id: 'm2', caisseId: 'c-884', sens: 'entree', montant: 180_000, origine: 'location', tiers: 'Ivoire Logistics SA', reference: 'LOC-4471', at: iso(120), par: 'Rose Aké' },
+    { id: 'm3', caisseId: 'c-884', sens: 'sortie', montant: 40_000, sortie: 'avance_chauffeur', tiers: 'Awa Diomandé', note: 'Avance validée par le DAF', at: iso(200), par: 'Rose Aké' },
+  ],
+};
+
+const caisses: CaisseEtat[] = [
+  maCaisse,
+  {
+    id: 'c-881', titulaire: 'salimata.dosso', titulaireNom: 'Salimata Dosso', emplacement: 'Comptoir Aéroport',
+    statut: 'arretee', fondDeCaisse: 30_000, ouverteLe: iso(1700), arreteeLe: iso(1400),
+    montantCompte: 214_000, montantAttendu: 217_000, ecart: -3_000,
+    motifEcart: 'Rendu de monnaie erroné sur une location, client reparti.',
+    verseEnBanque: 200_000, entrees: 187_000, sorties: 0, soldeTheorique: 217_000,
+    parOrigine: { location: 187_000 }, mouvements: [],
+  },
+];
+
+const caisseConso: CaisseConsolidation = {
+  caissesOuvertes: 1, especesEnCaisse: 328_500, encaisseSurPeriode: 505_500,
+  verseEnBanque: 200_000, ecartCumule: -3_000, arretesNonValides: 1,
+  parOrigine: { commission_chauffeur: 118_500, location: 367_000, abonnement: 20_000 },
+  parTresorier: [
+    { titulaire: 'rose.ake', titulaireNom: 'Rose Aké', encaisse: 318_500, ecart: 0, arretes: 0 },
+    { titulaire: 'salimata.dosso', titulaireNom: 'Salimata Dosso', encaisse: 187_000, ecart: -3_000, arretes: 1 },
+  ],
+};
+
+function posteEquipe(teamId: string): PosteEquipe {
+  return {
+    equipe: { id: teamId, name: 'Flotte Nord (Cocody · Riviera)', mission: 'Cocody, Riviera et Deux-Plateaux', managerUsername: 'serge.kouadio', managerName: 'Serge Kouadio', createdAt: iso(60000) },
+    membres: [
+      { username: 'prisca.akissi', name: 'Prisca Akissi', role: 'agent', roleLabel: 'Agent d’équipe', phone: '0708091011', service: 'Opérations', active: true, lastLoginAt: iso(50), mustChangePassword: false, actionsAujourdhui: 14, derniereAction: { at: iso(50), action: 'driver.kyc' }, rapportsAttendus: 1, rapportsEnRetard: 1, messagesNonLus: 0, service_du_jour: { slot: 'matin', zoneId: 'cocody' } },
+      { username: 'herve.kple', name: 'Hervé Kplé', role: 'agent', roleLabel: 'Agent d’équipe', phone: '0745667788', service: 'Opérations', active: true, lastLoginAt: iso(900), mustChangePassword: true, actionsAujourdhui: 0, rapportsAttendus: 0, rapportsEnRetard: 0, messagesNonLus: 2 },
+    ],
+    flotte: [
+      { driverId: 'd-114', matricule: 'AB-114-CI', name: 'Konan Yao', phone: '+2250701020304', category: 'or', kycStatus: 'active', availability: 'online', coursesPeriode: 18, revenusPeriode: 98_400, requetesOuvertes: 2, alertes: 1 },
+      { driverId: 'd-220', matricule: 'AB-220-CI', name: 'Awa Diomandé', phone: '+2250709182736', category: 'argent', kycStatus: 'active', availability: 'on_trip', coursesPeriode: 14, revenusPeriode: 71_200, requetesOuvertes: 1, alertes: 0 },
+    ],
+    bilan: { periodeJours: 7, courses: 32, revenusChauffeurs: 169_600, commissionOrion: 33_900, noteMoyenne: 4.8, chauffeursEnService: 2, requetesOuvertes: 3, rapportsEnRetard: 1, ticketsMaintenance: 1 },
+    rapports: [
+      { id: 'r1', teamId, demandePar: 'serge.kouadio', demandeParNom: 'Serge Kouadio', destinataire: 'prisca.akissi', destinataireNom: 'Prisca Akissi', titre: 'Bilan hebdomadaire flotte Nord', consigne: 'État des véhicules, incidents, kilométrage.', echeance: dans(-1), statut: 'demande', createdAt: iso(4000) },
+      { id: 'r2', teamId, demandePar: 'serge.kouadio', demandeParNom: 'Serge Kouadio', destinataire: 'herve.kple', destinataireNom: 'Hervé Kplé', titre: 'Point sur les retards de restitution', consigne: 'Trois lignes suffisent.', echeance: dans(3), statut: 'rendu', createdAt: iso(5000), rendu: { texte: '142 km, aucun incident, pneu avant droit à surveiller.', at: iso(300) } },
+    ],
+    messages: [],
+    genereA: new Date().toISOString(),
+  };
+}
+
+function suiviFlotte(): SuiviFlotte {
+  return {
+    vitesseCoupureMax: 5,
+    motifs: { vol: 'Vol déclaré', impaye: 'Impayé constaté', sortie_zone: 'Sortie du périmètre autorisé', fin_location: 'Location terminée, véhicule non restitué', securite: 'Sécurité du véhicule ou des personnes' },
+    vehicules: [
+      {
+        reservationId: 'loc-4471', vehiculeId: 'maextro-s800', vehiculeNom: 'Maextro S800', statut: 'en_cours',
+        debut: iso(300), fin: dans(1),
+        locataire: { nom: 'Aya Kouassi', telephone: '0708091011', societe: null },
+        chauffeurId: 'd-114',
+        position: { lat: 5.3596, lng: -3.9903, vitesseKmh: 42, contact: true, batteriePct: 71, autonomieKm: 380, zone: 'Cocody', at: iso(3) },
+        immobilisation: null, vol: null, silencieux: false,
+      },
+      {
+        reservationId: 'loc-4472', vehiculeId: 'nio-es9', vehiculeNom: 'NIO ES9', statut: 'en_cours',
+        debut: iso(5000), fin: dans(5),
+        locataire: { nom: 'Ivoire Logistics SA', telephone: '2722445566', societe: 'Ivoire Logistics SA' },
+        chauffeurId: null,
+        position: { lat: 5.3007, lng: -3.9877, vitesseKmh: 0, contact: false, batteriePct: 23, autonomieKm: 95, zone: 'Marcory', at: iso(20) },
+        immobilisation: { id: 'im-1', etat: 'armee', motif: 'impaye', motifLabel: 'Impayé constaté' },
+        vol: null, silencieux: false,
+      },
+      {
+        reservationId: 'loc-4470', vehiculeId: 'aito-m9', vehiculeNom: 'AITO M9', statut: 'en_cours',
+        debut: iso(9000), fin: dans(-1),
+        locataire: { nom: 'Salif Traoré', telephone: '0556677889', societe: null },
+        chauffeurId: null,
+        position: { lat: 5.3456, lng: -4.0864, vitesseKmh: 0, contact: false, zone: 'Yopougon', at: iso(400) },
+        immobilisation: null,
+        vol: { id: 'vol-1', statut: 'declare', declareLe: iso(180) },
+        silencieux: true,
+      },
+    ],
+    vols: [
+      {
+        id: 'vol-1', vehiculeId: 'aito-m9', reservationId: 'loc-4470',
+        declarePar: 'Super Admin', declareLe: iso(180),
+        circonstances: 'Véhicule non restitué à l’échéance, locataire injoignable depuis 18 h.',
+        dernierePosition: { lat: 5.3456, lng: -4.0864, vitesseKmh: 0, contact: false, zone: 'Yopougon', at: iso(400) },
+        statut: 'declare',
+      },
+    ],
+    immobilisations: [
+      { id: 'im-1', vehiculeId: 'nio-es9', reservationId: 'loc-4472', motif: 'impaye', commentaire: 'Deuxième échéance non réglée malgré relance du 8 novembre.', etat: 'armee', armeePar: 'Super Admin', armeeLe: iso(60) },
+    ],
+  };
+}
+
+const comptesDemo: StaffAccountRow[] = [
+  { username: 'rose.ake', name: 'Rose Aké', role: 'tresorier', roleLabel: 'Trésorier(ère)', service: 'Finances', phone: '0708091011', active: true, mustChangePassword: false, createdAt: iso(60000), createdBy: 'Super Admin', lastLoginAt: iso(60), has2fa: false, permissions: 10 },
+  { username: 'serge.kouadio', name: 'Serge Kouadio', role: 'manager', roleLabel: 'Chef d’équipe', service: 'Opérations', phone: '0102030405', teamId: 'flotte-nord', active: true, mustChangePassword: false, createdAt: iso(70000), createdBy: 'Super Admin', lastLoginAt: iso(200), has2fa: false, permissions: 15 },
+  { username: 'prisca.akissi', name: 'Prisca Akissi', role: 'agent', roleLabel: 'Agent d’équipe', service: 'Opérations', phone: '0744556677', teamId: 'flotte-nord', active: true, mustChangePassword: true, createdAt: iso(400), createdBy: 'Serge Kouadio', has2fa: false, permissions: 11 },
+  { username: 'franck.yeboua', name: 'Franck Yeboua', role: 'daf', roleLabel: 'Directeur Administratif et Financier (DAF)', service: 'Finances', phone: '0566778899', active: true, mustChangePassword: false, createdAt: iso(90000), createdBy: 'Super Admin', lastLoginAt: iso(30), has2fa: true, permissions: 21 },
+  { username: 'konan.yao', name: 'Konan Yao', role: 'chauffeur', roleLabel: 'Chauffeur ORION', matricule: 'AB-114-CI', driverId: 'd-114', phone: '+2250701020304', active: true, mustChangePassword: false, createdAt: iso(20000), createdBy: 'Serge Kouadio', lastLoginAt: iso(180), has2fa: false, permissions: 1 },
+  { username: 'odette.assi', name: 'Odette Assi', role: 'ops', roleLabel: 'Opérations / Dispatch', service: 'Opérations', active: false, mustChangePassword: false, createdAt: iso(120000), createdBy: 'Super Admin', disabledReason: 'Fin de contrat', has2fa: false, permissions: 18 },
+];
+
+const comptesStats: AccountsStats = {
+  total: comptesDemo.length,
+  actifs: comptesDemo.filter((c) => c.active).length,
+  parRole: { tresorier: 1, manager: 1, agent: 1, daf: 1, chauffeur: 1, ops: 1 },
+  aChangerMdp: 1,
+};
+
+const rolesDispo: RoleOption[] = [
+  { id: 'ops', label: 'Opérations / Dispatch', permissions: 18 },
+  { id: 'support', label: 'Support client', permissions: 15 },
+  { id: 'manager', label: 'Chef d’équipe', permissions: 15 },
+  { id: 'agent', label: 'Agent d’équipe', permissions: 11 },
+  { id: 'tresorier', label: 'Trésorier(ère)', permissions: 10 },
+  { id: 'daf', label: 'Directeur Administratif et Financier (DAF)', permissions: 21 },
+  { id: 'finance', label: 'Équipe Finance', permissions: 10 },
+  { id: 'viewer', label: 'Observateur', permissions: 14 },
+];
 
 /* --------- Moteur de vigilance (démo) --------- */
 const vigilance: SanteVigilance = {
@@ -847,5 +1072,7 @@ export const DEMO = {
   sos: alerts, sosPresets, sosDossier, security, supportStats, macros, triggers, reservations, csat, qualityTop, simulate,
   staffKpis, shifts, maintenance, squadPnl, fraud, elasticity, copilot, assistantSujets,
   expiring, cashDebt, gateways, expenses, liquidity, amortization,
-  contacts, executive, livre, vigilance, monPoste, prestige, rentals, rentalDispos, rentalStats, rentalTarifs, subPlans, subscriptions, subInvoices, subStats,
+  contacts, executive, livre, vigilance, monPoste,
+  equipages, crewTableau, dossierCrew, caisses, maCaisse, caisseConso, caisseRef,
+  posteEquipe, suiviFlotte, comptesDemo, comptesStats, rolesDispo, prestige, rentals, rentalDispos, rentalStats, rentalTarifs, subPlans, subscriptions, subInvoices, subStats,
 };
