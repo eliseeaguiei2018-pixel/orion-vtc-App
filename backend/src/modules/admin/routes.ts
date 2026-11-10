@@ -2083,6 +2083,22 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       return { sent: silent.length, code: promo.id, announcement: a };
     });
 
+    /* ============================ MON POSTE ============================ */
+
+    /**
+     * La journée de travail de l'employé connecté. La console est organisée par
+     * sujet — logique pour la plateforme, inutilisable pour la personne : il fallait
+     * ouvrir dix sessions pour découvrir ce qui vous attendait. Cette vue est
+     * organisée par personne et n'exige aucun droit particulier : chacun y voit ce
+     * qui porte SON nom, et uniquement ce que ses droits lui permettent de traiter.
+     */
+    scoped.get('/admin/mon-poste', async (req) => {
+      require(req, 'overview:read');
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const poste = await container.workspace.monPoste(account);
+      return { ...poste, identite: { ...poste.identite, roleLabel: ROLE_LABEL[account.role] } };
+    });
+
     /* ========================= MOTEUR DE VIGILANCE ========================= */
 
     /**

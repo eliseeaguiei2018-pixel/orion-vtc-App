@@ -1,7 +1,7 @@
 import type {
   Overview, Alert, FleetUnit, RideRow, DriverRow, Client, DriverDetail, ClientDetail,
   PrestigeUnit, RentalAvailabilityRow, RentalRow, RentalStats, SubInvoiceRow, SubPlanRow,
-  ContactUrgence, ExecutiveBoard, MouvementPage, RentalTarifEtat, SanteVigilance, SubStats, SubscriptionRow,
+  ContactUrgence, ExecutiveBoard, MonPoste, MouvementPage, RentalTarifEtat, SanteVigilance, SubStats, SubscriptionRow,
 } from './types';
 
 /** Jeu de données de démonstration (console autonome, sans backend). */
@@ -637,6 +637,32 @@ const subInvoices: SubInvoiceRow[] = [
   { id: 'F-10C1', userId: 'client-7731', plan: 'bronze', amount: 25000, periodeDebut: iso(50000), periodeFin: dans(-2), status: 'echouee', method: 'mtn_momo', emiseLe: iso(12000), motifEchec: 'Solde insuffisant chez l’opérateur' },
 ];
 
+/* --------- Mon poste (démo) --------- */
+const monPoste: MonPoste = {
+  identite: { nom: 'Super Admin', role: 'super_admin', roleLabel: 'Super Admin (technique)', permissions: [] },
+  service: { date: new Date().toISOString().slice(0, 10), slot: 'matin', zoneId: 'plateau' },
+  mesDossiers: [
+    { id: 'a1', type: 'sos', titre: 'Alerte rouge — crash', detail: 'Adjamé · usager client-884', depuis: iso(12), section: 'alerts', priorite: 1 },
+    { id: 'c3', type: 'support', titre: 'Objet oublié dans le véhicule', detail: '4 message(s) · client client-991', depuis: iso(95), section: 'support', priorite: 1 },
+    { id: 'l7', type: 'litige', titre: 'Litige trajet (escaladé — fraude)', detail: 'Le trajet facturé ne correspond pas au parcours effectué.', depuis: iso(2800), section: 'disputes', priorite: 2 },
+  ],
+  mesDemandes: [
+    { id: 'tr-55', type: 'virement', libelle: 'Approvisionnement caisse', montant: 2_500_000, statut: 'en attente d’approbation', depuis: iso(90), section: 'treasury' },
+    { id: 'ndf-18', type: 'note_de_frais', libelle: 'deplacement — Mission Bouaké', montant: 90_000, statut: 'pending', depuis: iso(320), section: 'finance' },
+  ],
+  aTraiter: [
+    { id: 'assurance-expiree', severite: 'critique', titre: 'Des chauffeurs roulent avec une assurance expirée', action: 'Suspendre ces chauffeurs jusqu’à présentation d’une attestation valide.', section: 'drivers' },
+    { id: 'location-sans-chauffeur', severite: 'eleve', titre: 'Location dans moins de 24 h sans chauffeur affecté', action: 'Affecter un chauffeur depuis la session Location Signature.', section: 'rental' },
+  ],
+  monActivite: [
+    { at: iso(15), action: 'sos.claim', target: 'a1' },
+    { at: iso(60), action: 'rental.tarifs' },
+    { at: iso(150), action: 'support.reply', target: 'c3' },
+  ],
+  bilan: { dossiers: 3, demandes: 2, aTraiter: 2, actionsAujourdhui: 3 },
+  genereA: new Date().toISOString(),
+};
+
 /* --------- Moteur de vigilance (démo) --------- */
 const vigilance: SanteVigilance = {
   score: 63,
@@ -772,5 +798,5 @@ export const DEMO = {
   sos: alerts, sosPresets, sosDossier, security, supportStats, macros, triggers, reservations, csat, qualityTop, simulate,
   staffKpis, shifts, maintenance, squadPnl, fraud, elasticity, copilot,
   expiring, cashDebt, gateways, expenses, liquidity, amortization,
-  contacts, executive, livre, vigilance, prestige, rentals, rentalDispos, rentalStats, rentalTarifs, subPlans, subscriptions, subInvoices, subStats,
+  contacts, executive, livre, vigilance, monPoste, prestige, rentals, rentalDispos, rentalStats, rentalTarifs, subPlans, subscriptions, subInvoices, subStats,
 };

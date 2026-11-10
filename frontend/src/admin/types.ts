@@ -262,6 +262,26 @@ export interface RentalStats {
   total: number; parStatut: Record<string, number>; parFormule: Record<string, number>;
   chiffreAffaires: number; aVenir: number; tauxOccupation: number;
 }
+/* -------------------- « Mon poste » (par employé) -------------------- */
+export interface TacheAssignee {
+  id: string; type: 'sos' | 'support' | 'litige' | 'location' | 'maintenance';
+  titre: string; detail: string; depuis: string; section: string; priorite: number;
+}
+export interface DemandePersonnelle {
+  id: string; type: 'note_de_frais' | 'virement';
+  libelle: string; montant: number; statut: string; depuis: string; section: string;
+}
+export interface MonPoste {
+  identite: { nom: string; role: string; roleLabel: string; permissions: string[] };
+  service: { date: string; slot: string; zoneId?: string } | null;
+  mesDossiers: TacheAssignee[];
+  mesDemandes: DemandePersonnelle[];
+  aTraiter: Array<{ id: string; severite: string; titre: string; action: string; section: string }>;
+  monActivite: Array<{ at: string; action: string; target?: string }>;
+  bilan: { dossiers: number; demandes: number; aTraiter: number; actionsAujourdhui: number };
+  genereA: string;
+}
+
 /* ----------------------- Moteur de vigilance ----------------------- */
 export type Severite = 'critique' | 'eleve' | 'moyen' | 'info';
 export interface Constat {
