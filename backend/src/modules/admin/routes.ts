@@ -1919,6 +1919,143 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       return { sent: silent.length, code: promo.id, announcement: a };
     });
 
+    /* ------------------- LOCATION SIGNATURE (événements, entreprises) ------------------- */
+
+    /** Tableau de bord Location : demandes, flotte Signature et indicateurs. */
+    scoped.get('/admin/rental', async (req) => {
+      require(req, 'rental:read');
+      const q = parse(
+        z.object({
+          status: z.enum(['devis', 'reservee', 'confirmee', 'en_cours', 'terminee', 'annulee']).optional(),
+          formula: z.enum(['evenement', 'entreprise', 'mise_a_disposition']).optional(),
+        }),
+        req.query,
+      );
+      const { PRESTIGE } = await import('../fleet/prestige.js');
+      return {
+        reservations: container.rental.list(q),
+        fleet: PRESTIGE,
+        stats: container.rental.stats(),
+        // Disponibilité du jour : ce que la console peut promettre MAINTENANT.
+        disponibilites: container.rental.disponibilites(new Date(), new Date(Date.now() + 86_400_000)),
+      };
+    });
+
+    /** Affectation d'un chauffeur à une location (le client doit savoir qui vient). */
+    scoped.post('/admin/rental/:id/assign', async (req) => {
+      require(req, 'rental:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ driverId: z.string().min(1) }), req.body);
+      const reservation = container.rental.assign(id, body.driverId);
+      audit(req, 'rental.assign', id, { driverId: body.driverId });
+      return { reservation };
+    });
+
+    /** Avancement du dossier (confirmée → en cours → terminée). */
+    scoped.post('/admin/rental/:id/status', async (req) => {
+      require(req, 'rental:write');
+      const { id } = req.params as { id: string };
+      const body = parse(
+        z.object({
+          status: z.enum(['devis', 'reservee', 'confirmee', 'en_cours', 'terminee', 'annulee']),
+          note: z.string().max(200).optional(),
+        }),
+        req.body,
+      );
+      const reservation = container.rental.setStatus(id, body.status, body.note);
+      audit(req, 'rental.status', id, { status: body.status });
+      return { reservation };
+    });
+
+    /** Annulation côté ORION (indisponibilité, incident) — frais calculés et journalisés. */
+    scoped.post('/admin/rental/:id/annuler', async (req) => {
+      require(req, 'rental:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ raison: z.string().max(200).optional() }), req.body ?? {});
+      const r = container.rental.annuler(id, body.raison);
+      audit(req, 'rental.cancel', id, { frais: r.frais, raison: body.raison });
+      return r;
+    });
+
+    /** Bon de location (PDF) : ce que le chauffeur et le client signent au départ. */
+    scoped.get('/admin/rental/:id/bon.pdf', async (req, reply) => {
+      require(req, 'rental:read');
+      const { id } = req.params as { id: string };
+      const r = container.rental.get(id);
+      if (!r) throw notFound('Location introuvable');
+      const { simplePdf } = await import('../../core/pdf.js');
+      const lignes = [
+        'ORION — BON DE LOCATION',
+        `Dossier : ${r.id}`,
+        `Formule : ${r.formula}`,
+        `Véhicule : ${r.vehicle.name} (${r.vehicle.places} places)`,
+        `Période : du ${r.debut} au ${r.fin}`,
+        `Durée : ${r.duree}${r.heures ? ` (${r.heures} h)` : ''}`,
+        r.lieu ? `Lieu de prise en charge : ${r.lieu}` : 'Lieu de prise en charge : à préciser',
+        r.societe ? `Société : ${r.societe.nom}${r.societe.bonCommande ? ` — BC ${r.societe.bonCommande}` : ''}` : '',
+        r.contact ? `Contact : ${r.contact.nom} — ${r.contact.telephone}` : '',
+        r.driverId ? `Chauffeur affecté : ${container.drivers.get(r.driverId)?.name ?? r.driverId}` : 'Chauffeur : à affecter',
+        '',
+        `Véhicule : ${r.breakdown.vehicule} F`,
+        r.breakdown.cortege ? `Cortège : ${r.breakdown.cortege} F` : '',
+        r.breakdown.options ? `Options : ${r.breakdown.options} F` : '',
+        r.breakdown.majorationJourJ ? `Mobilisation express (jour J) : ${r.breakdown.majorationJourJ} F` : '',
+        r.breakdown.remiseAbonnement ? `Remise abonné ORION : -${r.breakdown.remiseAbonnement} F` : '',
+        `Total HT : ${r.breakdown.ht} F`,
+        `TVA : ${r.breakdown.tva} F`,
+        `TOTAL : ${r.total} F CFA`,
+        `Caution (restituée) : ${r.caution} F`,
+      ].filter(Boolean);
+      reply.header('content-type', 'application/pdf');
+      reply.header('content-disposition', `attachment; filename="orion-location-${r.id}.pdf"`);
+      return simplePdf(lignes);
+    });
+
+    /* ------------------------------ ABONNEMENTS ORION ------------------------------ */
+
+    /** Parc d'abonnés, revenu récurrent, valeur réellement rendue, impayés. */
+    scoped.get('/admin/subscriptions', async (req) => {
+      require(req, 'rental:read');
+      const { PLANS, PLAN_IDS } = await import('../subscriptions/service.js');
+      return {
+        plans: PLAN_IDS.map((p) => PLANS[p]),
+        subscriptions: container.subscriptions.list(),
+        invoices: container.subscriptions.factures(),
+        stats: container.subscriptions.stats(),
+      };
+    });
+
+    /** Encaissement manuel d'une facture d'abonnement (support, agence, espèces). */
+    scoped.post('/admin/subscriptions/invoices/:id/payer', async (req) => {
+      require(req, 'rental:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ method: z.string().max(40).optional(), reference: z.string().max(80).optional() }), req.body ?? {});
+      const facture = container.subscriptions.payerFacture(id, body);
+      audit(req, 'subscription.invoice.paid', id, { amount: facture.amount, method: body.method });
+      return { facture };
+    });
+
+    /**
+     * Traitement des échéances : renouvellements automatiques et suspensions pour
+     * impayé. Déclenchable à la main depuis la console, ou par une tâche planifiée.
+     */
+    scoped.post('/admin/subscriptions/echeances', async (req) => {
+      require(req, 'rental:write');
+      const bilan = container.subscriptions.traiterEcheances();
+      audit(req, 'subscription.echeances', undefined, bilan);
+      return bilan;
+    });
+
+    /** Résiliation par le support (demande client, fraude). */
+    scoped.post('/admin/subscriptions/:userId/resilier', async (req) => {
+      require(req, 'rental:write');
+      const { userId } = req.params as { userId: string };
+      const body = parse(z.object({ raison: z.string().max(200).optional() }), req.body ?? {});
+      const subscription = container.subscriptions.cancel(userId, body.raison);
+      audit(req, 'subscription.cancel', userId, { raison: body.raison });
+      return { subscription };
+    });
+
     // --- Journal d'audit ---
     scoped.get('/admin/audit', async (req) => { require(req, 'audit:read'); return { entries: container.audit.list(200) }; });
   });

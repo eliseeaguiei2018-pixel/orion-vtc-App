@@ -228,3 +228,80 @@ test('abonnement : quota épuisé → remise d’abonné appliquée à la course
   assert.equal(course.subscription.remise, Math.round(quote.amount * PLANS.argent.remiseHorsQuota));
   assert.equal(course.subscription.aPayer, quote.amount - course.subscription.remise);
 });
+
+test('console : session Location — suivi, affectation, bon PDF et abonnements', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  const jeton = { 'x-admin-token': 'orion-admin-dev' };
+
+  // Une location arrive côté client…
+  const debut = new Date(Date.now() + 3 * 86_400_000).toISOString();
+  const res = await app.inject({
+    method: 'POST', url: '/rental/reserve',
+    payload: {
+      formula: 'entreprise', vehicleId: 'maextro-s800', debut, duree: 'journee',
+      userId: 'institution-1', lieu: 'Aéroport Félix-Houphouët-Boigny',
+      societe: { nom: 'Ambassade du Ghana', bonCommande: 'BC-7741' },
+      contact: { nom: 'Protocole', telephone: '+2250708091011' },
+    },
+  });
+  assert.equal(res.statusCode, 201);
+  const id = res.json().reservation.id as string;
+
+  // …et la console la voit, avec la flotte et les indicateurs.
+  const vue = await app.inject({ method: 'GET', url: '/admin/rental', headers: jeton });
+  assert.equal(vue.statusCode, 200);
+  const data = vue.json();
+  assert.equal(data.reservations.length, 1);
+  assert.equal(data.reservations[0].societe.bonCommande, 'BC-7741');
+  assert.ok(data.fleet.length >= 7, 'la flotte Signature est exposée à la console');
+  assert.equal(data.stats.parFormule['entreprise'], 1);
+
+  // Affectation d'un chauffeur puis avancement du dossier.
+  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Mamadou', category: 'diamant' } });
+  const driverId = drv.json().driver.id as string;
+  const aff = await app.inject({ method: 'POST', url: `/admin/rental/${id}/assign`, headers: jeton, payload: { driverId } });
+  assert.equal(aff.json().reservation.driverId, driverId);
+  const conf = await app.inject({ method: 'POST', url: `/admin/rental/${id}/status`, headers: jeton, payload: { status: 'confirmee', note: 'contrat signé' } });
+  assert.equal(conf.json().reservation.status, 'confirmee');
+
+  // Bon de location : ce que le chauffeur et le client signent au départ.
+  const bon = await app.inject({ method: 'GET', url: `/admin/rental/${id}/bon.pdf`, headers: jeton });
+  assert.equal(bon.statusCode, 200);
+  assert.match(String(bon.headers['content-type']), /application\/pdf/);
+  assert.ok(bon.rawPayload.length > 300, 'le PDF a du contenu');
+
+  // Session Abonnements : parc, revenu récurrent et impayés.
+  await app.inject({ method: 'POST', url: '/subscriptions', payload: { userId: 'abonne-console', plan: 'gold' } });
+  const abo = await app.inject({ method: 'GET', url: '/admin/subscriptions', headers: jeton });
+  assert.equal(abo.statusCode, 200);
+  assert.equal(abo.json().subscriptions.length, 1);
+  assert.equal(abo.json().stats.impayees, 1);
+
+  // Encaissement manuel par le support (espèces en agence).
+  const facture = abo.json().invoices[0];
+  const paye = await app.inject({
+    method: 'POST', url: `/admin/subscriptions/invoices/${facture.id}/payer`,
+    headers: jeton, payload: { method: 'cash', reference: 'AGENCE-PLATEAU-12' },
+  });
+  assert.equal(paye.json().facture.status, 'payee');
+  const apres = await app.inject({ method: 'GET', url: '/admin/subscriptions', headers: jeton });
+  assert.equal(apres.json().stats.impayees, 0);
+  assert.equal(apres.json().stats.mrr, PLANS.gold.monthlyPrice);
+});
+
+test('console : la session Location est refusée sans droit, et signalée à la direction', async (t) => {
+  const { app, container } = await buildApp();
+  t.after(() => app.close());
+
+  // Un analyste financier a la LECTURE mais pas l'écriture sur les locations.
+  const { ROLE_PERMISSIONS } = await import('../src/modules/admin/roles.js');
+  assert.ok(ROLE_PERMISSIONS.financial_analyst.includes('rental:read'));
+  assert.ok(!ROLE_PERMISSIONS.financial_analyst.includes('rental:write'));
+  // Le support, lui, traite les dossiers au quotidien.
+  assert.ok(ROLE_PERMISSIONS.support.includes('rental:write'));
+  // Un observateur ne touche à rien.
+  assert.ok(!ROLE_PERMISSIONS.viewer.includes('rental:write'));
+  assert.equal(container.security.count(), 0);
+});
