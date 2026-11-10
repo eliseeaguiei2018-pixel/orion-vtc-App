@@ -175,3 +175,57 @@ test('le compte de secours défini dans la configuration reste intouchable depui
   const doublon = await creer(app, { name: 'Admin Bis', role: 'viewer', username: 'admin' });
   assert.equal(doublon.statusCode, 409);
 });
+
+test('le DAF dépose des demandes et statue sur celles des autres — jamais sur la sienne', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  const faire = async (payload: Record<string, unknown>) => {
+    const c = await creer(app, payload);
+    assert.equal(c.statusCode, 200, c.body);
+    const { account, motDePasseProvisoire } = c.json();
+    const l = await app.inject({ method: 'POST', url: '/admin/login', payload: { username: account.username, password: motDePasseProvisoire } });
+    return { username: account.username as string, nom: payload.name as string, headers: { authorization: `Bearer ${l.json().token}` } };
+  };
+
+  const daf = await faire({ name: 'Franck Yeboua', role: 'daf', service: 'Finances' });
+  const agent = await faire({ name: 'Céline Oulaï', role: 'ops' });
+
+  // Il dépose comme tout le monde.
+  const sienne = await app.inject({
+    method: 'POST', url: '/admin/expenses', headers: daf.headers,
+    payload: { requesterType: 'employee', amount: 180_000, category: 'materiel', neededDate: '2026-11-20', description: 'Deux écrans pour le pôle finance.' },
+  });
+  assert.ok(sienne.statusCode < 300, `dépôt DAF : ${sienne.statusCode} ${sienne.body}`);
+
+  const autre = await app.inject({
+    method: 'POST', url: '/admin/expenses', headers: agent.headers,
+    payload: { requesterType: 'employee', amount: 60_000, category: 'deplacement', neededDate: '2026-11-15', description: 'Déplacement Bouaké pour audit flotte.' },
+  });
+  assert.ok(autre.statusCode < 300, `dépôt agent : ${autre.statusCode} ${autre.body}`);
+
+  // Il statue sur celle de l'agent : c'est son métier.
+  const ok = await app.inject({
+    method: 'POST', url: `/admin/expenses/${autre.json().ticket.id}/decide`, headers: daf.headers,
+    payload: { decision: 'approve', note: 'Mission validée par la direction des opérations.' },
+  });
+  assert.equal(ok.statusCode, 200, ok.body);
+
+  // Mais pas sur la sienne : sans cette garde, le contrôle interne repose sur la
+  // seule honnêteté d'une personne.
+  const auto = await app.inject({
+    method: 'POST', url: `/admin/expenses/${sienne.json().ticket.id}/decide`, headers: daf.headers,
+    payload: { decision: 'approve' },
+  });
+  assert.equal(auto.statusCode, 403);
+  assert.match(auto.json().error.message, /sa propre demande/);
+
+  // Et une trésorière ne statue sur aucune : compter l'argent et décider de le
+  // sortir sont deux métiers.
+  const tresoriere = await faire({ name: 'Rose Aké', role: 'tresorier' });
+  const refus = await app.inject({
+    method: 'POST', url: `/admin/expenses/${sienne.json().ticket.id}/decide`, headers: tresoriere.headers,
+    payload: { decision: 'approve' },
+  });
+  assert.equal(refus.statusCode, 403);
+});

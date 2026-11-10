@@ -1874,10 +1874,20 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
 
     // Décision du CFO : approuver (crédit instantané) / rejeter / demander un complément.
     scoped.post('/admin/expenses/:id/decide', async (req) => {
-      require(req, 'treasury:request'); // niveau finance dirigeante (CFO)
+      // Statuer sur une demande financière est un droit à part : la direction
+      // financière (DAF, CFO) et la direction générale l'ont, pas la trésorerie.
+      // Compter l'argent et décider de le sortir sont deux métiers.
+      require(req, 'finance:write');
       const { id } = req.params as { id: string };
       const body = parse(z.object({ decision: z.enum(['approve', 'reject', 'info']), note: z.string().max(300).optional() }), req.body);
       const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      // SÉPARATION DES TÂCHES : le DAF dépose des demandes comme tout le monde,
+      // mais il ne signe pas les siennes. Sans cette garde, le contrôle interne
+      // repose sur la seule honnêteté d'une personne.
+      const existant = container.expenses.get(id);
+      if (existant && (existant.requesterId === account.username || existant.requesterName === account.name)) {
+        throw forbidden('On ne statue pas sur sa propre demande — faites-la valider par un autre dirigeant.');
+      }
       const ticket = container.expenses.decide(id, body.decision, account.name, body.note);
       if (!ticket) throw notFound('Ticket introuvable');
       audit(req, `expense.${body.decision}`, id, { amount: ticket.amount });
