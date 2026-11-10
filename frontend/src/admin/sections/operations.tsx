@@ -6,8 +6,8 @@
  */
 import { useState, type CSSProperties } from 'react';
 import { fcfa } from '../api';
-import type { Client, CsatReport, Dispute, DriverRow, ExpiringDoc, OpsConfig, PageMeta, QualityRow, QualityTop, Reservation, RideForensic, RideRow, SimResult } from '../types';
-import { Drawer, Kpi, Pager, kycLabel, rideStatusLabel, trafficLabel } from '../ui';
+import type { Client, ContactHandler, CsatReport, Dispute, DriverRow, ExpiringDoc, OpsConfig, PageMeta, QualityRow, QualityTop, Reservation, RideForensic, RideRow, SimResult } from '../types';
+import { ContactRapide, Drawer, Kpi, Pager, kycLabel, rideStatusLabel, trafficLabel } from '../ui';
 
 export const REASSIGNABLE = new Set(['searching', 'no_driver', 'accepted', 'driver_en_route', 'arrived']);
 export const ACTIVE_RIDE = new Set(['accepted', 'driver_en_route', 'arrived', 'in_progress']);
@@ -524,12 +524,14 @@ export const KYC_COLUMNS: { id: string; label: string }[] = [
 ];
 export const LOYALTY_LABEL: Record<string, string> = { bronze: '🥉 Bronze', silver: '🥈 Silver', gold: '🥇 Gold' };
 
-export function DriversSection({ drivers, expiring, canWrite, onAction, onSuspend, onLoyalty, onOpen, meta, onPage, onContract, onFleetCsv }: {
+export function DriversSection({ drivers, expiring, canWrite, onAction, onSuspend, onLoyalty, onOpen, meta, onPage, onContract, onFleetCsv, onContact }: {
   drivers: DriverRow[]; expiring: ExpiringDoc[]; canWrite: boolean;
   onAction: (id: string, kind: 'kyc' | 'availability', value: string) => void;
   onSuspend: (id: string) => void; onLoyalty: (id: string, tier: string) => void;
   onOpen: (id: string) => void; meta: PageMeta; onPage: (p: number) => void;
   onContract: (id: string) => void; onFleetCsv: () => void;
+  /** Joindre le chauffeur depuis sa ligne — la tentative est consignée. */
+  onContact: ContactHandler;
 }) {
   const [kanban, setKanban] = useState(false);
   return (
@@ -574,7 +576,7 @@ export function DriversSection({ drivers, expiring, canWrite, onAction, onSuspen
           </div>
         ) : (
           <table className="adm-table">
-            <thead><tr><th>Nom</th><th>Matricule</th><th>Niveau</th><th>KYC</th><th>Fidélité</th><th className="r">Solde</th><th className="r">Note</th>{canWrite && <th>Actions</th>}</tr></thead>
+            <thead><tr><th>Nom</th><th>Matricule</th><th>Niveau</th><th>KYC</th><th>Fidélité</th><th className="r">Solde</th><th className="r">Note</th><th>Joindre</th>{canWrite && <th>Actions</th>}</tr></thead>
             <tbody>
               {drivers.map((d) => (
                 <tr key={d.id} className="adm-row-click" onClick={() => onOpen(d.id)}>
@@ -582,6 +584,9 @@ export function DriversSection({ drivers, expiring, canWrite, onAction, onSuspen
                   <td><span className={`adm-pill kyc-${d.kycStatus}`}>{kycLabel(d.kycStatus)}</span></td>
                   <td>{d.loyaltyTier ? <span className="adm-pill">{LOYALTY_LABEL[d.loyaltyTier] ?? d.loyaltyTier}</span> : <span className="adm-muted">—</span>}{(d.electricRides ?? 0) > 0 && <span className="adm-muted" style={{ fontSize: 11, display: 'block' }}>{d.electricRides} élec.</span>}</td>
                   <td className="r">{fcfa(d.balance)}</td><td className="r">★ {d.rating.toFixed(2)}</td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <ContactRapide type="chauffeur" id={d.id} numero={d.phone} nom={d.name} onContact={onContact} />
+                  </td>
                   {canWrite && (
                     <td onClick={(e) => e.stopPropagation()}>
                       <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
@@ -606,11 +611,13 @@ export function DriversSection({ drivers, expiring, canWrite, onAction, onSuspen
 }
 
 export const VIP_LABEL: Record<string, string> = { gold: '⭐ Gold', platinum: '💎 Platinum' };
-export function ClientsSection({ clients, canWrite, onStatus, onOpen, meta, onPage, onVip, onBlacklist, onNoShow, onLtvCsv, onBehaviorPdf }: {
+export function ClientsSection({ clients, canWrite, onStatus, onOpen, meta, onPage, onVip, onBlacklist, onNoShow, onLtvCsv, onBehaviorPdf, onContact }: {
   clients: Client[]; canWrite: boolean; onStatus: (id: string, s: string) => void; onOpen: (id: string) => void;
   meta: PageMeta; onPage: (p: number) => void;
   onVip: (id: string, tier: string, noSurgeLock: boolean) => void; onBlacklist: (id: string) => void; onNoShow: (id: string) => void;
   onLtvCsv: () => void; onBehaviorPdf: () => void;
+  /** Joindre le client depuis sa ligne — la tentative est consignée. */
+  onContact: ContactHandler;
 }) {
   return (
     <div className="adm-card">
@@ -623,12 +630,15 @@ export function ClientsSection({ clients, canWrite, onStatus, onOpen, meta, onPa
         </div>
       </div>
       <table className="adm-table">
-        <thead><tr><th>Client</th><th>Téléphone</th><th>VIP</th><th className="r">Courses</th><th>Statut</th>{canWrite && <th>Actions</th>}</tr></thead>
+        <thead><tr><th>Client</th><th>Téléphone</th><th>Joindre</th><th>VIP</th><th className="r">Courses</th><th>Statut</th>{canWrite && <th>Actions</th>}</tr></thead>
         <tbody>
           {clients.map((c) => (
             <tr key={c.id} className="adm-row-click" onClick={() => onOpen(c.id)}>
               <td>{c.name ?? c.id}<div className="mono adm-muted" style={{ fontSize: 11 }}>{c.id}{(c.greenPoints ?? 0) > 0 ? ` · 🌿 ${c.greenPoints}` : ''}</div></td>
               <td>{c.phone ?? '—'}</td>
+              <td onClick={(e) => e.stopPropagation()}>
+                <ContactRapide type="client" id={c.id} numero={c.phone} nom={c.name ?? c.id} onContact={onContact} />
+              </td>
               <td>{c.vipTier && c.vipTier !== 'standard' ? <span className="adm-pill av-online">{VIP_LABEL[c.vipTier] ?? c.vipTier}</span> : <span className="adm-muted">—</span>}</td>
               <td className="r">{c.rides}</td>
               <td><span className={`adm-pill ${c.status === 'blocked' ? 'kyc-manual_review' : 'av-online'}`}>{c.status === 'blocked' ? 'Bloqué' : 'Actif'}</span></td>

@@ -21,6 +21,34 @@ export function Pager({ meta, onPage }: { meta: PageMeta; onPage: (p: number) =>
   );
 }
 
+/**
+ * BOUTONS DE MISE EN RELATION — réutilisables dans toutes les sessions.
+ *
+ * Le besoin n'est pas propre au poste SOS : un agent du support, un gestionnaire de
+ * flotte ou un chargé de location doivent pouvoir joindre quelqu'un depuis la ligne
+ * qu'ils ont sous les yeux. Sans numéro, les boutons sont désactivés et le disent —
+ * plutôt qu'une icône qui ne fait rien.
+ */
+export function ContactRapide({ type, id, numero, nom, onContact }: {
+  type: 'sos' | 'course' | 'client' | 'chauffeur' | 'support' | 'location' | 'entreprise';
+  id: string;
+  numero?: string | null;
+  nom?: string | null;
+  onContact: (p: { dossierType: string; dossierId: string; canal: 'appel' | 'sms' | 'whatsapp'; numero: string; label: string }) => void;
+}) {
+  if (!numero) {
+    return <span className="adm-muted" style={{ fontSize: 11 }} title="Aucun numéro enregistré">n° inconnu</span>;
+  }
+  const base = { dossierType: type, dossierId: id, numero, label: nom ?? numero };
+  return (
+    <div className="row" style={{ gap: 4 }}>
+      <button className="adm-btn xs solid" title={`Appeler ${nom ?? numero}`} onClick={() => onContact({ ...base, canal: 'appel' })}>📞</button>
+      <button className="adm-btn xs" title={`SMS à ${nom ?? numero}`} onClick={() => onContact({ ...base, canal: 'sms' })}>✉️</button>
+      <button className="adm-btn xs" title={`WhatsApp à ${nom ?? numero}`} onClick={() => onContact({ ...base, canal: 'whatsapp' })}>💬</button>
+    </div>
+  );
+}
+
 export function Kpi({ label, value, sub, tone }: { label: string; value: string; sub: string; tone: string }) {
   return (
     <div className={`adm-kpi ${tone}`}>

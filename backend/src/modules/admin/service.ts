@@ -354,6 +354,8 @@ export class AdminService {
       loyaltyTier: d.loyaltyTier ?? null,
       electricRides: d.electricRides ?? 0,
       suspensionReason: d.suspensionReason ?? null,
+      // Numéro : sans lui, la console affiche un chauffeur qu'on ne peut pas joindre.
+      phone: d.phone ?? null,
     }));
     return { drivers, ...meta };
   }

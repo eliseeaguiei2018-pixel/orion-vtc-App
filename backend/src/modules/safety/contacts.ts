@@ -54,11 +54,21 @@ export const CONTACTS_DEFAUT: ContactUrgence[] = [
 export type CanalContact = 'appel' | 'sms' | 'whatsapp';
 export type IssueContact = 'tentative' | 'joint' | 'non_joint' | 'messagerie';
 
+/**
+ * De quel dossier part l'appel. Le besoin n'est pas propre au SOS : un agent du
+ * support, un gestionnaire de flotte ou un chargé de location ont exactement le même
+ * besoin — joindre quelqu'un et en garder la trace. Un seul registre pour toute la
+ * console, donc un seul endroit où l'on sait qui a appelé qui.
+ */
+export type DossierType = 'sos' | 'course' | 'client' | 'chauffeur' | 'support' | 'location' | 'entreprise';
+
 /** Une tentative de contact, consignée. */
 export interface ContactJournalEntry {
   id: string;
-  /** Alerte SOS concernée. */
-  alertId: string;
+  /** Type de dossier d'où part l'appel. */
+  dossierType: DossierType;
+  /** Identifiant du dossier (alerte, course, client, chauffeur, conversation…). */
+  dossierId: string;
   /** Qui a appelé (nom de l'employé connecté). */
   agent: string;
   /** Entrée du répertoire, ou « libre » pour un numéro saisi à la main. */
@@ -145,7 +155,7 @@ export class EmergencyContactsService {
    * Appelée AVANT la mise en relation : on trace l'intention, même si l'appel échoue.
    */
   consigner(input: {
-    alertId: string; agent: string; canal: CanalContact;
+    dossierType: DossierType; dossierId: string; agent: string; canal: CanalContact;
     contactId?: string; numero?: string; label?: string;
     message?: string; issue?: IssueContact;
   }): { entry: ContactJournalEntry; lien: string } {
@@ -154,7 +164,8 @@ export class EmergencyContactsService {
     if (!numero) throw badRequest('Aucun numéro à composer');
     const entry: ContactJournalEntry = {
       id: randomUUID().slice(0, 8),
-      alertId: input.alertId,
+      dossierType: input.dossierType,
+      dossierId: input.dossierId,
       agent: input.agent,
       contactId: repertoire?.id ?? 'libre',
       label: repertoire?.label ?? input.label ?? 'Numéro libre',
@@ -179,9 +190,20 @@ export class EmergencyContactsService {
     return e;
   }
 
-  /** Registre d'une alerte (pièce du dossier). */
-  pourAlerte(alertId: string): ContactJournalEntry[] {
-    return this.journal.filter((e) => e.alertId === alertId).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  /** Registre d'un dossier, quel qu'il soit (pièce du dossier). */
+  pourDossier(dossierType: DossierType, dossierId: string): ContactJournalEntry[] {
+    return this.journal
+      .filter((e) => e.dossierType === dossierType && e.dossierId === dossierId)
+      .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  }
+
+  /** Raccourci historique : registre d'une alerte SOS. */
+  pourAlerte(alertId: string): ContactJournalEntry[] { return this.pourDossier('sos', alertId); }
+
+  /** Tout ce qui a été tenté par un employé (contrôle interne). */
+  parAgent(agent: string, limit = 100): ContactJournalEntry[] {
+    return this.journal.filter((e) => e.agent === agent)
+      .sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, limit);
   }
 
   /** Registre global (audit direction). */

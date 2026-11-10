@@ -719,7 +719,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         req.body,
       );
       const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
-      const { entry, lien } = container.contacts.consigner({ alertId: id, agent: account.name, ...body });
+      const { entry, lien } = container.contacts.consigner({ dossierType: 'sos', dossierId: id, agent: account.name, ...body });
       // Le dossier d'alerte garde la trace du service prévenu (réquisition PDF).
       if (!alert.dispatchedTo.includes(entry.label)) alert.dispatchedTo.push(entry.label);
       audit(req, 'sos.contact', id, { cible: entry.label, canal: entry.canal, numero: entry.numero });
@@ -742,6 +742,71 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       const entry = container.contacts.conclure(entryId, body.issue, body.compteRendu);
       audit(req, 'sos.contact.issue', id, { entryId, issue: body.issue });
       return { entry, journal: container.contacts.pourAlerte(id) };
+    });
+
+    /* ============ MISE EN RELATION DEPUIS TOUTE LA CONSOLE ============ */
+
+    /**
+     * Joindre quelqu'un depuis n'importe quelle session — un client au support, un
+     * chauffeur en litige, l'organisateur d'une location, un contact du répertoire.
+     *
+     * Le besoin n'était pas propre au poste SOS : partout, l'employé lisait un numéro
+     * à l'écran et composait à la main, sans trace. Une seule route, un seul registre.
+     */
+    scoped.post('/admin/contact', async (req) => {
+      // Le droit requis dépend de qui l'on appelle : on ne contacte pas un chauffeur
+      // sans droit sur les chauffeurs, ni un client sans droit sur les clients.
+      const body = parse(
+        z.object({
+          dossierType: z.enum(['sos', 'course', 'client', 'chauffeur', 'support', 'location', 'entreprise']),
+          dossierId: z.string().min(1).max(80),
+          canal: z.enum(['appel', 'sms', 'whatsapp']),
+          contactId: z.string().max(60).optional(),
+          numero: z.string().max(30).optional(),
+          label: z.string().max(80).optional(),
+          message: z.string().max(400).optional(),
+        }),
+        req.body,
+      );
+      const DROIT: Record<string, Permission> = {
+        sos: 'alerts:write', course: 'rides:read', client: 'clients:read',
+        chauffeur: 'drivers:read', support: 'support:write', location: 'rental:read',
+        entreprise: 'finance:read',
+      };
+      require(req, DROIT[body.dossierType]!);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const { entry, lien } = container.contacts.consigner({ agent: account.name, ...body });
+      audit(req, 'contact', body.dossierId, { type: body.dossierType, cible: entry.label, canal: entry.canal });
+      return { entry, lien, journal: container.contacts.pourDossier(body.dossierType, body.dossierId) };
+    });
+
+    /** Issue de l'appel (joint, messagerie, injoignable) + compte rendu. */
+    scoped.post('/admin/contact/:entryId/issue', async (req) => {
+      require(req, 'overview:read');
+      const { entryId } = req.params as { entryId: string };
+      const body = parse(
+        z.object({
+          issue: z.enum(['tentative', 'joint', 'non_joint', 'messagerie']),
+          compteRendu: z.string().max(400).optional(),
+        }),
+        req.body,
+      );
+      const entry = container.contacts.conclure(entryId, body.issue, body.compteRendu);
+      audit(req, 'contact.issue', entry.dossierId, { issue: body.issue });
+      return { entry };
+    });
+
+    /** Registre d'un dossier : ce qui a déjà été tenté, par qui, avec quelle issue. */
+    scoped.get('/admin/contact/journal', async (req) => {
+      require(req, 'overview:read');
+      const q = parse(
+        z.object({
+          dossierType: z.enum(['sos', 'course', 'client', 'chauffeur', 'support', 'location', 'entreprise']),
+          dossierId: z.string().min(1).max(80),
+        }),
+        req.query,
+      );
+      return { journal: container.contacts.pourDossier(q.dossierType, q.dossierId), contacts: container.contacts.actifs() };
     });
 
     /* --------------------- Répertoire d'urgence (éditable) --------------------- */

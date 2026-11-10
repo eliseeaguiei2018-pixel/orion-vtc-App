@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { fcfa } from '../api';
-import { Kpi } from '../ui';
+import { ContactRapide, Kpi } from '../ui';
 import type {
-  DriverRow, PrestigeUnit, RentalAvailabilityRow, RentalRow, RentalStats, RentalTarif,
-  RentalTarifEtat, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow,
+  ContactHandler, DriverRow, PrestigeUnit, RentalAvailabilityRow, RentalRow, RentalStats,
+  RentalTarif, RentalTarifEtat, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow,
 } from '../types';
 
 /**
@@ -35,7 +35,7 @@ const PILL_STATUT: Record<string, string> = {
 
 const dt = (iso: string) => new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-export function RentalSection({ reservations, fleet, stats, dispos, drivers, canWrite, onAssign, onStatus, onCancel, onBon }: {
+export function RentalSection({ reservations, fleet, stats, dispos, drivers, canWrite, onAssign, onStatus, onCancel, onBon, onContact }: {
   reservations: RentalRow[];
   fleet: PrestigeUnit[];
   stats: RentalStats | null;
@@ -46,6 +46,8 @@ export function RentalSection({ reservations, fleet, stats, dispos, drivers, can
   onStatus: (id: string, status: string, note?: string) => void;
   onCancel: (id: string, raison?: string) => void;
   onBon: (id: string) => void;
+  /** Joindre l'organisateur, ou le chauffeur affecté — tentative consignée. */
+  onContact: ContactHandler;
 }) {
   const [formule, setFormule] = useState('');
   const [statut, setStatut] = useState('');
@@ -131,7 +133,7 @@ export function RentalSection({ reservations, fleet, stats, dispos, drivers, can
             <thead>
               <tr>
                 <th>Dossier</th><th>Formule</th><th>Véhicule</th><th>Début</th>
-                <th>Client / société</th><th className="r">Total</th><th>Statut</th><th>Chauffeur</th>
+                <th>Client / société</th><th>Joindre</th><th className="r">Total</th><th>Statut</th><th>Chauffeur</th>
                 {canWrite && <th>Actions</th>}
               </tr>
             </thead>
@@ -150,10 +152,24 @@ export function RentalSection({ reservations, fleet, stats, dispos, drivers, can
                       {r.societe?.bonCommande && <><br /><span className="adm-muted">Bon de commande <span className="mono">{r.societe.bonCommande}</span></span></>}
                       {r.lieu && <><br /><span className="adm-muted">{r.lieu}</span></>}
                     </td>
+                    <td>
+                      <ContactRapide
+                        type="location" id={r.id}
+                        numero={r.contact?.telephone} nom={r.contact?.nom ?? r.societe?.nom}
+                        onContact={onContact}
+                      />
+                    </td>
                     <td className="r" style={{ whiteSpace: 'nowrap' }}>{fcfa(r.total)}</td>
                     <td><span className={`adm-pill ${PILL_STATUT[r.status] ?? ''}`}>{LABEL_STATUT[r.status] ?? r.status}</span></td>
                     <td>
-                      {chauffeur ? <>{chauffeur.name}<br /><span className="adm-muted mono">{chauffeur.matricule}</span></> : <span className="adm-muted">à affecter</span>}
+                      {chauffeur ? (
+                        <>
+                          {chauffeur.name}<br /><span className="adm-muted mono">{chauffeur.matricule}</span>
+                          <div style={{ marginTop: 4 }}>
+                            <ContactRapide type="chauffeur" id={chauffeur.id} numero={chauffeur.phone} nom={chauffeur.name} onContact={onContact} />
+                          </div>
+                        </>
+                      ) : <span className="adm-muted">à affecter</span>}
                     </td>
                     {canWrite && (
                       <td>

@@ -6,8 +6,8 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { fcfa } from '../api';
-import type { Amortization, Announcement, AuditEntry, CashDebtor, ChurnReport, Conversation, ConversionCell, CopilotAnswer, CorporateAccount, ElasticityCell, ExpenseTicket, Finance, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, OpsConfig, PredictCell, Pricing, Promo, SearchResults, ServicesConfig, ShadowPricing, SupportStats, Transfer, Triggers, Zone } from '../types';
-import { Kpi, availLabel, rideStatusLabel } from '../ui';
+import type { Amortization, Announcement, AuditEntry, CashDebtor, ChurnReport, Client, ContactHandler, Conversation, ConversionCell, CopilotAnswer, CorporateAccount, ElasticityCell, ExpenseTicket, Finance, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, OpsConfig, PredictCell, Pricing, Promo, SearchResults, ServicesConfig, ShadowPricing, SupportStats, Transfer, Triggers, Zone } from '../types';
+import { ContactRapide, Kpi, availLabel, rideStatusLabel } from '../ui';
 import { pct, slugify } from './operations';
 import { ago } from './organisation';
 
@@ -181,7 +181,11 @@ export const PRIORITY_META: Record<number, { label: string; cls: string }> = {
   3: { label: 'P3 · Général', cls: 'av-online' },
 };
 
-export function SupportSection({ convs, stats, macros, canWrite, canPromo, onReply, onStatus, onCompensate }: {
+export function SupportSection({ convs, stats, macros, canWrite, canPromo, clients, onReply, onStatus, onCompensate, onContact }: {
+  /** Fiches clients, pour retrouver le numéro de l'interlocuteur. */
+  clients: Client[];
+  /** Rappeler le client — l'écrit ne remplace pas toujours un appel. */
+  onContact: ContactHandler;
   convs: Conversation[]; stats: SupportStats | null; macros: Macro[];
   canWrite: boolean; canPromo: boolean;
   onReply: (id: string, text: string) => void; onStatus: (id: string, s: string) => void;
@@ -223,7 +227,20 @@ export function SupportSection({ convs, stats, macros, canWrite, canPromo, onRep
         <div className="adm-card" style={{ display: 'flex', flexDirection: 'column', maxHeight: 640 }}>
           {conv ? (
             <>
-              <div className="adm-card-h"><h3>{conv.subject}</h3><span className="adm-muted">{conv.clientId}</span></div>
+              <div className="adm-card-h">
+                <h3>{conv.subject}</h3>
+                <div className="row" style={{ gap: 10 }}>
+                  <span className="adm-muted mono">{conv.clientId}</span>
+                  {/* L'écrit ne remplace pas toujours un appel : un objet oublié ou un
+                      litige de paiement se règle plus vite au téléphone. */}
+                  <ContactRapide
+                    type="support" id={conv.id}
+                    numero={clients.find((x) => x.id === conv.clientId)?.phone}
+                    nom={clients.find((x) => x.id === conv.clientId)?.name ?? conv.clientId}
+                    onContact={onContact}
+                  />
+                </div>
+              </div>
               <div className="adm-chat">
                 {conv.messages.map((m) => (
                   <div key={m.id} className={`adm-bubble ${m.from}`}>

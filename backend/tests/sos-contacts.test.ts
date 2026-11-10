@@ -138,3 +138,52 @@ test('un contact désactivé disparaît du poste de l’opérateur sans être pe
   const rep = await app.inject({ method: 'GET', url: '/admin/contacts', headers: JETON });
   assert.ok(rep.json().contacts.some((c: { id: string }) => c.id === 'remorquage'), 'conservé au répertoire');
 });
+
+test('joindre quelqu’un depuis N’IMPORTE QUELLE session, avec le même registre', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+
+  // Le support rappelle un client mécontent.
+  const sup = await app.inject({
+    method: 'POST', url: '/admin/contact', headers: JETON,
+    payload: { dossierType: 'client', dossierId: 'client-8842', canal: 'appel', numero: '+2250102030405', label: 'Kouassi Aya' },
+  });
+  assert.equal(sup.statusCode, 200);
+  assert.equal(sup.json().lien, 'tel:+2250102030405');
+  assert.equal(sup.json().entry.dossierType, 'client');
+
+  // La flotte appelle un chauffeur au sujet d'un litige.
+  const flotte = await app.inject({
+    method: 'POST', url: '/admin/contact', headers: JETON,
+    payload: { dossierType: 'chauffeur', dossierId: 'drv-7', canal: 'whatsapp', numero: '+2250709080706', label: 'Mamadou Bamba', message: 'Merci de rappeler le service flotte' },
+  });
+  assert.match(flotte.json().lien, /^https:\/\/wa\.me\/225/);
+  assert.match(flotte.json().lien, /rappeler/);
+
+  // Chaque registre est propre à son dossier : pas de mélange.
+  const jClient = await app.inject({ method: 'GET', url: '/admin/contact/journal?dossierType=client&dossierId=client-8842', headers: JETON });
+  assert.equal(jClient.json().journal.length, 1);
+  const jDriver = await app.inject({ method: 'GET', url: '/admin/contact/journal?dossierType=chauffeur&dossierId=drv-7', headers: JETON });
+  assert.equal(jDriver.json().journal.length, 1);
+  // Le répertoire est servi avec, pour proposer aussi les lignes internes.
+  assert.ok(jDriver.json().contacts.length >= 4);
+
+  // L'issue se renseigne de la même façon partout.
+  const fin = await app.inject({
+    method: 'POST', url: `/admin/contact/${flotte.json().entry.id}/issue`, headers: JETON,
+    payload: { issue: 'messagerie', compteRendu: 'Message vocal laissé' },
+  });
+  assert.equal(fin.json().entry.issue, 'messagerie');
+});
+
+test('contacter exige le droit correspondant au dossier', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+  const { ROLE_PERMISSIONS } = await import('../src/modules/admin/roles.js');
+  // Le support peut joindre un client, pas déclencher une liaison de crise.
+  assert.ok(ROLE_PERMISSIONS.support.includes('clients:read'));
+  assert.ok(!ROLE_PERMISSIONS.support.includes('alerts:write'));
+  // L'analyste financier ne contacte ni client ni chauffeur.
+  assert.ok(!ROLE_PERMISSIONS.financial_analyst.includes('clients:read'));
+  assert.ok(!ROLE_PERMISSIONS.financial_analyst.includes('drivers:read'));
+});

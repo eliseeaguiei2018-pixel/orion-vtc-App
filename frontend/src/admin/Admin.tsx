@@ -598,6 +598,18 @@ function Console({ onLogout }: { onLogout: () => void }) {
     catch { /* refus déjà signalé (un numéro de secours ne se supprime pas) */ }
   };
 
+  /**
+   * MISE EN RELATION GÉNÉRIQUE — disponible depuis toutes les sessions.
+   * Le serveur consigne la tentative puis renvoie le lien que le poste ouvre.
+   */
+  const contacter = async (p: { dossierType: string; dossierId: string; canal: 'appel' | 'sms' | 'whatsapp'; numero: string; label: string; message?: string }) => {
+    if (!LIVE) { window.open(p.canal === 'appel' ? `tel:${p.numero}` : `sms:${p.numero}`, '_self'); return; }
+    try {
+      const r = await adminPost<{ lien: string }>('/admin/contact', p);
+      window.open(r.lien, '_self');
+    } catch { /* le refus (droit manquant) est déjà remonté */ }
+  };
+
   /* -------------------- Poste de contact SOS -------------------- */
   /**
    * Mise en relation depuis le dossier SOS. Le serveur consigne la tentative AVANT la
@@ -1074,7 +1086,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
             onSaveContact={(c) => void saveContact(c)} onDeleteContact={(id) => void deleteContact(id)}
           />
         )}
-        {section === 'support' && <SupportSection convs={support} stats={supportStats} macros={macros} canWrite={can('support:write')} canPromo={can('promos:write')} onReply={supportReply} onStatus={supportSetStatus} onCompensate={compensate} />}
+        {section === 'support' && <SupportSection convs={support} stats={supportStats} macros={macros} canWrite={can('support:write')} canPromo={can('promos:write')} clients={clients} onReply={supportReply} onStatus={supportSetStatus} onCompensate={compensate} onContact={(p) => void contacter(p)} />}
         {section === 'rides' && (
           <>
             <RidesSection rides={rides} meta={ridesMeta} onPage={setRidesPage} canWrite={can('rides:write')} onReassign={reassignRide} onOpen={openForensic} onForce={forceRide} onDest={changeDestination} />
@@ -1088,8 +1100,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'teams' && <TeamsSection teams={teams} allDrivers={drivers} staffKpis={staffKpis} shifts={shifts} maintenance={maintenance} canWrite={can('teams:write')} onSave={saveTeam} onDelete={deleteTeam} onShift={assignShift} onRemoveShift={removeShift} onMaintenance={openMaintenance} onResolveMaintenance={resolveMaintenance} onBroadcast={microBroadcast} onPnl={loadSquadPnl} onHoursCsv={() => void downloadCsv('/admin/staff/hours.csv', 'orion-heures.csv', () => 'employe,identifiant,date,tranche,zone')} onEvalPdf={(u) => void downloadFile(`/admin/staff/${u}/eval.pdf`, `orion-eval-${u}.pdf`)} />}
         {section === 'intel' && <IntelSection predict={predict} conversion={conversion} churn={churn} fraud={fraud} elasticity={elasticity} canNotify={can('notify:write')} onReengage={reengage} onCopilot={askCopilot} />}
         {section === 'b2b' && <CorporateSection accounts={corporate} canWrite={can('treasury:request')} canSettle={can('treasury:approve')} canBook={can('rides:write')} onSave={saveCorporate} onSettle={settleCorporate} onInvoice={exportInvoice} onEsg={(id) => void downloadFile(`/admin/corporate/${id}/esg.pdf`, `orion-esg-${id}.pdf`)} onInvoicePdf={(id) => void downloadFile(`/admin/corporate/${id}/invoice.pdf`, `facture-${id}.pdf`)} onImport={importMembers} onBook={webBook} />}
-        {section === 'drivers' && <DriversSection drivers={drivers} expiring={expiring} canWrite={can('drivers:write')} onAction={driverAction} onSuspend={suspendDriver} onLoyalty={setLoyalty} onOpen={openDriver} meta={driversMeta} onPage={setDriversPage} onContract={(id) => void downloadFile(`/admin/drivers/${id}/contract.pdf`, `orion-contrat-${id.slice(0, 8)}.pdf`)} onFleetCsv={() => void downloadCsv('/admin/fleet.csv', 'orion-flotte.csv', () => 'matricule,nom,motorisation')} />}
-        {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} onOpen={openClient} meta={clientsMeta} onPage={setClientsPage} onVip={setClientVip} onBlacklist={blacklistClient} onNoShow={noShowFee} onLtvCsv={() => void downloadCsv('/admin/clients.csv', 'orion-clients-ltv.csv', () => 'client,nom')} onBehaviorPdf={() => void downloadFile('/admin/clients/behavior.pdf', 'orion-comportement-clients.pdf')} />}
+        {section === 'drivers' && <DriversSection drivers={drivers} expiring={expiring} canWrite={can('drivers:write')} onAction={driverAction} onSuspend={suspendDriver} onLoyalty={setLoyalty} onOpen={openDriver} meta={driversMeta} onPage={setDriversPage} onContract={(id) => void downloadFile(`/admin/drivers/${id}/contract.pdf`, `orion-contrat-${id.slice(0, 8)}.pdf`)} onFleetCsv={() => void downloadCsv('/admin/fleet.csv', 'orion-flotte.csv', () => 'matricule,nom,motorisation')} onContact={(p) => void contacter(p)} />}
+        {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} onOpen={openClient} meta={clientsMeta} onPage={setClientsPage} onVip={setClientVip} onBlacklist={blacklistClient} onNoShow={noShowFee} onLtvCsv={() => void downloadCsv('/admin/clients.csv', 'orion-clients-ltv.csv', () => 'client,nom')} onBehaviorPdf={() => void downloadFile('/admin/clients/behavior.pdf', 'orion-comportement-clients.pdf')} onContact={(p) => void contacter(p)} />}
         {section === 'notify' && <NotifySection broadcasts={broadcasts} triggers={triggers} canWrite={can('notify:write')} onSend={sendBroadcast} onTrigger={runTrigger} />}
         {section === 'finance' && finance && <FinanceSection finance={finance} ops={ops} cashDebt={cashDebt} gateways={gateways} expenses={expenses} onExport={exportCsv} canExport={can('rides:read')} canWrite={can('pricing:write')} canGateway={can('services:write')} canApprove={can('treasury:request')} onSaveOps={saveOps} onToggleGateway={toggleGateway} onDecideExpense={decideExpense} onNewExpense={newExpense} onPayouts={() => void downloadCsv('/admin/payouts.csv', 'orion-payouts.csv', () => 'matricule,nom,solde')} />}
         {section === 'treasury' && <TreasurySection transfers={transfers} meName={me.name} liquidity={liquidity} amortization={amortization} canRequest={can('treasury:request')} canApprove={can('treasury:approve')} onRequest={requestTransfer} onDecide={decideTransfer} onExport={exportTreasuryCsv} onReportPdf={() => void downloadFile('/admin/treasury/report.pdf', 'orion-tresorerie-executif.pdf')} />}
@@ -1101,7 +1113,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
           <RentalSection
             reservations={rentals} fleet={prestige} stats={rentalStats} dispos={rentalDispos} drivers={drivers}
             canWrite={can('rental:write')}
-            onAssign={assignRental} onStatus={setRentalStatus} onCancel={cancelRental}
+            onAssign={assignRental} onStatus={setRentalStatus} onCancel={cancelRental} onContact={(p) => void contacter(p)}
             onBon={(id) => void downloadFile(`/admin/rental/${id}/bon.pdf`, `orion-location-${id}.pdf`)}
           />
         )}
