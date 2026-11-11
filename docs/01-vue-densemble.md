@@ -114,3 +114,4 @@ stateDiagram-v2
 | [`04-strategie-extension-services.md`](./04-strategie-extension-services.md) | Architecture d'extension multi-services |
 | [`05-architecture-scalabilite.md`](./05-architecture-scalabilite.md) | Robustesse et passage à l'échelle |
 | [`06-modele-de-donnees.md`](./06-modele-de-donnees.md) | Modèle de données et entités |
+| [`11-console-sessions.md`](./11-console-sessions.md) | La console : accès, sessions, interconnexion, rôles |

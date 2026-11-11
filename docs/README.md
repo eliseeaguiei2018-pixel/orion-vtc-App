@@ -14,6 +14,7 @@ Documentation fonctionnelle et technique de la plateforme de mobilité verte ORI
 | 08 | [Persistance des données](./08-persistance.md) | Repository (mémoire / SQLite / PostgreSQL), write-through + réhydratation |
 | 09 | [Dossier de reprise — App Chauffeur](./09-reprise-app-chauffeur.md) | Contexte, règles du projet, points d'accroche |
 | 10 | [Application Chauffeur](./10-app-chauffeur.md) | Fonctionnalités, synchronisation console, endpoints, règles métier, sécurité |
+| 11 | [Console : les sessions](./11-console-sessions.md) | Le poste de travail de chaque employé : accès et comptes, carte des sessions, interconnexion, rôles, règles du dispatch |
 
 > Les diagrammes sont en **Mermaid** et se rendent automatiquement sur GitHub.
 

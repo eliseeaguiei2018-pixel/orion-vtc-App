@@ -41,8 +41,9 @@ transparence des prix (FCFA) · qualité de service · extensibilité multi-serv
   véhicule, suivi temps réel, paiement, historique, notation, SOS.
 - **Chauffeur** *(à venir, séparé)* : inscription + KYC, disponibilité, courses, navigation,
   revenus, wallet.
-- **Admin** : validation chauffeurs, véhicules, suivi temps réel, stats, commissions,
-  promotions, support, supervision des urgences.
+- **Console admin** : le poste de travail de chaque employé, du PDG au chauffeur — un
+  identifiant par personne, des sessions par métier (Mon poste, Équipes, Équipages,
+  Caisses, Finances, Location, Suivi véhicules, SAMU…), toutes interconnectées.
 
 ## 📚 Documentation
 | Document | Sujet |
@@ -54,6 +55,7 @@ transparence des prix (FCFA) · qualité de service · extensibilité multi-serv
 | [Architecture & scalabilité](docs/05-architecture-scalabilite.md) | « Ne pas buguer quel que soit le nombre d'utilisateurs » |
 | [Modèle de données](docs/06-modele-de-donnees.md) | Entités et choix structurants |
 | [Côte d'Ivoire, sécurité & temps réel](docs/07-cote-divoire-securite-temps-reel.md) | Plan directeur CI, mobile money, accident/SAMU, WebSocket, Google Maps |
+| [Console : les sessions](docs/11-console-sessions.md) | Le poste de travail de chaque employé : accès, sessions, interconnexion, rôles |
 
 ## ⚙️ Backend (démarrage rapide)
 ```bash
