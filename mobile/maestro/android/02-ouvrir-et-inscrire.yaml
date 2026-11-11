@@ -34,13 +34,17 @@ appId: ci.orion.app
     commands:
       - back
 
-# Puis le choix dans la galerie du téléphone (portrait déposé dans « Images »).
+# Puis le choix dans la galerie : sélecteur de photos du système Android, où le portrait
+# déposé sur le téléphone est la photo la plus récente.
 - tapOn: "Choisir dans la galerie"
 - extendedWaitUntil:
-    visible: "portrait-aya.*"
+    visible: "Photo prise le.*|portrait-aya.*"
     timeout: 20000
+- waitForAnimationToEnd
 - takeScreenshot: 04c-galerie
-- tapOn: "portrait-aya.*"
+- tapOn:
+    text: "Photo prise le.*|portrait-aya.*"
+    index: 0
 - extendedWaitUntil:
     visible: "Utiliser cette photo"
     timeout: 30000
