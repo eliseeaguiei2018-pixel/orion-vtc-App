@@ -32,6 +32,10 @@ appId: ci.orion.app
     id: "PXGGridLayout-Info"
     index: 0
     optional: true
+# iOS montre la photo en grand : le client valide avec « Terminé ».
+- tapOn:
+    id: ".*ReviewScreenDone"
+    optional: true
 - extendedWaitUntil:
     visible: "Utiliser cette photo"
     timeout: 15000
@@ -49,10 +53,10 @@ appId: ci.orion.app
 - runFlow:
     when:
       visible:
-        id: "Cancel"
+        id: ".*Cancel"
     commands:
       - tapOn:
-          id: "Cancel"
+          id: ".*Cancel"
 - runFlow:
     when:
       visible: "Votre photo de profil"
