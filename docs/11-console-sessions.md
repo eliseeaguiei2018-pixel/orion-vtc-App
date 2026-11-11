@@ -22,7 +22,7 @@ chauffeur demande dans son espace arrive chez son manager et au DAF.
 
 | Famille | Session | Droit d'entrée | Pour quoi faire |
 |---------|---------|----------------|-----------------|
-| Poste | Mon poste | `overview:read` | Sa journée : à traiter, messages, rapports demandés, sa caisse, son équipe, sa flotte accréditée, son dossier. |
+| Poste | Mon poste | aucun (tout compte) | Sa journée : à traiter, messages, rapports demandés, sa caisse, son équipe, sa flotte accréditée ; pour un chauffeur, son poste complet. |
 | Poste | Mon équipe | `teams:read` | Le poste du manager : ce que font ses membres, appel, message, demande de rapport ou de bilan. |
 | Pilotage | Vue d'ensemble | `overview:read` | Compteurs du jour. Les chauffeurs « sans position récente » sont comptés à part. |
 | Pilotage | Direction Générale | `executive:read` | Consolidation PDG : finances, caisses, flotte, alertes, décisions à prendre. |
@@ -49,6 +49,15 @@ Chaque employé y trouve **tout ce que son service lui permet**, sans naviguer :
 les éléments à traiter triés par urgence, les messages de son manager, les rapports
 qu'on lui a demandés, sa caisse s'il en tient une, son équipe s'il en dirige une, la
 flotte qu'on lui a accréditée, et son propre dossier.
+
+### Mon poste d'un chauffeur
+Le chauffeur se connecte avec son identifiant et ne voit que **son** poste : sa
+gamme, sa note, ses courses et revenus sur 30 jours, son solde, les espèces qu'il
+doit reverser face au plafond, ce qui lui reste à rembourser, ses dernières
+courses, son véhicule et son assurance, son équipe avec un bouton pour appeler son
+chef d'équipe. Il y dépose lui-même ses demandes (prêt, avance, réparation,
+congé…) avec les plafonds affichés ; elles arrivent chez son chef d'équipe. Il ne
+voit ni chiffre de l'entreprise, ni dossier d'un collègue.
 
 ### Mon équipe et Équipes
 Les **managers créent leurs équipes** : un rôle, une mission, des membres. Chaque
@@ -85,6 +94,30 @@ la confirme, et elle n'est exécutée qu'une fois le véhicule à l'arrêt (5 km
 plus). La déclaration de vol produit un **signalement PDF pour la police** avec la
 position GPS, l'historique de positions et l'identité du locataire ; la transmission
 et la clôture sont tracées.
+
+### Supervision SAMU : le circuit d'une alerte SOS
+1. **Le client appuie sur SOS.** La console de chaque agent habilité affiche un
+   bandeau d'alarme et sonne (niveau rouge) ; la file de triage se met à jour.
+   Le client voit « Alerte reçue par la supervision ORION » — et rien de plus
+   tant que personne n'a agi.
+2. **Un agent accepte l'alerte** (verrou nominatif). Le client lit « Prise en
+   charge par *prénom*, agent ORION ».
+3. **Le dossier s'ouvre** : véhicule à dicter à la police, chauffeur, passager,
+   télémétrie, trajet réel.
+4. **Chat discret** dans les deux sens : messages pré-enregistrés côté agent,
+   réponses rapides côté client (« Je ne peux pas parler », « Envoyez de l'aide »).
+5. **Secours** : l'appel au SAMU, à la police ou aux pompiers part du poste et
+   est consigné avant la composition. Le client voit « ORION appelle le SAMU
+   (185)… », puis « SAMU (185) prévenu par ORION » quand l'agent l'a joint. Un
+   SMS ou un WhatsApp vers un secours part pré-rédigé avec la position GPS (lien
+   carte), le passager, le véhicule et le chauffeur ; le client voit « Votre
+   position a été transmise ».
+6. **Clôture** avec note de synthèse : le dossier est scellé, le client est
+   informé.
+
+Un secours n'est jamais annoncé au client avant d'avoir été réellement sollicité.
+Le flux d'urgence temps réel et la liste brute des alertes sont réservés au
+personnel habilité ; le suivi d'une alerte, à la personne qui l'a déclenchée.
 
 ### Personnel & accès
 L'annuaire des comptes : création, réinitialisation, désactivation, réactivation,
