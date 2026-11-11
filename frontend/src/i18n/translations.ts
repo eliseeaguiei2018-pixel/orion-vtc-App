@@ -22,6 +22,7 @@ export const LANGUAGES: LangMeta[] = [
 export type Dict = Record<string, string>;
 
 const fr: Dict = {
+  set_accent: 'Couleur de l’application', accent_vert: 'Vert ORION', accent_orange: 'Orange', accent_bleu: 'Bleu', accent_hint: 'Appliquée tout de suite à toute l’app.',
   otp_label: 'Code à 6 chiffres',
   tagline: 'Mobilité verte · Abidjan',
   demoMode: 'Mode démo — données simulées',
@@ -315,6 +316,7 @@ const fr: Dict = {
 };
 
 const en: Dict = {
+  set_accent: 'App colour', accent_vert: 'ORION green', accent_orange: 'Orange', accent_bleu: 'Blue', accent_hint: 'Applied instantly across the app.',
   otp_label: '6-digit code',
   tagline: 'Green mobility · Abidjan',
   demoMode: 'Demo mode — simulated data',
@@ -606,6 +608,7 @@ const en: Dict = {
 };
 
 const es: Dict = {
+  set_accent: 'Color de la app', accent_vert: 'Verde ORION', accent_orange: 'Naranja', accent_bleu: 'Azul', accent_hint: 'Se aplica al instante en toda la app.',
   otp_label: 'Código de 6 dígitos',
   tagline: 'Movilidad verde · Abiyán',
   demoMode: 'Modo demo — datos simulados',
@@ -982,6 +985,7 @@ const es: Dict = {
 };
 
 const it: Dict = {
+  set_accent: 'Colore dell’app', accent_vert: 'Verde ORION', accent_orange: 'Arancione', accent_bleu: 'Blu', accent_hint: 'Applicato subito in tutta l’app.',
   otp_label: 'Codice a 6 cifre',
   tagline: 'Mobilità verde · Abidjan',
   demoMode: 'Modalità demo — dati simulati',
@@ -1358,6 +1362,7 @@ const it: Dict = {
 };
 
 const de: Dict = {
+  set_accent: 'App-Farbe', accent_vert: 'ORION-Grün', accent_orange: 'Orange', accent_bleu: 'Blau', accent_hint: 'Sofort in der ganzen App übernommen.',
   otp_label: '6-stelliger Code',
   tagline: 'Grüne Mobilität · Abidjan',
   demoMode: 'Demo-Modus — simulierte Daten',
@@ -1734,6 +1739,7 @@ const de: Dict = {
 };
 
 const ar: Dict = {
+  set_accent: 'لون التطبيق', accent_vert: 'أخضر ORION', accent_orange: 'برتقالي', accent_bleu: 'أزرق', accent_hint: 'يُطبَّق فورًا على التطبيق بأكمله.',
   otp_label: 'رمز من 6 أرقام',
   tagline: 'تنقّل أخضر · أبيدجان',
   demoMode: 'وضع تجريبي — بيانات محاكاة',
@@ -2110,6 +2116,7 @@ const ar: Dict = {
 };
 
 const zh: Dict = {
+  set_accent: '应用颜色', accent_vert: 'ORION 绿', accent_orange: '橙色', accent_bleu: '蓝色', accent_hint: '立即应用到整个应用。',
   otp_label: '6 位验证码',
   tagline: '绿色出行 · 阿比让',
   demoMode: '演示模式 — 模拟数据',
@@ -2486,6 +2493,7 @@ const zh: Dict = {
 };
 
 const ru: Dict = {
+  set_accent: 'Цвет приложения', accent_vert: 'Зелёный ORION', accent_orange: 'Оранжевый', accent_bleu: 'Синий', accent_hint: 'Применяется сразу во всём приложении.',
   otp_label: '6-значный код',
   tagline: 'Зелёная мобильность · Абиджан',
   demoMode: 'Демо-режим — смоделированные данные',

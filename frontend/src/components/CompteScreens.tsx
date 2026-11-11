@@ -5,7 +5,7 @@ import {
   IconPin, IconShield, IconShieldCheck, IconWallet, IconCrown, IconPhone, IconCar,
 } from '../icons';
 import { useI18n, LANGUAGES, type Lang } from '../i18n';
-import { useTheme, type ThemeMode } from '../theme';
+import { ACCENTS, useTheme, type ThemeMode } from '../theme';
 import { COUNTRIES, formatXOF } from '../data';
 import { isBiometricEnabled, setBiometricEnabled } from '../security';
 import {
@@ -239,7 +239,7 @@ export function SettingsScreen({
   shareRides: boolean; setShareRides: (v: boolean) => void;
 }) {
   const { t, lang, setLang } = useI18n();
-  const { mode, setMode } = useTheme();
+  const { mode, setMode, accent, setAccent } = useTheme();
   const [bio, setBio] = useState(isBiometricEnabled());
   const [name, setName] = useState(trusted?.name ?? '');
   const [phone, setPhone] = useState(trusted?.phone ?? '');
@@ -255,7 +255,7 @@ export function SettingsScreen({
         <strong style={{ fontSize: 14 }}>{titre}</strong>
         {sous && <span className="faint" style={{ fontSize: 12 }}>{sous}</span>}
       </span>
-      <IconChevron size={18} color="#6f8a7e" />
+      <IconChevron size={18} color="var(--text-faint)" />
     </button>
   );
 
@@ -332,6 +332,17 @@ export function SettingsScreen({
             <button key={o.m} className={`chip${mode === o.m ? ' active' : ''}`} onClick={() => setMode(o.m)}>{t(o.k)}</button>
           ))}
         </div>
+        {/* Couleur de l'app : appliquée tout de suite, partout (cartes, boutons, carte, suivi). */}
+        <span className="faint" style={{ fontSize: 12 }}>{t('set_accent')}</span>
+        <div className="accent-choix" role="radiogroup" aria-label={t('set_accent')}>
+          {ACCENTS.map((a) => (
+            <button key={a} role="radio" aria-checked={accent === a} className={`accent-option${accent === a ? ' active' : ''}`} onClick={() => setAccent(a)}>
+              <span className={`accent-pastille accent-${a}`}>{accent === a && <IconCheck size={16} />}</span>
+              <span>{t(`accent_${a}`)}</span>
+            </button>
+          ))}
+        </div>
+        <p className="faint" style={{ fontSize: 11, margin: '-6px 2px 14px' }}>{t('accent_hint')}</p>
         <span className="faint" style={{ fontSize: 12 }}><IconGlobe size={12} /> {t('set_language')}</span>
         <div className="grid2" style={{ margin: '8px 0 14px' }}>
           {LANGUAGES.map((l) => (

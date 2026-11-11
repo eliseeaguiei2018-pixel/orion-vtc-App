@@ -1039,7 +1039,7 @@ function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onC
                 <strong style={{ fontSize: 15 }}>{p.name}</strong>
                 <span className="faint" style={{ fontSize: 13 }}>{p.area}</span>
               </span>
-              <IconChevron size={18} color="#6f8a7e" />
+              <IconChevron size={18} color="var(--text-faint)" />
             </button>
           ))}
         </div>
@@ -1093,7 +1093,7 @@ function DeliveryScreen({ origin, pkgSize, onBack, onConfirm }: {
         ) : (
           <>
             <div className="field" style={{ margin: '8px 0' }}>
-              <IconSearch size={20} color="#6f8a7e" />
+              <IconSearch size={20} color="var(--text-faint)" />
               <input autoFocus placeholder={t('del_dropoff')} value={q} onChange={(e) => setQ(e.target.value)} />
             </div>
             <div style={{ maxHeight: 168, overflowY: 'auto' }}>
@@ -1148,7 +1148,7 @@ function DestinationScreen({ origin, onBack, onChoose }: { origin: Place; onBack
       <div style={{ flex: 1 }} />
       <Sheet>
         <div className="field" style={{ marginBottom: 8 }}>
-          <IconSearch size={20} color="#6f8a7e" />
+          <IconSearch size={20} color="var(--text-faint)" />
           <input autoFocus placeholder={t('dest_search')} value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <div style={{ maxHeight: 340, overflowY: 'auto' }}>
@@ -1272,7 +1272,7 @@ function ConfirmScreen({ origin, destination, tier, quote, coverage, payment, pa
         {scheduled && <p className="faint" style={{ fontSize: 12, marginBottom: 12 }}>⏰ {t('sched_note')}</p>}
 
         {/* ORION Assurance (optionnelle, +2%) */}
-        <div className="opt" style={{ marginBottom: 14, ...(insurance ? { borderColor: 'var(--green)', background: 'rgba(0,168,101,0.06)' } : {}) }}>
+        <div className="opt" style={{ marginBottom: 14, ...(insurance ? { borderColor: 'var(--green)', background: 'rgba(var(--accent-rgb),0.06)' } : {}) }}>
           <span className="list-ico" style={{ color: 'var(--green)' }}><IconShieldCheck size={18} /></span>
           <span className="col grow" style={{ textAlign: 'start' }}>
             <strong style={{ fontSize: 14 }}>{t('ins_toggle')}</strong>
@@ -1315,7 +1315,7 @@ function ConfirmScreen({ origin, destination, tier, quote, coverage, payment, pa
           <>
             <button className="row between list-btn" style={{ width: '100%' }} onClick={() => setShowWhy((v) => !v)}>
               <span className="row gap-sm"><TrafficBadge level={quote.trafficLevel} /><span className="faint" style={{ fontSize: 12, textDecoration: 'underline' }}>{t('why_price')}</span></span>
-              <IconChevron size={16} color="#6f8a7e" />
+              <IconChevron size={16} color="var(--text-faint)" />
             </button>
             {showWhy && (
               <div style={{ marginTop: 8 }}>
@@ -1597,7 +1597,7 @@ function RatingScreen({ driver, quote, payment, destination, rating, setRating, 
         </div>
         <div className="stars" style={{ margin: '8px 0 16px' }}>
           {[1, 2, 3, 4, 5].map((n) => (
-            <span key={n} className="star" onClick={() => setRating(n)}><IconStar size={38} color={n <= rating ? '#f5c451' : '#1d3a2d'} /></span>
+            <span key={n} className="star" onClick={() => setRating(n)}><IconStar size={38} color={n <= rating ? '#f5c451' : 'var(--stroke-strong)'} /></span>
           ))}
         </div>
         <span className="eyebrow">{t('rate_tip')}</span>
@@ -1864,7 +1864,7 @@ function HelpScreen({ onBack, onSupport }: { onBack: () => void; onSupport: () =
             <div key={i} className="card" style={{ padding: 0, overflow: 'hidden' }}>
               <button className="list-btn row between" style={{ width: '100%', padding: 14 }} onClick={() => setOpen(open === i ? null : i)}>
                 <strong style={{ fontSize: 14, textAlign: 'start' }}>{f.q}</strong>
-                <IconChevron size={16} color="#6f8a7e" />
+                <IconChevron size={16} color="var(--text-faint)" />
               </button>
               {open === i && <p className="faint" style={{ fontSize: 13, padding: '0 14px 14px', margin: 0 }}>{f.a}</p>}
             </div>
@@ -2009,7 +2009,7 @@ function WalletScreen({ onBack, onToast }: { onBack: () => void; onToast: (m: st
     <div className="screen page">
       <TopBar onBack={onBack} title={t('wal_title')} />
       <div className="page-body">
-        <div className="card" style={{ padding: 20, marginBottom: 16, background: 'linear-gradient(135deg, var(--green-deep), var(--green-bright))', border: 'none', color: '#04140d' }}>
+        <div className="card" style={{ padding: 20, marginBottom: 16, background: 'linear-gradient(135deg, var(--green-deep), var(--green-bright))', border: 'none', color: 'var(--btn-on)' }}>
           <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.85 }}>{t('wal_balance')}</span>
           <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 36 }}>{formatXOF(balance)}</div>
         </div>

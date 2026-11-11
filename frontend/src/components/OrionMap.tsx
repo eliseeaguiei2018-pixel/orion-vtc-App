@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { LatLng } from '../types';
-import { useTheme } from '../theme';
+import { useTheme, type Accent } from '../theme';
 import { getTileConfig } from '../mapConfig';
 import { RealMap } from './RealMap';
 
@@ -63,9 +63,22 @@ interface Props {
   traffic?: boolean;
 }
 
+/** Itinéraire, départ et véhicule prennent la couleur choisie par le client. */
+const ACCENT_CARTE: Record<Accent, Record<'dark' | 'light', Partial<Palette>>> = {
+  vert: { dark: {}, light: {} },
+  orange: {
+    dark: { land: '#1c140c', land2: '#140d07', roadCasing: '#22170d', roadFill: '#3d2c1c', label: '#8a735f', route0: '#ffb05a', route1: '#e86a00', origin: '#ffb05a', car: '#ffb05a', ink: '#1c0e02' },
+    light: { land: '#f3ece4', land2: '#faf6f1', roadCasing: '#e2d6ca', label: '#a08d7c', route0: '#ff8a1f', route1: '#c25700', origin: '#e06a00', car: '#e06a00' },
+  },
+  bleu: {
+    dark: { land: '#0b1626', land2: '#07101c', roadCasing: '#0d1a2c', roadFill: '#1f3350', label: '#61758f', route0: '#79b8ff', route1: '#1f74e8', origin: '#79b8ff', car: '#79b8ff', ink: '#03112a' },
+    light: { land: '#e8eef6', land2: '#f4f7fb', roadCasing: '#d0dae6', label: '#8696ad', route0: '#3d95ff', route1: '#0f5bc4', origin: '#1a6fe0', car: '#1a6fe0' },
+  },
+};
+
 export function OrionMap({ origin, destination, stops = [], car, vehicle = 'car', traffic = true }: Props) {
-  const { resolved } = useTheme();
-  const P = resolved === 'light' ? LIGHT : DARK;
+  const { resolved, accent } = useTheme();
+  const P: Palette = { ...(resolved === 'light' ? LIGHT : DARK), ...ACCENT_CARTE[accent][resolved] };
 
   // Vrai fond de carte (tuiles) si un fournisseur est configuré ; sinon carte stylisée.
   const tiles = getTileConfig();

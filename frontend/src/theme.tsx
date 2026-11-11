@@ -2,15 +2,45 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type Resolved = 'light' | 'dark';
+/** Couleur d'accent choisie par le client, sur la base du design ORION. */
+export type Accent = 'vert' | 'orange' | 'bleu';
+export const ACCENTS: Accent[] = ['vert', 'orange', 'bleu'];
 
 interface ThemeValue {
   mode: ThemeMode;
   resolved: Resolved;
   setMode: (m: ThemeMode) => void;
+  accent: Accent;
+  setAccent: (a: Accent) => void;
 }
 
 const ThemeContext = createContext<ThemeValue | null>(null);
 const KEY = 'orion.theme';
+const KEY_ACCENT = 'orion.accent';
+
+/** Couleur de la barre du navigateur / du système, par accent et par mode. */
+const BARRE: Record<Accent, Record<Resolved, string>> = {
+  vert: { dark: '#04100b', light: '#ffffff' },
+  orange: { dark: '#120a04', light: '#ffffff' },
+  bleu: { dark: '#040a14', light: '#ffffff' },
+};
+
+function accentInitial(): Accent {
+  try {
+    const a = localStorage.getItem(KEY_ACCENT) as Accent | null;
+    if (a && ACCENTS.includes(a)) return a;
+  } catch { /* stockage indisponible */ }
+  return 'vert';
+}
+
+function appliquerAccent(a: Accent, r: Resolved): void {
+  document.documentElement.setAttribute('data-accent', a);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', BARRE[a][r]);
+}
+
+// Appliqué dès le chargement du module, avant le premier affichage : pas d'éclair vert
+// au démarrage pour un client qui a choisi l'orange ou le bleu.
+if (typeof document !== 'undefined') document.documentElement.setAttribute('data-accent', accentInitial());
 
 const systemPrefersDark = () =>
   typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
@@ -22,6 +52,7 @@ function initialMode(): ThemeMode {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>(initialMode);
+  const [accent, setAccentState] = useState<Accent>(accentInitial);
   const [resolved, setResolved] = useState<Resolved>(
     initialMode() === 'system' ? (systemPrefersDark() ? 'dark' : 'light') : (initialMode() as Resolved),
   );
@@ -33,6 +64,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       setResolved(r);
       document.documentElement.setAttribute('data-theme', r);
       document.documentElement.style.colorScheme = r;
+      appliquerAccent(accent, r);
     };
     apply();
     // Optimisation auto : suit le thème du téléphone quand mode = system.
@@ -43,7 +75,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       return () => mq.removeEventListener?.('change', onChange);
     }
     return undefined;
-  }, [mode]);
+  }, [mode, accent]);
 
   const setMode = (m: ThemeMode) => {
     setModeState(m);
@@ -54,7 +86,20 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  return <ThemeContext.Provider value={{ mode, resolved, setMode }}>{children}</ThemeContext.Provider>;
+  /**
+   * Change la couleur de l'app en temps réel. Avec la transition de vue du navigateur
+   * (Chrome, Android, Safari 18+), l'ancien rendu se fond dans le nouveau ; sinon le
+   * changement est immédiat.
+   */
+  const setAccent = (a: Accent) => {
+    try { localStorage.setItem(KEY_ACCENT, a); } catch { /* stockage indisponible */ }
+    const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+    const changer = () => { appliquerAccent(a, resolved); setAccentState(a); };
+    if (doc.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) doc.startViewTransition(changer);
+    else changer();
+  };
+
+  return <ThemeContext.Provider value={{ mode, resolved, setMode, accent, setAccent }}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme(): ThemeValue {
