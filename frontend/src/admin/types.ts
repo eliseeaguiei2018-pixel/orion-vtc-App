@@ -330,6 +330,15 @@ export interface MonPoste {
     matricule: string; courses: number; revenus: number; solde: number; resteDu: number;
     requetes: Array<{ id: string; type: string; statut: string; montant?: number; createdAt: string }>;
     alertes: Array<{ severite: string; texte: string }>;
+    driverId: string;
+    profil: { name: string; category: string; availability: string; kycStatus: string; rating: number; trips: number; insuranceExpiry?: string };
+    vehicule: { model?: string; plate?: string; color?: string; engine: string; batteryPct?: number };
+    equipe: { name: string; mission?: string; managerName?: string; managerPhone?: string | null } | null;
+    activite: { periodeJours: number; coursesAnnulees: number; kilometres: number; commissionVersee: number; noteMoyenne: number; nbNotes: number; joursTravailles: number };
+    argent: { detteEspeces: number; plafondDette: number; dernieresEcritures: Array<{ at: string; type: string; amount: number; note: string }> };
+    dernieresCourses: Array<{ id: string; at: string; trajet: string; montant: number; paiement: string; statut: string; note?: number }>;
+    typesRequete: Array<{ code: string; label: string; financiere: boolean }>;
+    plafonds: { avance: number; pret: number; echeancesMax: number };
   } | null;
   bilan: {
     dossiers: number; demandes: number; aTraiter: number; actionsAujourdhui: number;

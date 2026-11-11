@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Kpi } from '../ui';
 import type { MonPoste } from '../types';
 
@@ -71,7 +72,7 @@ function depuis(iso: string): string {
   return `${Math.round(h / 24)} j`;
 }
 
-export function MonPosteSection({ poste, onAller, onLireMessage, onRepondre, onRendreRapport, onOuvrirChauffeur, onChangerMotDePasse }: {
+export function MonPosteSection({ poste, onAller, onLireMessage, onRepondre, onRendreRapport, onOuvrirChauffeur, onChangerMotDePasse, onDeposerRequete }: {
   poste: MonPoste | null;
   onAller: (section: string) => void;
   onLireMessage: (id: string) => void;
@@ -79,8 +80,13 @@ export function MonPosteSection({ poste, onAller, onLireMessage, onRepondre, onR
   onRendreRapport: (id: string, texte: string) => void;
   onOuvrirChauffeur: (driverId: string) => void;
   onChangerMotDePasse: () => void;
+  onDeposerRequete: (driverId: string, r: NouvelleRequete) => Promise<boolean>;
 }) {
   if (!poste) return <p className="adm-muted">Chargement de votre poste…</p>;
+  // Le chauffeur a SON poste : son travail, son argent, ses demandes. Rien d'autre.
+  if (poste.identite.role === 'chauffeur' && poste.monDossier) {
+    return <PosteChauffeur poste={poste} dossier={poste.monDossier} onChangerMotDePasse={onChangerMotDePasse} onDeposer={onDeposerRequete} />;
+  }
 
   const rienAFaire = poste.mesDossiers.length === 0 && poste.aTraiter.length === 0
     && poste.messages.length === 0 && poste.rapports.length === 0
@@ -407,5 +413,239 @@ export function MonPosteSection({ poste, onAller, onLireMessage, onRepondre, onR
         </p>
       </div>
     </>
+  );
+}
+
+/* =========================== POSTE DU CHAUFFEUR =========================== */
+
+export interface NouvelleRequete {
+  type: string; montant?: number; echeances?: number; du?: string; au?: string; motif: string;
+}
+
+const PAIEMENT: Record<string, string> = {
+  cash: 'Espèces', orange_money: 'Orange Money', wave: 'Wave', mtn_momo: 'MTN MoMo', moov_money: 'Moov Money', card: 'Carte',
+};
+const STATUT_COURSE: Record<string, string> = {
+  searching: 'Recherche', accepted: 'Acceptée', driver_en_route: 'En approche', arrived: 'Sur place', in_progress: 'En course',
+  completed: 'Terminée · à encaisser', paid: 'Payée', rated: 'Payée et notée', cancelled: 'Annulée', no_driver: 'Sans chauffeur',
+};
+const DISPO: Record<string, string> = { online: 'En ligne', on_trip: 'En course', offline: 'Hors ligne', paused: 'En pause' };
+const GAMME = (c: string) => c.charAt(0).toUpperCase() + c.slice(1);
+/** Libellés des écritures du portefeuille chauffeur (types du grand livre). */
+const ECRITURE: Record<string, string> = {
+  ride_earning: 'Gain de course', commission: 'Commission ORION', cash_collected: 'Espèces encaissées',
+  payout: 'Retrait', adjustment: 'Ajustement', insurance_refund: 'Remboursement assurance',
+};
+
+/**
+ * Le poste de travail d'un chauffeur dans la console. Avant, il restait bloqué
+ * sur « Chargement de la console… » : l'écran attendait des chiffres d'entreprise
+ * qu'un chauffeur n'a pas le droit de lire. Ici, tout ce qui le concerne, et la
+ * possibilité de faire ses demandes lui-même — elles arrivent chez son chef
+ * d'équipe, puis au DAF, puis à la trésorerie.
+ */
+function PosteChauffeur({ poste, dossier: d, onChangerMotDePasse, onDeposer }: {
+  poste: MonPoste;
+  dossier: NonNullable<MonPoste['monDossier']>;
+  onChangerMotDePasse: () => void;
+  onDeposer: (driverId: string, r: NouvelleRequete) => Promise<boolean>;
+}) {
+  const prenom = d.profil.name.split(' ')[0];
+  const detteRatio = d.argent.plafondDette > 0 ? d.argent.detteEspeces / d.argent.plafondDette : 0;
+  return (
+    <>
+      <div className="adm-card">
+        <div className="adm-card-h">
+          <h3>Bonjour {prenom}</h3>
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+            <span className={`adm-pill av-${d.profil.availability}`}>{DISPO[d.profil.availability] ?? d.profil.availability}</span>
+            <span className="adm-pill">Gamme {GAMME(d.profil.category)}</span>
+            <span className="adm-pill mono">{d.matricule}</span>
+          </div>
+        </div>
+        <p className="adm-muted" style={{ margin: '0 0 12px' }}>
+          ★ {d.profil.rating.toFixed(1)} · {d.profil.trips.toLocaleString('fr-FR')} courses au total
+          {d.equipe ? <> · équipe <strong>{d.equipe.name}</strong></> : ' · sans équipe'}
+        </p>
+        <div className="adm-kpis" style={{ margin: 0 }}>
+          <Kpi label="Mes courses" value={String(d.courses)} sub={`sur ${d.activite.periodeJours} jours · ${d.activite.joursTravailles} jour(s) travaillé(s)`} tone="teal" />
+          <Kpi label="Mes revenus" value={fcfa(d.revenus)} sub={`ma part · ${fcfa(d.activite.commissionVersee)} de commission`} tone="green" />
+          <Kpi label="Ma note" value={d.activite.nbNotes ? `${d.activite.noteMoyenne.toFixed(1)} ★` : '—'} sub={`${d.activite.nbNotes} note(s) sur la période`} tone="blue" />
+          <Kpi label="Mon solde" value={fcfa(d.solde)} sub="disponible au retrait" tone={d.solde < 0 ? 'danger' : 'green'} />
+          <Kpi label="Espèces à reverser" value={fcfa(d.argent.detteEspeces)} sub={`plafond ${fcfa(d.argent.plafondDette)}${detteRatio >= 0.8 ? ' · bientôt bloqué' : ''}`} tone={detteRatio >= 1 ? 'danger' : detteRatio >= 0.8 ? 'blue' : 'green'} />
+          <Kpi label="Reste à rembourser" value={fcfa(d.resteDu)} sub="prêts et avances en cours" tone={d.resteDu > 0 ? 'blue' : 'green'} />
+        </div>
+        {poste.identite.mustChangePassword && (
+          <p className="adm-muted" style={{ fontSize: 12.5, marginBottom: 0 }}>
+            Votre mot de passe est encore celui qu’on vous a remis.{' '}
+            <button className="adm-btn xs solid" onClick={onChangerMotDePasse}>Le changer maintenant</button>
+          </p>
+        )}
+      </div>
+
+      {d.alertes.length > 0 && (
+        <div className="adm-card">
+          <div className="adm-card-h"><h3>À régler de mon côté</h3><span className="adm-muted">{d.alertes.length} point(s)</span></div>
+          <div className="stack" style={{ gap: 6 }}>
+            {d.alertes.map((a, i) => (
+              <div key={i} className="row" style={{ gap: 8 }}>
+                <span className={`adm-pill ${SEV_CLS[a.severite] ?? ''}`}>{SEV_LABEL[a.severite] ?? a.severite}</span>
+                <span style={{ fontSize: 13 }}>{a.texte}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="adm-grid2">
+        <div className="adm-card">
+          <div className="adm-card-h"><h3>Mes dernières courses</h3><span className="adm-muted">{d.activite.kilometres.toLocaleString('fr-FR')} km sur la période</span></div>
+          {d.dernieresCourses.length === 0 ? <p className="adm-empty">Aucune course pour l’instant.</p> : (
+            <table className="adm-table sm">
+              <thead><tr><th>Quand</th><th>Trajet</th><th className="r">Montant</th><th>Paiement</th><th>État</th></tr></thead>
+              <tbody>
+                {d.dernieresCourses.map((c) => (
+                  <tr key={c.id}>
+                    <td className="adm-muted">{dt(c.at)}</td>
+                    <td>{c.trajet}</td>
+                    <td className="r">{fcfa(c.montant)}</td>
+                    <td>{PAIEMENT[c.paiement] ?? c.paiement}</td>
+                    <td><span className="adm-pill">{STATUT_COURSE[c.statut] ?? c.statut}</span>{c.note ? <span className="adm-muted"> · {c.note} ★</span> : null}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div className="stack" style={{ gap: 14 }}>
+          <div className="adm-card" style={{ margin: 0 }}>
+            <div className="adm-card-h"><h3>Mon véhicule</h3><span className="adm-pill">{d.vehicule.engine === 'electric' ? '100 % électrique' : d.vehicule.engine}</span></div>
+            <div className="row" style={{ gap: 24, flexWrap: 'wrap' }}>
+              <span><span className="adm-muted" style={{ fontSize: 12 }}>Modèle</span><br /><strong>{d.vehicule.model ?? 'non renseigné'}</strong></span>
+              <span><span className="adm-muted" style={{ fontSize: 12 }}>Immatriculation</span><br /><strong className="mono">{d.vehicule.plate ?? d.matricule}</strong></span>
+              {d.vehicule.batteryPct !== undefined && <span><span className="adm-muted" style={{ fontSize: 12 }}>Batterie</span><br /><strong>{d.vehicule.batteryPct} %</strong></span>}
+              <span><span className="adm-muted" style={{ fontSize: 12 }}>Assurance</span><br /><strong>{d.profil.insuranceExpiry ? `jusqu’au ${new Date(d.profil.insuranceExpiry).toLocaleDateString('fr-FR')}` : 'à fournir'}</strong></span>
+            </div>
+          </div>
+          <div className="adm-card" style={{ margin: 0 }}>
+            <div className="adm-card-h"><h3>Mon équipe</h3>{d.equipe?.mission && <span className="adm-muted">{d.equipe.mission}</span>}</div>
+            {d.equipe ? (
+              <div className="row between" style={{ gap: 10, flexWrap: 'wrap' }}>
+                <span><strong>{d.equipe.name}</strong><br /><span className="adm-muted">Chef d’équipe : {d.equipe.managerName ?? 'non désigné'}</span></span>
+                {d.equipe.managerPhone && <a className="adm-btn solid" href={`tel:${d.equipe.managerPhone}`}>📞 Appeler mon chef d’équipe</a>}
+              </div>
+            ) : <p className="adm-muted" style={{ margin: 0 }}>Vous n’êtes rattaché(e) à aucune équipe. Vos demandes vont directement à la direction.</p>}
+          </div>
+        </div>
+      </div>
+
+      <div className="adm-grid2">
+        <div className="adm-card">
+          <div className="adm-card-h"><h3>Mes demandes</h3><span className="adm-muted">chef d’équipe → DAF → trésorerie</span></div>
+          {d.requetes.length === 0 ? <p className="adm-empty">Aucune demande déposée.</p> : (
+            <table className="adm-table sm">
+              <thead><tr><th>Demande</th><th className="r">Montant</th><th>Où elle en est</th><th>Déposée le</th></tr></thead>
+              <tbody>
+                {d.requetes.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.type}</td>
+                    <td className="r">{r.montant ? fcfa(r.montant) : '—'}</td>
+                    <td><span className="adm-pill">{r.statut}</span></td>
+                    <td className="adm-muted">{dt(r.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {d.argent.dernieresEcritures.length > 0 && (
+            <>
+              <h4 className="adm-drawer-sec" style={{ marginTop: 14 }}>Mes derniers mouvements</h4>
+              <table className="adm-table sm">
+                <tbody>
+                  {d.argent.dernieresEcritures.map((e, i) => (
+                    <tr key={i}>
+                      <td className="adm-muted">{dt(e.at)}</td>
+                      <td>{ECRITURE[e.type] ?? e.type}{e.note ? <span className="adm-muted"> · {e.note}</span> : null}</td>
+                      <td className={`r ${e.amount < 0 ? 'neg' : 'pos'}`}>{e.amount > 0 ? '+' : ''}{fcfa(e.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </div>
+        <FormulaireRequete dossier={d} onDeposer={onDeposer} />
+      </div>
+    </>
+  );
+}
+
+function FormulaireRequete({ dossier: d, onDeposer }: {
+  dossier: NonNullable<MonPoste['monDossier']>;
+  onDeposer: (driverId: string, r: NouvelleRequete) => Promise<boolean>;
+}) {
+  const [type, setType] = useState(d.typesRequete[0]?.code ?? 'avance');
+  const [montant, setMontant] = useState('');
+  const [echeances, setEcheances] = useState('3');
+  const [du, setDu] = useState('');
+  const [au, setAu] = useState('');
+  const [motif, setMotif] = useState('');
+  const [envoi, setEnvoi] = useState<'repos' | 'envoi' | 'ok'>('repos');
+  const financiere = d.typesRequete.find((x) => x.code === type)?.financiere ?? false;
+  const plafond = type === 'avance' ? d.plafonds.avance : type === 'pret' ? d.plafonds.pret : undefined;
+  const m = Number(montant.replace(/\s/g, ''));
+  const montantOk = !financiere || (m > 0 && (plafond === undefined || m <= plafond));
+  const pret = motif.trim().length >= 3 && montantOk && (type !== 'conge' || (du && au));
+
+  const envoyer = async () => {
+    setEnvoi('envoi');
+    const ok = await onDeposer(d.driverId, {
+      type, motif: motif.trim(),
+      ...(financiere ? { montant: m } : {}),
+      ...(type === 'pret' ? { echeances: Number(echeances) } : {}),
+      ...(type === 'conge' ? { du, au } : {}),
+    });
+    setEnvoi(ok ? 'ok' : 'repos');
+    if (ok) { setMontant(''); setMotif(''); setDu(''); setAu(''); }
+  };
+
+  return (
+    <div className="adm-card">
+      <div className="adm-card-h"><h3>Faire une demande</h3><span className="adm-muted">traitée par mon chef d’équipe, puis la direction</span></div>
+      <div className="stack" style={{ gap: 10 }}>
+        <label className="field"><span>Type de demande</span>
+          <select className="adm-input" value={type} onChange={(e) => { setType(e.target.value); setEnvoi('repos'); }}>
+            {d.typesRequete.map((x) => <option key={x.code} value={x.code}>{x.label}</option>)}
+          </select>
+        </label>
+        {financiere && (
+          <label className="field"><span>Montant (F CFA){plafond ? ` — plafond ${fcfa(plafond)}` : ''}</span>
+            <input className="adm-input" inputMode="numeric" value={montant} onChange={(e) => setMontant(e.target.value)} placeholder="ex. 50 000" />
+          </label>
+        )}
+        {type === 'pret' && (
+          <label className="field"><span>Remboursement en</span>
+            <select className="adm-input" value={echeances} onChange={(e) => setEcheances(e.target.value)}>
+              {Array.from({ length: d.plafonds.echeancesMax }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n} mensualité{n > 1 ? 's' : ''}</option>)}
+            </select>
+          </label>
+        )}
+        {type === 'conge' && (
+          <div className="row" style={{ gap: 10 }}>
+            <label className="field grow"><span>Du</span><input className="adm-input" type="date" value={du} onChange={(e) => setDu(e.target.value)} /></label>
+            <label className="field grow"><span>Au</span><input className="adm-input" type="date" value={au} onChange={(e) => setAu(e.target.value)} /></label>
+          </div>
+        )}
+        <label className="field"><span>Pourquoi ?</span>
+          <textarea className="adm-input" rows={3} value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Expliquez simplement votre besoin." />
+        </label>
+        {financiere && montant && !montantOk && <p className="adm-muted" style={{ margin: 0, color: 'var(--a-danger)' }}>Montant au-dessus du plafond autorisé.</p>}
+        <button className="adm-btn solid" disabled={!pret || envoi === 'envoi'} onClick={() => void envoyer()}>
+          {envoi === 'envoi' ? 'Envoi…' : 'Envoyer ma demande'}
+        </button>
+        {envoi === 'ok' && <p className="adm-muted" style={{ margin: 0 }}>✅ Demande enregistrée : votre chef d’équipe est prévenu. Vous suivez son avancement ci-contre.</p>}
+      </div>
+    </div>
   );
 }

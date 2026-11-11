@@ -8,7 +8,7 @@ import { OverviewSection, SamuSection, SecuritySection, SosDrawer } from './sect
 import { RentalSection, RentalTarifsSection, SubscriptionsSection } from './sections/location';
 import { DirectionSection } from './sections/direction';
 import { VigilanceSection } from './sections/vigilance';
-import { MonPosteSection } from './sections/monposte';
+import { MonPosteSection, type NouvelleRequete } from './sections/monposte';
 import { EquipagesSection } from './sections/equipages';
 import { CaisseSection } from './sections/caisse';
 import { PosteEquipeSection } from './sections/posteequipe';
@@ -160,7 +160,7 @@ function Login({ onDone }: { onDone: () => void }) {
 /* ------------------------------ Navigation --------------------------- */
 type Section = 'monPoste' | 'posteEquipe' | 'crew' | 'caisses' | 'telematique' | 'comptes' | 'overview' | 'direction' | 'vigilance' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles';
 const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
-  { id: 'monPoste', label: 'Mon poste', perm: 'overview:read', icon: '🗂️' },
+  { id: 'monPoste', label: 'Mon poste', perm: '', icon: '🗂️' },
   { id: 'posteEquipe', label: 'Mon équipe', perm: 'teams:read', icon: '🧭' },
   { id: 'overview', label: 'Vue d’ensemble', perm: 'overview:read', icon: '📊' },
   { id: 'direction', label: 'Direction Générale', perm: 'executive:read', icon: '👑' },
@@ -859,6 +859,15 @@ function Console({ onLogout }: { onLogout: () => void }) {
     try { return (await adminGet<{ pnl: SquadPnl }>(`/admin/teams/${teamId}/pnl`)).pnl; } catch { return null; }
   };
 
+  /** Le chauffeur dépose lui-même sa demande ; elle part chez son chef d'équipe. */
+  const deposerRequeteChauffeur = async (driverId: string, r: NouvelleRequete): Promise<boolean> => {
+    if (!LIVE) return true;
+    const res = await safePostData<{ requete: unknown }>(`/admin/crew/${driverId}/requetes`, r);
+    if (!res) return false;
+    void refresh();
+    return true;
+  };
+
   /* =============== Équipages : dossiers chauffeurs et requêtes =============== */
   const ouvrirChauffeur = async (driverId: string) => {
     setSection('crew');
@@ -1315,7 +1324,9 @@ function Console({ onLogout }: { onLogout: () => void }) {
     if (id === selfSession) { void logout().then(() => window.location.reload()); } // on s'est déconnecté soi-même
   };
 
-  if (!me || !ov) return <div className="adm-loading">Chargement de la console…</div>;
+  // On n'attend la vue d'ensemble que si l'on a le droit de la lire : un chauffeur
+  // restait sinon indéfiniment sur cet écran.
+  if (!me || (!ov && me.permissions.includes('overview:read'))) return <div className="adm-loading">Chargement de la console…</div>;
 
   const can = (p: string) => me.permissions.includes(p);
   const openAlerts = alerts.filter((a) => a.status !== 'resolved' && a.status !== 'cancelled');
@@ -1331,7 +1342,10 @@ function Console({ onLogout }: { onLogout: () => void }) {
         </div>
         <nav className="adm-nav">
           {NAV.map((n) => {
-            const allowed = can(n.perm);
+            const allowed = n.perm === '' || can(n.perm);
+            // Un chauffeur ne voit que son espace : lui montrer trente sessions
+            // cadenassées n'apprend rien d'utile et expose l'organisation interne.
+            if (!allowed && me.role === 'chauffeur') return null;
             return (
               <button
                 key={n.id}
@@ -1408,6 +1422,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
             onRendreRapport={rendreRapport}
             onOuvrirChauffeur={ouvrirChauffeur}
             onChangerMotDePasse={() => setMdpOuvert(true)}
+            onDeposerRequete={deposerRequeteChauffeur}
           />
         )}
         {section === 'crew' && (
@@ -1499,7 +1514,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
             onRapportPdf={() => void downloadFile('/admin/vigilance/rapport.pdf', 'orion-rapport-controle.pdf')}
           />
         )}
-        {section === 'overview' && <OverviewSection ov={ov} fleet={fleet} openAlerts={openAlerts} stats={stats} statsDays={statsDays} onStatsDays={setStatsDays} />}
+        {section === 'overview' && ov && <OverviewSection ov={ov} fleet={fleet} openAlerts={openAlerts} stats={stats} statsDays={statsDays} onStatsDays={setStatsDays} />}
         {section === 'alerts' && (
           <SamuSection
             alerts={alerts} fleet={fleet} openAlerts={openAlerts} canWrite={can('alerts:write')}

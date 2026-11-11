@@ -1,6 +1,8 @@
 import type { Container } from '../../container.js';
 import { ROLE_PERMISSIONS, type AdminAccount, type Permission } from '../admin/roles.js';
 import { STATUT_RAPPORT_LABEL } from '../staff/comms.js';
+import { nearestZone } from '../geo-ci/zones.js';
+import { PLAFOND_AVANCE, PLAFOND_PRET, MAX_ECHEANCES, TYPE_LABEL, TYPES_FINANCIERS } from '../crew/requests.js';
 
 /**
  * « MON POSTE » — la journée de travail d'un employé ORION.
@@ -95,6 +97,21 @@ export interface MonPoste {
     matricule: string; courses: number; revenus: number; solde: number;
     resteDu: number; requetes: Array<{ id: string; type: string; statut: string; montant?: number; createdAt: string }>;
     alertes: Array<{ severite: string; texte: string }>;
+    /*
+     * Le poste du chauffeur : tout ce qui touche à SON travail, sans un chiffre de
+     * l'entreprise ni la donnée d'un collègue. Avant, la console s'arrêtait sur
+     * « Chargement… » pour lui, et son dossier tenait en quatre compteurs.
+     */
+    driverId: string;
+    profil: { name: string; category: string; availability: string; kycStatus: string; rating: number; trips: number; insuranceExpiry?: string };
+    vehicule: { model?: string; plate?: string; color?: string; engine: string; batteryPct?: number };
+    equipe: { name: string; mission?: string; managerName?: string; managerPhone?: string | null } | null;
+    activite: { periodeJours: number; coursesAnnulees: number; kilometres: number; commissionVersee: number; noteMoyenne: number; nbNotes: number; joursTravailles: number };
+    argent: { detteEspeces: number; plafondDette: number; dernieresEcritures: Array<{ at: string; type: string; amount: number; note: string }> };
+    dernieresCourses: Array<{ id: string; at: string; trajet: string; montant: number; paiement: string; statut: string; note?: number }>;
+    /** Ce qu'il peut demander depuis son poste, avec les plafonds en vigueur. */
+    typesRequete: Array<{ code: string; label: string; financiere: boolean }>;
+    plafonds: { avance: number; pret: number; echeancesMax: number };
   } | null;
   /** Compteurs du jour. */
   bilan: {
@@ -305,6 +322,20 @@ export class WorkspaceService {
       ? (() => {
         const d = this.c.crew.dossier(fiche.driverId!, 30);
         if (!d) return null;
+        const zone = (p: { lat: number; lng: number }) => nearestZone(p)?.zone.name ?? 'Abidjan';
+        const manager = d.equipe?.managerUsername ? this.c.accounts.get(d.equipe.managerUsername) : undefined;
+        const courses = this.c.rides.listAll()
+          .filter((r) => r.driverId === fiche.driverId)
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+          .slice(0, 8)
+          .map((r) => {
+            const note = r.events.find((e) => e.type === 'rated')?.payload as { stars?: number; rating?: number } | undefined;
+            return {
+              id: r.id, at: r.createdAt, trajet: `${zone(r.origin)} → ${zone(r.destination)}`,
+              montant: r.quote.amount, paiement: r.paymentMethod ?? 'cash', statut: r.status,
+              note: note?.stars ?? note?.rating,
+            };
+          });
         return {
           matricule: d.identite.matricule,
           courses: d.activite.courses,
@@ -315,6 +346,27 @@ export class WorkspaceService {
             id: r.id, type: r.typeLabel, statut: r.statutLabel, montant: r.montantAccorde ?? r.montant, createdAt: r.createdAt,
           })),
           alertes: d.alertes,
+          driverId: fiche.driverId!,
+          profil: {
+            name: d.identite.name, category: d.identite.category, availability: d.identite.availability,
+            kycStatus: d.identite.kycStatus, rating: d.identite.rating, trips: d.identite.trips,
+            insuranceExpiry: d.identite.insuranceExpiry,
+          },
+          vehicule: { model: d.vehicule.model, plate: d.vehicule.plate, color: d.vehicule.color, engine: d.vehicule.engine, batteryPct: d.vehicule.batteryPct },
+          equipe: d.equipe ? { name: d.equipe.name, mission: d.equipe.mission, managerName: d.equipe.managerName, managerPhone: manager?.phone ?? null } : null,
+          activite: {
+            periodeJours: d.activite.periodeJours, coursesAnnulees: d.activite.coursesAnnulees, kilometres: d.activite.kilometres,
+            commissionVersee: d.activite.commissionVersee, noteMoyenne: d.activite.noteMoyenne, nbNotes: d.activite.nbNotes,
+            joursTravailles: d.activite.joursTravailles,
+          },
+          argent: {
+            detteEspeces: d.argent.detteEspeces,
+            plafondDette: this.c.settings.getOps().cashDebtLimit ?? 0,
+            dernieresEcritures: d.argent.dernieresEcritures.slice(0, 6),
+          },
+          dernieresCourses: courses,
+          typesRequete: Object.entries(TYPE_LABEL).map(([code, label]) => ({ code, label, financiere: TYPES_FINANCIERS.includes(code as never) })),
+          plafonds: { avance: PLAFOND_AVANCE, pret: PLAFOND_PRET, echeancesMax: MAX_ECHEANCES },
         };
       })()
       : null;
