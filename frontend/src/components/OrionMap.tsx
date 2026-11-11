@@ -43,12 +43,12 @@ interface Palette {
 }
 const DARK: Palette = {
   land: '#0c2018', land2: '#08160f', water: '#0a2b3c', park: '#123a26',
-  roadCasing: '#0d2419', roadFill: '#20402f', primaryCasing: '#6f521c', primaryFill: '#b98a2c', label: '#61806f',
+  roadCasing: '#0a1d14', roadFill: '#1a3428', primaryCasing: '#081610', primaryFill: '#36584a', label: '#61806f',
   route0: '#2bffa6', route1: '#00b46e', origin: '#2bffa6', dest: '#f5c451', car: '#2bffa6', ink: '#04140d',
 };
 const LIGHT: Palette = {
   land: '#e9f1ea', land2: '#f4f8f4', water: '#bfe0f0', park: '#d5eccf',
-  roadCasing: '#d0dcd4', roadFill: '#ffffff', primaryCasing: '#eab308', primaryFill: '#ffd775', label: '#8aa093',
+  roadCasing: '#d6e0da', roadFill: '#ffffff', primaryCasing: '#ecd48a', primaryFill: '#fff0bf', label: '#8aa093',
   route0: '#00c884', route1: '#008a53', origin: '#00a865', dest: '#e0a92e', car: '#00a865', ink: '#ffffff',
 };
 
@@ -67,11 +67,11 @@ interface Props {
 const ACCENT_CARTE: Record<Accent, Record<'dark' | 'light', Partial<Palette>>> = {
   vert: { dark: {}, light: {} },
   orange: {
-    dark: { land: '#1c140c', land2: '#140d07', roadCasing: '#22170d', roadFill: '#3d2c1c', label: '#8a735f', route0: '#ffb05a', route1: '#e86a00', origin: '#ffb05a', car: '#ffb05a', ink: '#1c0e02' },
+    dark: { land: '#1c140c', land2: '#140d07', roadCasing: '#170f08', roadFill: '#33261a', primaryCasing: '#120b05', primaryFill: '#5a4532', park: '#2a2414', label: '#8a735f', route0: '#ffb05a', route1: '#e86a00', origin: '#ffb05a', car: '#ffb05a', ink: '#1c0e02' },
     light: { land: '#f3ece4', land2: '#faf6f1', roadCasing: '#e2d6ca', label: '#a08d7c', route0: '#ff8a1f', route1: '#c25700', origin: '#e06a00', car: '#e06a00' },
   },
   bleu: {
-    dark: { land: '#0b1626', land2: '#07101c', roadCasing: '#0d1a2c', roadFill: '#1f3350', label: '#61758f', route0: '#79b8ff', route1: '#1f74e8', origin: '#79b8ff', car: '#79b8ff', ink: '#03112a' },
+    dark: { land: '#0b1626', land2: '#07101c', roadCasing: '#081221', roadFill: '#1a2c45', primaryCasing: '#060e19', primaryFill: '#33506f', park: '#10283a', label: '#61758f', route0: '#79b8ff', route1: '#1f74e8', origin: '#79b8ff', car: '#79b8ff', ink: '#03112a' },
     light: { land: '#e8eef6', land2: '#f4f7fb', roadCasing: '#d0dae6', label: '#8696ad', route0: '#3d95ff', route1: '#0f5bc4', origin: '#1a6fe0', car: '#1a6fe0' },
   },
 };
@@ -129,25 +129,25 @@ export function OrionMap({ origin, destination, stops = [], car, vehicle = 'car'
           <rect width={VIEW_W} height={VIEW_H} fill="url(#bgGlow)" />
 
           {/* Espaces verts (Parc du Banco, jardins). */}
-          <g fill={P.park} opacity="0.8">
+          <g fill={P.park} opacity="0.7">
             <ellipse cx="64" cy="150" rx="76" ry="64" />
             <ellipse cx="336" cy="120" rx="58" ry="48" />
             <ellipse cx="366" cy="712" rx="64" ry="74" />
           </g>
 
           {/* Trame résidentielle (rues) — casing puis remplissage. */}
-          <g stroke={P.roadCasing} strokeWidth="3.4" fill="none" opacity="0.9">
+          <g stroke={P.roadCasing} strokeWidth="2.4" fill="none" opacity="0.85">
             {grid.map((dp, i) => <path key={i} d={dp} />)}
           </g>
-          <g stroke={P.roadFill} strokeWidth="1.7" fill="none" opacity="0.95">
+          <g stroke={P.roadFill} strokeWidth="1.1" fill="none" opacity="0.8">
             {grid.map((dp, i) => <path key={i} d={dp} />)}
           </g>
 
           {/* Grands boulevards (voirie primaire) — casing + remplissage chaud. */}
-          <g stroke={P.primaryCasing} strokeWidth="9.5" fill="none" strokeLinecap="round">
+          <g stroke={P.primaryCasing} strokeWidth="7" fill="none" strokeLinecap="round">
             {PRIMARIES.map((dp, i) => <path key={i} d={dp} />)}
           </g>
-          <g stroke={P.primaryFill} strokeWidth="6" fill="none" strokeLinecap="round">
+          <g stroke={P.primaryFill} strokeWidth="4.2" fill="none" strokeLinecap="round">
             {PRIMARIES.map((dp, i) => <path key={i} d={dp} />)}
           </g>
 
@@ -165,10 +165,10 @@ export function OrionMap({ origin, destination, stops = [], car, vehicle = 'car'
           </g>
 
           {/* Ponts sur la lagune (Pont HKB / FHB / de Gaulle) — casing + tablier. */}
-          <g stroke={P.primaryCasing} strokeWidth="9.5" fill="none" strokeLinecap="butt">
+          <g stroke={P.primaryCasing} strokeWidth="7" fill="none" strokeLinecap="butt">
             {BRIDGES.map((dp, i) => <path key={i} d={dp} />)}
           </g>
-          <g stroke={P.primaryFill} strokeWidth="6" fill="none" strokeLinecap="butt">
+          <g stroke={P.primaryFill} strokeWidth="4.2" fill="none" strokeLinecap="butt">
             {BRIDGES.map((dp, i) => <path key={i} d={dp} />)}
           </g>
 
@@ -227,28 +227,38 @@ export function OrionMap({ origin, destination, stops = [], car, vehicle = 'car'
 }
 
 function CarMarker({ x, y, P }: { x: number; y: number; P: Palette }) {
+  // Voiture vue de dessus, avec un halo qui respire : on la repère d'un coup d'œil.
   return (
     <g className="car-marker" transform={`translate(${x} ${y})`}>
-      <circle r="15" fill={P.car} opacity="0.18" />
-      <circle r="12.5" fill={P.land2} stroke={P.car} strokeWidth="2" />
-      <g transform="translate(-7 -6) scale(0.6)" fill="none" stroke={P.car} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M2 13l1.4-4.2A2 2 0 0 1 5.3 7.5h9.4a2 2 0 0 1 1.9 1.3L18 13" />
-        <rect x="1.5" y="13" width="17" height="4.5" rx="1.6" />
-        <circle cx="6" cy="17.5" r="1.2" /><circle cx="14" cy="17.5" r="1.2" />
+      <circle r="22" fill={P.car} opacity="0.16" className="marker-halo" />
+      <circle r="14" fill={P.car} opacity="0.18" />
+      <g transform="translate(-8 -15)">
+        <rect x="0.5" y="0.5" width="15" height="29" rx="6" fill={P.car} stroke="#000" strokeOpacity="0.35" strokeWidth="0.8" />
+        <rect x="0.5" y="0.5" width="15" height="29" rx="6" fill="#fff" opacity="0.12" />
+        <path d="M3 9 C 5 7 11 7 13 9 L 12.4 13 C 10 12 6 12 3.6 13 Z" fill="#0b1117" />
+        <path d="M3.6 22 C 6 23 10 23 12.4 22 L 13 25.5 C 10.5 27 5.5 27 3 25.5 Z" fill="#0b1117" />
+        <rect x="4" y="13.6" width="8" height="8" rx="2" fill="#fff" opacity="0.2" />
+        <rect x="2.4" y="1.1" width="3.2" height="1.4" rx="0.7" fill="#f4fbff" />
+        <rect x="10.4" y="1.1" width="3.2" height="1.4" rx="0.7" fill="#f4fbff" />
+        <rect x="2.4" y="27.6" width="3.2" height="1.2" rx="0.6" fill="#ff3b4a" />
+        <rect x="10.4" y="27.6" width="3.2" height="1.2" rx="0.6" fill="#ff3b4a" />
       </g>
     </g>
   );
 }
 
 function MotoMarker({ x, y, P }: { x: number; y: number; P: Palette }) {
+  // Scooter de livraison vu de dessus : guidon, selle et top-case à la couleur de l'app.
   return (
     <g className="car-marker" transform={`translate(${x} ${y})`}>
-      <circle r="15" fill={P.car} opacity="0.18" />
-      <circle r="12.5" fill={P.land2} stroke={P.car} strokeWidth="2" />
-      <g transform="translate(-7.5 -7) scale(0.62)" fill="none" stroke={P.car} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="5" cy="17" r="3.2" /><circle cx="19" cy="17" r="3.2" />
-        <path d="M5 17 L 11 11 L 16 11 L 19 17" /><path d="M11 11 L 8 17" />
-        <rect x="2" y="6" width="6.5" height="6" rx="1.2" />
+      <circle r="20" fill={P.car} opacity="0.16" className="marker-halo" />
+      <circle r="12" fill={P.car} opacity="0.18" />
+      <g transform="translate(-6 -13)">
+        <rect x="3.5" y="1" width="5" height="22" rx="2.5" fill="#27313a" stroke="#000" strokeOpacity="0.3" strokeWidth="0.6" />
+        <path d="M0 5 L 12 5" stroke="#1d252c" strokeWidth="1.8" strokeLinecap="round" />
+        <rect x="4.6" y="9" width="2.8" height="7" rx="1.4" fill="#0d1217" />
+        <rect x="1" y="16" width="10" height="9" rx="2" fill={P.car} stroke="#000" strokeOpacity="0.3" strokeWidth="0.6" />
+        <rect x="4.4" y="0.4" width="3.2" height="1.4" rx="0.7" fill="#f4fbff" />
       </g>
     </g>
   );

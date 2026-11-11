@@ -438,7 +438,7 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
 .sup-input input { flex: 1; background: var(--surface-2); border: 1px solid var(--stroke); border-radius: 12px; padding: 12px 14px; color: var(--text); font-size: 15px; outline: none; }
 .sup-input input:focus { border-color: var(--green); }
 .del-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
-.del-head .svc-illus.small { width: 60px; }
+.del-head .svc-illus.small { width: 96px; flex: none; }
 
 /* Fond de carte réel (Leaflet). */
 .orion-leaflet { position: absolute; inset: 0; background: var(--surface-2); }
@@ -836,3 +836,189 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
 .accent-vert { background: linear-gradient(135deg, #2bffa6, #00a865); }
 .accent-orange { background: linear-gradient(135deg, #ffb05a, #e06a00); }
 .accent-bleu { background: linear-gradient(135deg, #79b8ff, #1a6fe0); }
+
+/* ============================================================
+   REFONTE GRAPHIQUE — app client
+   Profondeur douce, lisibilité, réactions au toucher, transitions
+   fluides. Tout passe par les variables : fonctionne dans les trois
+   couleurs (vert, orange, bleu), en sombre comme en clair.
+   ============================================================ */
+:root {
+  /* Variables utilisées par d'anciennes règles mais jamais définies. */
+  --muted: var(--text-dim);
+  --bg: var(--bg-0);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --press: scale(0.97);
+  --elev-1: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 10px 26px -18px rgba(0, 0, 0, 0.65);
+  --elev-2: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 18px 40px -22px rgba(0, 0, 0, 0.75);
+}
+[data-theme='light'] {
+  --elev-1: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 10px 24px -18px rgba(10, 30, 25, 0.28);
+  --elev-2: 0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 18px 38px -22px rgba(10, 30, 25, 0.32);
+}
+
+body { letter-spacing: -0.005em; text-rendering: optimizeLegibility; }
+.page-body { scroll-behavior: smooth; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+
+/* --- Accueil : en-tête --- */
+.hub-hero {
+  position: relative; overflow: hidden; isolation: isolate;
+  background:
+    radial-gradient(90% 120% at 100% 0%, rgba(255, 255, 255, 0.22), transparent 55%),
+    radial-gradient(120% 140% at 0% 0%, var(--green-bright) 0%, var(--green) 45%, var(--green-deep) 100%);
+  border-bottom-left-radius: 30px; border-bottom-right-radius: 30px;
+  box-shadow: 0 22px 44px -26px rgba(var(--accent-rgb), 0.75);
+}
+/* Constellation discrète (la ceinture d'Orion) en filigrane */
+.hub-hero::after {
+  content: ''; position: absolute; z-index: -1; right: -30px; top: -40px; width: 220px; height: 220px; border-radius: 50%;
+  background:
+    radial-gradient(circle at 60% 30%, rgba(255,255,255,0.9) 0 2px, transparent 3px),
+    radial-gradient(circle at 70% 42%, rgba(255,255,255,0.8) 0 1.6px, transparent 2.6px),
+    radial-gradient(circle at 78% 55%, rgba(255,255,255,0.7) 0 1.3px, transparent 2.3px),
+    radial-gradient(circle, rgba(255,255,255,0.12), transparent 65%);
+  pointer-events: none;
+}
+.hub-logo { background: rgba(255, 255, 255, 0.22); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+.hub-greet { font-size: 26px; letter-spacing: -0.02em; margin: 18px 0 14px; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.12); }
+.hub-search {
+  min-height: 54px; border-radius: 18px; background: rgba(255, 255, 255, 0.97); color: #10221a;
+  box-shadow: 0 14px 30px -14px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+  transition: transform 0.18s var(--ease-out), box-shadow 0.2s;
+}
+.hub-search:active { transform: var(--press); }
+.hub-search svg { color: var(--green-deep); flex: none; }
+.hub-search span { color: #5d6c66; font-weight: 500; }
+[data-theme='light'] .hub-search { background: #fff; }
+
+/* --- Services principaux : grandes illustrations sur scène lumineuse --- */
+.svc-grid { gap: 12px; }
+.svc-card {
+  padding: 12px 12px 14px; border-radius: 24px; gap: 10px;
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  box-shadow: var(--elev-1);
+  transition: transform 0.2s var(--ease-out), box-shadow 0.25s, border-color 0.25s;
+}
+.svc-card:active { transform: var(--press); }
+.svc-card .svc-illus {
+  height: 104px; border-radius: 18px; overflow: hidden; position: relative;
+  background:
+    radial-gradient(70% 55% at 50% 78%, rgba(var(--accent-rgb), 0.32), transparent 70%),
+    linear-gradient(170deg, rgba(var(--accent-rgb), 0.16), rgba(var(--accent-rgb), 0.03));
+}
+.svc-card.deliver .svc-illus {
+  background:
+    radial-gradient(70% 55% at 50% 78%, rgba(245, 196, 81, 0.28), transparent 70%),
+    linear-gradient(170deg, rgba(245, 196, 81, 0.14), rgba(245, 196, 81, 0.03));
+}
+/* Ligne de sol sous le véhicule */
+.svc-card .svc-illus::after {
+  content: ''; position: absolute; left: 12%; right: 12%; bottom: 14px; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+}
+.svc-card .vehicule { transform: translateY(8px); transition: transform 0.35s var(--ease-out); }
+.svc-card:active .vehicule { transform: translateY(8px) translateX(4px); }
+.svc-meta strong { font-family: var(--font-display); font-size: 17px; letter-spacing: -0.01em; }
+.svc-meta span { color: var(--text-dim); }
+
+/* --- Autres services et raccourcis --- */
+.svc-mini {
+  border-radius: 18px; padding: 12px 4px 10px; background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  box-shadow: var(--elev-1); transition: transform 0.18s var(--ease-out);
+}
+.svc-mini:active { transform: var(--press); }
+.svc-mini-label { font-size: 11px; color: var(--text-dim); }
+.svc-soon {
+  top: -6px; right: 50%; transform: translateX(50%); font-size: 8px; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 2px 7px; box-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.4);
+}
+.hub-quick { grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.hub-quick .feature-card {
+  align-items: center; text-align: center; gap: 8px; padding: 12px 4px 10px; border-radius: 18px;
+  font-size: 10.5px; line-height: 1.2; color: var(--text-dim); font-weight: 600;
+  background: linear-gradient(180deg, var(--surface-2), var(--surface)); box-shadow: var(--elev-1);
+}
+.hub-quick .feature-card i {
+  display: grid; place-items: center; width: 38px; height: 38px; border-radius: 13px; font-style: normal;
+  background: rgba(var(--accent-rgb), 0.14); color: var(--green); box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.22);
+}
+
+/* --- Listes (récents, destinations, paramètres) --- */
+.hub-body .list-row.list-btn, .sheet .list-row.list-btn {
+  padding: 10px 12px; border-radius: 16px; transition: background 0.2s, transform 0.18s var(--ease-out);
+}
+.hub-body .list-row.list-btn { background: linear-gradient(180deg, var(--surface-2), var(--surface)); box-shadow: var(--elev-1); }
+.hub-body .stack > * + * { margin-top: 10px; }
+.list-btn:active { transform: scale(0.985); }
+.list-ico { border-radius: 13px; background: rgba(var(--accent-rgb), 0.1); box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.16); }
+.eyebrow { letter-spacing: 0.16em; font-size: 10.5px; }
+
+/* --- Boutons --- */
+.btn { border-radius: 18px; letter-spacing: -0.005em; transition: transform 0.18s var(--ease-out), box-shadow 0.25s, filter 0.2s; }
+.btn:active { transform: var(--press); }
+.btn-primary {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 55%), linear-gradient(135deg, var(--green-bright), var(--green-deep));
+  box-shadow: 0 12px 28px -12px rgba(var(--accent-rgb), 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.btn-ghost { background: linear-gradient(180deg, var(--surface-2), var(--surface)); box-shadow: var(--elev-1); }
+.btn-danger { box-shadow: 0 12px 26px -12px rgba(255, 77, 94, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+
+/* --- Champs, puces, options --- */
+.field { border-radius: 18px; transition: border-color 0.2s, box-shadow 0.2s, background 0.2s; }
+.field:focus-within { border-color: rgba(var(--accent-rgb), 0.6); box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.12); }
+.chip { transition: background 0.2s, border-color 0.2s, transform 0.18s var(--ease-out); }
+.chip:active, .opt:active { transform: var(--press); }
+.opt { transition: border-color 0.2s, background 0.2s, transform 0.18s var(--ease-out); }
+.card { box-shadow: var(--elev-1); }
+
+/* --- Feuille du bas et barre du haut --- */
+.sheet {
+  border-top-left-radius: 30px; border-top-right-radius: 30px;
+  box-shadow: 0 -24px 60px -24px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  animation: sheet-up 0.55s var(--ease-out);
+}
+.sheet .grabber { width: 40px; height: 4px; opacity: 0.8; }
+.topbar .avatar, .topbar button.avatar {
+  background: rgba(var(--accent-rgb), 0.08); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 20px -12px rgba(0, 0, 0, 0.6);
+}
+
+/* --- Choix du véhicule (estimation, mariage, location) --- */
+.veh {
+  padding: 10px 14px 10px 8px; border-radius: 20px; gap: 10px;
+  background: linear-gradient(180deg, var(--surface-2), var(--surface)); box-shadow: var(--elev-1);
+  transition: transform 0.18s var(--ease-out), border-color 0.25s, box-shadow 0.25s, background 0.25s;
+}
+.veh .price { font-size: 17px; letter-spacing: -0.01em; }
+.veh-illus { display: grid; place-items: center; flex: none; position: relative; }
+.veh-illus::before {
+  content: ''; position: absolute; inset: 18% 4% 0; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(var(--accent-rgb), 0.18), transparent);
+}
+.veh-illus .vehicule { position: relative; transition: transform 0.35s var(--ease-out); }
+.veh.active .veh-illus .vehicule { transform: translateX(3px) scale(1.04); }
+
+/* --- Fiche chauffeur : véhicule et plaque --- */
+.drv-vehicule { align-items: center; gap: 2px; }
+.plate {
+  background: #f7f8f9; color: #11161b; border: 1px solid #c9d0d6; font-size: 11.5px; padding: 3px 8px 3px 6px;
+  box-shadow: inset 3px 0 0 #f77f00, 0 2px 6px -2px rgba(0, 0, 0, 0.4); border-radius: 6px;
+}
+.driver-photo { border-radius: 18px; box-shadow: var(--elev-1); }
+
+/* --- Carte : halo du véhicule suivi --- */
+.marker-halo { transform-box: fill-box; transform-origin: center; animation: halo 2.2s var(--ease-out) infinite; }
+@keyframes halo { 0% { transform: scale(0.55); opacity: 0.55; } 100% { transform: scale(1.35); opacity: 0; } }
+
+/* --- Transitions d'écran --- */
+.screen { animation: ecran-entree 0.42s var(--ease-out); }
+@keyframes ecran-entree { from { opacity: 0; transform: translateY(10px) scale(0.995); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .screen, .sheet, .rise, .marker-halo { animation: none !important; }
+  .btn, .svc-card, .veh, .chip, .opt, .list-btn { transition: none !important; }
+}
+
+/* SOS toujours visible sur la carte, sous la barre du haut : il ne chevauche plus la
+   fiche du chauffeur, quelle que soit la hauteur de l'écran. */
+.sos { top: calc(max(18px, env(safe-area-inset-top)) + 62px); bottom: auto; width: 54px; height: 54px; }

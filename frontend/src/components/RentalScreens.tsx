@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { TopBar } from './ui';
+import { Voiture } from './Vehicules';
 import {
-  IconCalendar, IconCar, IconCheck, IconClock, IconCrown, IconGem, IconLeaf, IconMinus, IconPin,
+  IconCalendar, IconCar, IconCheck, IconClock, IconCrown, IconLeaf, IconMinus, IconPin,
   IconPlus, IconUsers,
 } from '../icons';
 import { useI18n } from '../i18n';
@@ -44,12 +45,11 @@ function toLocalInput(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-/** Médaille de la gamme : la classe présidentielle se distingue d'un coup d'œil. */
+/** Le véhicule illustré : berline présidentielle noire, ou SUV Signature nacré. */
 function PrestigeBadge({ classe, size = 46 }: { classe: PrestigeVehicle['classe']; size?: number }) {
-  const accent = classe === 'presidentielle' ? '#f5c451' : '#7fe7ff';
   return (
-    <span className="veh-ico" style={{ width: size, height: size, color: accent, boxShadow: `inset 0 0 0 1px ${accent}55` }}>
-      {classe === 'presidentielle' ? <IconCrown size={size * 0.5} /> : <IconGem size={size * 0.5} />}
+    <span className="veh-illus" style={{ width: size * 1.75, height: size }}>
+      <Voiture modele={classe === 'presidentielle' ? 'luxe' : 'suv'} peinture={classe === 'presidentielle' ? 'nuit' : 'perle'} largeur={size * 1.75} phares={false} />
     </span>
   );
 }

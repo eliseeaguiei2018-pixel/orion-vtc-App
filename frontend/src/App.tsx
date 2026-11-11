@@ -10,7 +10,8 @@ import {
   IconShield, IconShieldCheck, IconStar, IconTraffic, IconVolume, IconWallet, IconWifi,
 } from './icons';
 import { LogoGlyph } from './components/Logo';
-import { IllusCar, IllusMoto, IllusFood, IllusShop, IllusMarket, IllusColis } from './components/Illustrations';
+import { IllusFood, IllusShop, IllusMarket, IllusColis } from './components/Illustrations';
+import { Voiture, Scooter, vehiculeDeGamme } from './components/Vehicules';
 import { authenticateBiometric, isBiometricEnabled } from './security';
 import type { TrustedContact } from './api';
 import {
@@ -56,11 +57,12 @@ function plateFromMatricule(m: string): string {
   return `CI-${n} ${a}${b}`;
 }
 
-/** Médaille de niveau (couleur d'accent). */
-function TierBadge({ accent, size = 50 }: { accent: string; size?: number }) {
+/** Le véhicule de la gamme (silhouette et peinture : bronze, argent, or, nuit). */
+function TierBadge({ tier, size = 50, suv = false }: { tier: string; size?: number; suv?: boolean }) {
+  const v = vehiculeDeGamme(tier);
   return (
-    <span className="veh-ico" style={{ width: size, height: size, color: accent, boxShadow: `inset 0 0 0 1px ${accent}55` }}>
-      <IconGem size={size * 0.5} />
+    <span className="veh-illus" style={{ width: size * 1.75, height: size }}>
+      <Voiture modele={suv ? 'suv' : v.modele} peinture={v.peinture} largeur={size * 1.75} phares={false} />
     </span>
   );
 }
@@ -1002,12 +1004,12 @@ function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onC
             l'a désactivée (services.delivery = false) ; tout est grisé en maintenance. */}
         <div className="svc-grid rise rise-2">
           <button className={`svc-card course${closed ? ' svc-off' : ''}`} onClick={onCourse} disabled={closed}>
-            <span className="svc-illus"><IllusCar size={92} /></span>
+            <span className="svc-illus"><Voiture modele="berline" peinture="accent" largeur={150} /></span>
             <span className="svc-meta"><strong>{t('svc_course')}</strong><span>{t('svc_course_d')}</span></span>
           </button>
           {!deliveryOff && (
             <button className={`svc-card deliver${closed ? ' svc-off' : ''}`} onClick={onDelivery} disabled={closed}>
-              <span className="svc-illus"><IllusMoto size={92} /></span>
+              <span className="svc-illus"><Scooter largeur={150} /></span>
               <span className="svc-meta"><strong>{t('svc_delivery')}</strong><span>{t('svc_delivery_d')}</span></span>
             </button>
           )}
@@ -1023,11 +1025,11 @@ function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onC
 
         {/* Raccourcis ORION */}
         <div className="hub-quick rise rise-3">
-          <button className="feature-card" onClick={() => onNav('subscription')}><IconCrown size={20} /> <span>{t('menu_subscription')}</span></button>
-          <button className="feature-card" onClick={() => onNav('rental')}><IconCar size={20} /> <span>{t('rent_entry')}</span></button>
-          <button className="feature-card" onClick={() => onNav('wedding')}><IconRing size={20} /> <span>{t('menu_wedding')}</span></button>
-          <button className="feature-card" onClick={() => onNav('history')}><IconClock size={20} /> <span>{t('menu_history')}</span></button>
-          <button className="feature-card" onClick={() => onNav('help')}><IconShield size={20} /> <span>{t('menu_help')}</span></button>
+          <button className="feature-card" onClick={() => onNav('subscription')}><i><IconCrown size={19} /></i> <span>{t('menu_subscription')}</span></button>
+          <button className="feature-card" onClick={() => onNav('rental')}><i><IconCar size={19} /></i> <span>{t('rent_entry')}</span></button>
+          <button className="feature-card" onClick={() => onNav('wedding')}><i><IconRing size={19} /></i> <span>{t('menu_wedding')}</span></button>
+          <button className="feature-card" onClick={() => onNav('history')}><i><IconClock size={19} /></i> <span>{t('menu_history')}</span></button>
+          <button className="feature-card" onClick={() => onNav('help')}><i><IconShield size={19} /></i> <span>{t('menu_help')}</span></button>
         </div>
 
         <span className="eyebrow" style={{ marginTop: 4 }}><IconPin size={13} /> {t('home_recent')}</span>
@@ -1070,7 +1072,7 @@ function DeliveryScreen({ origin, pkgSize, onBack, onConfirm }: {
       <div style={{ flex: 1 }} />
       <Sheet>
         <div className="del-head">
-          <span className="svc-illus small"><IllusMoto size={54} /></span>
+          <span className="svc-illus small"><Scooter largeur={92} /></span>
           <div className="col grow" style={{ textAlign: 'start' }}>
             <strong style={{ fontSize: 17 }}>{t('del_title')}</strong>
             <span className="faint" style={{ fontSize: 12.5 }}>{t('svc_delivery_d')}</span>
@@ -1208,7 +1210,7 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
         <div className="stack">
           {TIERS.map((v) => (
             <button key={v.id} className={`veh${v.id === tier.id ? ' active' : ''}`} style={{ width: '100%', ...(v.id === tier.id ? { borderColor: v.accent, boxShadow: `0 0 22px ${v.accent}44` } : {}) }} onClick={() => onTier(v)}>
-              <TierBadge accent={v.accent} />
+              <TierBadge tier={v.id} suv={bodyType === 'suv'} />
               <span className="col grow" style={{ textAlign: 'start' }}>
                 <strong style={{ fontSize: 16 }}>{t(v.key)}</strong>
                 <span className="faint" style={{ fontSize: 12.5 }}>{v.cars[0]}{v.cars.length > 1 ? ` +${v.cars.length - 1}` : ''} · {v.capacity} {t('seats')}</span>
@@ -1248,7 +1250,7 @@ function ConfirmScreen({ origin, destination, tier, quote, coverage, payment, pa
           <div className="list-row" style={{ padding: '6px 0' }}>
             <span className="list-ico" style={{ color: 'var(--green)' }}><IconPin size={18} /></span>
             <span className="col grow"><strong style={{ fontSize: 14 }}>{origin.area}</strong><span className="faint" style={{ fontSize: 12 }}>{t('conf_departure')}</span></span>
-            <TierBadge accent={tier.accent} size={36} />
+            <TierBadge tier={tier.id} size={32} />
           </div>
           {stops.map((s, i) => (
             <div key={i}><div className="divider" /><div className="list-row" style={{ padding: '6px 0' }}>
@@ -1486,10 +1488,11 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
             <span className="col grow">
               <strong style={{ fontSize: 16 }}>{driver.name}</strong>
               <span className="row gap-sm" style={{ fontSize: 13 }}><IconStar size={14} color="#f5c451" /> {driver.rating} · {driver.trips.toLocaleString('fr-FR')}</span>
+              <span className="faint" style={{ fontSize: 12, marginTop: 2 }}>{driver.car || tier.cars[0]} · {t(tier.key)}</span>
             </span>
-            <span className="col" style={{ alignItems: 'flex-end', gap: 6 }}>
+            <span className="col drv-vehicule">
+              <TierBadge tier={tier.id} size={34} />
               <span className="plate">{driver.plate}</span>
-              <span className="faint" style={{ fontSize: 12 }}>{driver.car || tier.cars[0]}</span>
             </span>
           </div>
           <div className="divider" style={{ margin: '12px 0' }} />
@@ -1779,7 +1782,7 @@ function WeddingScreen({ onBack, onReserve }: { onBack: () => void; onReserve: (
         <div className="stack" style={{ margin: '10px 0 18px' }}>
           {TIERS.map((v) => (
             <button key={v.id} className={`veh${v.id === tier.id ? ' active' : ''}`} style={v.id === tier.id ? { borderColor: v.accent, boxShadow: `0 0 22px ${v.accent}44` } : {}} onClick={() => setTier(v)}>
-              <TierBadge accent={v.accent} />
+              <TierBadge tier={v.id} />
               <span className="col grow" style={{ textAlign: 'start' }}>
                 <strong style={{ fontSize: 15 }}>{t(v.key)}</strong>
                 <span className="faint" style={{ fontSize: 12 }}>{v.cars.join(' · ')}</span>
