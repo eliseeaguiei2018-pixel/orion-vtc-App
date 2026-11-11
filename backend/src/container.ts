@@ -331,6 +331,24 @@ export function createContainer(): Container {
   container.teamWorkspace = new TeamWorkspaceService(container);
   container.assistant = new AssistantService(container);
   container.rideRelease = new RideReleaseService(container, config.RIDE_UNPAID_RELEASE_MINUTES);
+
+  // MODE SIMULATION : la présence géographique d'un chauffeur expire après
+  // PRESENCE_TTL_SECONDS sans position reçue — c'est l'app chauffeur qui la
+  // rafraîchit en roulant. Ici, le simulateur tient lieu d'app : sans ce battement,
+  // les chauffeurs de démonstration disparaissaient du dispatch 30 s après leur
+  // mise en ligne, et chaque commande partait en « aucun chauffeur » alors que la
+  // console en affichait 44 en ligne. Trouvé en enregistrant la démonstration.
+  // Seuls les chauffeurs SANS app réelle sont concernés : un vrai téléphone muet
+  // doit, lui, sortir du dispatch.
+  if (config.SIMULATE_RIDES) {
+    const battement = setInterval(async () => {
+      for (const e of await geo.snapshot()) {
+        const d = drivers.get(e.id);
+        if (d && !d.appLinkedAt && d.availability !== 'offline') await geo.upsert(e);
+      }
+    }, Math.max(2_000, Math.floor((config.PRESENCE_TTL_SECONDS * 1000) / 3)));
+    battement.unref?.();
+  }
   // En test, le balayage s'appelle à la main pour rester déterministe.
   if (config.NODE_ENV !== 'test') container.rideRelease.start();
 

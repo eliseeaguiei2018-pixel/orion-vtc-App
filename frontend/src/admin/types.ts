@@ -9,7 +9,8 @@
 export interface Overview {
   currency: string;
   rides: { total: number; active: number; completed: number; cancelled: number; byStatus: Record<string, number> };
-  drivers: { total: number; online: number; onTrip: number };
+  /** `joignables` : en ligne ET position récente ; `muets` : en ligne mais invisibles du dispatch. */
+  drivers: { total: number; online: number; onTrip: number; joignables?: number; muets?: number };
   finance: { gmv: number; revenue: number; commission: number; payouts: number };
   safety: { total: number; open: number };
   generatedAt: string;

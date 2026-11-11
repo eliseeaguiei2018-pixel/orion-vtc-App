@@ -15,7 +15,12 @@ export function OverviewSection({ ov, fleet, openAlerts, stats, statsDays, onSta
     <>
       <section className="adm-kpis">
         <Kpi label="Courses actives" value={String(ov.rides.active)} sub={`${ov.rides.total} au total`} tone="green" />
-        <Kpi label="Chauffeurs en ligne" value={String(ov.drivers.online)} sub={`${ov.drivers.onTrip} en course`} tone="teal" />
+        <Kpi
+          label="Chauffeurs en ligne"
+          value={String(ov.drivers.online)}
+          sub={ov.drivers.muets ? `${ov.drivers.onTrip} en course · ${ov.drivers.muets} sans position récente` : `${ov.drivers.onTrip} en course`}
+          tone={ov.drivers.muets ? 'danger' : 'teal'}
+        />
         <Kpi label="Revenu (courses)" value={fcfa(ov.finance.revenue)} sub={`Commission ${fcfa(ov.finance.commission)}`} tone="mint" />
         <Kpi label="Alertes ouvertes" value={String(openAlerts.length)} sub={`${ov.safety.total} au total`} tone={openAlerts.length ? 'danger' : 'muted'} />
       </section>

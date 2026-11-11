@@ -221,7 +221,17 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       return { attempts: container.security.list(), total: container.security.count() };
     });
 
-    scoped.get('/admin/overview', async (req) => { require(req, 'overview:read'); return admin.overview(); });
+    scoped.get('/admin/overview', async (req) => {
+      require(req, 'overview:read');
+      const ov = admin.overview();
+      // « En ligne » ne suffit pas : ce qui compte pour le dispatch, c'est d'avoir une
+      // position récente. On distingue les joignables des muets, sinon le compteur
+      // affiche 44 chauffeurs pendant que chaque commande part en « aucun chauffeur ».
+      const presents = new Set((await container.geo.snapshot()).map((e) => e.id));
+      const enService = container.drivers.list().filter((d) => d.availability === 'online' || d.availability === 'on_trip');
+      const joignables = enService.filter((d) => presents.has(d.id)).length;
+      return { ...ov, drivers: { ...ov.drivers, joignables, muets: enService.length - joignables } };
+    });
 
     scoped.get('/admin/stats', async (req) => {
       require(req, 'overview:read');

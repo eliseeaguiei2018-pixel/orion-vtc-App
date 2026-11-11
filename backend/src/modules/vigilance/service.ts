@@ -1,4 +1,5 @@
 import type { Container } from '../../container.js';
+import { config } from '../../config/index.js';
 
 /**
  * MOTEUR DE VIGILANCE ORION.
@@ -224,6 +225,24 @@ export class VigilanceService {
         consequence: 'Les opérations attendent des fonds déjà demandés : le blocage est administratif, pas financier.',
         action: 'Approuver ou refuser ces demandes depuis la session Trésorerie.',
         section: 'treasury', elements: virementsVieux.map((t) => t.id),
+      });
+    }
+
+    /* ------------------ Chauffeurs « en ligne » mais introuvables ------------------ */
+    // Un chauffeur reste `online` tant qu'il ne se déconnecte pas, mais sa PRÉSENCE
+    // dans l'index de dispatch expire sans position reçue (téléphone éteint, réseau
+    // coupé, app fermée). La console affichait alors « 44 en ligne » pendant que
+    // chaque commande partait en « aucun chauffeur ». Ce qui ment, c'est le compteur.
+    const presents = new Set((await this.c.geo.snapshot()).map((e) => e.id));
+    const muets = enService.filter((d) => !presents.has(d.id));
+    if (muets.length > 0) {
+      push({
+        id: 'chauffeurs-en-ligne-muets', severite: muets.length >= enService.length / 2 ? 'critique' : 'eleve', domaine: 'exploitation',
+        titre: 'Chauffeurs « en ligne » dont le dispatch n’a plus la position',
+        constat: `${muets.length} chauffeur(s) sur ${enService.length} affichés en ligne n’ont envoyé aucune position depuis plus de ${config.PRESENCE_TTL_SECONDS} s : ${muets.slice(0, 5).map((d) => d.matricule).join(', ')}${muets.length > 5 ? '…' : ''}.`,
+        consequence: 'Le dispatch ne peut pas les attribuer : les clients reçoivent « aucun chauffeur » alors que la flotte paraît disponible.',
+        action: 'Les appeler : app fermée, téléphone éteint ou réseau coupé. S’ils ne roulent pas, les passer hors ligne.',
+        section: 'dispatch', elements: muets.map((d) => d.id),
       });
     }
 
