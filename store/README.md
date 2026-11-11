@@ -2,7 +2,7 @@
 
 Tout ce qu'il faut pour remplir les fiches **App Store Connect** (Apple) et **Play Console**
 (Google). Les visuels sont faits à partir de **captures réelles** de l'application, prises sur
-le serveur ORION en fonctionnement (aucune maquette).
+le serveur ORION en fonctionnement (aucune maquette), avec le nouveau design de l'app.
 
 > Statut : l'application n'est **pas encore publiée**. Tant que les fiches ne sont pas
 > validées par Apple et Google, elle n'apparaît dans aucune recherche des stores.
@@ -14,10 +14,11 @@ le serveur ORION en fonctionnement (aucune maquette).
 | `icone-app-store-1024.png` | Icône App Store | 1024×1024, PNG sans transparence |
 | `icone-google-play-512.png` | Icône Play Store | 512×512, PNG 32 bits |
 | `google-play-banniere-1024x500.png` | Bannière Play Store (obligatoire) | 1024×500 |
-| `captures/app-store-iphone-6.9/*.png` | Captures iPhone (6 écrans) | 1320×2868 (iPhone 6,9") |
-| `captures/google-play-telephone/*.png` | Captures téléphone Android (6 écrans) | 1080×1920 (9:16) |
+| `captures/app-store-iphone-6.9/*.png` | Captures iPhone (8 écrans) | 1320×2868 (iPhone 6,9") |
+| `captures/google-play-telephone/*.png` | Captures téléphone Android (8 écrans) | 1080×1920 (9:16) |
 
-Ordre conseillé des captures : accueil, prix, suivi, SOS, paramètres, historique.
+Ordre conseillé des captures : accueil, prix, suivi, SOS, livraison, couleurs, paramètres,
+historique. Huit, c'est le maximum accepté par Google (Apple en accepte dix).
 L'app n'est déclarée que pour iPhone (pas d'iPad) : aucune capture iPad n'est demandée.
 
 Les applications natives sont dans `frontend/ios` et `frontend/android` (voir `NATIVE.md`).
@@ -33,7 +34,7 @@ Identifiant des deux apps : **`ci.orion.app`**. Version **1.0.0**, build **1**.
 `VTC 100 % électrique à Abidjan : prix fixe, suivi en direct et SOS intégré.`
 
 **Texte promotionnel Apple** (170 max, modifiable sans nouvelle version) :
-`Nouveau : créez votre compte avec photo, retrouvez vos courses et annulations, et suivez en direct la réponse d’ORION à une alerte SOS.`
+`Nouveau : une app entièrement redessinée, trois couleurs au choix, et toujours vos courses, livraisons et alertes SOS suivies en direct.`
 
 **Mots-clés Apple** (100 max, séparés par des virgules) :
 `vtc,taxi,abidjan,course,chauffeur,électrique,livraison,coursier,moto,sos,mobile money,côte d’ivoire`
@@ -65,6 +66,7 @@ VOTRE COMPTE, EN TOUTE TRANSPARENCE
 • Historique de toutes vos courses et annulations, avec le motif et les éventuels frais.
 • Annulation gratuite tant qu'aucun chauffeur n'est en route, puis pendant 2 minutes après l'acceptation.
 • Suppression du compte à tout moment, depuis les paramètres.
+• L'app à votre couleur : vert, orange ou bleu, en mode clair ou sombre.
 
 ORION est disponible à Abidjan, Côte d'Ivoire. Application en français, anglais, espagnol, italien, allemand, arabe, chinois et russe.
 ```
