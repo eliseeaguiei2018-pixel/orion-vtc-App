@@ -976,6 +976,20 @@ body { letter-spacing: -0.005em; text-rendering: optimizeLegibility; }
   border-top-left-radius: 30px; border-top-right-radius: 30px;
   box-shadow: 0 -24px 60px -24px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   animation: sheet-up 0.55s var(--ease-out);
+  /* Jamais sous la barre du haut : sur un petit écran, ou avec beaucoup d'options,
+     le contenu défile DANS la feuille au lieu de passer sous le titre (ou hors écran). */
+  max-height: calc(100% - max(18px, env(safe-area-inset-top)) - 64px);
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+}
+.sheet::-webkit-scrollbar { display: none; }
+/* Écrans à défilement sous une barre de titre. La barre mesure max(18px, encoche) + 74px :
+   le contenu commence juste en dessous, y compris sur les iPhone à encoche, et s'efface
+   en fondu sous la barre quand on défile au lieu de se superposer au titre.
+   L'accueil a son propre en-tête. */
+.page-body:not(.hub-body) {
+  padding-top: calc(max(18px, env(safe-area-inset-top)) + 74px);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, transparent calc(max(18px, env(safe-area-inset-top)) + 40px), #000 calc(max(18px, env(safe-area-inset-top)) + 70px));
+  mask-image: linear-gradient(180deg, transparent 0, transparent calc(max(18px, env(safe-area-inset-top)) + 40px), #000 calc(max(18px, env(safe-area-inset-top)) + 70px));
 }
 .sheet .grabber { width: 40px; height: 4px; opacity: 0.8; }
 .topbar .avatar, .topbar button.avatar {
