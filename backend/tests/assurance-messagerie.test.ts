@@ -169,6 +169,16 @@ test('messagerie : consigne de la console, contrôle en course, « pas en sécur
 
   const inconnu = await app.inject({ method: 'POST', url: `/clients/client-aya/messages/${controle.id}/reponse`, headers: aya, payload: { code: 'pirate' } });
   assert.equal(inconnu.statusCode, 404, 'seules les réponses proposées sont acceptées');
+
+  // Course terminée : un contrôle resté sans réponse est clos, plus d'alerte possible par ce biais.
+  const second = container.messages.controleSecurite('client-aya', 'course-test', 'Agent test');
+  container.rides.save({ ...ride, status: 'completed' } as never);
+  boite = (await app.inject({ method: 'GET', url: '/clients/client-aya/messages', headers: aya })).json();
+  const clos = boite.messages.find((m: { id: string }) => m.id === second.id);
+  assert.equal(clos.clos, true);
+  assert.deepEqual(clos.reponses, []);
+  const tardif = await app.inject({ method: 'POST', url: `/clients/client-aya/messages/${second.id}/reponse`, headers: aya, payload: { code: 'danger' } });
+  assert.equal(tardif.statusCode, 404, 'contrôle d’une course terminée : plus de réponse');
 });
 
 test('données financières : portefeuille et cotisations réservés au titulaire', async (t) => {
@@ -180,4 +190,13 @@ test('données financières : portefeuille et cotisations réservés au titulair
   assert.equal((await app.inject({ method: 'GET', url: '/clients/client-aya/insurance' })).statusCode, 401);
   assert.equal((await app.inject({ method: 'GET', url: '/clients/client-aya/rides' })).statusCode, 401);
   assert.equal((await app.inject({ method: 'GET', url: '/clients/client-aya/wallet', headers: aya })).statusCode, 200);
+});
+
+test('dossier : numéros saisis avec espaces acceptés et stockés sans espaces', async () => {
+  const { ficheSchema } = await import('../src/modules/assurance/dossier.js');
+  const ok = ficheSchema.safeParse({ ...FICHE, urgence: { ...FICHE.urgence, telephone: '+225 07 58 42 19 63' }, medecin: { nom: 'Dr Bamba', telephone: '27 22 41 00 00' } });
+  assert.ok(ok.success, JSON.stringify(!ok.success && ok.error.issues));
+  assert.equal(ok.data.urgence.telephone, '+2250758421963');
+  assert.equal(ok.data.medecin?.telephone, '2722410000');
+  assert.equal(ficheSchema.safeParse({ ...FICHE, urgence: { ...FICHE.urgence, telephone: '07 58' } }).success, false);
 });

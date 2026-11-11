@@ -72,6 +72,7 @@ function CarteMessage({ m, onRepondre, alerte }: { m: MessageOrion; onRepondre: 
       <footer className="faint">{m.auteur}</footer>
       {m.reponse
         ? <p className="message-repondu"><IconCheck size={14} /> {t('msg_repondu', { r: m.reponse.libelle })}</p>
+        : m.clos ? <p className="message-clos">{t('msg_clos')}</p>
         : m.reponses.length > 0 && (
           <div className="reponses-rapides">
             {m.reponses.map((r) => (

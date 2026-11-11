@@ -154,7 +154,7 @@ function Formulaire({ initiale, onBack, onEnregistre, onToast }: {
       if (f.piece.expiration < aujourdhui()) return t('as_err_expiree');
     }
     if (etape === 3) {
-      if (f.urgence.nom.trim().length < 2 || f.urgence.lien.trim().length < 2 || !/^\+?[0-9 ]{8,16}$/.test(f.urgence.telephone.trim())) return t('as_err_requis');
+      if (f.urgence.nom.trim().length < 2 || f.urgence.lien.trim().length < 2 || !/^\+?[0-9]{8,15}$/.test(f.urgence.telephone.replace(/[\s.-]/g, ''))) return t('as_err_requis');
     }
     return null;
   };

@@ -2181,7 +2181,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         texte: z.string().trim().min(3).max(500),
       }), req.body);
       const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
-      const enCours = container.rides.listAll().filter((r) => ['driver_assigned', 'driver_en_route', 'arrived', 'in_progress'].includes(r.status));
+      const enCours = container.rides.listAll().filter((r) => ['accepted', 'driver_en_route', 'arrived', 'in_progress'].includes(r.status));
       let destinataires: Array<{ clientId: string; rideId?: string }> = [];
       if (body.cible === 'client') {
         const tel = body.telephone?.replace(/\s/g, '');

@@ -396,6 +396,12 @@ const FICHE_DEMO: FicheMedicale = {
   urgence: { nom: 'Ibrahim Koné', lien: 'Frère', telephone: '+225 07 11 22 33 44' },
 };
 
+/** « +2250758421963 » → « +225 07 58 42 19 63 » : un numéro lisible se dicte sans erreur. */
+const telLisible = (n: string) => {
+  const m = n.replace(/\s/g, '').match(/^(\+225)(\d{10})$/);
+  return m ? `${m[1]} ${m[2]!.replace(/(\d{2})(?=\d)/g, '$1 ')}` : n;
+};
+
 const ageDe = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / (365.25 * 24 * 3600e3));
 
 /**
@@ -464,8 +470,8 @@ function DossierMedicalUrgence({ alerteId, agent, ouverte }: { alerteId: string;
           <div className="adm-medical-contact">
             <span>Personne à prévenir</span>
             <strong>{fiche.urgence.nom} · {fiche.urgence.lien}</strong>
-            <a className="adm-btn xs solid" href={`tel:${fiche.urgence.telephone.replace(/\s/g, '')}`}>📞 {fiche.urgence.telephone}</a>
-            {fiche.medecin && <span className="adm-muted">Médecin : {fiche.medecin.nom}{fiche.medecin.telephone ? ` · ${fiche.medecin.telephone}` : ''}</span>}
+            <a className="adm-btn xs solid" href={`tel:${fiche.urgence.telephone.replace(/\s/g, '')}`}>📞 {telLisible(fiche.urgence.telephone)}</a>
+            {fiche.medecin && <span className="adm-muted">Médecin : {fiche.medecin.nom}{fiche.medecin.telephone ? ` · ${telLisible(fiche.medecin.telephone)}` : ''}</span>}
           </div>
           <button className="adm-btn ghost xs" onClick={() => setFiche(null)}>Masquer le dossier</button>
         </div>

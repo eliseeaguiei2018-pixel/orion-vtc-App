@@ -42,7 +42,7 @@ const DEMO_ETAT: Etat = {
   stats: { envoyes: 2, lus: 2, reponses: 1, alertes: 0 },
 };
 
-const EN_COURSE = ['driver_assigned', 'driver_en_route', 'arrived', 'in_progress'];
+const EN_COURSE = ['accepted', 'driver_en_route', 'arrived', 'in_progress'];
 
 export function MessagesClientsSection({ canWrite, canControle, rides, onAlerte }: {
   canWrite: boolean;

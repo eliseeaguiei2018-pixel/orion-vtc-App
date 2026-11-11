@@ -39,6 +39,8 @@ export interface MessageClient {
   reponse?: { code: string; libelle: string; le: string };
   envoyeLe: string;
   luLe?: string;
+  /** Contrôle de sécurité d'une course terminée : il n'attend plus de réponse. */
+  clos?: boolean;
 }
 
 /** Contrôle de sécurité pendant la course : les réponses que le client voit. */
@@ -57,6 +59,8 @@ export const REPONSES_CONSIGNE: ReponseProposee[] = [
 export interface ContexteAlerte {
   /** Dernière position connue de la course (ou départ), pour l'alerte. */
   position(rideId: string | undefined, clientId: string): LatLng;
+  /** La course est-elle encore en cours ? Un contrôle de sécurité ne vaut que pendant sa course. */
+  courseActive?(rideId: string): boolean;
 }
 
 export class MessagerieService {
@@ -105,7 +109,17 @@ export class MessagerieService {
   }
 
   liste(clientId: string): MessageClient[] {
-    return this.repo.all().filter((m) => m.clientId === clientId).sort((a, b) => b.envoyeLe.localeCompare(a.envoyeLe));
+    return this.repo.all().filter((m) => m.clientId === clientId).sort((a, b) => b.envoyeLe.localeCompare(a.envoyeLe))
+      .map((m) => (this.controleClos(m) ? { ...m, reponses: [], clos: true } : m));
+  }
+
+  /**
+   * Un contrôle de sécurité sans réponse dont la course est terminée n'appelle plus de
+   * réponse : « je ne me sens pas en sécurité » lèverait une alerte sur une course finie.
+   * Le client garde le bouton SOS pour toute urgence.
+   */
+  private controleClos(m: MessageClient): boolean {
+    return m.type === 'controle' && !m.reponse && Boolean(m.rideId) && this.contexte.courseActive?.(m.rideId!) === false;
   }
 
   nonLus(clientId: string): number {
@@ -128,7 +142,7 @@ export class MessagerieService {
    */
   repondre(clientId: string, id: string, code: string): { message: MessageClient; alerteId?: string } | null {
     const m = this.repo.get(id);
-    if (!m || m.clientId !== clientId) return null;
+    if (!m || m.clientId !== clientId || this.controleClos(m)) return null;
     const choix = m.reponses.find((r) => r.code === code);
     if (!choix) return null;
     const le = new Date().toISOString();

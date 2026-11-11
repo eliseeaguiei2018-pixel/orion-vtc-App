@@ -33,7 +33,12 @@ export const ANTECEDENTS = [
 ] as const;
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
-const telephone = z.string().trim().regex(/^\+?[0-9 ]{8,16}$/, 'Numéro de téléphone invalide');
+// Les espaces, points et tirets de saisie (« +225 07 58 42 19 63 ») sont retirés avant
+// contrôle : on stocke le numéro tel qu'on le compose, 8 à 15 chiffres (norme E.164).
+const telephone = z.preprocess(
+  (v) => (typeof v === 'string' ? v.trim().replace(/[\s.-]/g, '') : v),
+  z.string().regex(/^\+?[0-9]{8,15}$/, 'Numéro de téléphone invalide'),
+);
 const texteLibre = (max: number) => z.string().trim().max(max).optional();
 const aujourdHui = () => new Date().toISOString().slice(0, 10);
 

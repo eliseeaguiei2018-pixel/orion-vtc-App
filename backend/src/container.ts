@@ -306,6 +306,10 @@ export function createContainer(): Container {
         const r = rideId ? rides.get(rideId) : rides.listByClient(clientId)[0];
         return r?.trace?.length ? r.trace[r.trace.length - 1]! : (r?.origin ?? { lat: 5.3236, lng: -4.0217 });
       },
+      courseActive: (rideId) => {
+        const r = rides.get(rideId);
+        return Boolean(r && ['searching', 'accepted', 'driver_en_route', 'arrived', 'in_progress'].includes(r.status));
+      },
     }),
     dossiers: new DossierMedicalService(createRepository('dossiers_medicaux'), new CoffreMedical(chargerCle(config.MEDICAL_DATA_KEY, config.NODE_ENV === 'production'))),
     subscriptions: new SubscriptionService(

@@ -922,6 +922,8 @@ export interface ReponseProposee { code: string; libelle: string; alerte?: boole
 export interface MessageOrion {
   id: string; type: 'info' | 'consigne' | 'controle'; titre: string; texte: string; auteur: string; rideId?: string;
   reponses: ReponseProposee[]; reponse?: { code: string; libelle: string; le: string }; envoyeLe: string; luLe?: string;
+  /** Contrôle de sécurité d'une course terminée : plus de réponse attendue. */
+  clos?: boolean;
 }
 
 export async function listerMessages(): Promise<{ messages: MessageOrion[]; nonLus: number } | null> {
