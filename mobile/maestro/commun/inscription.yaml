@@ -28,7 +28,7 @@ appId: ci.orion.app
 - extendedWaitUntil:
     visible: "Code envoyé.*"
     timeout: 30000
-- tapOn: "Chiffre 1 du code"
+- tapOn: "Code à 6 chiffres"
 - inputText: "240726"
 - runFlow: fermer-clavier.yaml
 - takeScreenshot: 03-code

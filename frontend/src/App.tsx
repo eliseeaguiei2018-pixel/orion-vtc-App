@@ -897,28 +897,20 @@ function OtpScreen({ phone, devCode, onBack, onResend, onVerify }: {
 }) {
   const { t } = useI18n();
   const N = 6;
-  const [code, setCode] = useState<string[]>(Array(N).fill(''));
+  // Un seul vrai champ (6 chiffres) affiché en 6 cases : aucune frappe rapide ne se perd,
+  // le collage et le remplissage automatique du SMS (iOS / Android) arrivent d'un bloc.
+  const [code, setCode] = useState('');
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
-  const refs = useRef<Array<HTMLInputElement | null>>([]);
-  const filled = code.every((c) => c !== '');
+  const [actif, setActif] = useState(true);
+  const champ = useRef<HTMLInputElement>(null);
+  const filled = code.length === N;
 
-  const setDigit = (i: number, v: string) => {
-    const chiffres = v.replace(/\D/g, '');
-    // Collage d'un code entier (ou remplissage automatique du SMS) : on répartit.
-    if (chiffres.length > 1) {
-      setCode((prev) => prev.map((c, k) => (k >= i && chiffres[k - i] !== undefined ? chiffres[k - i]! : c)));
-      refs.current[Math.min(N - 1, i + chiffres.length)]?.focus();
-      return;
-    }
-    setCode((prev) => { const n = [...prev]; n[i] = chiffres; return n; });
-    if (chiffres && i < N - 1) refs.current[i + 1]?.focus();
-  };
   const verifier = async () => {
     setEnCours(true); setErreur(null);
-    const e = await onVerify(code.join(''));
+    const e = await onVerify(code);
     setEnCours(false);
-    if (e) { setErreur(e); setCode(Array(N).fill('')); refs.current[0]?.focus(); }
+    if (e) { setErreur(e); setCode(''); champ.current?.focus(); }
   };
 
   return (
@@ -929,18 +921,21 @@ function OtpScreen({ phone, devCode, onBack, onResend, onVerify }: {
       <Sheet>
         <h2 className="h-title">{t('otp_title')}</h2>
         <p className="h-sub" style={{ marginBottom: 18 }}>{t('otp_subtitle', { phone: `+225 ${phone}` })}</p>
-        <div className="otp-row">
-          {code.map((c, i) => (
-            <input key={i} ref={(el) => { refs.current[i] = el; }} className="otp-box" inputMode="numeric" aria-label={t('otp_digit', { n: String(i + 1) })} autoComplete={i === 0 ? 'one-time-code' : 'off'}
-              value={c} autoFocus={i === 0} onChange={(e) => setDigit(i, e.target.value)} />
+        <label className="otp-row">
+          {Array.from({ length: N }, (_, i) => (
+            <span key={i} className={`otp-box${actif && i === Math.min(code.length, N - 1) ? ' actif' : ''}`} aria-hidden="true">{code[i] ?? ''}</span>
           ))}
-        </div>
+          <input ref={champ} className="otp-saisie" inputMode="numeric" pattern="[0-9]*" maxLength={N}
+            autoComplete="one-time-code" aria-label={t('otp_label')} value={code} autoFocus
+            onFocus={() => setActif(true)} onBlur={() => setActif(false)}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, N))} />
+        </label>
         {devCode && <p className="otp-dev">{t('otp_dev', { code: devCode })}</p>}
         {erreur && <p className="photo-erreur" style={{ textAlign: 'center' }}>{erreur}</p>}
         <button className="btn btn-primary" style={{ marginTop: 16 }} disabled={!filled || enCours} onClick={() => void verifier()}>
           <IconCheck size={18} /> {t('otp_verify')}
         </button>
-        <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={() => { setCode(Array(N).fill('')); void onResend().then(setErreur); }}>{t('otp_resend')}</button>
+        <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={() => { setCode(''); champ.current?.focus(); void onResend().then(setErreur); }}>{t('otp_resend')}</button>
       </Sheet>
     </div>
   );

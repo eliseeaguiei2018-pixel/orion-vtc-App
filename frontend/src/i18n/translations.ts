@@ -22,7 +22,7 @@ export const LANGUAGES: LangMeta[] = [
 export type Dict = Record<string, string>;
 
 const fr: Dict = {
-  otp_digit: 'Chiffre {n} du code',
+  otp_label: 'Code à 6 chiffres',
   tagline: 'Mobilité verte · Abidjan',
   demoMode: 'Mode démo — données simulées',
   back: 'Retour', confirm: 'Confirmer', cancel: 'Annuler', done: 'Terminer', close: 'Fermer',
@@ -315,7 +315,7 @@ const fr: Dict = {
 };
 
 const en: Dict = {
-  otp_digit: 'Code digit {n}',
+  otp_label: '6-digit code',
   tagline: 'Green mobility · Abidjan',
   demoMode: 'Demo mode — simulated data',
   back: 'Back', confirm: 'Confirm', cancel: 'Cancel', done: 'Done', close: 'Close',
@@ -606,7 +606,7 @@ const en: Dict = {
 };
 
 const es: Dict = {
-  otp_digit: 'Dígito {n} del código',
+  otp_label: 'Código de 6 dígitos',
   tagline: 'Movilidad verde · Abiyán',
   demoMode: 'Modo demo — datos simulados',
   back: 'Atrás', confirm: 'Confirmar', cancel: 'Cancelar', done: 'Listo', close: 'Cerrar',
@@ -982,7 +982,7 @@ const es: Dict = {
 };
 
 const it: Dict = {
-  otp_digit: 'Cifra {n} del codice',
+  otp_label: 'Codice a 6 cifre',
   tagline: 'Mobilità verde · Abidjan',
   demoMode: 'Modalità demo — dati simulati',
   back: 'Indietro', confirm: 'Conferma', cancel: 'Annulla', done: 'Fatto', close: 'Chiudi',
@@ -1358,7 +1358,7 @@ const it: Dict = {
 };
 
 const de: Dict = {
-  otp_digit: 'Ziffer {n} des Codes',
+  otp_label: '6-stelliger Code',
   tagline: 'Grüne Mobilität · Abidjan',
   demoMode: 'Demo-Modus — simulierte Daten',
   back: 'Zurück', confirm: 'Bestätigen', cancel: 'Abbrechen', done: 'Fertig', close: 'Schließen',
@@ -1734,7 +1734,7 @@ const de: Dict = {
 };
 
 const ar: Dict = {
-  otp_digit: 'الرقم {n} من الرمز',
+  otp_label: 'رمز من 6 أرقام',
   tagline: 'تنقّل أخضر · أبيدجان',
   demoMode: 'وضع تجريبي — بيانات محاكاة',
   back: 'رجوع', confirm: 'تأكيد', cancel: 'إلغاء', done: 'تم', close: 'إغلاق',
@@ -2110,7 +2110,7 @@ const ar: Dict = {
 };
 
 const zh: Dict = {
-  otp_digit: '验证码第 {n} 位',
+  otp_label: '6 位验证码',
   tagline: '绿色出行 · 阿比让',
   demoMode: '演示模式 — 模拟数据',
   back: '返回', confirm: '确认', cancel: '取消', done: '完成', close: '关闭',
@@ -2486,7 +2486,7 @@ const zh: Dict = {
 };
 
 const ru: Dict = {
-  otp_digit: 'Цифра {n} кода',
+  otp_label: '6-значный код',
   tagline: 'Зелёная мобильность · Абиджан',
   demoMode: 'Демо-режим — смоделированные данные',
   back: 'Назад', confirm: 'Подтвердить', cancel: 'Отмена', done: 'Готово', close: 'Закрыть',

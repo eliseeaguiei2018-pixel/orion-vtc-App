@@ -2,10 +2,19 @@
 appId: ci.orion.app
 ---
 - takeScreenshot: 00-icone-installee
+# Le client cherche l'app par son nom dans la recherche de l'iPhone, puis l'ouvre.
 - tapOn:
+    text: "Recherche"
+    optional: true
+- inputText:
     text: "ORION"
     optional: true
-# Si l'icône est sur une autre page de l'écran d'accueil, on ouvre l'app comme iOS le ferait.
+- waitForAnimationToEnd
+- takeScreenshot: 00b-recherche-iphone
+- pressKey:
+    key: Enter
+    optional: true
+# Filet de sécurité : si la recherche n'a pas ouvert l'app, on l'ouvre comme iOS le ferait.
 - launchApp:
     appId: ci.orion.app
     stopApp: false

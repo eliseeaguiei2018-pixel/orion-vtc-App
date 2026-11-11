@@ -21,9 +21,10 @@ on:
         type: boolean
         default: true
 
+# Une démonstration filmée en cours n'est jamais interrompue : l'exécution suivante attend.
 concurrency:
   group: mobile-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   android:
