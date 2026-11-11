@@ -89,6 +89,10 @@ jobs:
         run: |
           curl -fsSL "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Place disque pour l'émulateur
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost /opt/hostedtoolcache/CodeQL
+          df -h /
       - name: Accélération matérielle de l'émulateur (KVM)
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -102,9 +106,10 @@ jobs:
           arch: x86_64
           profile: pixel_6
           ram-size: 4096M
-          disk-size: 8G
+          disk-size: 4096M
           emulator-boot-timeout: 900
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-front emulated -camera-back virtualscene
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -no-metrics -camera-front emulated -camera-back none
           script: bash mobile/ci/android-demo.sh "$GITHUB_WORKSPACE/apk/app-debug.apk" "$GITHUB_WORKSPACE/demo-android"
       - name: Journal du serveur
         if: always()
