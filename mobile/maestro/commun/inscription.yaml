@@ -14,9 +14,9 @@ appId: ci.orion.app
 - extendedWaitUntil:
     visible: "Créer votre compte"
     timeout: 20000
-- tapOn: "Votre nom"
+- tapOn: "Votre nom.*"
 - inputText: "Aya Kouassi"
-- tapOn: "Numéro de téléphone"
+- tapOn: "Numéro de téléphone.*"
 - inputText: "0708091011"
 - tapOn: "E-mail.*"
 - inputText: "aya.kouassi@exemple.ci"
@@ -28,7 +28,7 @@ appId: ci.orion.app
 - extendedWaitUntil:
     visible: "Code envoyé.*"
     timeout: 30000
-- tapOn: "Code à 6 chiffres"
+- tapOn: "Code à 6 chiffres.*"
 - inputText: "240726"
 - runFlow: fermer-clavier.yaml
 - takeScreenshot: 03-code
