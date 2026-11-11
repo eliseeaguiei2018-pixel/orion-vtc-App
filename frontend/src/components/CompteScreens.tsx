@@ -123,11 +123,11 @@ export function PhotoCapture({ onPhoto, enCours }: { onPhoto: (dataUrl: string) 
         </div>
       )}
       {mode === 'apercu' && apercu && (
-        <div className="row gap-sm">
-          <button className="btn btn-ghost" disabled={enCours} onClick={() => { setApercu(null); setMode('choix'); }}>{t('photo_retake')}</button>
+        <div className="stack">
           <button className="btn btn-primary" disabled={enCours} onClick={() => onPhoto(apercu)}>
             <IconCheck size={18} /> {enCours ? t('photo_saving') : t('photo_use')}
           </button>
+          <button className="btn btn-ghost" disabled={enCours} onClick={() => { setApercu(null); setMode('choix'); }}>{t('photo_retake')}</button>
         </div>
       )}
     </div>

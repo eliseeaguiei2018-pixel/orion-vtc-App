@@ -46,10 +46,16 @@ function toLocalInput(d: Date): string {
 }
 
 /** Le véhicule illustré : berline présidentielle noire, ou SUV Signature nacré. */
-function PrestigeBadge({ classe, size = 46 }: { classe: PrestigeVehicle['classe']; size?: number }) {
+/** Modèles de la flotte Signature carrossés en SUV (les autres sont des berlines). */
+const SUV_PRESTIGE = new Set(['aito-m9', 'nio-es9', 'zeekr-8x']);
+
+/** Silhouette fidèle au modèle : limousine noire pour la classe présidentielle, SUV ou berline sinon. */
+function PrestigeBadge({ vehicule, size = 46 }: { vehicule: Pick<PrestigeVehicle, 'id' | 'classe'> & { atouts?: string[] }; size?: number }) {
+  const presidentielle = vehicule.classe === 'presidentielle';
+  const suv = !presidentielle && (SUV_PRESTIGE.has(vehicule.id) || (vehicule.atouts ?? []).some((a) => /\bSUV\b/i.test(a)));
   return (
     <span className="veh-illus" style={{ width: size * 1.75, height: size }}>
-      <Voiture modele={classe === 'presidentielle' ? 'luxe' : 'suv'} peinture={classe === 'presidentielle' ? 'nuit' : 'perle'} largeur={size * 1.75} phares={false} />
+      <Voiture modele={suv ? 'suv' : 'luxe'} peinture={presidentielle ? 'nuit' : 'perle'} largeur={size * 1.75} phares={false} />
     </span>
   );
 }
@@ -191,7 +197,7 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
                 style={{ ...(actif ? { borderColor: v.classe === 'presidentielle' ? '#f5c451' : '#7fe7ff' } : {}), opacity: indispo ? 0.55 : 1 }}
                 onClick={() => setVehicleId(v.id)}
               >
-                <PrestigeBadge classe={v.classe} />
+                <PrestigeBadge vehicule={v} />
                 <span className="col grow" style={{ textAlign: 'start' }}>
                   <strong style={{ fontSize: 15 }}>{v.name}</strong>
                   <span className="faint" style={{ fontSize: 12 }}>
@@ -414,7 +420,7 @@ export function MyRentalsScreen({ onBack, onToast }: { onBack: () => void; onToa
             <div key={r.id} className="plan-card">
               <div className="row between">
                 <div className="row gap-sm">
-                  <PrestigeBadge classe={r.vehicle.classe} size={40} />
+                  <PrestigeBadge vehicule={r.vehicle} size={40} />
                   <div className="col">
                     <strong style={{ fontSize: 15 }}>{r.vehicle.name}</strong>
                     <span className="faint" style={{ fontSize: 12 }}>

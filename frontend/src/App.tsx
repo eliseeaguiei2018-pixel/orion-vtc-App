@@ -62,7 +62,7 @@ function TierBadge({ tier, size = 50, suv = false }: { tier: string; size?: numb
   const v = vehiculeDeGamme(tier);
   return (
     <span className="veh-illus" style={{ width: size * 1.75, height: size }}>
-      <Voiture modele={suv ? 'suv' : v.modele} peinture={v.peinture} largeur={size * 1.75} phares={false} />
+      <Voiture modele={suv ? 'suv' : v.modele === 'suv' ? 'berline' : v.modele} peinture={v.peinture} largeur={size * 1.75} phares={false} />
     </span>
   );
 }
@@ -1488,10 +1488,12 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
             <span className="col grow">
               <strong style={{ fontSize: 16 }}>{driver.name}</strong>
               <span className="row gap-sm" style={{ fontSize: 13 }}><IconStar size={14} color="#f5c451" /> {driver.rating} · {driver.trips.toLocaleString('fr-FR')}</span>
-              <span className="faint" style={{ fontSize: 12, marginTop: 2 }}>{driver.car || tier.cars[0]} · {t(tier.key)}</span>
+              <span className="faint" style={{ fontSize: 12, marginTop: 2 }}>{driver.car || tier.cars[0]}{del ? '' : ` · ${t(tier.key)}`}</span>
             </span>
             <span className="col drv-vehicule">
-              <TierBadge tier={tier.id} size={34} />
+              {del
+                ? <span className="veh-illus" style={{ width: 60, height: 34 }}><Scooter largeur={60} /></span>
+                : <TierBadge tier={tier.id} size={34} />}
               <span className="plate">{driver.plate}</span>
             </span>
           </div>
@@ -1974,7 +1976,7 @@ function PaymentScreen({ quote, coverage, payment, driver, rideId, onPaid }: {
               <span className="driver-photo" style={{ width: 48, height: 48, fontSize: 18 }}>{driver.name.charAt(0)}</span>
             </div>
             <div className="chip active" style={{ width: '100%', justifyContent: 'flex-start', marginBottom: 14 }}><IconWallet size={16} /> {provider}</div>
-            <button className="btn btn-primary" onClick={pay}><IconWallet size={18} /> {t('conf_confirm')} · {formatXOF(quote?.amount ?? 0)}</button>
+            <button className="btn btn-primary" onClick={pay}><IconWallet size={18} /> {t('pay_now')} · {formatXOF(quote?.amount ?? 0)}</button>
             {mobile && <p className="faint" style={{ fontSize: 12, textAlign: 'center', marginTop: 8 }}>{t('pay_redirect', { p: provider })}</p>}
           </>
         ) : (

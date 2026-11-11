@@ -38,6 +38,8 @@ interface Geo {
   roues: [number, number]; r: number; sol: number;
   phare: string; feu: string; ligne: string; toit: string; portes: string; poignees: Array<[number, number]>;
   retro: [number, number]; lueur: [number, number]; chrome?: string; barres?: string;
+  /** Rayon du passage de roue sombre, si l'aile est plus haute que d'habitude (SUV). */
+  arche?: number;
 }
 
 /* Profils dessinés à la main, nez à droite, dans un cadre 240 × 120. */
@@ -73,20 +75,23 @@ const GEO: Record<Modele, Geo> = {
     lueur: [208, 66],
   },
   suv: {
-    corps: 'M20 84 C 14 82 13 72 15 64 C 17 56 22 50 34 48 L 52 46 C 64 36 86 28 116 27 C 138 27 152 30 162 36 L 180 46 C 200 49 216 53 223 59 C 229 64 230 74 227 80 C 225 85 221 87 214 87 L 203 87 A 25 25 0 0 0 153 87 L 89 87 A 25 25 0 0 0 39 87 L 29 87 C 25 87 22 86 20 84 Z',
-    vitres: 'M56 50 C 68 38 90 32 114 31.5 C 132 31.5 148 34 158 40 L 172 50 Z',
-    montants: 'M110 31.5 L 112 50 L 117 50 L 115 31.5 Z M60 47 L 63 50 L 70 50 L 66 44 Z',
-    bas: 'M39 87 L 89 87 L 153 87 L 203 87 L 203 81 L 39 81 Z',
-    roues: [64, 178], r: 21, sol: 106,
-    phare: 'M209 55 C 216 56 222 58 225 61 L 223 64 C 217 62 212 61 208 60 Z',
-    feu: 'M15 60 C 19 58 25 57 32 57 L 32 61 C 26 61 20 62 16 64 Z',
-    ligne: 'M28 60 C 80 55 160 53 218 57',
-    toit: 'M64 42 C 82 33 100 29.5 118 29 C 136 29 150 32 158 37',
-    portes: 'M113 52 L 114 81 M156 50 L 153 81',
-    poignees: [[92, 59], [134, 58]],
-    retro: [168, 46],
-    lueur: [226, 60],
-    barres: 'M70 33 C 90 26 130 24 152 29',
+    // SUV : pavillon haut et plat, hayon presque vertical, garde au sol visible,
+    // grandes roues et élargisseurs d'ailes en plastique noir.
+    corps: 'M22 84 C 16 82 14 77 14 70 L 15 44 C 16 32 22 25 34 23 L 140 21 C 150 21 156 23 162 28 L 182 44 C 202 46 216 49 222 54 C 228 59 229 70 227 78 C 226 83 222 85 216 85 L 207 85 A 27 27 0 0 0 153 85 L 89 85 A 27 27 0 0 0 35 85 L 28 85 C 25 85 23 85 22 84 Z',
+    vitres: 'M30 46 L 32 32 C 34 28 38 27 44 27 L 138 26 C 147 26 152 28 157 32 L 172 46 Z',
+    montants: 'M44 27 L 36 46 L 47 46 L 52 27 Z M74 27 L 73 46 L 78 46 L 79 27 Z M116 26.5 L 116 46 L 121 46 L 121 26.5 Z',
+    bas: 'M35 85 L 207 85 L 207 77 L 35 77 Z',
+    roues: [62, 180], r: 22, sol: 108,
+    phare: 'M211 51 C 218 52 223 54 226 57 L 225 60 C 219 58 214 57 210 56 Z',
+    feu: 'M14 46 C 16 45.5 18.5 45.5 21 46 L 21 57 C 18.5 57 16 57.5 14 58 Z',
+    ligne: 'M24 52 C 80 49 160 48 220 53',
+    toit: 'M40 24.5 C 70 23 110 22.5 140 23',
+    portes: 'M76 48 L 77 77 M118 48 L 118 77 M161 47 L 158 77',
+    poignees: [[94, 54], [136, 53]],
+    retro: [170, 45],
+    lueur: [226, 56],
+    barres: 'M46 21 L 138 19.6 M33 85 A 29 29 0 0 1 91 85 M151 85 A 29 29 0 0 1 209 85',
+    arche: 30,
   },
   luxe: {
     corps: 'M16 86 C 10 84 9 77 12 71 C 14 66 20 63 30 62 L 58 58 C 74 46 98 37 124 35 C 144 34 158 38 168 44 L 184 52 C 204 55 220 59 227 64 C 232 68 233 76 230 82 C 228 87 224 89 217 89 L 205 89 A 23 23 0 0 0 159 89 L 83 89 A 23 23 0 0 0 37 89 L 26 89 C 21 89 18 88 16 86 Z',
@@ -142,6 +147,7 @@ export function Voiture({ modele = 'berline', peinture = 'accent', largeur = 120
     : PEINTURES[peinture];
   const [r1, r2] = g.roues;
   const yRoue = g.sol - g.r;
+  const a = g.arche ?? g.r + 3;
   return (
     <svg width={largeur} height={largeur / 2} viewBox="0 0 240 120" fill="none" aria-hidden className="vehicule">
       <defs>
@@ -180,7 +186,7 @@ export function Voiture({ modele = 'berline', peinture = 'accent', largeur = 120
       <ellipse cx={r2} cy={g.sol - 1} rx={g.r * 1.05} ry="3" fill="#000" opacity="0.45" filter={`url(#${id}-flou2)`} />
 
       {/* Passages de roue sombres (visibles autour des pneus) */}
-      {[r1, r2].map((x) => <path key={x} d={`M${x - g.r - 3} ${yRoue + 2} A ${g.r + 3} ${g.r + 3} 0 0 1 ${x + g.r + 3} ${yRoue + 2} Z`} fill="#07090b" />)}
+      {[r1, r2].map((x) => <path key={x} d={`M${x - a} ${yRoue + 2} A ${a} ${a} 0 0 1 ${x + a} ${yRoue + 2} Z`} fill="#07090b" />)}
       {/* Carrosserie */}
       <path d={g.corps} fill={`url(#${id}-p)`} />
       {g.barres && <path d={g.barres} stroke="#1a2026" strokeWidth="3" strokeLinecap="round" />}
