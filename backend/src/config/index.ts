@@ -17,6 +17,10 @@ const schema = z.object({
 
   // Verrouillage d'estimation de prix.
   QUOTE_TTL_SECONDS: z.coerce.number().int().positive().default(120),
+  // Un chauffeur reste « en course » après `completed` le temps d'encaisser. Au-delà
+  // de ce délai sans paiement enregistré, il est libéré — sinon un client parti sans
+  // régler le bloquerait toute la journée.
+  RIDE_UNPAID_RELEASE_MINUTES: z.coerce.number().int().positive().default(5),
 
   // Délai d'acceptation d'une offre par un chauffeur.
   OFFER_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(15),

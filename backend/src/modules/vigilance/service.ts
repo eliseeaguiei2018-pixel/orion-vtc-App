@@ -227,6 +227,23 @@ export class VigilanceService {
       });
     }
 
+    /* ------------------- Courses terminées jamais réglées ------------------- */
+    // Trouvé en enregistrant la démonstration : treize chauffeurs « en course »,
+    // zéro course active. Le filet de sécurité les libère ; la vigilance montre
+    // l'argent qui, lui, n'est pas rentré.
+    const nonReglees = this.c.rideRelease.enAttenteDePaiement(now).filter((x) => x.depuisMin > 15);
+    if (nonReglees.length > 0) {
+      const total = nonReglees.reduce((n, x) => n + x.montant, 0);
+      push({
+        id: 'courses-terminees-non-reglees', severite: nonReglees.length >= 5 ? 'eleve' : 'moyen', domaine: 'finance',
+        titre: 'Courses terminées sans paiement enregistré',
+        constat: `${nonReglees.length} course(s) terminée(s) depuis plus de 15 min sans règlement, pour ${total.toLocaleString('fr-FR')} F.`,
+        consequence: 'Le chauffeur a été libéré pour continuer à travailler, mais cet argent n’est pas rentré.',
+        action: 'Vérifier chaque course depuis la session Courses : encaissement espèces non confirmé, ou client à relancer.',
+        section: 'rides', elements: nonReglees.map((x) => x.rideId),
+      });
+    }
+
     /* ------------------------------- Caisses ------------------------------- */
     // Une caisse laissée ouverte d'un jour sur l'autre n'est plus comptable de rien :
     // on ne sait plus à quelle journée rattacher les espèces qu'elle contient.

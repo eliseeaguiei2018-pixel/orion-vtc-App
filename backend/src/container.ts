@@ -8,6 +8,7 @@ import { DriverStore } from './modules/drivers/store.js';
 import { RideStore } from './modules/rides/store.js';
 import { MatchingEngine } from './modules/rides/matching.js';
 import { RideSimulator } from './modules/rides/simulator.js';
+import { RideReleaseService } from './modules/rides/release.js';
 import { trafficInfo } from './modules/geo-ci/zones.js';
 import { WalletService } from './modules/wallet/service.js';
 import { SubscriptionService } from './modules/subscriptions/service.js';
@@ -22,6 +23,7 @@ import { EmergencyContactsService, type ContactJournalEntry } from './modules/sa
 import { SettingsService, type PricingRecord } from './modules/settings/service.js';
 import { RealtimeHub, CONFIG_ROOM, DRIVER_CONFIG_ROOM, driverRoom } from './modules/realtime/hub.js';
 import { driverAppConfig } from './modules/driver-app/config.js';
+import { config } from './config/index.js';
 import { createMapsProvider, type MapsProvider } from './modules/maps/service.js';
 import { createRepository } from './core/db/repository.js';
 import { brancherAnnuaire, identifiantsDeConfiguration } from './modules/admin/auth.js';
@@ -125,6 +127,8 @@ export interface Container {
   workspace: WorkspaceService;
   /** Assistant ORION : répond en français à des questions sur les données réelles. */
   assistant: AssistantService;
+  /** Filet de sécurité : libère un chauffeur dont la course terminée n'est jamais réglée. */
+  rideRelease: RideReleaseService;
 }
 
 export function createContainer(): Container {
@@ -316,6 +320,7 @@ export function createContainer(): Container {
     crew: undefined as unknown as CrewService,
     teamWorkspace: undefined as unknown as TeamWorkspaceService,
     assistant: undefined as unknown as AssistantService,
+    rideRelease: undefined as unknown as RideReleaseService,
   };
   // La direction générale ne stocke rien, elle lit les autres modules. On la câble
   // après coup pour qu'elle voie l'intégralité du conteneur.
@@ -325,6 +330,9 @@ export function createContainer(): Container {
   container.crew = new CrewService(container);
   container.teamWorkspace = new TeamWorkspaceService(container);
   container.assistant = new AssistantService(container);
+  container.rideRelease = new RideReleaseService(container, config.RIDE_UNPAID_RELEASE_MINUTES);
+  // En test, le balayage s'appelle à la main pour rester déterministe.
+  if (config.NODE_ENV !== 'test') container.rideRelease.start();
 
   // INTERCONNEXION : une requête chauffeur qui bouge réveille les sessions qui en
   // dépendent. Sans cela, le chauffeur dépose, et personne ne le sait avant la
