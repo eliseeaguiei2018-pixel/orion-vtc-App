@@ -88,7 +88,7 @@ adossable à **Redis Pub/Sub**. Voir [docs/05](docs/05-architecture-scalabilite.
 - [x] **Application chauffeur** : connexion SMS, dossier KYC, offres avec délai console, course, gains, mobilité verte, synchro temps réel.
 1. Brancher PostgreSQL (impl `Repository` Postgres) + Redis pour la prod.
 2. Activer une vraie clé Google Maps (itinéraires/carte réels) côté front & back.
-3. **Opérateur SMS** pour la connexion chauffeur en production, puis `DRIVER_AUTH_STRICT=true` et `SIMULATE_RIDES=false`.
+3. **Opérateur SMS** : branché (Orange Côte d'Ivoire, Twilio en secours), à activer avec les identifiants Orange ; puis `DRIVER_AUTH_STRICT=true` et `SIMULATE_RIDES=false`.
 4. Dashboard admin / supervision des urgences (consommer `/ws/emergency`).
 5. Extension : livraison de colis, puis micro-mobilité (cf. docs/04).
 

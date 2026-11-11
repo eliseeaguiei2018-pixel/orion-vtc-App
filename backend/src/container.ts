@@ -1,3 +1,4 @@
+import { creerSms, type SmsSender } from './modules/sms/index.js';
 import { randomUUID } from 'node:crypto';
 import { createGeoIndex, type GeoIndex } from './core/geo.js';
 import { IdempotencyStore } from './core/idempotency.js';
@@ -129,6 +130,8 @@ export interface Container {
   assistant: AssistantService;
   /** Filet de sécurité : libère un chauffeur dont la course terminée n'est jamais réglée. */
   rideRelease: RideReleaseService;
+  /** Opérateur SMS : codes de connexion des clients et des chauffeurs. */
+  sms: SmsSender;
 }
 
 export function createContainer(): Container {
@@ -321,6 +324,7 @@ export function createContainer(): Container {
     teamWorkspace: undefined as unknown as TeamWorkspaceService,
     assistant: undefined as unknown as AssistantService,
     rideRelease: undefined as unknown as RideReleaseService,
+    sms: creerSms(config),
   };
   // La direction générale ne stocke rien, elle lit les autres modules. On la câble
   // après coup pour qu'elle voie l'intégralité du conteneur.

@@ -26,21 +26,41 @@ interface PendingOtp { code: string; expiresAt: number; attempts: number; sentAt
 
 const MAX_ATTEMPTS = 5;
 const RESEND_COOLDOWN_MS = 30_000;
+/** Plafond de codes par numéro et par heure : chaque SMS est facturé par l'opérateur. */
+const MAX_PAR_HEURE = 5;
+const HEURE_MS = 3_600_000;
 
 export class OtpStore {
   private readonly pending = new Map<string, PendingOtp>();
+  private readonly envois = new Map<string, number[]>();
 
-  /** Génère un code à 6 chiffres. Renvoie null si un code vient d'être envoyé (anti-spam). */
-  issue(phone: string, codeImpose?: string): { code: string; expiresAt: string } | { retryInSeconds: number } {
+  /**
+   * Génère un code à 6 chiffres. Refuse (avec le délai d'attente) si un code vient d'être
+   * envoyé, ou si le numéro a déjà reçu 5 codes dans l'heure (`plafond`).
+   */
+  issue(phone: string, codeImpose?: string): { code: string; expiresAt: string } | { retryInSeconds: number; plafond?: true } {
     const now = Date.now();
     const prev = this.pending.get(phone);
     if (prev && now - prev.sentAt < RESEND_COOLDOWN_MS && prev.expiresAt > now) {
       return { retryInSeconds: Math.ceil((RESEND_COOLDOWN_MS - (now - prev.sentAt)) / 1000) };
     }
+    const recents = (this.envois.get(phone) ?? []).filter((t) => now - t < HEURE_MS);
+    if (!codeImpose && recents.length >= MAX_PAR_HEURE) {
+      return { retryInSeconds: Math.ceil((recents[0]! + HEURE_MS - now) / 1000), plafond: true };
+    }
+    recents.push(now);
+    this.envois.set(phone, recents);
     const code = codeImpose ?? String(randomInt(0, 1_000_000)).padStart(6, '0');
     const expiresAt = now + config.DRIVER_OTP_TTL_SECONDS * 1000;
     this.pending.set(phone, { code, expiresAt, attempts: 0, sentAt: now });
     return { code, expiresAt: new Date(expiresAt).toISOString() };
+  }
+
+  /** Annule le dernier code (SMS non parti) : le client peut en redemander un aussitôt. */
+  revoke(phone: string): void {
+    this.pending.delete(phone);
+    const recents = this.envois.get(phone);
+    if (recents?.length) recents.pop();
   }
 
   /** Vérifie le code (temps constant). Le code est détruit après succès ou 5 échecs. */

@@ -148,9 +148,10 @@ Google : **18 ans et plus**.
 
 ## 6. Ce qu'il reste à faire de votre côté, dans l'ordre
 
-1. **Brancher un opérateur SMS** (Orange, MTN, Moov ou un agrégateur) sur le serveur. C'est
-   **bloquant** : sans lui, les vrais clients ne reçoivent pas leur code et ne peuvent pas
-   créer de compte. Le point d'envoi est prêt dans `backend/src/modules/clients/routes.ts`.
+1. **Activer l'opérateur SMS** : le serveur est branché sur l'API SMS d'Orange Côte
+   d'Ivoire (et Twilio en secours). Il reste à ouvrir le compte Orange Developer et à saisir
+   ses identifiants sur Render (`DEPLOIEMENT.md`, « Opérateur SMS »). C'est **bloquant** :
+   sans cela, les vrais clients ne reçoivent pas leur code.
 2. **Comptes développeur** : Apple Developer Program (99 USD par an) et Google Play Console
    (25 USD, une fois). Un compte « organisation » demande un numéro D-U-N-S, gratuit.
 3. **Signature** : certificat de distribution Apple, et clé d'importation Android à garder

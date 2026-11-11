@@ -100,6 +100,24 @@ const schema = z.object({
   // numéro, désigné ici, accepte un code fixe. Vide = désactivé (par défaut).
   CLIENT_REVIEW_PHONE: z.string().optional(),
   CLIENT_REVIEW_CODE: z.string().regex(/^\d{6}$/, 'CLIENT_REVIEW_CODE : 6 chiffres').optional(),
+  // --- Opérateur SMS (codes de connexion clients et chauffeurs) ---
+  // 'orange' : API SMS Orange Côte d'Ivoire ; 'twilio' : secours international ;
+  // 'console' : développement (aucun SMS ; refusé en production pour les vrais numéros).
+  // (Un champ laissé vide dans l'hébergeur vaut « non défini ».)
+  SMS_PROVIDER: z.preprocess((v) => (v === '' ? undefined : v), z.enum(['console', 'orange', 'twilio']).default('console')),
+  // Nom d'expéditeur affiché sur le téléphone (11 caractères max, validé par l'opérateur).
+  SMS_SENDER_NAME: z.string().max(11).default('ORION'),
+  // Préfixes autorisés (séparés par des virgules) : bloque l'envoi de SMS facturés vers
+  // l'étranger (fraude dite « SMS pumping »).
+  SMS_ALLOWED_PREFIXES: z.string().default('+225'),
+  ORANGE_SMS_CLIENT_ID: z.string().optional(),
+  ORANGE_SMS_CLIENT_SECRET: z.string().optional(),
+  // Adresse d'expédition attribuée par Orange (Côte d'Ivoire : tel:+2250000).
+  ORANGE_SMS_SENDER: z.string().default('tel:+2250000'),
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_FROM: z.string().optional(),
+  TWILIO_MESSAGING_SERVICE_SID: z.string().optional(),
   // Validité d'un code SMS de connexion (secondes).
   DRIVER_OTP_TTL_SECONDS: z.coerce.number().int().positive().default(300),
   // Mode STRICT : si "true", le jeton chauffeur devient OBLIGATOIRE sur toutes les routes
@@ -118,6 +136,15 @@ const schema = z.object({
   // En production : 'postgres' via la même interface Repository (cf. docs).
   PERSISTENCE: z.enum(['memory', 'sqlite']).default('memory'),
   DB_PATH: z.string().default('./data/orion.db'),
+}).superRefine((c, ctx) => {
+  // Un opérateur choisi sans ses identifiants : le serveur refuse de démarrer, plutôt que
+  // de laisser les clients attendre un SMS qui ne partira jamais.
+  if (c.SMS_PROVIDER === 'orange' && (!c.ORANGE_SMS_CLIENT_ID || !c.ORANGE_SMS_CLIENT_SECRET)) {
+    ctx.addIssue({ code: 'custom', path: ['ORANGE_SMS_CLIENT_ID'], message: 'SMS_PROVIDER=orange : ORANGE_SMS_CLIENT_ID et ORANGE_SMS_CLIENT_SECRET sont requis' });
+  }
+  if (c.SMS_PROVIDER === 'twilio' && (!c.TWILIO_ACCOUNT_SID || !c.TWILIO_AUTH_TOKEN || (!c.TWILIO_FROM && !c.TWILIO_MESSAGING_SERVICE_SID))) {
+    ctx.addIssue({ code: 'custom', path: ['TWILIO_ACCOUNT_SID'], message: 'SMS_PROVIDER=twilio : TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN et TWILIO_FROM (ou TWILIO_MESSAGING_SERVICE_SID) sont requis' });
+  }
 });
 
 const parsed = schema.safeParse(process.env);

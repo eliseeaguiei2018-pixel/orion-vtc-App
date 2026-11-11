@@ -6,6 +6,7 @@ import { config } from '../../config/index.js';
 import { parse } from '../../core/validate.js';
 import { AppError, badRequest, forbidden, notFound, unauthorized } from '../../core/errors.js';
 import { OtpStore, normalizePhone } from '../driver-app/auth.js';
+import { emettreCode } from '../sms/codes.js';
 import { nearestZone } from '../geo-ci/zones.js';
 import { vueUsager } from '../safety/service.js';
 import type { Client } from './store.js';
@@ -56,12 +57,9 @@ export async function clientAccountRoutes(app: FastifyInstance, container: Conta
     // Numéro de vérification des stores : code fixe, connu des seuls vérificateurs.
     const revue = config.CLIENT_REVIEW_PHONE && config.CLIENT_REVIEW_CODE
       && normalizePhone(config.CLIENT_REVIEW_PHONE) === phone ? config.CLIENT_REVIEW_CODE : undefined;
-    const issued = otps.issue(phone, revue);
-    if ('retryInSeconds' in issued) {
-      throw new AppError(429, 'RATE_LIMITED', `Code déjà envoyé — réessayez dans ${issued.retryInSeconds} s`);
-    }
-    // Opérateur SMS à brancher en production ; ni le code ni le numéro complet ne sont journalisés.
-    req.log.info({ phone: masquer(phone), revue: Boolean(revue) }, 'Code de connexion client émis');
+    // Envoi par l'opérateur SMS ; ni le code ni le numéro complet ne sont journalisés.
+    const issued = await emettreCode({ sms: container.sms, otps, phone, pour: 'client', log: req.log, codeImpose: revue });
+    req.log.info({ phone: masquer(phone), revue: Boolean(revue), sms: issued.envoye }, 'Code de connexion client émis');
     return {
       sent: true, phone, expiresAt: issued.expiresAt,
       compteExistant: Boolean(container.clients.findByVerifiedPhone(phone)),

@@ -30,6 +30,17 @@ services:
       # App cliente : secret de signature des sessions client (distinct, généré par Render).
       - key: CLIENT_JWT_SECRET
         generateValue: true
+      # Opérateur SMS des codes de connexion : « orange » (Orange Côte d'Ivoire) ou
+      # « twilio ». Vide = aucun SMS : en production, les connexions par code sont refusées.
+      # Voir DEPLOIEMENT.md, « Opérateur SMS ».
+      - key: SMS_PROVIDER
+        sync: false
+      - key: ORANGE_SMS_CLIENT_ID
+        sync: false
+      - key: ORANGE_SMS_CLIENT_SECRET
+        sync: false
+      - key: SMS_SENDER_NAME
+        value: ORION
       # Revue Apple / Google : numéro de démonstration et son code fixe (6 chiffres).
       # À définir dans le tableau de bord Render, voir store/README.md §4.
       - key: CLIENT_REVIEW_PHONE

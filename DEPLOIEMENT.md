@@ -57,13 +57,38 @@ J'ai déjà ajouté le workflow `.github/workflows/deploy-pages.yml`. Une seule 
   `CORS_ORIGIN=https://orion.vercel.app,capacitor://localhost,https://localhost`.
 - En production réelle, mets `SIMULATE_RIDES=false` (l'app chauffeur fournit désormais les vraies positions).
 - **App chauffeur** : `DRIVER_JWT_SECRET` (généré automatiquement par le blueprint Render),
-  puis, une fois l'opérateur SMS branché, `DRIVER_AUTH_STRICT=true`. Sans opérateur SMS, un
-  serveur en production n'envoie pas le code de connexion chauffeur (voir docs/10 §6).
+  puis, une fois l'opérateur SMS activé, `DRIVER_AUTH_STRICT=true`.
 - **App cliente** : `CLIENT_JWT_SECRET` (généré automatiquement par le blueprint Render). Le
-  compte client repose sur un numéro vérifié par code SMS : comme pour les chauffeurs, il faut
-  brancher l'opérateur SMS en production — le code de test n'est renvoyé qu'en développement.
+  compte client repose sur un numéro vérifié par code SMS, envoyé par l'opérateur SMS ; le
+  code de test n'est renvoyé à l'app qu'en développement.
+- **Opérateur SMS** (indispensable pour ouvrir l'app au public) : voir la section
+  « Opérateur SMS » ci-dessous.
 - **Revue Apple / Google** : `CLIENT_REVIEW_PHONE` et `CLIENT_REVIEW_CODE` réservent un numéro
   de démonstration qui reçoit toujours le même code (lui seul). Voir `store/README.md` §4.
+
+### Opérateur SMS (codes de connexion)
+Les clients et les chauffeurs se connectent avec un code reçu par SMS. Le serveur sait
+l'envoyer par **Orange Côte d'Ivoire** (recommandé) ou par **Twilio** (secours).
+
+1. Sur **https://developer.orange.com**, crée un compte, puis une application, et abonne-la
+   à l'API **« SMS Côte d'Ivoire »** (achat d'un forfait de SMS).
+2. Copie le **Client ID** et le **Client Secret** de l'application.
+3. Demande à Orange la validation du nom d'expéditeur **ORION** (affiché à la place du
+   numéro sur le téléphone du client).
+4. Sur Render, renseigne : `SMS_PROVIDER=orange`, `ORANGE_SMS_CLIENT_ID`,
+   `ORANGE_SMS_CLIENT_SECRET`. Redéploie.
+5. Vérifie : `https://orion-backend.onrender.com/health/ready` doit afficher
+   `"sms":{"fournisseur":"orange","actif":true}`. Puis inscris-toi avec ton propre numéro.
+
+Protections intégrées : le code n'est jamais écrit dans les journaux ni renvoyé à l'app en
+production ; 30 s minimum entre deux codes et 5 codes maximum par numéro et par heure ;
+seuls les numéros `+225` reçoivent un SMS (`SMS_ALLOWED_PREFIXES`) ; si l'opérateur ne
+répond pas, le client voit « Le SMS n'a pas pu être envoyé » et peut réessayer aussitôt.
+Sans opérateur configuré, un serveur de production refuse poliment l'envoi du code au lieu
+de laisser le client attendre.
+
+Twilio : `SMS_PROVIDER=twilio`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` et
+`TWILIO_FROM` (ou `TWILIO_MESSAGING_SERVICE_SID`).
 
 ---
 
@@ -87,7 +112,7 @@ npx cap open ios      # Xcode : Product → Archive (Mac obligatoire)
   **« Applications mobiles »** (`.github/workflows/mobile.yml`).
 
 > La publication sur les stores nécessite un compte développeur (Google Play : 25 $ une fois ;
-> Apple : 99 $/an) et un opérateur SMS branché sur le serveur.
+> Apple : 99 $/an) et l'opérateur SMS activé sur le serveur (section « Opérateur SMS »).
 
 ---
 

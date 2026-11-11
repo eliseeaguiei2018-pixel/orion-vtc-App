@@ -13,6 +13,7 @@ export async function healthRoutes(app: FastifyInstance, container: Container): 
   app.get('/health/ready', async () => {
     // En prod : ping PostgreSQL/Redis ici. L'index géo doit répondre.
     await container.geo.size();
-    return { status: 'ready', services: container.registry.list() };
+    // L'opérateur SMS est indiqué (sans aucun secret) : utile pour vérifier un déploiement.
+    return { status: 'ready', services: container.registry.list(), sms: { fournisseur: container.sms.fournisseur, actif: container.sms.reel } };
   });
 }

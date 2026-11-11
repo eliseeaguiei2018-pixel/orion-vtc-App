@@ -115,10 +115,10 @@ Aucune route existante n'a été réécrite ; l'app consomme aussi `/drivers/:id
 - Coordonnées du passager visibles uniquement pendant la mission.
 - Connexions et inscriptions chauffeur inscrites au journal d'audit.
 
-> ⚠️ **À brancher avant l'ouverture en production** : l'opérateur SMS (Orange / MTN /
-> Moov) dans `POST /drivers/auth/otp` (`backend/src/modules/driver-app/routes.ts`).
-> Tant qu'il n'est pas branché, un serveur en `NODE_ENV=production` (Render, Docker)
-> n'envoie le code à personne : la connexion chauffeur y est impossible.
+> **Opérateur SMS** : le code part par l'API SMS d'Orange Côte d'Ivoire (ou Twilio),
+> module `backend/src/modules/sms/`, commun aux chauffeurs et aux clients. Il s'active avec
+> `SMS_PROVIDER=orange` et les identifiants Orange (`DEPLOIEMENT.md`, « Opérateur SMS »).
+> Sans opérateur, un serveur en production refuse l'envoi du code (erreur 503 explicite).
 
 ## 7. Organisation du code
 

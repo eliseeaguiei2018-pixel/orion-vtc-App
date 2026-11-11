@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { config } from '../../config/index.js';
+import { emettreCode } from '../sms/codes.js';
 import { parse } from '../../core/validate.js';
 import { AppError, badRequest, forbidden, notFound, unauthorized } from '../../core/errors.js';
 import { CONFIG_ROOM, DRIVER_CONFIG_ROOM, driverRoom, rideRoom, type RealtimeMessage } from '../realtime/hub.js';
@@ -35,13 +36,10 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
     const body = parse(z.object({ phone: z.string().min(6).max(25) }), req.body);
     const phone = normalizePhone(body.phone);
     if (!phone) throw badRequest('Numéro de téléphone invalide');
-    const issued = otps.issue(phone);
-    if ('retryInSeconds' in issued) {
-      throw new AppError(429, 'RATE_LIMITED', `Code déjà envoyé — réessayez dans ${issued.retryInSeconds} s`);
-    }
-    // Opérateur SMS à brancher en production (Orange / MTN / Moov) : on ne journalise
+    // Envoi par l'opérateur SMS (Orange Côte d'Ivoire ou Twilio) : on ne journalise
     // jamais le code ni le numéro complet.
-    req.log.info({ phone: maskPhone(phone) }, 'Code de connexion chauffeur émis');
+    const issued = await emettreCode({ sms: container.sms, otps, phone, pour: 'chauffeur', log: req.log });
+    req.log.info({ phone: maskPhone(phone), sms: issued.envoye }, 'Code de connexion chauffeur émis');
     return {
       sent: true,
       phone,

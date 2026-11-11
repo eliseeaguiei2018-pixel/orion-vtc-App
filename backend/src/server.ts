@@ -19,6 +19,12 @@ async function main(): Promise<void> {
 
   await app.listen({ host: config.HOST, port: config.PORT });
   logger.info(`ORION VTC API à l'écoute sur http://${config.HOST}:${config.PORT}`);
+  // Opérateur SMS : sans lui, aucun client ni chauffeur ne peut recevoir son code.
+  if (container.sms.reel) {
+    logger.info({ fournisseur: container.sms.fournisseur, expediteur: config.SMS_SENDER_NAME }, 'Opérateur SMS actif');
+  } else if (config.NODE_ENV === 'production') {
+    logger.warn('Aucun opérateur SMS (SMS_PROVIDER=console) : les connexions par code sont refusées. Configurer SMS_PROVIDER=orange.');
+  }
 
   let shuttingDown = false;
   const shutdown = async (signal: string): Promise<void> => {
