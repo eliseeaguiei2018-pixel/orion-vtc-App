@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { latLng, parse } from '../../core/validate.js';
 import type { ServiceType } from '../services/types.js';
+import { exigerDossierAssurance } from '../assurance/routes.js';
 
 const estimateSchema = z.object({
   serviceType: z.enum(['ride', 'delivery', 'micromobility']).default('ride'),
@@ -23,6 +24,8 @@ const estimateSchema = z.object({
 export async function pricingRoutes(app: FastifyInstance, container: Container): Promise<void> {
   app.post('/pricing/estimate', async (req) => {
     const body = parse(estimateSchema, req.body);
+    // ORION Assurance : sans dossier de premiers secours, l'option ne peut pas être activée.
+    if (body.insurance && body.serviceType === 'ride') exigerDossierAssurance(container, body.clientId);
     const service = container.registry.get(body.serviceType as ServiceType);
     const quote = await service.estimate({
       origin: body.origin,

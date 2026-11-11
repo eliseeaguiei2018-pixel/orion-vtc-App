@@ -1,3 +1,4 @@
+import { COMPLEMENTS } from './complements';
 /* Traductions ORION — 8 langues. Clés communes à tous les écrans. */
 export type Lang = 'fr' | 'en' | 'es' | 'it' | 'ar' | 'zh' | 'de' | 'ru';
 
@@ -2868,5 +2869,9 @@ const ru: Dict = {
   motif_autre: 'Другая причина',
   motif_aucun_chauffeur: 'Нет свободных водителей',
 };
+
+// Textes d'ORION Assurance et de la messagerie (cf. complements.ts).
+Object.assign(fr, COMPLEMENTS.fr);
+Object.assign(en, COMPLEMENTS.en);
 
 export const TRANSLATIONS: Record<Lang, Dict> = { fr, en, es, it, ar, zh, de, ru };

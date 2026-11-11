@@ -231,4 +231,6 @@ export type Screen =
   | 'photo'
   | 'profile'
   | 'sosHistory'
-  | 'legal';
+  | 'legal'
+  | 'assurance'
+  | 'messages';

@@ -45,7 +45,7 @@ function sosDossier(id: string) {
     trace.push({ lat: o.lat + (dst.lat - o.lat) * t + Math.sin(t * 7) * 0.006, lng: o.lng + (dst.lng - o.lng) * t + Math.cos(t * 5) * 0.005 });
   }
   return {
-    alert: a, presets: sosPresets,
+    alert: a, presets: sosPresets, assurance: { inscrit: true },
     ride: { id: 'r-sos-' + a.id, status: 'in_progress', origin: o, destination: dst, trace, createdAt: a.createdAt },
     vehicle: { plate: '4821 CI 01', model: 'BYD Dolphin 2024', color: 'Blanc nacré', engine: 'electric' },
     driver: { id: 'd2', name: 'Awa Diomandé', matricule: 'ORION-CI-2210', phone: '+225 07 11 22 33 44', licenseNo: 'CI-2019-448210', birthDate: '1990-05-14', phoneBatteryPct: 68, batteryPct: 57 },
@@ -608,7 +608,7 @@ const dans = (jours: number, h = 10) => {
 
 const prestige: PrestigeUnit[] = [
   { id: 'maextro-s800', name: 'Huawei Maextro S800', marque: 'Huawei', classe: 'presidentielle', places: 3, prixJour: 900000, autonomieKm: 700, exemplaires: 2, atouts: ['Limousine présidentielle', 'Sièges arrière à inclinaison totale'] },
-  { id: 'yangwang-altior', name: 'BYD Yangwang Altior', marque: 'BYD', classe: 'presidentielle', places: 4, prixJour: 780000, autonomieKm: 650, exemplaires: 2, atouts: ['Suspension active', 'Finitions sur mesure'] },
+  { id: 'yangwang-altior', name: 'BYD Yangwang U7', marque: 'BYD', classe: 'presidentielle', places: 4, prixJour: 780000, autonomieKm: 650, exemplaires: 2, atouts: ['Suspension active', 'Finitions sur mesure'] },
   { id: 'aito-m9', name: 'Huawei AITO M9', marque: 'Huawei', classe: 'signature', places: 6, prixJour: 520000, autonomieKm: 630, exemplaires: 4, atouts: ['Grand SUV 6 places', 'Toit panoramique'] },
   { id: 'nio-es9', name: 'NIO ES9', marque: 'NIO', classe: 'signature', places: 5, prixJour: 480000, autonomieKm: 640, exemplaires: 4, atouts: ['SUV haut de gamme', 'Salon arrière'] },
   { id: 'nio-et9', name: 'NIO ET9', marque: 'NIO', classe: 'signature', places: 4, prixJour: 460000, autonomieKm: 620, exemplaires: 3, atouts: ['Berline exécutive', 'Suspension pilotée'] },

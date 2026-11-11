@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Container } from '../../container.js';
+import { exigerTitulaire } from '../clients/auth.js';
+import { exigerDossierAssurance } from '../assurance/routes.js';
 import { parse } from '../../core/validate.js';
 import { badRequest, conflict, notFound } from '../../core/errors.js';
 import { rideStateMachine, type RideStatus } from '../services/ride/stateMachine.js';
@@ -80,6 +82,8 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       // Prix verrouillé : on ne fait confiance qu'au devis serveur, jamais à un prix client.
       const quote = container.rides.consumeQuote(body.lockId);
       if (!quote) throw conflict('Devis introuvable ou expiré — re-demandez une estimation');
+      // ORION Assurance : l'option n'est valable qu'avec un dossier de premiers secours.
+      if ((quote.breakdown?.insurance ?? 0) > 0) exigerDossierAssurance(container, body.clientId);
       if (new Date(quote.expiresAt).getTime() <= Date.now()) {
         throw conflict('Devis expiré — re-demandez une estimation');
       }
@@ -205,6 +209,7 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
 
   app.get('/clients/:clientId/rides', async (req) => {
     const { clientId } = req.params as { clientId: string };
+    exigerTitulaire(req, clientId, (c) => Boolean(container.clients.get(c)));
     return { rides: container.rides.listByClient(clientId) };
   });
 
@@ -465,6 +470,7 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
 
   app.get('/clients/:clientId/reservations', async (req) => {
     const { clientId } = req.params as { clientId: string };
+    exigerTitulaire(req, clientId, (c) => Boolean(container.clients.get(c)));
     return { reservations: container.reservations.listByClient(clientId) };
   });
 }

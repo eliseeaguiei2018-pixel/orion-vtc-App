@@ -68,6 +68,8 @@ export interface SosDossier {
   contacts?: ContactLigne[];
   /** Tout ce qui a déjà été tenté sur ce dossier. */
   journalContacts?: ContactJournal[];
+  /** Le passager a un dossier ORION Assurance : l'agent gestionnaire peut l'ouvrir. */
+  assurance?: { inscrit: boolean };
 }
 export interface SecurityAttempt {
   id: string; username?: string; name: string; role: string;

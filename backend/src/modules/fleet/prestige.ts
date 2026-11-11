@@ -48,7 +48,7 @@ export const PRESTIGE: PrestigeVehicle[] = [
   },
   {
     id: 'yangwang-altior',
-    name: 'BYD Yangwang Altior',
+    name: 'BYD Yangwang U7',
     marque: 'BYD',
     classe: 'presidentielle',
     places: 4,

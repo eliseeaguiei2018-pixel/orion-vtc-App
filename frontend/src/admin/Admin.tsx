@@ -9,6 +9,7 @@ import { RentalSection, RentalTarifsSection, SubscriptionsSection } from './sect
 import { DirectionSection } from './sections/direction';
 import { VigilanceSection } from './sections/vigilance';
 import { MonPosteSection, type NouvelleRequete } from './sections/monposte';
+import { MessagesClientsSection } from './sections/messagerie';
 import { EquipagesSection } from './sections/equipages';
 import { CaisseSection } from './sections/caisse';
 import { PosteEquipeSection } from './sections/posteequipe';
@@ -158,7 +159,7 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'monPoste' | 'posteEquipe' | 'crew' | 'caisses' | 'telematique' | 'comptes' | 'overview' | 'direction' | 'vigilance' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'clients' | 'support' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles';
+type Section = 'monPoste' | 'posteEquipe' | 'crew' | 'caisses' | 'telematique' | 'comptes' | 'overview' | 'direction' | 'vigilance' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'clients' | 'support' | 'messagesClients' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles';
 const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'monPoste', label: 'Mon poste', perm: '', icon: '🗂️' },
   { id: 'posteEquipe', label: 'Mon équipe', perm: 'teams:read', icon: '🧭' },
@@ -167,6 +168,7 @@ const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'vigilance', label: 'Vigilance ORION', perm: 'vigilance:read', icon: '🧭' },
   { id: 'alerts', label: 'Supervision SAMU', perm: 'alerts:read', icon: '🚨' },
   { id: 'support', label: 'Support & chat', perm: 'support:read', icon: '💬' },
+  { id: 'messagesClients', label: 'Messages clients', perm: 'notify:read', icon: '✉️' },
   { id: 'notify', label: 'Notifications', perm: 'notify:read', icon: '📣' },
   { id: 'rides', label: 'Courses', perm: 'rides:read', icon: '🚗' },
   { id: 'dispatch', label: 'Dispatch', perm: 'rides:write', icon: '🎯' },
@@ -1538,6 +1540,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'b2b' && <CorporateSection accounts={corporate} canWrite={can('treasury:request')} canSettle={can('treasury:approve')} canBook={can('rides:write')} onSave={saveCorporate} onSettle={settleCorporate} onInvoice={exportInvoice} onEsg={(id) => void downloadFile(`/admin/corporate/${id}/esg.pdf`, `orion-esg-${id}.pdf`)} onInvoicePdf={(id) => void downloadFile(`/admin/corporate/${id}/invoice.pdf`, `facture-${id}.pdf`)} onImport={importMembers} onBook={webBook} onContact={(p) => void contacter(p)} />}
         {section === 'drivers' && <DriversSection drivers={drivers} expiring={expiring} canWrite={can('drivers:write')} onAction={driverAction} onSuspend={suspendDriver} onLoyalty={setLoyalty} onOpen={openDriver} meta={driversMeta} onPage={setDriversPage} onContract={(id) => void downloadFile(`/admin/drivers/${id}/contract.pdf`, `orion-contrat-${id.slice(0, 8)}.pdf`)} onFleetCsv={() => void downloadCsv('/admin/fleet.csv', 'orion-flotte.csv', () => 'matricule,nom,motorisation')} onContact={(p) => void contacter(p)} />}
         {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} onOpen={openClient} meta={clientsMeta} onPage={setClientsPage} onVip={setClientVip} onBlacklist={blacklistClient} onNoShow={noShowFee} onLtvCsv={() => void downloadCsv('/admin/clients.csv', 'orion-clients-ltv.csv', () => 'client,nom')} onBehaviorPdf={() => void downloadFile('/admin/clients/behavior.pdf', 'orion-comportement-clients.pdf')} onContact={(p) => void contacter(p)} />}
+        {section === 'messagesClients' && <MessagesClientsSection canWrite={can('notify:write')} canControle={can('alerts:write')} rides={rides} onAlerte={() => setSection('alerts')} />}
         {section === 'notify' && <NotifySection broadcasts={broadcasts} triggers={triggers} canWrite={can('notify:write')} onSend={sendBroadcast} onTrigger={runTrigger} />}
         {section === 'finance' && finance && <FinanceSection finance={finance} ops={ops} cashDebt={cashDebt} gateways={gateways} expenses={expenses} onExport={exportCsv} canExport={can('rides:read')} canWrite={can('pricing:write')} canGateway={can('services:write')} canApprove={can('treasury:request')} onSaveOps={saveOps} onToggleGateway={toggleGateway} onDecideExpense={decideExpense} onNewExpense={newExpense} onPayouts={() => void downloadCsv('/admin/payouts.csv', 'orion-payouts.csv', () => 'matricule,nom,solde')} />}
         {section === 'treasury' && <TreasurySection transfers={transfers} meName={me.name} liquidity={liquidity} amortization={amortization} canRequest={can('treasury:request')} canApprove={can('treasury:approve')} onRequest={requestTransfer} onDecide={decideTransfer} onExport={exportTreasuryCsv} onReportPdf={() => void downloadFile('/admin/treasury/report.pdf', 'orion-tresorerie-executif.pdf')} />}

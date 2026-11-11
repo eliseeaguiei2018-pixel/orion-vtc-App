@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Sheet, TopBar } from './ui';
+import { CREDITS_PHOTOS } from './PhotosVehicules';
 import {
   IconCamera, IconCheck, IconChevron, IconClock, IconFingerprint, IconGlobe, IconImage, IconLock,
-  IconPin, IconShield, IconShieldCheck, IconWallet, IconCrown, IconPhone, IconCar,
+  IconPin, IconShield, IconShieldCheck, IconWallet, IconCrown, IconPhone, IconCar, IconMedical,
 } from '../icons';
 import { useI18n, LANGUAGES, type Lang } from '../i18n';
 import { ACCENTS, useTheme, type ThemeMode } from '../theme';
@@ -230,8 +231,10 @@ const VERSION = '1.0';
  */
 export function SettingsScreen({
   profil, onBack, onProfile, onHistory, onSos, onWallet, onSubscription, onHelp, onLegal, onCreate, onLogout, onDelete,
-  trusted, setTrusted, shareRides, setShareRides,
+  trusted, setTrusted, shareRides, setShareRides, onAssurance, assuranceActive = false,
 }: {
+  /** ORION Assurance : dossier de premiers secours (inscription gratuite). */
+  onAssurance?: () => void; assuranceActive?: boolean;
   profil: ProfilClient | null; onBack: () => void; onProfile: () => void; onHistory: () => void; onSos: () => void;
   onWallet: () => void; onSubscription: () => void; onHelp: () => void; onLegal: () => void; onCreate: () => void;
   onLogout: () => void; onDelete: () => void;
@@ -291,6 +294,7 @@ export function SettingsScreen({
         {/* Mon activité */}
         <span className="eyebrow set-titre"><IconClock size={13} /> {t('set_activity')}</span>
         <div className="stack">
+          {profil && onAssurance && ligne(<IconMedical size={18} />, t('as_title'), t(assuranceActive ? 'set_assurance_d_on' : 'set_assurance_d_off'), onAssurance)}
           {ligne(<IconClock size={18} />, t('set_history'), t('set_history_d'), onHistory)}
           {ligne(<IconShield size={18} />, t('set_sos'), t('set_sos_d'), onSos)}
           {ligne(<IconWallet size={18} />, t('wal_title'), null, onWallet)}
@@ -567,7 +571,7 @@ export function SosHistoryScreen({ onBack }: { onBack: () => void }) {
 
 export function LegalScreen({ onBack }: { onBack: () => void }) {
   const { t } = useI18n();
-  const sections = ['donnees', 'usage', 'photo', 'conservation', 'annulation', 'droits'];
+  const sections = ['donnees', 'usage', 'photo', 'sante', 'conservation', 'annulation', 'droits'];
   return (
     <div className="screen page">
       <TopBar onBack={onBack} title={t('set_legal')} />
@@ -578,6 +582,17 @@ export function LegalScreen({ onBack }: { onBack: () => void }) {
             <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: '6px 0 0' }}>{t(`legal_${s}`)}</p>
           </div>
         ))}
+        {/* Condition d'utilisation des photos libres et des données de carte : citer leurs auteurs. */}
+        <div style={{ marginBottom: 16 }}>
+          <span className="eyebrow">{t('legal_credits_t')}</span>
+          <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: '6px 0 8px' }}>{t('legal_credits')}</p>
+          <ul className="credits-photos">
+            {CREDITS_PHOTOS.map((c) => (
+              <li key={c.id}><strong>{c.modele}</strong> · {c.auteur} · <a href={c.source} target="_blank" rel="noopener noreferrer">{c.licence}</a></li>
+            ))}
+          </ul>
+          <p className="faint" style={{ fontSize: 12.5, lineHeight: 1.5, margin: '8px 0 0' }}>{t('legal_carte')}</p>
+        </div>
       </div>
     </div>
   );

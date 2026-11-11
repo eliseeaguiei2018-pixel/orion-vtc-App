@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Container } from '../../container.js';
+import { exigerTitulaire } from '../clients/auth.js';
 import { parse } from '../../core/validate.js';
 import { notFound } from '../../core/errors.js';
 import { normalizePhone } from '../driver-app/auth.js';
@@ -56,6 +57,7 @@ export async function supportClientRoutes(app: FastifyInstance, container: Conta
   // Le client consulte ses conversations.
   app.get('/clients/:clientId/support', async (req) => {
     const { clientId } = req.params as { clientId: string };
+    exigerTitulaire(req, clientId, (c) => Boolean(container.clients.get(c)));
     return { conversations: container.support.listByClient(clientId) };
   });
 

@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { parse } from '../../core/validate.js';
-import { notFound, unauthorized, forbidden } from '../../core/errors.js';
+import { AppError, notFound, unauthorized, forbidden } from '../../core/errors.js';
 import { driverRoom, CONFIG_ROOM } from '../realtime/hub.js';
 import { AdminService, paginate } from './service.js';
 import { can, resolveAccount, ROLE_PERMISSIONS, ROLE_LABEL, type AdminAccount, type Permission, type Role } from './roles.js';
@@ -723,6 +723,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
           lastRides: container.rides.listByClient(ride?.clientId ?? alert.userId).slice(0, 5)
             .map((r) => ({ id: r.id, status: r.status, createdAt: r.createdAt })),
         },
+        /** ORION Assurance : le dossier existe-t-il ? (son contenu passe par une route dédiée, journalisée) */
+        assurance: { inscrit: container.dossiers.estInscrit(ride?.clientId ?? alert.userId) },
         telemetry: { speedEstimateKmh, points: trace.length, refreshSeconds: 1 },
         emergencyNumbers: { samu: '185', police: '170', pompiers: '180' },
         /**
@@ -741,6 +743,43 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         /** Tout ce qui a déjà été tenté sur ce dossier : qui, quand, par quel canal. */
         journalContacts: container.contacts.pourAlerte(id),
       };
+    });
+
+    /**
+     * ORION ASSURANCE : DOSSIER DE PREMIERS SECOURS, en urgence seulement.
+     *
+     * Conditions imposées ici : permission médicale, alerte EN COURS (ni close ni
+     * annulée), et c'est l'agent qui a PRIS EN CHARGE l'alerte qui la consulte. La
+     * consultation est inscrite dans le dossier du client (il voit qui l'a ouvert) et
+     * au journal d'audit ; une tentative hors de ces conditions est refusée.
+     */
+    scoped.get('/admin/sos/:id/dossier-medical', async (req, reply) => {
+      require(req, 'medical:read');
+      const { id } = req.params as { id: string };
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const alert = container.safety.get(id);
+      if (!alert) throw notFound('Alerte introuvable');
+      if (alert.status === 'resolved' || alert.status === 'cancelled' || alert.sealed) {
+        audit(req, 'assurance.consultation_refusee', id, { raison: 'alerte_close' });
+        throw forbidden('Alerte close : le dossier médical n’est plus accessible.');
+      }
+      if (alert.agent !== account.name) {
+        audit(req, 'assurance.consultation_refusee', id, { raison: 'non_gestionnaire' });
+        throw forbidden('Prenez d’abord l’alerte en charge : seul l’agent gestionnaire consulte le dossier médical.');
+      }
+      const ride = alert.rideId ? container.rides.get(alert.rideId) : undefined;
+      const clientId = ride?.clientId ?? alert.userId;
+      if (!container.dossiers.disponible) throw new AppError(503, 'ASSURANCE_INDISPONIBLE', 'Dossiers médicaux indisponibles (clé de chiffrement absente).');
+      const fiche = container.dossiers.lirePourUrgence(clientId, account.name, id);
+      reply.header('cache-control', 'no-store, max-age=0');
+      if (!fiche) return { inscrit: false, fiche: null };
+      audit(req, 'assurance.consultation_urgence', clientId, { alerte: id });
+      container.messages?.envoyerSysteme(clientId, {
+        titre: 'Votre dossier ORION Assurance a été consulté',
+        texte: `${account.name}, de la supervision ORION, a ouvert votre dossier de premiers secours pendant votre alerte, pour vous porter secours plus vite.`,
+        type: 'info',
+      });
+      return { inscrit: true, fiche };
     });
 
     /**
@@ -2107,6 +2146,75 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
 
     // DÉCLENCHEURS AUTOMATISÉS : batterie < 15 % → borne la plus proche ;
     // win-back 30 jours ; incitation recharge heures creuses.
+    /**
+     * MESSAGERIE ORION → CLIENTS. Un client précis (identifiant ou téléphone), tous
+     * les clients en course, ou tous les clients. Type « controle » = « votre course
+     * se passe-t-elle bien ? » avec réponses rapides ; une réponse « pas en sécurité »
+     * lève une alerte SOS dans la file SAMU.
+     */
+    scoped.get('/admin/messages', async (req) => {
+      require(req, 'notify:read');
+      const messages = container.messages.recents(150).map((m) => {
+        const c = container.clients.get(m.clientId);
+        return { ...m, client: c ? { name: c.name ?? null, phone: c.phone ?? null } : null };
+      });
+      const reponses = messages.filter((m) => m.reponse);
+      return {
+        messages,
+        stats: {
+          envoyes: messages.length,
+          lus: messages.filter((m) => m.luLe).length,
+          reponses: reponses.length,
+          alertes: reponses.filter((m) => m.reponses.find((r) => r.code === m.reponse?.code)?.alerte).length,
+        },
+      };
+    });
+
+    scoped.post('/admin/messages', async (req) => {
+      require(req, 'notify:write');
+      const body = parse(z.object({
+        cible: z.enum(['client', 'en_course', 'tous']),
+        clientId: z.string().max(64).optional(),
+        telephone: z.string().max(20).optional(),
+        type: z.enum(['info', 'consigne', 'controle']),
+        titre: z.string().trim().min(3).max(80),
+        texte: z.string().trim().min(3).max(500),
+      }), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const enCours = container.rides.listAll().filter((r) => ['driver_assigned', 'driver_en_route', 'arrived', 'in_progress'].includes(r.status));
+      let destinataires: Array<{ clientId: string; rideId?: string }> = [];
+      if (body.cible === 'client') {
+        const tel = body.telephone?.replace(/\s/g, '');
+        const client = body.clientId ? container.clients.get(body.clientId)
+          : tel ? container.clients.findByVerifiedPhone(tel.startsWith('+') ? tel : `+225${tel}`) : undefined;
+        if (!client) throw notFound('Client introuvable (identifiant ou numéro vérifié)');
+        const course = enCours.find((r) => r.clientId === client.id);
+        destinataires = [{ clientId: client.id, rideId: course?.id }];
+      } else if (body.cible === 'en_course') {
+        destinataires = enCours.map((r) => ({ clientId: r.clientId, rideId: r.id }));
+      } else {
+        destinataires = container.clients.list().map((c) => ({ clientId: c.id, rideId: enCours.find((r) => r.clientId === c.id)?.id }));
+      }
+      if (body.type === 'controle') destinataires = destinataires.filter((d) => d.rideId);
+      const envoyes = destinataires.map((d) => container.messages.envoyer(d.clientId, {
+        type: body.type, titre: body.titre, texte: body.texte, auteur: account.name, rideId: d.rideId,
+      }));
+      audit(req, 'messages.envoi', body.cible, { type: body.type, destinataires: envoyes.length });
+      return { envoyes: envoyes.length, messages: envoyes };
+    });
+
+    // Contrôle de sécurité d'UNE course, à la demande (supervision, dispatch).
+    scoped.post('/admin/rides/:id/controle', async (req) => {
+      require(req, 'alerts:write');
+      const { id } = req.params as { id: string };
+      const ride = container.rides.get(id);
+      if (!ride) throw notFound('Course introuvable');
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const message = container.messages.controleSecurite(ride.clientId, ride.id, account.name);
+      audit(req, 'messages.controle', id);
+      return { message };
+    });
+
     scoped.get('/admin/notify/triggers', async (req) => {
       require(req, 'notify:read');
       const { CHARGING_STATIONS } = await import('./service.js');

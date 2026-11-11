@@ -162,24 +162,51 @@ Le dashboard d'administration est une **page séparée** de l'app cliente :
 > 🔒 En production : remplacer le jeton simple par une authentification forte (SSO/JWT + rôles)
 > et un **audit log immuable** des actions admin.
 
-## Activer un VRAI fond de carte (rues d'Abidjan)
+## Carte réelle de Côte d'Ivoire et itinéraires routiers
 
-Par défaut, ORION affiche sa **carte stylisée « façon navigation »** (rues, boulevards,
-lagune Ébrié, communes) — elle fonctionne **hors-ligne et sans clé**. Pour afficher le
-**plan réel** (tuiles), définis une variable d'environnement Frontend (Vercel → Environment) :
+La carte de l'app est une **vraie carte vectorielle** dessinée à partir d'OpenStreetMap :
+routes, ponts (HKB, De Gaulle, Félix Houphouët-Boigny, Alassane Ouattara…), échangeurs,
+**voies en construction** (en pointillés), quartiers et lagune. Les tuiles viennent
+d'OpenFreeMap (gratuit, sans clé, données mises à jour chaque semaine) : un pont ou un
+échangeur ajouté dans OpenStreetMap apparaît dans l'app la semaine suivante, sans mise à jour.
 
-| Fournisseur | Variables | Notes |
-|-------------|-----------|-------|
-| **OpenStreetMap** | `VITE_MAP_PROVIDER=osm` | Gratuit, sans clé. Idéal pour démarrer. |
-| **MapTiler** | `VITE_MAP_PROVIDER=maptiler` + `VITE_MAPTILER_KEY=...` | Rues détaillées, thème premium. |
-| **Google** | `VITE_MAP_PROVIDER=google` + `VITE_GOOGLE_MAPS_API_KEY=...` | Nécessite l'activation « Map Tiles API » (partenariat Google). |
-| **Autre** | `VITE_MAP_TILE_URL=https://.../{z}/{x}/{y}.png` | Gabarit générique, n'importe quel fournisseur. |
+L'itinéraire suit les **vraies routes** : le serveur le calcule avec OSRM, le client voit le
+tracé, le pont emprunté (« via Pont… »), et la voiture avance le long de la route.
 
-Le reste de l'app ne change pas : itinéraire, arrêts, marqueurs et **suivi voiture temps réel**
-s'affichent par-dessus le fond réel (couche d'abstraction `src/mapConfig.ts` + `RealMap`).
+| Variable | Où | Rôle |
+|----------|----|------|
+| `OSRM_URL` | Backend | Serveur d'itinéraires. Par défaut le serveur public OSRM ; en production, un serveur OSRM d'ORION chargé avec l'extrait OpenStreetMap de la Côte d'Ivoire (Geofabrik). |
+| `VITE_MAP_TILES_URL` | Frontend | Serveur de tuiles vectorielles d'ORION (facultatif). |
+| `VITE_MAP_GLYPHS_URL` | Frontend | Polices des libellés (facultatif). |
+| `VITE_MAP_PROVIDER=stylise` | Frontend | Force la carte stylisée hors-ligne (démo sans réseau). |
 
-> ℹ️ Le fond réel a besoin d'un accès Internet aux serveurs de tuiles ; en démo hors-ligne,
-> l'app retombe automatiquement sur la carte stylisée.
+> ℹ️ Sans réseau, ou si les tuiles ne répondent pas, l'app bascule seule sur la carte
+> stylisée ; si OSRM ne répond pas, le trajet est tracé à vol d'oiseau. La course n'est
+> jamais bloquée par la carte. Les crédits (© OpenStreetMap, OpenFreeMap, OSRM) sont
+> affichés sur la carte et dans les mentions légales.
+
+## ORION Assurance : dossiers de premiers secours
+
+Les dossiers médicaux (identité, pièce, CMU, groupe sanguin, antécédents, allergies,
+traitements, personne à prévenir) sont **chiffrés sur le serveur** (AES-256-GCM, une clé
+dédiée, chaque dossier lié à son titulaire). Ils ne sont jamais stockés sur le téléphone.
+
+1. Génère la clé **une seule fois** : `openssl rand -base64 32`.
+2. Render → Environment → `MEDICAL_DATA_KEY` = cette valeur. Garde-la aussi dans le coffre
+   de la direction : **perdue ou changée, tous les dossiers deviennent illisibles**.
+3. Sans clé en production, l'inscription est simplement indisponible (le reste de l'app marche).
+
+Accès console : permission `medical:read` (rôle opérations), **uniquement** pour l'agent qui a
+pris en charge une alerte SOS en cours. Chaque ouverture est inscrite au journal d'audit et
+signalée au client par un message ; toute tentative hors de ces conditions est refusée et journalisée.
+
+## Messagerie ORION et contrôle de sécurité
+
+La console (section **Messages clients**) écrit aux clients dans l'app : information,
+consigne, ou contrôle de sécurité « votre course se passe-t-elle bien ? » avec réponses
+rapides. L'app envoie aussi ce contrôle d'elle-même pendant chaque course, après
+`SAFETY_CHECKIN_SECONDS` secondes (180 par défaut, 0 pour désactiver). La réponse
+« Je ne me sens pas en sécurité » lève aussitôt une alerte dans la file SAMU.
 
 ## Activer Google Maps côté itinéraires (optionnel)
 1. Obtiens une clé sur Google Cloud (APIs : Directions, Places, Maps JavaScript).

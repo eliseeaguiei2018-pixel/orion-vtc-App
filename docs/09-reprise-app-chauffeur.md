@@ -170,7 +170,7 @@ correspondant dans `frontend/src/App.tsx`). **L'app Chauffeur doit faire pareil.
 
 Un service de **location de véhicules électriques ultra-premium** a été ajouté
 (`backend/src/modules/rental/`, flotte dans `backend/src/modules/fleet/prestige.ts`) :
-Huawei Maextro S800, BYD Yangwang Altior, Huawei AITO M9, NIO ES9, NIO ET9,
+Huawei Maextro S800, BYD Yangwang U7, Huawei AITO M9, NIO ES9, NIO ET9,
 Huawei Stelato S9, Zeekr 8X. Trois formules : **événement & mariage**,
 **entreprise & institution**, et **course en mise à disposition** (la voiture pour
 N heures, ou privatisée à la journée / au week-end / à la semaine / au mois).

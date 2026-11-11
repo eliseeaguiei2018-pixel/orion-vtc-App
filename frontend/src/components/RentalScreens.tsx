@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { TopBar } from './ui';
-import { Voiture } from './Vehicules';
+import { PhotoVehicule, MedaillonGamme, photoDuModele, photoDisponible, type IdPhoto } from './PhotosVehicules';
 import {
   IconCalendar, IconCar, IconCheck, IconClock, IconCrown, IconLeaf, IconMinus, IconPin,
   IconPlus, IconUsers,
@@ -46,18 +46,19 @@ function toLocalInput(d: Date): string {
 }
 
 /** Le véhicule illustré : berline présidentielle noire, ou SUV Signature nacré. */
-/** Modèles de la flotte Signature carrossés en SUV (les autres sont des berlines). */
-const SUV_PRESTIGE = new Set(['aito-m9', 'nio-es9', 'zeekr-8x']);
+/** Identifiant de la flotte → vraie photo du modèle. */
+const PHOTO_PRESTIGE: Record<string, IdPhoto> = {
+  'maextro-s800': 'maextro-s800', 'yangwang-altior': 'yangwang-u7', 'aito-m9': 'aito-m9',
+  'nio-es9': 'nio-es9', 'nio-et9': 'nio-et9', 'stelato-s9': 'stelato-s9', 'zeekr-8x': 'zeekr-8x',
+};
 
-/** Silhouette fidèle au modèle : limousine noire pour la classe présidentielle, SUV ou berline sinon. */
-function PrestigeBadge({ vehicule, size = 46 }: { vehicule: Pick<PrestigeVehicle, 'id' | 'classe'> & { atouts?: string[] }; size?: number }) {
-  const presidentielle = vehicule.classe === 'presidentielle';
-  const suv = !presidentielle && (SUV_PRESTIGE.has(vehicule.id) || (vehicule.atouts ?? []).some((a) => /\bSUV\b/i.test(a)));
-  return (
-    <span className="veh-illus" style={{ width: size * 1.75, height: size }}>
-      <Voiture modele={suv ? 'suv' : 'luxe'} peinture={presidentielle ? 'nuit' : 'perle'} largeur={size * 1.75} phares={false} />
-    </span>
-  );
+/** Vraie photo du véhicule loué : le client voit exactement ce qu'il commande. */
+function PrestigeBadge({ vehicule, size = 46 }: { vehicule: Pick<PrestigeVehicle, 'id' | 'classe'> & { name?: string }; size?: number }) {
+  const photo = PHOTO_PRESTIGE[vehicule.id] ?? (vehicule.name ? photoDuModele(vehicule.name) : null);
+  if (photo && photoDisponible(photo)) {
+    return <span className="veh-illus photo" style={{ width: size * 1.75, height: size }}><PhotoVehicule id={photo} largeur={Math.round(size * 1.75)} /></span>;
+  }
+  return <MedaillonGamme gamme={vehicule.classe === 'presidentielle' ? 'diamant' : 'or'} taille={size * 0.84} />;
 }
 
 export function RentalScreen({ onBack, onReserved, onToast }: {
@@ -197,7 +198,7 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
                 style={{ ...(actif ? { borderColor: v.classe === 'presidentielle' ? '#f5c451' : '#7fe7ff' } : {}), opacity: indispo ? 0.55 : 1 }}
                 onClick={() => setVehicleId(v.id)}
               >
-                <PrestigeBadge vehicule={v} />
+                <PrestigeBadge vehicule={v} size={54} />
                 <span className="col grow" style={{ textAlign: 'start' }}>
                   <strong style={{ fontSize: 15 }}>{v.name}</strong>
                   <span className="faint" style={{ fontSize: 12 }}>

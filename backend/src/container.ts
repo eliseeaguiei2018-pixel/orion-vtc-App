@@ -18,6 +18,9 @@ import { RentalSettingsService, type RentalTarifRecord } from './modules/rental/
 import { TelematiqueService, type Immobilisation, type DeclarationVol } from './modules/rental/telematique.js';
 import { WeddingService } from './modules/wedding/service.js';
 import { InsuranceService, type InsuranceContribution } from './modules/insurance/service.js';
+import { CoffreMedical, chargerCle } from './modules/assurance/chiffrement.js';
+import { DossierMedicalService } from './modules/assurance/dossier.js';
+import { MessagerieService, type MessageClient } from './modules/messages/service.js';
 import { PaymentRegistry } from './modules/payments/providers.js';
 import { SafetyService } from './modules/safety/service.js';
 import { EmergencyContactsService, type ContactJournalEntry } from './modules/safety/contacts.js';
@@ -26,6 +29,7 @@ import { RealtimeHub, CONFIG_ROOM, DRIVER_CONFIG_ROOM, driverRoom } from './modu
 import { driverAppConfig } from './modules/driver-app/config.js';
 import { config } from './config/index.js';
 import { createMapsProvider, type MapsProvider } from './modules/maps/service.js';
+import { Routage } from './modules/maps/routage.js';
 import { createRepository } from './core/db/repository.js';
 import { brancherAnnuaire, identifiantsDeConfiguration } from './modules/admin/auth.js';
 import { genMatricule, type Driver } from './modules/drivers/store.js';
@@ -77,10 +81,16 @@ export interface Container {
   /** Répertoire d'urgence + registre des contacts (poste SAMU). */
   contacts: EmergencyContactsService;
   maps: MapsProvider;
+  /** Itinéraires routiers réels (OSRM / OpenStreetMap), avec repli. */
+  routage: Routage;
   simulator: RideSimulator;
   wallet: WalletService;
   clientWallet: WalletService;
   insurance: InsuranceService;
+  /** ORION Assurance : dossier de premiers secours, chiffré (lisible par le titulaire et le SAMU en alerte). */
+  dossiers: DossierMedicalService;
+  /** Messages ORION → client (consignes, contrôle de sécurité en course, réponses rapides). */
+  messages: MessagerieService;
   subscriptions: SubscriptionService;
   wedding: WeddingService;
   /** Location de véhicules Signature : événements, entreprises, mise à disposition. */
@@ -262,6 +272,7 @@ export function createContainer(): Container {
   );
 
   const safety = new SafetyService(realtime);
+  const routage = new Routage(config.OSRM_URL || undefined);
   // Portefeuille client (séparé du wallet chauffeur) : remboursements ORION Assurance.
   const clientWallet = new WalletService(createRepository<LedgerEntry>('client_wallet'));
 
@@ -280,8 +291,9 @@ export function createContainer(): Container {
       createRepository<ContactJournalEntry>('contacts_journal'),
     ),
     maps: createMapsProvider(),
+    routage,
     simulator: (() => {
-      const sim = new RideSimulator(rides, realtime);
+      const sim = new RideSimulator(rides, realtime, {}, routage);
       // Les chauffeurs équipés de l'app pilotent eux-mêmes leurs courses.
       sim.skipWhen((driverId) => Boolean(drivers.get(driverId)?.appLinkedAt));
       return sim;
@@ -289,6 +301,13 @@ export function createContainer(): Container {
     wallet: new WalletService(createRepository<LedgerEntry>('wallet_ledger')),
     clientWallet,
     insurance: new InsuranceService(createRepository<InsuranceContribution>('insurance'), clientWallet),
+    messages: new MessagerieService(createRepository<MessageClient>('messages_clients'), realtime, safety, {
+      position: (rideId, clientId) => {
+        const r = rideId ? rides.get(rideId) : rides.listByClient(clientId)[0];
+        return r?.trace?.length ? r.trace[r.trace.length - 1]! : (r?.origin ?? { lat: 5.3236, lng: -4.0217 });
+      },
+    }),
+    dossiers: new DossierMedicalService(createRepository('dossiers_medicaux'), new CoffreMedical(chargerCle(config.MEDICAL_DATA_KEY, config.NODE_ENV === 'production'))),
     subscriptions: new SubscriptionService(
       createRepository<Subscription>('subscriptions'),
       createRepository<SubscriptionInvoice>('subscription_invoices'),
@@ -356,6 +375,14 @@ export function createContainer(): Container {
   // En test, le balayage s'appelle à la main pour rester déterministe.
   if (config.NODE_ENV !== 'test') container.rideRelease.start();
 
+  // CONTRÔLE DE SÉCURITÉ EN COURSE : quelques minutes après la prise en charge, l'app
+  // demande au client si tout se passe bien. Une seule fois par course ; la console
+  // peut en relancer un à la main à tout moment.
+  if (config.NODE_ENV !== 'test' && config.SAFETY_CHECKIN_SECONDS > 0) {
+    const controle = setInterval(() => controlerCoursesEnCours(container, config.SAFETY_CHECKIN_SECONDS), 5_000);
+    controle.unref?.();
+  }
+
   // INTERCONNEXION : une requête chauffeur qui bouge réveille les sessions qui en
   // dépendent. Sans cela, le chauffeur dépose, et personne ne le sait avant la
   // prochaine ouverture de l'écran.
@@ -413,4 +440,17 @@ export async function seedDemoDrivers(c: Container): Promise<void> {
     });
     await c.drivers.goOnline(d.id, { lat: s.lat, lng: s.lng });
   }
+}
+
+/** Envoie le contrôle de sécurité aux courses en cours depuis plus de `apresSecondes`. */
+export function controlerCoursesEnCours(c: Container, apresSecondes: number, maintenant = Date.now()): number {
+  let envoyes = 0;
+  for (const r of c.rides.listAll()) {
+    if (r.status !== 'in_progress' || c.messages.aDejaUnControle(r.id)) continue;
+    const debut = r.events.find((e) => e.type === 'in_progress')?.at;
+    if (!debut || maintenant - Date.parse(debut) < apresSecondes * 1000) continue;
+    c.messages.controleSecurite(r.clientId, r.id);
+    envoyes += 1;
+  }
+  return envoyes;
 }

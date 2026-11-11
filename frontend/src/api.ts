@@ -19,9 +19,12 @@ async function tryFetch<T>(path: string, init?: RequestInit, timeoutMs = 2500): 
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    // La session du client accompagne chaque appel : les routes qui touchent à ses
+    // données (portefeuille, courses, messages) la vérifient côté serveur.
+    const jeton = (() => { try { return localStorage.getItem('orion.clientSession'); } catch { return null; } })();
     const res = await fetch(`${API}${path}`, {
       ...init,
-      headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
+      headers: { 'content-type': 'application/json', ...(jeton ? { authorization: `Bearer ${jeton}` } : {}), ...(init?.headers ?? {}) },
       signal: ctrl.signal,
     });
     clearTimeout(timer);
@@ -804,4 +807,131 @@ export async function paySubscriptionInvoice(invoiceId: string, method: string, 
     method: 'POST', body: JSON.stringify({ method, phone }),
   }, 6000);
   return r?.facture ?? null;
+}
+
+
+/* ------------------------------ Itinéraire routier ------------------------------ */
+
+export interface ItineraireRoute {
+  geometrie: LatLng[];
+  distanceMeters: number;
+  durationSeconds: number;
+  ponts: string[];
+  provider: 'osrm' | 'repli';
+}
+
+const cacheItineraires = new Map<string, Promise<ItineraireRoute | null>>();
+
+/**
+ * Itinéraire sur les vraies routes (ponts, échangeurs, sens de circulation). Passe par le
+ * serveur ORION ; en démonstration sans serveur, interroge directement le calcul OSRM.
+ * Renvoie null hors-ligne : la carte trace alors un repli.
+ */
+export function itineraire(points: LatLng[]): Promise<ItineraireRoute | null> {
+  const cle = points.map((p) => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`).join(';');
+  const deja = cacheItineraires.get(cle);
+  if (deja) return deja;
+  const p = (async (): Promise<ItineraireRoute | null> => {
+    if (API) {
+      const r = await tryFetch<{ itineraire: ItineraireRoute }>('/maps/itineraire', { method: 'POST', body: JSON.stringify({ points }) }, 8000);
+      if (r?.itineraire) return r.itineraire;
+    }
+    try {
+      const coords = points.map((q) => `${q.lng.toFixed(6)},${q.lat.toFixed(6)}`).join(';');
+      const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true`, { signal: AbortSignal.timeout(8000) });
+      const j = await res.json() as { code: string; routes?: Array<{ distance: number; duration: number; geometry: { coordinates: [number, number][] }; legs: Array<{ steps: Array<{ name: string }> }> }> };
+      const route = j.routes?.[0];
+      if (j.code !== 'Ok' || !route) return null;
+      const ponts = [...new Set(route.legs.flatMap((l) => l.steps.map((st) => st.name)).filter((n) => /^pont\b/i.test(n)))];
+      return {
+        geometrie: route.geometry.coordinates.map(([lng, lat]) => ({ lat, lng })),
+        distanceMeters: Math.round(route.distance), durationSeconds: Math.round(route.duration), ponts, provider: 'osrm',
+      };
+    } catch {
+      return null;
+    }
+  })();
+  cacheItineraires.set(cle, p);
+  void p.then((r) => { if (!r) cacheItineraires.delete(cle); });
+  return p;
+}
+
+/* ------------------------------ ORION Assurance ------------------------------ */
+
+export const ANTECEDENTS = [
+  'asthme', 'hypertension', 'diabete', 'drepanocytose', 'epilepsie',
+  'cardiaque', 'renale', 'coagulation', 'grossesse', 'mobilite_reduite',
+] as const;
+export type Antecedent = typeof ANTECEDENTS[number];
+export const GROUPES_SANGUINS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'inconnu'] as const;
+export const CONSENTEMENT_ASSURANCE = '2026-11';
+
+export interface FicheMedicale {
+  identite: { nom: string; prenoms: string; dateNaissance: string; sexe?: 'F' | 'M' };
+  piece: { type: 'cni' | 'passeport'; numero: string; expiration: string };
+  cmu?: string;
+  sante: {
+    groupeSanguin: typeof GROUPES_SANGUINS[number];
+    antecedents: Antecedent[];
+    autresAntecedents?: string; allergies?: string; traitements?: string;
+    anticoagulants: boolean; stimulateurCardiaque: boolean; reactionAllergiqueGrave: boolean;
+  };
+  urgence: { nom: string; lien: string; telephone: string };
+  medecin?: { nom?: string; telephone?: string };
+}
+export interface StatutAssurance {
+  disponible: boolean; inscrit: boolean; depuis: string | null; majLe: string | null;
+  consultations: Array<{ le: string; par: string; alerteId: string }>;
+}
+
+const DEMO_ASSURANCE = 'orion.demo.assurance';
+
+export async function statutAssurance(): Promise<StatutAssurance | null> {
+  const id = clientId();
+  if (!API) {
+    // Démonstration sans serveur : rien de médical n'est conservé, seulement « inscrit ».
+    const inscrit = (() => { try { return localStorage.getItem(DEMO_ASSURANCE) === '1'; } catch { return false; } })();
+    return { disponible: true, inscrit, depuis: null, majLe: null, consultations: [] };
+  }
+  const r = await appel<{ statut: StatutAssurance }>(`/clients/${encodeURIComponent(id)}/assurance`);
+  return r.ok ? r.data.statut : null;
+}
+
+export async function lireDossierAssurance(): Promise<{ fiche: FicheMedicale | null; statut: StatutAssurance } | string> {
+  const r = await appel<{ fiche: FicheMedicale | null; statut: StatutAssurance }>(`/clients/${encodeURIComponent(clientId())}/assurance/dossier`);
+  return r.ok ? r.data : r.error;
+}
+
+export async function enregistrerDossierAssurance(fiche: FicheMedicale): Promise<StatutAssurance | string> {
+  if (!API) { try { localStorage.setItem(DEMO_ASSURANCE, '1'); } catch { /* ignore */ } return { disponible: true, inscrit: true, depuis: new Date().toISOString(), majLe: new Date().toISOString(), consultations: [] }; }
+  const r = await appel<{ statut: StatutAssurance }>(`/clients/${encodeURIComponent(clientId())}/assurance/dossier`, {
+    method: 'PUT', body: JSON.stringify({ fiche, consentement: { version: CONSENTEMENT_ASSURANCE, lu: true, accepte: true } }),
+  });
+  return r.ok ? r.data.statut : r.error;
+}
+
+export async function supprimerDossierAssurance(): Promise<StatutAssurance | string> {
+  if (!API) { try { localStorage.removeItem(DEMO_ASSURANCE); } catch { /* ignore */ } return { disponible: true, inscrit: false, depuis: null, majLe: null, consultations: [] }; }
+  const r = await appel<{ statut: StatutAssurance }>(`/clients/${encodeURIComponent(clientId())}/assurance/dossier`, { method: 'DELETE' });
+  return r.ok ? r.data.statut : r.error;
+}
+
+/* ------------------------------ Messagerie ORION ------------------------------ */
+
+export interface ReponseProposee { code: string; libelle: string; alerte?: boolean }
+export interface MessageOrion {
+  id: string; type: 'info' | 'consigne' | 'controle'; titre: string; texte: string; auteur: string; rideId?: string;
+  reponses: ReponseProposee[]; reponse?: { code: string; libelle: string; le: string }; envoyeLe: string; luLe?: string;
+}
+
+export async function listerMessages(): Promise<{ messages: MessageOrion[]; nonLus: number } | null> {
+  if (!API) return null;
+  return tryFetch<{ messages: MessageOrion[]; nonLus: number }>(`/clients/${encodeURIComponent(clientId())}/messages`);
+}
+export async function marquerMessageLu(id: string): Promise<number | null> {
+  const r = await tryFetch<{ nonLus: number }>(`/clients/${encodeURIComponent(clientId())}/messages/${id}/lu`, { method: 'POST', body: '{}' });
+  return r?.nonLus ?? null;
+}
+export async function repondreMessage(id: string, code: string): Promise<{ message: MessageOrion; alerteId: string | null } | null> {
+  return tryFetch<{ message: MessageOrion; alerteId: string | null }>(`/clients/${encodeURIComponent(clientId())}/messages/${id}/reponse`, { method: 'POST', body: JSON.stringify({ code }) });
 }

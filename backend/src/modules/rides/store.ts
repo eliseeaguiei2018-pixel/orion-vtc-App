@@ -24,6 +24,8 @@ export interface Ride {
   trustedContact?: TrustedContact;
   /** Tracé GPS de la course (échantillonné, borné à 200 points) — instruction des litiges. */
   trace?: LatLng[];
+  /** Itinéraire routier prévu (tracé réel des routes, ponts empruntés). */
+  itineraire?: { geometrie: LatLng[]; distanceMeters: number; durationSeconds: number; ponts: string[]; provider: string };
   /** Minutes d'attente facturables (pauses demandées par le client en course). */
   waitMinutes?: number;
   /** Compte Entreprise (B2B) : course imputée à la ligne de crédit société. */

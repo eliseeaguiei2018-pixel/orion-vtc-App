@@ -23,6 +23,8 @@ import { subscriptionRoutes } from './modules/subscriptions/routes.js';
 import { weddingRoutes } from './modules/wedding/routes.js';
 import { rentalRoutes } from './modules/rental/routes.js';
 import { insuranceRoutes } from './modules/insurance/routes.js';
+import { assuranceRoutes } from './modules/assurance/routes.js';
+import { messagesRoutes } from './modules/messages/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { supportClientRoutes } from './modules/support/routes.js';
 import { clientAccountRoutes } from './modules/clients/routes.js';
@@ -115,6 +117,8 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
   // Location Signature : événements/mariages, entreprises & institutions, mise à disposition.
   await rentalRoutes(app, container);
   await insuranceRoutes(app, container);
+  await assuranceRoutes(app, container);
+  await messagesRoutes(app, container);
   await adminRoutes(app, container);
   await supportClientRoutes(app, container);
   await clientAccountRoutes(app, container);

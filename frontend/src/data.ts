@@ -74,7 +74,7 @@ export const formatXOF = (n: number): string =>
 export const PRESTIGE_FALLBACK: PrestigeVehicle[] = [
   { id: 'maextro-s800', name: 'Huawei Maextro S800', marque: 'Huawei', classe: 'presidentielle', places: 3, prixJour: 900000, autonomieKm: 700, exemplaires: 2,
     atouts: ['Limousine présidentielle', 'Sièges arrière à inclinaison totale', 'Isolation phonique renforcée'] },
-  { id: 'yangwang-altior', name: 'BYD Yangwang Altior', marque: 'BYD', classe: 'presidentielle', places: 4, prixJour: 780000, autonomieKm: 650, exemplaires: 2,
+  { id: 'yangwang-altior', name: 'BYD Yangwang U7', marque: 'BYD', classe: 'presidentielle', places: 4, prixJour: 780000, autonomieKm: 650, exemplaires: 2,
     atouts: ['Suspension active', 'Tenue de route exceptionnelle', 'Finitions sur mesure'] },
   { id: 'aito-m9', name: 'Huawei AITO M9', marque: 'Huawei', classe: 'signature', places: 6, prixJour: 520000, autonomieKm: 630, exemplaires: 4,
     atouts: ['Grand SUV 6 places', 'Idéal cortège familial', 'Toit panoramique'] },

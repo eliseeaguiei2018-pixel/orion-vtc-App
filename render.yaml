@@ -30,6 +30,20 @@ services:
       # App cliente : secret de signature des sessions client (distinct, généré par Render).
       - key: CLIENT_JWT_SECRET
         generateValue: true
+      # ORION Assurance : clé de chiffrement des dossiers de premiers secours (AES-256).
+      # 32 octets en base64, générés UNE fois : openssl rand -base64 32
+      # Ne jamais la changer ni la perdre : les dossiers chiffrés deviendraient illisibles.
+      # Absente en production = inscription à ORION Assurance indisponible (503).
+      - key: MEDICAL_DATA_KEY
+        sync: false
+      # Itinéraires routiers réels (OSRM). Par défaut le serveur public, à remplacer par
+      # un serveur OSRM d'ORION (carte de Côte d'Ivoire) pour la production.
+      - key: OSRM_URL
+        value: https://router.project-osrm.org
+      # Contrôle de sécurité automatique : « votre course se passe-t-elle bien ? »
+      # envoyé au client après ce nombre de secondes de trajet (0 = désactivé).
+      - key: SAFETY_CHECKIN_SECONDS
+        value: "180"
       # Opérateur SMS des codes de connexion : « orange » (Orange Côte d'Ivoire) ou
       # « twilio ». Vide = aucun SMS : en production, les connexions par code sont refusées.
       # Voir DEPLOIEMENT.md, « Opérateur SMS ».

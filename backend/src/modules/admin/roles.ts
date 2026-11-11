@@ -71,6 +71,11 @@ export type Permission =
   | 'crew:read' | 'crew:write' | 'crew:self'
   /** Annuaire du personnel : créer et gérer les identifiants de connexion. */
   | 'accounts:read' | 'accounts:write'
+  /**
+   * ORION Assurance : dossier de premiers secours d'un client. Utilisable SEULEMENT par
+   * l'agent qui a pris en charge une alerte en cours de ce client (vérifié par la route).
+   */
+  | 'medical:read'
   /** Alertes sécurité interne (tentatives d'accès non autorisé) — direction uniquement. */
   | 'security:read'
   | 'roles:read';
@@ -86,6 +91,7 @@ const ALL: Permission[] = [
   'finance:write', 'caisse:read', 'caisse:write',
   'crew:read', 'crew:write', 'crew:self',
   'accounts:read', 'accounts:write',
+  'medical:read',
 ];
 
 /** Matrice rôle → permissions (couches d'accès selon le poste). */
@@ -116,7 +122,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   // Chauffeur : son dossier, ses courses, ses revenus, ses requêtes. Rien d'autre.
   // Aucune donnée d'un autre chauffeur, aucun chiffre d'entreprise.
   chauffeur: ['crew:self'],
-  ops: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'support:read', 'support:write', 'services:read', 'search:read', 'notify:read', 'notify:write', 'rental:read', 'rental:write', 'vigilance:read'],
+  ops: ['medical:read', 'overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'clients:read', 'clients:write', 'alerts:read', 'alerts:write', 'support:read', 'support:write', 'services:read', 'search:read', 'notify:read', 'notify:write', 'rental:read', 'rental:write', 'vigilance:read'],
   finance: ['overview:read', 'rides:read', 'pricing:read', 'promos:read', 'promos:write', 'services:read', 'finance:read', 'treasury:read', 'search:read', 'notify:read'],
   support: ['overview:read', 'rides:read', 'clients:read', 'clients:write', 'alerts:read', 'support:read', 'support:write', 'promos:read', 'search:read', 'notify:read', 'notify:write', 'rental:read', 'rental:write', 'vigilance:read'],
   viewer: ['overview:read', 'rides:read', 'drivers:read', 'clients:read', 'alerts:read', 'pricing:read', 'promos:read', 'services:read', 'support:read', 'finance:read', 'search:read', 'notify:read', 'rental:read', 'vigilance:read'],

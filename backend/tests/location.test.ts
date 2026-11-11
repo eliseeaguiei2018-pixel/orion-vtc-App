@@ -31,7 +31,7 @@ const ctx = (s: RentalService, vehicleId: string, debut: Date, fin: Date, remise
 const PLUS_TARD = () => new Date(Date.now() + 20 * 86_400_000);
 
 test('gamme Signature : les modèles ultra-premium annoncés sont au catalogue', () => {
-  for (const nom of ['Huawei Maextro S800', 'Huawei AITO M9', 'NIO ES9', 'BYD Yangwang Altior']) {
+  for (const nom of ['Huawei Maextro S800', 'Huawei AITO M9', 'NIO ES9', 'BYD Yangwang U7']) {
     assert.ok(PRESTIGE.some((v) => v.name === nom), `${nom} présent au catalogue`);
   }
   // Chaque véhicule est exploitable : places, prix, autonomie, exemplaires.

@@ -6,7 +6,7 @@
  */
 import { useState, type CSSProperties } from 'react';
 import { SupervisionMap } from '../SupervisionMap';
-import { fcfa } from '../api';
+import { LIVE, adminGet, fcfa } from '../api';
 import type { Alert, ContactLigne, ContactUrgence, FleetUnit, Overview, SecurityAttempt, SosDossier, Stats } from '../types';
 import { Drawer, Kpi, statusLabel } from '../ui';
 
@@ -284,6 +284,7 @@ export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf
           <span><strong>{d.passenger.name ?? 'Passager'}</strong><br /><span className="adm-muted">Photo de profil, à transmettre aux secours</span></span>
         </div>
       )}
+      {d.assurance?.inscrit && <DossierMedicalUrgence alerteId={a.id} agent={a.agent} ouverte={open} />}
       <p className="adm-muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
         Passager : {d.passenger.name ?? d.passenger.id} · {d.passenger.phone ?? 'tél. n/c'} · {d.passenger.lastRides.length} trajets récents
         {d.passenger.lastRides.length < 2 ? ' — ⚠ compte récent (vérifier fraude)' : ''}
@@ -367,6 +368,112 @@ const ORDRE_CATEGORIES = ['secours', 'course', 'interne', 'partenaire'] as const
  * tentative est consignée avant la composition, et l'issue se renseigne juste après.
  * Le registre qui en résulte est la pièce produite à l'assureur, à la police ou au juge.
  */
+/* ====================== ORION ASSURANCE : DOSSIER MÉDICAL ======================= */
+
+interface FicheMedicale {
+  identite: { nom: string; prenoms: string; dateNaissance: string; sexe?: 'F' | 'M' };
+  piece: { type: 'cni' | 'passeport'; numero: string; expiration: string };
+  cmu?: string;
+  sante: {
+    groupeSanguin: string; antecedents: string[]; autresAntecedents?: string; allergies?: string; traitements?: string;
+    anticoagulants: boolean; stimulateurCardiaque: boolean; reactionAllergiqueGrave: boolean;
+  };
+  urgence: { nom: string; lien: string; telephone: string };
+  medecin?: { nom: string; telephone?: string };
+}
+
+const ANTECEDENT: Record<string, string> = {
+  asthme: 'Asthme', hypertension: 'Hypertension', diabete: 'Diabète', drepanocytose: 'Drépanocytose',
+  epilepsie: 'Épilepsie', cardiaque: 'Maladie cardiaque', renale: 'Maladie rénale', coagulation: 'Trouble de la coagulation',
+  grossesse: 'Grossesse en cours', mobilite_reduite: 'Mobilité réduite',
+};
+
+const FICHE_DEMO: FicheMedicale = {
+  identite: { nom: 'Koné', prenoms: 'Awa', dateNaissance: '1994-03-12', sexe: 'F' },
+  piece: { type: 'cni', numero: 'CI004821736', expiration: '2031-05-30' },
+  cmu: '1 94 03 12 0482 17',
+  sante: { groupeSanguin: 'O+', antecedents: ['asthme'], allergies: 'Pénicilline', traitements: 'Ventoline en cas de crise', anticoagulants: false, stimulateurCardiaque: false, reactionAllergiqueGrave: true },
+  urgence: { nom: 'Ibrahim Koné', lien: 'Frère', telephone: '+225 07 11 22 33 44' },
+};
+
+const ageDe = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / (365.25 * 24 * 3600e3));
+
+/**
+ * Le dossier de premiers secours du client, chiffré sur le serveur. Il ne s'ouvre que
+ * pour l'agent qui a PRIS EN CHARGE l'alerte en cours ; chaque ouverture est inscrite au
+ * journal et annoncée au client. Rien n'est conservé dans le navigateur : fermer le
+ * tiroir efface la fiche de l'écran.
+ */
+function DossierMedicalUrgence({ alerteId, agent, ouverte }: { alerteId: string; agent?: string; ouverte: boolean }) {
+  const [fiche, setFiche] = useState<FicheMedicale | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [charge, setCharge] = useState(false);
+  const ouvrir = async () => {
+    setCharge(true); setErreur(null);
+    try {
+      const r = LIVE ? await adminGet<{ inscrit: boolean; fiche: FicheMedicale | null }>(`/admin/sos/${alerteId}/dossier-medical`) : { inscrit: true, fiche: FICHE_DEMO };
+      if (!r.fiche) setErreur('Le client n’a plus de dossier ORION Assurance.');
+      setFiche(r.fiche);
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : 'Accès refusé.');
+    } finally { setCharge(false); }
+  };
+  if (!ouverte) return null;
+  const sa = fiche?.sante;
+  const vigilances = sa ? [
+    ...sa.antecedents.map((x) => ANTECEDENT[x] ?? x),
+    ...(sa.anticoagulants ? ['Sous anticoagulant : risque hémorragique'] : []),
+    ...(sa.stimulateurCardiaque ? ['Porteur d’un stimulateur cardiaque'] : []),
+    ...(sa.reactionAllergiqueGrave ? ['Antécédent de réaction allergique grave'] : []),
+  ] : [];
+  return (
+    <div className="adm-medical">
+      <div className="adm-medical-h">
+        <span className="adm-medical-ico" aria-hidden>✚</span>
+        <div>
+          <strong>ORION Assurance · dossier de premiers secours</strong>
+          <span className="adm-muted">Chiffré · réservé à l’agent qui gère l’alerte · chaque ouverture est journalisée et signalée au client</span>
+        </div>
+      </div>
+      {!fiche && (
+        <>
+          {!agent && <p className="adm-muted" style={{ fontSize: 12, margin: '8px 0 0' }}>Prenez d’abord l’alerte en charge pour ouvrir le dossier.</p>}
+          <button className="adm-btn solid adm-medical-btn" disabled={charge} onClick={() => void ouvrir()}>
+            {charge ? 'Déchiffrement…' : '🔓 Ouvrir le dossier médical (consultation journalisée)'}
+          </button>
+          {erreur && <p className="adm-medical-err" role="alert">⛔ {erreur}</p>}
+        </>
+      )}
+      {fiche && sa && (
+        <div className="adm-medical-corps">
+          <div className="adm-medical-groupe"><span>Groupe sanguin</span><strong>{sa.groupeSanguin === 'inconnu' ? '?' : sa.groupeSanguin}</strong></div>
+          <div className="adm-medical-id">
+            <strong>{fiche.identite.prenoms} {fiche.identite.nom.toUpperCase()}</strong>
+            <span>{ageDe(fiche.identite.dateNaissance)} ans{fiche.identite.sexe ? ` · ${fiche.identite.sexe === 'F' ? 'Femme' : 'Homme'}` : ''}</span>
+            <span className="adm-muted">{fiche.piece.type === 'cni' ? 'CNI' : 'Passeport'} {fiche.piece.numero}{fiche.cmu ? ` · CMU ${fiche.cmu}` : ''}</span>
+          </div>
+          <div className="adm-medical-vig">
+            <span>À signaler au SAMU</span>
+            {vigilances.length ? <ul>{vigilances.map((v) => <li key={v}>{v}</li>)}</ul> : <p className="adm-muted">Aucun problème de santé déclaré.</p>}
+            {sa.autresAntecedents && <p><em>{sa.autresAntecedents}</em></p>}
+          </div>
+          <div className="adm-mini-kpis">
+            <div className="adm-mini-kpi"><span>Allergies</span><strong style={{ fontSize: 12 }}>{sa.allergies || 'Aucune déclarée'}</strong></div>
+            <div className="adm-mini-kpi"><span>Traitements</span><strong style={{ fontSize: 12 }}>{sa.traitements || 'Aucun déclaré'}</strong></div>
+          </div>
+          <div className="adm-medical-contact">
+            <span>Personne à prévenir</span>
+            <strong>{fiche.urgence.nom} · {fiche.urgence.lien}</strong>
+            <a className="adm-btn xs solid" href={`tel:${fiche.urgence.telephone.replace(/\s/g, '')}`}>📞 {fiche.urgence.telephone}</a>
+            {fiche.medecin && <span className="adm-muted">Médecin : {fiche.medecin.nom}{fiche.medecin.telephone ? ` · ${fiche.medecin.telephone}` : ''}</span>}
+          </div>
+          <button className="adm-btn ghost xs" onClick={() => setFiche(null)}>Masquer le dossier</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PosteContact({ dossier, canWrite, onContact, onIssue }: {
   dossier: SosDossier; canWrite: boolean;
   onContact: (alertId: string, p: { canal: 'appel' | 'sms' | 'whatsapp'; contactId?: string; numero?: string; label?: string; message?: string }) => void;

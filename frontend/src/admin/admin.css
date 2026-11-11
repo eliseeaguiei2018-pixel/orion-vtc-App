@@ -455,3 +455,42 @@ html[data-adm-theme='dark'] .samu-room .adm-card { background: #0a0d0b; }
 .adm-client-photo.vide { display: grid; place-items: center; background: var(--a-stroke); color: var(--a-text); font-weight: 800; font-size: 22px; }
 .adm-passager { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 10px; border-radius: 12px; background: rgba(43,255,166,0.06); }
 .adm-passager img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 2px solid var(--a-green); }
+
+/* ===== Messages clients : la console écrit dans l'app ===== */
+.msg-modeles { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 14px; }
+.msg-modele { border: 1px solid var(--a-stroke); background: var(--a-panel2); color: var(--a-text); border-radius: 999px;
+  padding: 6px 12px; font: inherit; font-size: 12.5px; cursor: pointer; transition: border-color .15s, background .15s; }
+.msg-modele:hover { border-color: var(--a-green2); }
+.msg-modele.on { border-color: var(--a-green); background: color-mix(in srgb, var(--a-green) 12%, transparent); }
+.msg-retour { font-size: 13px; font-weight: 600; }
+.msg-retour.ok { color: var(--a-green); } .msg-retour.ko { color: var(--a-danger); }
+.msg-fil { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.msg-fil li { border: 1px solid var(--a-stroke); border-radius: 12px; padding: 10px 12px; background: var(--a-panel2); }
+.msg-fil li.alerte { border-color: var(--a-danger); background: color-mix(in srgb, var(--a-danger) 10%, var(--a-panel2)); }
+.msg-titre { font-size: 13px; margin-top: 2px; }
+.msg-etat { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; font-size: 12.5px; }
+.msg-rep { color: var(--a-green); font-weight: 600; } .msg-rep.danger { color: var(--a-danger); }
+.adm-btn.msg-btn-alerte { background: var(--a-danger); color: #fff; border: none; }
+
+/* ===== ORION Assurance : dossier de premiers secours (tiroir SAMU) ===== */
+.adm-medical { margin-top: 12px; padding: 12px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--a-danger) 45%, var(--a-stroke));
+  background: color-mix(in srgb, var(--a-danger) 6%, var(--a-panel2)); }
+.adm-medical-h { display: flex; gap: 10px; align-items: flex-start; }
+.adm-medical-h strong { display: block; font-size: 13.5px; }
+.adm-medical-h .adm-muted { font-size: 11.5px; }
+.adm-medical-ico { flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-weight: 900;
+  background: var(--a-danger); color: #fff; font-size: 17px; }
+.adm-medical-btn { margin-top: 10px; width: 100%; }
+.adm-medical-err { margin: 8px 0 0; font-size: 12.5px; color: var(--a-danger); font-weight: 600; }
+.adm-medical-corps { display: grid; grid-template-columns: auto 1fr; gap: 10px 12px; margin-top: 12px; }
+.adm-medical-corps > .adm-mini-kpis, .adm-medical-vig, .adm-medical-contact, .adm-medical-corps > .adm-btn { grid-column: 1 / -1; }
+.adm-medical-groupe { width: 76px; border-radius: 12px; background: var(--a-danger); color: #fff; display: grid; place-items: center; padding: 8px 4px; text-align: center; }
+.adm-medical-groupe span { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; opacity: .9; }
+.adm-medical-groupe strong { font-size: 26px; line-height: 1.1; }
+.adm-medical-id { display: grid; gap: 2px; align-content: center; font-size: 13px; }
+.adm-medical-id strong { font-size: 15px; }
+.adm-medical-vig > span, .adm-medical-contact > span:first-child { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--a-muted); }
+.adm-medical-vig ul { margin: 4px 0 0; padding-left: 18px; font-size: 13px; font-weight: 600; color: var(--a-danger); }
+.adm-medical-vig p { margin: 4px 0 0; font-size: 12.5px; }
+.adm-medical-contact { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 13px; }
+.adm-medical-contact > span:first-child { flex-basis: 100%; }

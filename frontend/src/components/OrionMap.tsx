@@ -1,8 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { LatLng } from '../types';
 import { useTheme, type Accent } from '../theme';
-import { getTileConfig } from '../mapConfig';
-import { RealMap } from './RealMap';
+import { getVectorConfig } from '../mapConfig';
+import { CarteReelle } from './CarteReelle';
 
 /**
  * Carte ORION façon navigation (style Google/Waze) projetant de vraies coordonnées
@@ -61,6 +61,8 @@ interface Props {
   vehicle?: 'car' | 'moto';
   /** Affiche les marqueurs de trafic (carrefours/feux/embouteillages). */
   traffic?: boolean;
+  /** Le chauffeur rejoint le départ : son trajet d'approche est tracé en pointillés. */
+  approche?: boolean;
 }
 
 /** Itinéraire, départ et véhicule prennent la couleur choisie par le client. */
@@ -76,15 +78,21 @@ const ACCENT_CARTE: Record<Accent, Record<'dark' | 'light', Partial<Palette>>> =
   },
 };
 
-export function OrionMap({ origin, destination, stops = [], car, vehicle = 'car', traffic = true }: Props) {
+export function OrionMap(props: Props) {
+  // Vraie carte de Côte d'Ivoire par défaut ; carte stylisée si elle ne se charge pas.
+  const [repli, setRepli] = useState(false);
+  const config = getVectorConfig();
+  if (config && !repli) {
+    const { origin, destination, stops, car, vehicle, approche } = props;
+    return <CarteReelle origin={origin} destination={destination} stops={stops} car={car} vehicle={vehicle} approche={approche} config={config} onEchec={() => setRepli(true)} />;
+  }
+  return <CarteStylisee {...props} />;
+}
+
+/** Carte stylisée hors-ligne (démonstration sans réseau, repli). */
+function CarteStylisee({ origin, destination, stops = [], car, vehicle = 'car', traffic = true }: Props) {
   const { resolved, accent } = useTheme();
   const P: Palette = { ...(resolved === 'light' ? LIGHT : DARK), ...ACCENT_CARTE[accent][resolved] };
-
-  // Vrai fond de carte (tuiles) si un fournisseur est configuré ; sinon carte stylisée.
-  const tiles = getTileConfig();
-  if (tiles) {
-    return <RealMap origin={origin} destination={destination} stops={stops} car={car} tiles={tiles} />;
-  }
 
   const o = useMemo(() => project(origin), [origin]);
   const d = useMemo(() => (destination ? project(destination) : null), [destination]);

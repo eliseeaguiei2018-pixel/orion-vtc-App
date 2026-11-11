@@ -50,6 +50,15 @@ export function requireClient(req: FastifyRequest, clientId: string): void {
   if (sub !== clientId) throw forbidden('Ce compte ne vous appartient pas');
 }
 
+/**
+ * Données d'un client : seul son titulaire connecté y accède. Un identifiant qui ne
+ * correspond à aucun compte (passager invité, identifiant aléatoire de l'appareil)
+ * n'a pas de session possible ; il reste lisible par l'appareil qui l'a créé.
+ */
+export function exigerTitulaire(req: FastifyRequest, clientId: string, estCompte: (id: string) => boolean): void {
+  if (estCompte(clientId)) requireClient(req, clientId);
+}
+
 /* ------------------------------ Photo de profil ------------------------------ */
 
 /** Taille maximale d'une photo décodée : l'app la recadre et la compresse avant envoi. */

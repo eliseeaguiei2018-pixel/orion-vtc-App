@@ -37,6 +37,10 @@ const schema = z.object({
   // Partenariat Google Maps (Directions / Distance Matrix / Places).
   // Optionnel : sans clé, on bascule sur un calcul interne (haversine) — l'app fonctionne.
   GOOGLE_MAPS_API_KEY: z.string().optional(),
+  // Calcul d'itinéraire routier (OSRM, données OpenStreetMap). Par défaut : serveur public
+  // de démonstration (usage modéré). En production : serveur ORION dédié, même API.
+  // Vide = désactivé (tracé de repli en lignes droites).
+  OSRM_URL: z.string().default('https://router.project-osrm.org'),
 
   // Simulation de course : en l'absence d'app chauffeur, le serveur simule le
   // déplacement du chauffeur et émet les événements temps réel (tracking live).
@@ -132,6 +136,17 @@ const schema = z.object({
   // Réserve de trésorerie disponible (cash on hand) pour le calcul du runway.
   TREASURY_CASH_XOF: z.coerce.number().min(0).default(120_000_000),
 
+  // --- Messagerie ORION : contrôle de sécurité automatique pendant la course ---
+  // Délai (secondes) après la prise en charge avant que l'app demande au client si
+  // tout se passe bien. 0 = désactivé.
+  SAFETY_CHECKIN_SECONDS: z.coerce.number().int().min(0).default(180),
+
+  // --- ORION Assurance : chiffrement du dossier médical (AES-256-GCM) ---
+  // 32 octets aléatoires encodés en base64 (ex. : openssl rand -base64 32). À ne JAMAIS
+  // régénérer une fois des dossiers enregistrés : ils deviendraient illisibles.
+  // Absente en production : ORION Assurance est désactivé (aucune clé connue n'est utilisée).
+  MEDICAL_DATA_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+
   // Persistance : 'memory' (volatile, défaut/tests) ou 'sqlite' (durable, fichier local).
   // En production : 'postgres' via la même interface Repository (cf. docs).
   PERSISTENCE: z.enum(['memory', 'sqlite']).default('memory'),
@@ -139,6 +154,9 @@ const schema = z.object({
 }).superRefine((c, ctx) => {
   // Un opérateur choisi sans ses identifiants : le serveur refuse de démarrer, plutôt que
   // de laisser les clients attendre un SMS qui ne partira jamais.
+  if (c.MEDICAL_DATA_KEY && Buffer.from(c.MEDICAL_DATA_KEY, 'base64').length !== 32) {
+    ctx.addIssue({ code: 'custom', path: ['MEDICAL_DATA_KEY'], message: 'MEDICAL_DATA_KEY : 32 octets encodés en base64 (openssl rand -base64 32)' });
+  }
   if (c.SMS_PROVIDER === 'orange' && (!c.ORANGE_SMS_CLIENT_ID || !c.ORANGE_SMS_CLIENT_SECRET)) {
     ctx.addIssue({ code: 'custom', path: ['ORANGE_SMS_CLIENT_ID'], message: 'SMS_PROVIDER=orange : ORANGE_SMS_CLIENT_ID et ORANGE_SMS_CLIENT_SECRET sont requis' });
   }

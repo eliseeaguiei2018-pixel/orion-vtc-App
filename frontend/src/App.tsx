@@ -7,18 +7,21 @@ import {
   IconBell, IconBolt, IconBriefcase, IconCalendar, IconCamera, IconCar, IconCheck, IconChevron, IconClock, IconCrown,
   IconFingerprint, IconGem, IconGlobe, IconHome, IconImage, IconLeaf, IconLock, IconMic, IconMinus,
   IconPhone, IconPhoneOff, IconPin, IconPlane, IconPlus, IconRing, IconSearch, IconSettings, IconShare,
-  IconShield, IconShieldCheck, IconStar, IconTraffic, IconVolume, IconWallet, IconWifi,
+  IconShield, IconShieldCheck, IconMedical, IconStar, IconTraffic, IconVolume, IconWallet, IconWifi,
 } from './icons';
 import { LogoGlyph } from './components/Logo';
 import { IllusFood, IllusShop, IllusMarket, IllusColis } from './components/Illustrations';
-import { Voiture, Scooter, vehiculeDeGamme } from './components/Vehicules';
+import { PhotoVehicule, MedaillonGamme, photoDuModele, photoDisponible } from './components/PhotosVehicules';
+import { AssuranceScreen } from './components/AssuranceScreens';
+import { BoutonMessages, ControleSecurite, MessagesScreen, useMessagerie } from './components/MessagesOrion';
+import type { MessageOrion } from './api';
 import { authenticateBiometric, isBiometricEnabled } from './security';
 import type { TrustedContact } from './api';
 import {
   ABIDJAN_PLACES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, fetchSubPlans, fetchSubscription, isLiveBackend, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type PkgSize, type SafeDriver, type SosSuivi, type SupportMessage } from './api';
+import { AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type PkgSize, type SafeDriver, type SosSuivi, type SupportMessage } from './api';
 import { useI18n } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
@@ -58,16 +61,33 @@ function plateFromMatricule(m: string): string {
 }
 
 /** Le véhicule de la gamme (silhouette et peinture : bronze, argent, or, nuit). */
-function TierBadge({ tier, size = 50, suv = false }: { tier: string; size?: number; suv?: boolean }) {
-  const v = vehiculeDeGamme(tier);
-  return (
-    <span className="veh-illus" style={{ width: size * 1.75, height: size }}>
-      <Voiture modele={suv ? 'suv' : v.modele === 'suv' ? 'berline' : v.modele} peinture={v.peinture} largeur={size * 1.75} phares={false} />
-    </span>
-  );
+/**
+ * Vignette du véhicule : la vraie photo du modèle quand on la connaît (modèle du chauffeur,
+ * ou carrosserie choisie), sinon le médaillon de la gamme. Plus aucun dessin de voiture.
+ */
+function TierBadge({ tier, size = 50, suv, modele }: { tier: string; size?: number; suv?: boolean; modele?: string }) {
+  const photo = (modele ? photoDuModele(modele) : null) ?? (suv === undefined ? null : suv ? 'aito-m9' : 'avatr-12');
+  if (photo && photoDisponible(photo)) {
+    return <span className="veh-illus photo" style={{ width: size * 1.75, height: size }}><PhotoVehicule id={photo} largeur={Math.round(size * 1.75)} /></span>;
+  }
+  return <MedaillonGamme gamme={tier} taille={size * 0.84} />;
 }
 
 type TripPhase = 'enroute' | 'arrived' | 'inprogress' | 'completed';
+
+/** Position à la fraction `t` de la longueur d'un tracé (le véhicule suit la route). */
+function pointSurTrace(trace: LatLng[], t: number): LatLng {
+  if (trace.length < 2) return trace[0]!;
+  const d = (a: LatLng, b: LatLng) => Math.hypot(a.lat - b.lat, (a.lng - b.lng) * Math.cos((a.lat * Math.PI) / 180));
+  const cumul = [0];
+  for (let i = 1; i < trace.length; i += 1) cumul.push(cumul[i - 1]! + d(trace[i - 1]!, trace[i]!));
+  const total = cumul[cumul.length - 1]! || 1;
+  const cible = Math.min(1, Math.max(0, t)) * total;
+  let i = 1;
+  while (i < cumul.length - 1 && cumul[i]! < cible) i += 1;
+  const f = (cible - cumul[i - 1]!) / ((cumul[i]! - cumul[i - 1]!) || 1);
+  return lerp(trace[i - 1]!, trace[i]!, f);
+}
 
 export function App() {
   const { t } = useI18n();
@@ -81,6 +101,13 @@ export function App() {
   const [stops, setStops] = useState<Place[]>([]);
   const [scheduled, setScheduled] = useState(false);
   const [insurance, setInsurance] = useState(false);
+  // ORION Assurance : l'option ne s'active qu'avec un dossier de premiers secours.
+  const [assuranceInscrite, setAssuranceInscrite] = useState(false);
+  const [assuranceRequise, setAssuranceRequise] = useState(false);
+  const [retourAssurance, setRetourAssurance] = useState<Screen>('settings');
+  // Messagerie ORION : messages de la supervision, contrôle de sécurité en course.
+  const messagerie = useMessagerie();
+  const [retourMessages, setRetourMessages] = useState<Screen>('home');
   const [payment, setPayment] = useState<string>('orange_money');
   const [quote, setQuote] = useState<Quote | null>(null);
   /** Nom saisi à l'inscription — enregistré côté serveur après vérification du numéro. */
@@ -90,6 +117,10 @@ export function App() {
    * avec la session : on ne refait pas l'inscription à chaque ouverture de l'app.
    */
   const [profil, setProfil] = useState<ProfilClient | null>(() => (sessionClient() ? profilEnCache() : null));
+  useEffect(() => {
+    if (profil) void statutAssurance().then((st) => setAssuranceInscrite(Boolean(st?.inscrit)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profil?.id]);
   const [email, setEmail] = useState('');
   const [devCode, setDevCode] = useState<string | undefined>();
   const [erreurInscription, setErreurInscription] = useState<string | null>(null);
@@ -371,7 +402,7 @@ export function App() {
     const PARENT: Partial<Record<Screen, Screen>> = {
       auth: 'onboarding', otp: 'auth', destination: 'home', delivery: 'home', estimate: 'home', confirm: 'estimate',
       settings: 'home', profile: 'settings', sosHistory: 'settings', legal: 'settings', history: 'settings',
-      wallet: 'home', help: 'home', support: 'help', subscription: 'home', rental: 'home', myRentals: 'home', wedding: 'home',
+      wallet: 'home', help: 'home', support: 'help', subscription: 'home', rental: 'home', myRentals: 'home', wedding: 'home', assurance: 'settings', messages: 'home',
     };
     const ecoute = AppNative.addListener('backButton', () => {
       const e = etatRetour.current;
@@ -506,6 +537,7 @@ export function App() {
             onDelivery={() => { if (guardOpen()) { setMode('delivery'); setScreen('delivery'); } }}
             onQuick={(p) => { if (guardOpen()) { setMode('ride'); chooseDestination(p); } }}
             onNav={setScreen}
+            nonLus={messagerie.nonLus} onMessages={messagerie.actif ? () => { setRetourMessages('home'); setScreen('messages'); } : undefined}
             onSoon={(name) => showToast(t('soon_toast', { name }))} />
         )}
 
@@ -524,10 +556,10 @@ export function App() {
         )}
 
         {screen === 'confirm' && destination && (
-          <ConfirmScreen origin={origin} destination={destination} tier={tier} quote={quote} coverage={coverage} payment={payment}
+          <ConfirmScreen origin={origin} destination={destination} tier={tier} bodyType={bodyType} quote={quote} coverage={coverage} payment={payment}
             payments={enabledPayments} promo={promo} onPromo={setPromo}
             stops={stops} onAddStop={() => setStops((s) => (s.length < 3 ? [...s, EXTRA_STOPS[s.length]!] : s))}
-            scheduled={scheduled} onSchedule={setScheduled} insurance={insurance} onInsurance={setInsurance}
+            scheduled={scheduled} onSchedule={setScheduled} insurance={insurance} onInsurance={(v) => { if (v && !assuranceInscrite && isLiveBackend()) { setAssuranceRequise(true); return; } setInsurance(v); }}
             onPayment={setPayment} onBack={() => setScreen('estimate')}
             onConfirm={() => { if (scheduled) { showToast(t('toast_scheduled')); reset(); } else confirmRide(); }} />
         )}
@@ -537,7 +569,7 @@ export function App() {
         )}
 
         {screen === 'tracking' && destination && driver && (
-          <TrackingScreen origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase} mode={mode}
+          <TrackingScreen onMessage={messagerie.recevoir} messages={messagerie.actif ? { nonLus: messagerie.nonLus, ouvrir: () => { setRetourMessages('tracking'); setScreen('messages'); } } : undefined} origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase} mode={mode}
             carPos={carPos} setCarPos={setCarPos} setPhase={setTripPhase} live={live} rideId={rideId} stops={stops}
             onSos={triggerSos} onShare={() => showToast(t('toast_share'))} onArrived={() => setScreen('payment')}
             onCancel={cancelCurrentRide}
@@ -560,8 +592,29 @@ export function App() {
             setRating={setRating} onDone={() => { if (live && rideId && rating) void rateRide(rideId, rating); showToast(t('toast_done')); reset(); }} />
         )}
 
+        {assuranceRequise && screen === 'confirm' && (
+          <div className="controle-voile" role="dialog" aria-modal="true" aria-label={t('as_requis_t')}>
+            <div className="controle-carte">
+              <span className="controle-ico"><IconMedical size={26} /></span>
+              <h3>{t('as_requis_t')}</h3>
+              <p>{t('as_requis')}</p>
+              <button className="btn btn-primary" onClick={() => { setAssuranceRequise(false); setRetourAssurance('confirm'); setScreen('assurance'); }}>
+                <IconShieldCheck size={18} /> {t('as_requis_cta')}
+              </button>
+              <button className="btn btn-ghost" style={{ marginTop: 8 }} onClick={() => setAssuranceRequise(false)}>{t('msg_plus_tard')}</button>
+            </div>
+          </div>
+        )}
+        {screen === 'tracking' && <ControleSecurite messagerie={messagerie} rideId={rideId} />}
+        {screen === 'assurance' && (
+          <AssuranceScreen nomClient={profil?.name} onToast={showToast}
+            onBack={() => setScreen(retourAssurance)}
+            onChange={(inscrit) => { setAssuranceInscrite(inscrit); if (inscrit && retourAssurance === 'confirm') { setInsurance(true); setScreen('confirm'); } }} />
+        )}
+        {screen === 'messages' && <MessagesScreen messagerie={messagerie} onBack={() => setScreen(retourMessages)} />}
         {screen === 'settings' && (
           <SettingsScreen profil={profil} onBack={() => setScreen(profil ? 'home' : 'onboarding')}
+            assuranceActive={assuranceInscrite} onAssurance={() => { setRetourAssurance('settings'); setScreen('assurance'); }}
             onProfile={() => setScreen('profile')} onHistory={() => setScreen('history')} onSos={() => setScreen('sosHistory')}
             onWallet={() => setScreen('wallet')} onSubscription={() => setScreen('subscription')}
             onHelp={() => setScreen('help')} onLegal={() => setScreen('legal')} onCreate={() => setScreen('auth')}
@@ -955,8 +1008,10 @@ function MiniSvc({ illus, label, onClick }: { illus: React.ReactNode; label: str
   );
 }
 
-function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onCourse, onDelivery, onQuick, onNav, onSoon }: {
+function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onCourse, onDelivery, onQuick, onNav, onSoon, nonLus = 0, onMessages }: {
   profil: ProfilClient | null;
+  /** Messagerie ORION : bouton message (absent sans compte ni serveur). */
+  nonLus?: number; onMessages?: () => void;
   announce: Announcement | null; closed: boolean; deliveryOff: boolean; city: string | null;
   onSearch: () => void; onCourse: () => void; onDelivery: () => void;
   onQuick: (p: Place) => void; onNav: (s: Screen) => void; onSoon: (name: string) => void;
@@ -969,9 +1024,12 @@ function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onC
       <div className="hub-hero">
         <div className="hub-top">
           <span className="hub-brand"><span className="hub-logo"><LogoGlyph size={20} /></span> ORION</span>
-          <button className="avatar hub-avatar" onClick={() => onNav('settings')} aria-label={t('set_title')}>
-            {profil ? <Avatar photo={profil.photo} name={profil.name} size={40} /> : <IconSettings size={20} />}
-          </button>
+          <span className="hub-actions">
+            {onMessages && <BoutonMessages nonLus={nonLus} onClick={onMessages} clair />}
+            <button className="avatar hub-avatar" onClick={() => onNav('settings')} aria-label={t('set_title')}>
+              {profil ? <Avatar photo={profil.photo} name={profil.name} size={40} /> : <IconSettings size={20} />}
+            </button>
+          </span>
         </div>
         <h2 className="hub-greet rise">{profil?.name ? t('home_greeting_name', { name: profil.name.split(' ')[0]! }) : t('home_greeting')}</h2>
         <button className="hub-search rise rise-2" onClick={onSearch}>
@@ -1004,12 +1062,12 @@ function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onC
             l'a désactivée (services.delivery = false) ; tout est grisé en maintenance. */}
         <div className="svc-grid rise rise-2">
           <button className={`svc-card course${closed ? ' svc-off' : ''}`} onClick={onCourse} disabled={closed}>
-            <span className="svc-illus"><Voiture modele="berline" peinture="accent" largeur={150} /></span>
+            <span className="svc-illus photo"><PhotoVehicule id="avatr-12" largeur={170} /></span>
             <span className="svc-meta"><strong>{t('svc_course')}</strong><span>{t('svc_course_d')}</span></span>
           </button>
           {!deliveryOff && (
             <button className={`svc-card deliver${closed ? ' svc-off' : ''}`} onClick={onDelivery} disabled={closed}>
-              <span className="svc-illus"><Scooter largeur={150} /></span>
+              <span className="svc-illus photo"><PhotoVehicule id="bmw-ce-04" largeur={150} /></span>
               <span className="svc-meta"><strong>{t('svc_delivery')}</strong><span>{t('svc_delivery_d')}</span></span>
             </button>
           )}
@@ -1072,7 +1130,7 @@ function DeliveryScreen({ origin, pkgSize, onBack, onConfirm }: {
       <div style={{ flex: 1 }} />
       <Sheet>
         <div className="del-head">
-          <span className="svc-illus small"><Scooter largeur={92} /></span>
+          <span className="svc-illus small photo"><PhotoVehicule id="bmw-ce-04" largeur={96} /></span>
           <div className="col grow" style={{ textAlign: 'start' }}>
             <strong style={{ fontSize: 17 }}>{t('del_title')}</strong>
             <span className="faint" style={{ fontSize: 12.5 }}>{t('svc_delivery_d')}</span>
@@ -1200,17 +1258,21 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
           <span className="row gap-sm"><TrafficBadge level={traffic} /><span className="badge green"><IconClock size={12} /> {tier.eta} {t('est_min')}</span></span>
         </div>
 
-        {/* Carrosserie : SUV ou Berline */}
-        <div className="chips" style={{ marginBottom: 12 }}>
+        {/* Carrosserie : vraies photos de la flotte, AVATR 12 (berline) et Huawei AITO M9 (SUV) */}
+        <div className="carrosseries" role="radiogroup" aria-label={t('est_choose')}>
           {(['berline', 'suv'] as const).map((b) => (
-            <button key={b} className={`chip${b === bodyType ? ' active' : ''}`} onClick={() => onBody(b)}>{t(`body_${b}`)}</button>
+            <button key={b} role="radio" aria-checked={b === bodyType} className={`carrosserie${b === bodyType ? ' active' : ''}`} onClick={() => onBody(b)}>
+              <span className="carrosserie-photo"><PhotoVehicule id={b === 'suv' ? 'aito-m9' : 'avatr-12'} largeur={180} /></span>
+              <span className="carrosserie-nom">{t(`body_${b}`)}</span>
+              <span className="carrosserie-modele">{b === 'suv' ? 'Huawei AITO M9' : 'AVATR 12'}</span>
+            </button>
           ))}
         </div>
 
         <div className="stack">
           {TIERS.map((v) => (
             <button key={v.id} className={`veh${v.id === tier.id ? ' active' : ''}`} style={{ width: '100%', ...(v.id === tier.id ? { borderColor: v.accent, boxShadow: `0 0 22px ${v.accent}44` } : {}) }} onClick={() => onTier(v)}>
-              <TierBadge tier={v.id} suv={bodyType === 'suv'} />
+              <MedaillonGamme gamme={v.id} taille={42} />
               <span className="col grow" style={{ textAlign: 'start' }}>
                 <strong style={{ fontSize: 16 }}>{t(v.key)}</strong>
                 <span className="faint" style={{ fontSize: 12.5 }}>{v.cars[0]}{v.cars.length > 1 ? ` +${v.cars.length - 1}` : ''} · {v.capacity} {t('seats')}</span>
@@ -1228,7 +1290,8 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
 }
 
 /* ------------------------------ Confirm ------------------------------ */
-function ConfirmScreen({ origin, destination, tier, quote, coverage, payment, payments, promo, onPromo, stops, onAddStop, scheduled, onSchedule, insurance, onInsurance, onPayment, onBack, onConfirm }: {
+function ConfirmScreen({ origin, destination, tier, bodyType = 'berline', quote, coverage, payment, payments, promo, onPromo, stops, onAddStop, scheduled, onSchedule, insurance, onInsurance, onPayment, onBack, onConfirm }: {
+  bodyType?: 'suv' | 'berline';
   origin: Place; destination: Place; tier: TierOption; quote: Quote | null; coverage: SubCoverage | null; payment: string;
   payments: { method: string; label: string }[]; promo: string; onPromo: (v: string) => void;
   stops: Place[]; onAddStop: () => void; scheduled: boolean; onSchedule: (v: boolean) => void;
@@ -1250,7 +1313,7 @@ function ConfirmScreen({ origin, destination, tier, quote, coverage, payment, pa
           <div className="list-row" style={{ padding: '6px 0' }}>
             <span className="list-ico" style={{ color: 'var(--green)' }}><IconPin size={18} /></span>
             <span className="col grow"><strong style={{ fontSize: 14 }}>{origin.area}</strong><span className="faint" style={{ fontSize: 12 }}>{t('conf_departure')}</span></span>
-            <TierBadge tier={tier.id} size={32} />
+            <TierBadge tier={tier.id} size={32} suv={bodyType === 'suv'} />
           </div>
           {stops.map((s, i) => (
             <div key={i}><div className="divider" /><div className="list-row" style={{ padding: '6px 0' }}>
@@ -1404,7 +1467,7 @@ function SearchingScreen({ origin, destination, mode = 'ride', onCancel }: { ori
 }
 
 /* ----------------------------- Tracking ------------------------------ */
-function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, onSos, onShare, onArrived, onCancel, onReassigned, onServerCancel }: {
+function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, onSos, onShare, onArrived, onCancel, onReassigned, onServerCancel, onMessage, messages }: {
   origin: Place; destination: Place; driver: Driver; tier: TierOption; phase: TripPhase; mode?: 'ride' | 'delivery';
   carPos: LatLng | null; setCarPos: (p: LatLng) => void; setPhase: (p: TripPhase) => void;
   live: boolean; rideId: string | null; stops: Place[]; onSos: () => void; onShare: () => void; onArrived: () => void; onCancel: () => void;
@@ -1412,6 +1475,10 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
   onReassigned?: (d: SafeDriver) => void;
   /** Course annulée côté serveur (aucun chauffeur disponible, clôture console). */
   onServerCancel?: () => void;
+  /** Messagerie ORION : message reçu en direct pendant la course. */
+  onMessage?: (m: MessageOrion) => void;
+  /** Bouton message dans la barre du haut. */
+  messages?: { nonLus: number; ouvrir: () => void };
 }) {
   const { t } = useI18n();
   const del = mode === 'delivery';
@@ -1429,6 +1496,7 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
         const m = JSON.parse(ev.data as string) as { type: string; data: { position?: LatLng; status?: string; driver?: SafeDriver | null } };
         if (m.type === 'driver.location' && m.data.position) setCarPos(m.data.position);
         if (m.type === 'ride.reassigned' && m.data.driver) onReassigned?.(m.data.driver);
+        if (m.type === 'message') onMessage?.(m.data as unknown as MessageOrion);
         if (m.type === 'ride.status') {
           const s = m.data.status;
           if (s === 'cancelled') onServerCancel?.();
@@ -1450,10 +1518,13 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
     const from = phase === 'inprogress' ? origin.location : driverStart;
     const to = phase === 'inprogress' ? destination.location : origin.location;
     setCarPos(from);
+    // Démonstration : le véhicule suit lui aussi les vraies routes dès que l'itinéraire arrive.
+    let trace: LatLng[] = [from, to];
+    void itineraire([from, to]).then((r) => { if (r) trace = r.geometrie; });
     const start = Date.now();
     const id = window.setInterval(() => {
       const tt = Math.min(1, (Date.now() - start) / durations[phase]);
-      setCarPos(lerp(from, to, tt));
+      setCarPos(pointSurTrace(trace, tt));
       if (tt >= 1) {
         window.clearInterval(id);
         if (phase === 'enroute') setPhase('arrived');
@@ -1472,8 +1543,8 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
 
   return (
     <div className="screen">
-      <OrionMap origin={origin.location} destination={destination.location} stops={stops.map((s) => s.location)} car={carPos} vehicle={del ? 'moto' : 'car'} />
-      <TopBar title={t('track_title')} />
+      <OrionMap origin={origin.location} destination={destination.location} stops={stops.map((s) => s.location)} car={carPos} vehicle={del ? 'moto' : 'car'} approche={phase === 'enroute'} />
+      <TopBar title={t('track_title')} right={messages ? <BoutonMessages nonLus={messages.nonLus} onClick={messages.ouvrir} /> : undefined} />
       <button className="sos" onClick={onSos} aria-label="SOS">SOS</button>
       <div style={{ flex: 1 }} />
       <Sheet>
@@ -1492,8 +1563,8 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
             </span>
             <span className="col drv-vehicule">
               {del
-                ? <span className="veh-illus" style={{ width: 60, height: 34 }}><Scooter largeur={60} /></span>
-                : <TierBadge tier={tier.id} size={34} />}
+                ? <span className="veh-illus photo" style={{ width: 60, height: 34 }}><PhotoVehicule id="bmw-ce-04" largeur={60} /></span>
+                : <TierBadge tier={tier.id} size={34} modele={driver.car} />}
               <span className="plate">{driver.plate}</span>
             </span>
           </div>
@@ -1784,7 +1855,7 @@ function WeddingScreen({ onBack, onReserve }: { onBack: () => void; onReserve: (
         <div className="stack" style={{ margin: '10px 0 18px' }}>
           {TIERS.map((v) => (
             <button key={v.id} className={`veh${v.id === tier.id ? ' active' : ''}`} style={v.id === tier.id ? { borderColor: v.accent, boxShadow: `0 0 22px ${v.accent}44` } : {}} onClick={() => setTier(v)}>
-              <TierBadge tier={v.id} />
+              <TierBadge tier={v.id} modele={v.cars[0]} />
               <span className="col grow" style={{ textAlign: 'start' }}>
                 <strong style={{ fontSize: 15 }}>{t(v.key)}</strong>
                 <span className="faint" style={{ fontSize: 12 }}>{v.cars.join(' · ')}</span>

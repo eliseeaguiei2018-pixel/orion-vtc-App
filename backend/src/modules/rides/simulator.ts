@@ -3,11 +3,7 @@ import type { LatLng } from '../../core/geo.js';
 import { rideRoom, type RealtimeHub } from '../realtime/hub.js';
 import { rideStateMachine, type RideStatus } from '../services/ride/stateMachine.js';
 import type { Ride, RideStore } from './store.js';
-
-const lerp = (a: LatLng, b: LatLng, t: number): LatLng => ({
-  lat: a.lat + (b.lat - a.lat) * t,
-  lng: a.lng + (b.lng - a.lng) * t,
-});
+import { pointSurTrace, type Routage } from '../maps/routage.js';
 
 /**
  * Simulateur de course (aide de développement).
@@ -38,6 +34,8 @@ export class RideSimulator {
     private readonly rides: RideStore,
     private readonly realtime: RealtimeHub,
     opts: Partial<SimulatorOptions> = {},
+    /** Itinéraires réels : sans lui, le véhicule avance en ligne droite (tests). */
+    private readonly routage?: Routage,
   ) {
     this.opts = {
       enabled: config.SIMULATE_RIDES,
@@ -63,21 +61,45 @@ export class RideSimulator {
     const driverStart: LatLng = { lat: ride.origin.lat - 0.012, lng: ride.origin.lng - 0.009 };
 
     this.transition(ride, 'driver_en_route');
-    this.animate(ride, driverStart, ride.origin, this.opts.enrouteMs, () => {
-      this.transition(ride, 'arrived');
-      // Courte pause "à l'arrêt" puis départ.
-      const pause = setTimeout(() => {
-        this.transition(ride, 'in_progress');
-        this.animate(ride, ride.origin, ride.destination, this.opts.tripMs, () => {
-          this.transition(ride, 'completed');
-        });
-      }, this.opts.pauseMs);
-      pause.unref?.();
+    void this.traces(ride, driverStart).then(({ approche, trajet }) => {
+      this.animate(ride, approche, this.opts.enrouteMs, () => {
+        this.transition(ride, 'arrived');
+        // Courte pause "à l'arrêt" puis départ.
+        const pause = setTimeout(() => {
+          this.transition(ride, 'in_progress');
+          this.animate(ride, trajet, this.opts.tripMs, () => {
+            this.transition(ride, 'completed');
+          });
+        }, this.opts.pauseMs);
+        pause.unref?.();
+      });
     });
   }
 
-  /** Interpole la position entre deux points et publie `driver.location`. */
-  private animate(ride: Ride, from: LatLng, to: LatLng, durationMs: number, onDone: () => void): void {
+  /**
+   * Tracés suivis par le véhicule : les vraies routes quand le calcul d'itinéraire est
+   * disponible (ponts, échangeurs, sens de circulation), sinon la ligne droite.
+   */
+  private async traces(ride: Ride, depart: LatLng): Promise<{ approche: LatLng[]; trajet: LatLng[] }> {
+    if (!this.routage) return { approche: [depart, ride.origin], trajet: [ride.origin, ride.destination] };
+    const [approche, trajet] = await Promise.all([
+      this.routage.itineraire([depart, ride.origin]),
+      this.routage.itineraire([ride.origin, ride.destination]),
+    ]);
+    const current = this.rides.get(ride.id);
+    if (current) {
+      current.itineraire = {
+        geometrie: trajet.geometrie, distanceMeters: trajet.distanceMeters, durationSeconds: trajet.durationSeconds,
+        ponts: trajet.ponts, provider: trajet.provider,
+      };
+      this.rides.persist(current);
+      this.realtime.publish(rideRoom(ride.id), 'ride.itineraire', { approche: approche.geometrie, trajet: current.itineraire });
+    }
+    return { approche: approche.geometrie, trajet: trajet.geometrie };
+  }
+
+  /** Fait avancer le véhicule le long du tracé et publie `driver.location`. */
+  private animate(ride: Ride, trace: LatLng[], durationMs: number, onDone: () => void): void {
     const startedAt = Date.now();
     const timer = setInterval(() => {
       // La course peut avoir été annulée entre-temps.
@@ -87,7 +109,7 @@ export class RideSimulator {
         return;
       }
       const t = Math.min(1, (Date.now() - startedAt) / durationMs);
-      const pos = lerp(from, to, t);
+      const pos = pointSurTrace(trace, t);
       // Tracé GPS conservé sur la course (borné) — sert à l'instruction des litiges.
       current.trace ??= [];
       if (current.trace.length < 200) current.trace.push({ lat: pos.lat, lng: pos.lng });
