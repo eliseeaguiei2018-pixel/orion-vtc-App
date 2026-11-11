@@ -448,3 +448,10 @@ html[data-adm-theme='dark'] .samu-room .adm-card { background: #0a0d0b; }
 .adm-alarme.lvl-orange { background: linear-gradient(90deg, #c2410c, #ea580c); animation: none; }
 .adm-alarme.lvl-jaune { background: linear-gradient(90deg, #a16207, #ca8a04); animation: none; }
 .adm-alarme.lvl-orange .adm-btn.solid { color: #c2410c; } .adm-alarme.lvl-jaune .adm-btn.solid { color: #a16207; }
+
+/* ---- Fiche client : photo de profil ; dossier SOS : photo du passager ---- */
+.adm-client-tete { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.adm-client-photo { width: 72px; height: 72px; flex: none; border-radius: 50%; object-fit: cover; border: 2px solid var(--a-green); }
+.adm-client-photo.vide { display: grid; place-items: center; background: var(--a-stroke); color: var(--a-text); font-weight: 800; font-size: 22px; }
+.adm-passager { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 10px; border-radius: 12px; background: rgba(43,255,166,0.06); }
+.adm-passager img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 2px solid var(--a-green); }

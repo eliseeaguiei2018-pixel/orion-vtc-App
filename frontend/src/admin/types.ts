@@ -61,7 +61,7 @@ export interface SosDossier {
   ride: { id: string; status: string; origin: { lat: number; lng: number }; destination: { lat: number; lng: number }; trace: { lat: number; lng: number }[]; createdAt: string } | null;
   vehicle: { plate: string; model: string; color: string; engine: string } | null;
   driver: { id: string; name: string; matricule: string; phone: string | null; licenseNo: string | null; birthDate: string | null; phoneBatteryPct: number; batteryPct: number | null } | null;
-  passenger: { id: string; name: string | null; phone: string | null; phoneBatteryPct: number; lastRides: { id: string; status: string; createdAt: string }[] };
+  passenger: { id: string; name: string | null; phone: string | null; photo?: string | null; phoneBatteryPct: number; lastRides: { id: string; status: string; createdAt: string }[] };
   telemetry: { speedEstimateKmh: number | null; points: number; refreshSeconds: number };
   emergencyNumbers: Record<string, string>;
   /** Poste de contact : répertoire + numéros propres au dossier. */
@@ -251,7 +251,12 @@ export interface DriverDetail {
 }
 export interface ClientDetail {
   id: string; name: string | null; phone: string | null; status: string; rides: number; createdAt: string | null;
-  spent: number; greenPoints?: number; recentRides: DetailRide[]; conversations: { id: string; subject: string; status: string; messages: number }[];
+  spent: number; greenPoints?: number;
+  recentRides: Array<DetailRide & { annulation?: { par: string; motif: string | null; frais: number } }>;
+  conversations: { id: string; subject: string; status: string; messages: number }[];
+  /** Compte client : photo (fiche uniquement, jamais dans les listes), e-mail, numéro vérifié. */
+  email?: string | null; photo?: string | null; phoneVerifiedAt?: string | null; deletedAt?: string | null;
+  cancellations?: number; warnings?: number; terminees?: number;
 }
 
 

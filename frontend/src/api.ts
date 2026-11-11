@@ -199,6 +199,160 @@ export async function registerClientProfile(name: string, phone: string): Promis
   });
 }
 
+/* ============================== COMPTE CLIENT ============================== */
+/**
+ * Le compte est rattaché à un numéro VÉRIFIÉ par code SMS ; le serveur renvoie
+ * alors une session signée, conservée sur l'appareil. Profil, photo et historique
+ * ne s'ouvrent qu'avec elle.
+ */
+export interface ProfilClient {
+  id: string; name: string | null; phone: string | null; email: string | null; photo: string | null;
+  phoneVerifiedAt: string | null; createdAt: string;
+  stats: { courses: number; commandes?: number; annulations: number; avertissements: number; pointsCarbone: number; co2EconomiseKg: number };
+}
+
+const SESSION_KEY = 'orion.clientSession';
+const PROFIL_KEY = 'orion.profile';
+
+export function sessionClient(): string | null {
+  try { return localStorage.getItem(SESSION_KEY); } catch { return null; }
+}
+export function profilEnCache(): ProfilClient | null {
+  try { return JSON.parse(localStorage.getItem(PROFIL_KEY) || 'null') as ProfilClient | null; } catch { return null; }
+}
+function memoriserProfil(p: ProfilClient | null): void {
+  try { if (p) localStorage.setItem(PROFIL_KEY, JSON.stringify(p)); else localStorage.removeItem(PROFIL_KEY); } catch { /* ignore */ }
+}
+
+/** Appel avec retour d'erreur lisible (le message du serveur), au lieu d'un simple échec muet. */
+async function appel<T>(path: string, init: RequestInit = {}, timeoutMs = 8000): Promise<{ ok: true; data: T } | { ok: false; error: string; status: number }> {
+  if (!API) return { ok: false, error: 'Mode démonstration : aucun serveur connecté.', status: 0 };
+  const jeton = sessionClient();
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    const res = await fetch(`${API}${path}`, {
+      ...init,
+      headers: { ...(init.body ? { 'content-type': 'application/json' } : {}), ...(jeton ? { authorization: `Bearer ${jeton}` } : {}), ...(init.headers ?? {}) },
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    const txt = await res.text();
+    const json = txt ? JSON.parse(txt) as Record<string, unknown> : {};
+    if (!res.ok) return { ok: false, error: String(json.error ?? json.message ?? `Erreur ${res.status}`), status: res.status };
+    return { ok: true, data: json as T };
+  } catch {
+    return { ok: false, error: 'Connexion impossible. Vérifiez votre réseau et réessayez.', status: 0 };
+  }
+}
+
+export async function demanderCode(phone: string): Promise<{ ok: true; devCode?: string; compteExistant: boolean } | { ok: false; error: string }> {
+  const r = await appel<{ devCode?: string; compteExistant: boolean }>('/clients/auth/otp', { method: 'POST', body: JSON.stringify({ phone }) });
+  return r.ok ? { ok: true, devCode: r.data.devCode, compteExistant: r.data.compteExistant } : { ok: false, error: r.error };
+}
+
+/** Vérifie le code ; en cas de succès, l'appareil adopte le compte (et sa session). */
+export async function verifierCode(phone: string, code: string, name?: string, email?: string): Promise<{ ok: true; client: ProfilClient; compteRetrouve: boolean } | { ok: false; error: string }> {
+  const r = await appel<{ token: string; client: ProfilClient; compteRetrouve: boolean }>('/clients/auth/verify', {
+    method: 'POST', body: JSON.stringify({ clientId: clientId(), phone, code, name: name?.trim() || undefined, email: email?.trim() || undefined }),
+  });
+  if (!r.ok) return { ok: false, error: r.error };
+  try {
+    localStorage.setItem(SESSION_KEY, r.data.token);
+    localStorage.setItem('orion.clientId', r.data.client.id);
+  } catch { /* ignore */ }
+  memoriserProfil(r.data.client);
+  return { ok: true, client: r.data.client, compteRetrouve: r.data.compteRetrouve };
+}
+
+export async function chargerProfil(): Promise<ProfilClient | null> {
+  const r = await appel<{ client: ProfilClient }>(`/clients/${clientId()}/profile`);
+  if (r.ok) { memoriserProfil(r.data.client); return r.data.client; }
+  return profilEnCache();
+}
+
+export async function modifierProfil(patch: { name?: string; email?: string }): Promise<{ ok: true; client: ProfilClient } | { ok: false; error: string }> {
+  const r = await appel<{ client: ProfilClient }>(`/clients/${clientId()}/profile`, { method: 'PUT', body: JSON.stringify(patch) });
+  if (!r.ok) return r;
+  memoriserProfil(r.data.client);
+  return { ok: true, client: r.data.client };
+}
+
+export async function envoyerPhoto(dataUrl: string): Promise<{ ok: true; client: ProfilClient } | { ok: false; error: string }> {
+  const r = await appel<{ client: ProfilClient }>(`/clients/${clientId()}/photo`, { method: 'PUT', body: JSON.stringify({ photo: dataUrl }) }, 20000);
+  if (!r.ok) return r;
+  memoriserProfil(r.data.client);
+  return { ok: true, client: r.data.client };
+}
+
+export async function retirerPhoto(): Promise<{ ok: true; client: ProfilClient } | { ok: false; error: string }> {
+  const r = await appel<{ client: ProfilClient }>(`/clients/${clientId()}/photo`, { method: 'DELETE' });
+  if (!r.ok) return r;
+  memoriserProfil(r.data.client);
+  return { ok: true, client: r.data.client };
+}
+
+/**
+ * Déconnexion : la session et le profil quittent l'appareil, ET l'identifiant
+ * d'appareil est renouvelé — la personne suivante ne doit pas hériter du compte.
+ */
+export function seDeconnecter(): void {
+  try {
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(PROFIL_KEY);
+    localStorage.removeItem('orion.clientId');
+    localStorage.removeItem('orion.sos');
+  } catch { /* ignore */ }
+}
+
+export async function supprimerCompte(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const r = await appel<{ supprime: boolean }>(`/clients/${clientId()}`, { method: 'DELETE' });
+  if (!r.ok) return r;
+  seDeconnecter();
+  return { ok: true };
+}
+
+export interface CourseHistorique {
+  id: string; createdAt: string; status: string; statutLabel: string;
+  depart: string; arrivee: string; distanceKm: number; montant: number; categorie: string;
+  breakdown: Quote['breakdown'];
+  paiement: { moyen: string | null; regle: boolean; montant: number | null };
+  chauffeur: { name: string; matricule: string; vehicule: string | null; plaque: string | null } | null;
+  note: number | null;
+  annulation: { par: string; motif: string | null; details: string | null; frais: number; at: string } | null;
+  sos: Array<{ id: string; at: string; status: string }>;
+}
+export interface Historique {
+  courses: CourseHistorique[];
+  resume: { total: number; terminees: number; annulees: number; depense: number; fraisAnnulation: number; alertesSos: number };
+}
+export async function chargerHistorique(): Promise<Historique | null> {
+  const r = await appel<Historique>(`/clients/${clientId()}/history`);
+  return r.ok ? r.data : null;
+}
+export async function mesAlertesSos(): Promise<SosSuivi[] | null> {
+  const r = await appel<{ alertes: SosSuivi[] }>(`/clients/${clientId()}/sos`);
+  return r.ok ? r.data.alertes : null;
+}
+
+/* ------------------------------ Annulation ------------------------------ */
+export const MOTIFS_ANNULATION = [
+  'attente_longue', 'chauffeur_immobile', 'changement_plan', 'erreur_adresse',
+  'autre_transport', 'chauffeur_demande', 'securite', 'autre',
+] as const;
+export type MotifAnnulation = typeof MOTIFS_ANNULATION[number];
+export interface FraisAnnulation { montant: number; delaiGraceMinutes: number; ecouleMinutes: number; raisonGratuite: string | null }
+
+export async function apercuAnnulation(rideId: string, motif?: MotifAnnulation): Promise<{ annulable: boolean; frais: FraisAnnulation } | null> {
+  const q = new URLSearchParams({ clientId: clientId(), ...(motif ? { motif } : {}) });
+  const r = await appel<{ annulable: boolean; frais: FraisAnnulation }>(`/rides/${rideId}/cancel-preview?${q.toString()}`);
+  return r.ok ? r.data : null;
+}
+export async function annulerCourse(rideId: string, motif: MotifAnnulation, details?: string): Promise<{ ok: true; frais: FraisAnnulation } | { ok: false; error: string }> {
+  const r = await appel<{ frais: FraisAnnulation }>(`/rides/${rideId}/cancel`, { method: 'POST', body: JSON.stringify({ clientId: clientId(), motif, details: details?.trim() || undefined }) });
+  return r.ok ? { ok: true, frais: r.data.frais } : r;
+}
+
 /** Numéros de secours en Côte d'Ivoire, à composer si l'alerte ne part pas. */
 export const EMERGENCY_NUMBERS = { samu: '185', police: '170', pompiers: '180' } as const;
 
@@ -409,6 +563,9 @@ export async function sosSuivi(alertId: string, userId: string): Promise<SosSuiv
   const r = await tryFetch<{ suivi: SosSuivi }>(`/safety/sos/${alertId}?userId=${encodeURIComponent(userId)}`, undefined, 6000);
   return r?.suivi ?? null;
 }
+
+/** « Prise en charge par Céline » — ou par la supervision quand l'agent n'est pas nommé. */
+export const AGENT_GENERIQUE = 'Supervision ORION';
 
 /** Réponse discrète du passager à l'agent ORION. */
 export async function sosRepondre(alertId: string, userId: string, text: string): Promise<SosSuivi | null> {

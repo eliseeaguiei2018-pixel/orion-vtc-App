@@ -90,6 +90,11 @@ const schema = z.object({
   DRIVER_JWT_SECRET: z.string().default('orion-dev-driver-secret-change-me'),
   // Durée de validité d'une session chauffeur (secondes). 30 jours par défaut.
   DRIVER_JWT_TTL_SECONDS: z.coerce.number().int().positive().default(2_592_000),
+  // --- Compte CLIENT (téléphone vérifié par code SMS → jeton signé) ---
+  // Secret DISTINCT : un jeton client n'ouvre ni l'app chauffeur ni la console.
+  CLIENT_JWT_SECRET: z.string().default('orion-dev-client-secret-change-me'),
+  // Session client : 90 jours (le client ne revalide pas son numéro à chaque course).
+  CLIENT_JWT_TTL_SECONDS: z.coerce.number().int().positive().default(7_776_000),
   // Validité d'un code SMS de connexion (secondes).
   DRIVER_OTP_TTL_SECONDS: z.coerce.number().int().positive().default(300),
   // Mode STRICT : si "true", le jeton chauffeur devient OBLIGATOIRE sur toutes les routes

@@ -717,6 +717,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         passenger: {
           id: ride?.clientId ?? alert.userId,
           name: client?.name ?? null, phone: client?.phone ?? null,
+          // Photo du passager : reconnaître la personne à retrouver, la décrire à la police.
+          photo: client?.photo ?? null,
           phoneBatteryPct: pseudoBatt(ride?.clientId ?? alert.userId),
           lastRides: container.rides.listByClient(ride?.clientId ?? alert.userId).slice(0, 5)
             .map((r) => ({ id: r.id, status: r.status, createdAt: r.createdAt })),
@@ -1766,7 +1768,9 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       require(req, 'clients:read');
       const q = parse(pageQuery, req.query);
       const { items, meta } = paginate(container.clients.list(), q.page, q.limit);
-      return { clients: items, ...meta };
+      // Les photos ne voyagent pas dans les listes (des dizaines de Ko chacune) :
+      // elles s'affichent dans la fiche du client.
+      return { clients: items.map(({ photo, ...c }) => ({ ...c, hasPhoto: Boolean(photo) })), ...meta };
     });
 
     scoped.get('/admin/clients/:id', async (req) => {

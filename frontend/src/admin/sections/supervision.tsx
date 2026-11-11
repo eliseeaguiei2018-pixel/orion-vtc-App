@@ -277,6 +277,13 @@ export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf
         <div className="adm-mini-kpi"><span>📱 Batterie chauffeur</span><strong>{d.driver ? `${d.driver.phoneBatteryPct} %` : '—'}</strong></div>
         <div className="adm-mini-kpi"><span>📱 Batterie passager</span><strong>{d.passenger.phoneBatteryPct} %</strong></div>
       </div>
+      {/* Photo du passager : la personne à retrouver, à décrire à la police ou au SAMU. */}
+      {d.passenger.photo && (
+        <div className="adm-passager">
+          <img src={d.passenger.photo} alt={`Photo de ${d.passenger.name ?? 'la passagère ou du passager'}`} />
+          <span><strong>{d.passenger.name ?? 'Passager'}</strong><br /><span className="adm-muted">Photo de profil, à transmettre aux secours</span></span>
+        </div>
+      )}
       <p className="adm-muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
         Passager : {d.passenger.name ?? d.passenger.id} · {d.passenger.phone ?? 'tél. n/c'} · {d.passenger.lastRides.length} trajets récents
         {d.passenger.lastRides.length < 2 ? ' — ⚠ compte récent (vérifier fraude)' : ''}

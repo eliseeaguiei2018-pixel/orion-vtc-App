@@ -41,6 +41,36 @@ function appendEvent(ride: Ride, type: string, payload?: Record<string, unknown>
   ride.events.push({ type, at: new Date().toISOString(), payload });
 }
 
+/**
+ * Motifs d'annulation proposés au client. Le motif est enregistré sur la course :
+ * sans lui, une annulation était un fait muet — impossible de distinguer un client
+ * qui change d'avis d'un chauffeur qui ne vient pas, ou d'un client en danger.
+ */
+export const MOTIFS_ANNULATION = [
+  'attente_longue', 'chauffeur_immobile', 'changement_plan', 'erreur_adresse',
+  'autre_transport', 'chauffeur_demande', 'securite', 'autre',
+] as const;
+export type MotifAnnulation = typeof MOTIFS_ANNULATION[number];
+
+/**
+ * Frais d'annulation, calculés AVANT que le client confirme. Gratuit : sans
+ * chauffeur attribué, pendant le délai de grâce, pour un motif de sécurité (on ne
+ * pénalise jamais quelqu'un qui se sent en danger) ou quand le chauffeur a demandé
+ * l'annulation (pratique de détournement de course, signalée à la console).
+ */
+export function fraisAnnulation(container: Container, ride: Ride, motif?: MotifAnnulation, now = Date.now()): {
+  montant: number; delaiGraceMinutes: number; ecouleMinutes: number; raisonGratuite: string | null;
+} {
+  const pr = container.settings.getPricing();
+  const ecouleMinutes = (now - Date.parse(ride.createdAt)) / 60_000;
+  const base = { delaiGraceMinutes: pr.cancelGraceMinutes, ecouleMinutes: Math.round(ecouleMinutes * 10) / 10 };
+  if (!ride.driverId) return { ...base, montant: 0, raisonGratuite: 'aucun_chauffeur' };
+  if (ecouleMinutes <= pr.cancelGraceMinutes) return { ...base, montant: 0, raisonGratuite: 'delai_de_grace' };
+  if (motif === 'securite') return { ...base, montant: 0, raisonGratuite: 'securite' };
+  if (motif === 'chauffeur_demande') return { ...base, montant: 0, raisonGratuite: 'chauffeur_demande' };
+  return { ...base, montant: pr.cancelFee, raisonGratuite: pr.cancelFee > 0 ? null : 'gratuit' };
+}
+
 export async function rideRoutes(app: FastifyInstance, container: Container): Promise<void> {
   // Création de course : idempotente + prix verrouillé + matching.
   app.post('/rides', async (req, reply) => {
@@ -217,6 +247,74 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       }
     }
     return { ride };
+  });
+
+  /**
+   * ANNULATION PAR LE CLIENT — d'abord l'aperçu des frais, puis la confirmation.
+   *
+   * L'app annulait par une transition générique : aucun motif, aucune trace de qui
+   * avait annulé, et des frais enregistrés sans que le client en soit jamais informé.
+   */
+  const annulationSchema = z.object({
+    clientId: z.string().min(1).max(64),
+    motif: z.enum(MOTIFS_ANNULATION),
+    details: z.string().trim().max(300).optional(),
+  });
+  const courseDuClient = (id: string, clientId: string): Ride => {
+    const ride = container.rides.get(id);
+    // Même réponse qu'une course inexistante : on n'apprend rien sur les courses des autres.
+    if (!ride || ride.clientId !== clientId) throw notFound('Course introuvable');
+    return ride;
+  };
+
+  app.get('/rides/:id/cancel-preview', async (req) => {
+    const { id } = req.params as { id: string };
+    const q = parse(z.object({ clientId: z.string().min(1).max(64), motif: z.enum(MOTIFS_ANNULATION).optional() }), req.query);
+    const ride = courseDuClient(id, q.clientId);
+    return {
+      annulable: rideStateMachine.canTransition(ride.status, 'cancelled'),
+      status: ride.status,
+      frais: fraisAnnulation(container, ride, q.motif),
+      motifs: MOTIFS_ANNULATION,
+    };
+  });
+
+  app.post('/rides/:id/cancel', async (req) => {
+    const { id } = req.params as { id: string };
+    const body = parse(annulationSchema, req.body);
+    const ride = courseDuClient(id, body.clientId);
+    if (!rideStateMachine.canTransition(ride.status, 'cancelled')) {
+      throw conflict(ride.status === 'in_progress'
+        ? 'La course est en cours : demandez au chauffeur de s’arrêter, ou utilisez le SOS en cas de danger.'
+        : 'Cette course ne peut plus être annulée.');
+    }
+    const frais = fraisAnnulation(container, ride, body.motif);
+    ride.status = 'cancelled';
+    appendEvent(ride, 'cancelled', { by: 'client', motif: body.motif, details: body.details, frais: frais.montant });
+    if (frais.montant > 0) appendEvent(ride, 'cancel_fee', { amount: frais.montant, afterMinutes: Math.round(frais.ecouleMinutes) });
+    container.rides.persist(ride);
+    container.realtime.publish(rideRoom(ride.id), 'ride.status', { rideId: ride.id, status: ride.status });
+    if (ride.driverId) {
+      container.matching.releaseLock(ride.driverId);
+      container.drivers.setAvailability(ride.driverId, 'online');
+      container.notifications.notify({ driverId: ride.driverId }, 'Course annulée par le client', `La course ${ride.id.slice(0, 8)} a été annulée. Vous êtes de nouveau disponible.`);
+    }
+    // Un motif de sécurité ou un chauffeur qui fait annuler : la console doit le savoir.
+    if (body.motif === 'securite' || body.motif === 'chauffeur_demande') {
+      container.audit.log({
+        actor: 'Système ORION', role: 'super_admin',
+        action: body.motif === 'securite' ? 'ride.cancel_securite' : 'ride.cancel_chauffeur_demande',
+        target: ride.id, details: { clientId: ride.clientId, driverId: ride.driverId, details: body.details },
+      });
+    }
+    const warned = container.clients.incrementCancellations(ride.clientId);
+    if (warned) {
+      container.audit.log({
+        actor: 'Système ORION', role: 'super_admin', action: 'client.warning_auto',
+        target: ride.clientId, details: { reason: 'annulations abusives', cancellations: container.clients.get(ride.clientId)?.cancellations },
+      });
+    }
+    return { ride: { id: ride.id, status: ride.status }, frais };
   });
 
   // Notation (étape finale du parcours client).

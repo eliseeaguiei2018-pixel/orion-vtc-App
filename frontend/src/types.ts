@@ -227,4 +227,8 @@ export type Screen =
   | 'wallet'
   | 'history'
   | 'help'
-  | 'support';
+  | 'support'
+  | 'photo'
+  | 'profile'
+  | 'sosHistory'
+  | 'legal';

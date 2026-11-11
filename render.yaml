@@ -26,6 +26,9 @@ services:
       # App chauffeur : secret de signature des jetons chauffeur (fort, généré par Render).
       - key: DRIVER_JWT_SECRET
         generateValue: true
+      # App cliente : secret de signature des sessions client (distinct, généré par Render).
+      - key: CLIENT_JWT_SECRET
+        generateValue: true
       # Clé Google Maps (optionnelle) — à définir dans le tableau de bord Render (secret).
       # - key: GOOGLE_MAPS_API_KEY
       #   sync: false

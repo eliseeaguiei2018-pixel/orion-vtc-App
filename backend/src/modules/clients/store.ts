@@ -32,6 +32,21 @@ export interface Client {
   blacklistedImei?: string;
   /** Moyens de paiement liés (numéros masqués). */
   paymentMethods?: { id: string; kind: string; masked: string }[];
+  /*
+   * --- Compte client ---
+   * Le numéro n'est rattaché au compte qu'après vérification par code SMS : sans
+   * cela, n'importe qui pouvait se déclarer sous le numéro d'un autre.
+   */
+  phoneVerifiedAt?: string;
+  /**
+   * Photo de profil (data URL JPEG/PNG/WebP, ≤ PHOTO_MAX_OCTETS). Elle sert à
+   * reconnaître le passager : le chauffeur à la prise en charge, la supervision et
+   * la police en cas d'alerte SOS. Jamais renvoyée dans les listes.
+   */
+  photo?: string;
+  photoUpdatedAt?: string;
+  /** Compte supprimé à la demande du client : identité effacée, courses conservées. */
+  deletedAt?: string;
   createdAt: string;
   lastSeenAt: string;
 }
@@ -92,6 +107,45 @@ export class ClientStore {
   }
 
   get(id: string): Client | undefined { return this.clients.get(id); }
+
+  /** Le compte qui porte ce numéro VÉRIFIÉ (un numéro = un compte). */
+  findByVerifiedPhone(phone: string): Client | undefined {
+    for (const c of this.clients.values()) if (c.phone === phone && c.phoneVerifiedAt && !c.deletedAt) return c;
+    return undefined;
+  }
+
+  /** Profil modifiable par le client lui-même. */
+  updateProfile(id: string, patch: { name?: string; email?: string | null; phone?: string; phoneVerifiedAt?: string }): Client {
+    const c = this.touch(id);
+    if (patch.name !== undefined) c.name = patch.name;
+    if (patch.email !== undefined) c.email = patch.email ?? undefined;
+    if (patch.phone !== undefined) c.phone = patch.phone;
+    if (patch.phoneVerifiedAt !== undefined) c.phoneVerifiedAt = patch.phoneVerifiedAt;
+    delete c.deletedAt;
+    this.repo?.put(c);
+    return c;
+  }
+
+  setPhoto(id: string, photo: string | null): Client {
+    const c = this.touch(id);
+    if (photo) { c.photo = photo; c.photoUpdatedAt = new Date().toISOString(); } else { delete c.photo; delete c.photoUpdatedAt; }
+    this.repo?.put(c);
+    return c;
+  }
+
+  /**
+   * Suppression du compte à la demande du client : nom, téléphone, e-mail et photo
+   * sont effacés. Les courses restent (obligations comptables et litiges), rattachées
+   * à un identifiant qui ne désigne plus personne.
+   */
+  anonymiser(id: string): Client | undefined {
+    const c = this.clients.get(id);
+    if (!c) return undefined;
+    delete c.name; delete c.phone; delete c.email; delete c.photo; delete c.photoUpdatedAt; delete c.phoneVerifiedAt;
+    c.deletedAt = new Date().toISOString();
+    this.repo?.put(c);
+    return c;
+  }
 
   setStatus(id: string, status: ClientStatus): Client | undefined {
     const c = this.clients.get(id);

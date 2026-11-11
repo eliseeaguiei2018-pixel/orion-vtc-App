@@ -112,24 +112,48 @@ export function DriverDrawer({ d, onClose }: { d: DriverDetail; onClose: () => v
   );
 }
 
+/** Qui a annulé, et pourquoi : sans motif, une annulation ne disait rien à la console. */
+const PAR_LABEL: Record<string, string> = { client: 'Par le client', systeme: 'Par ORION', chauffeur: 'Par le chauffeur', inconnu: 'Auteur non tracé' };
+const MOTIF_LABEL: Record<string, string> = {
+  attente_longue: 'chauffeur trop long', chauffeur_immobile: 'chauffeur immobile', changement_plan: 'changement d’avis',
+  erreur_adresse: 'erreur d’adresse', autre_transport: 'autre moyen trouvé', chauffeur_demande: '⚠ demandé par le chauffeur',
+  securite: '⚠ ne se sentait pas en sécurité', autre: 'autre raison', aucun_chauffeur: 'aucun chauffeur disponible',
+};
+
 export function ClientDrawer({ c, onClose, onOpenSupport }: { c: ClientDetail; onClose: () => void; onOpenSupport: () => void }) {
   return (
-    <Drawer title={c.name ?? c.id} sub={c.id} onClose={onClose}>
-      <div className="adm-drawer-tags">
-        <span className={`adm-pill ${c.status === 'blocked' ? 'kyc-manual_review' : 'av-online'}`}>{c.status === 'blocked' ? 'Bloqué' : 'Actif'}</span>
-        {c.phone && <span className="adm-pill">{c.phone}</span>}
+    <Drawer title={c.deletedAt ? 'Compte supprimé' : (c.name ?? c.id)} sub={c.id} onClose={onClose}>
+      <div className="adm-client-tete">
+        {c.photo
+          ? <img className="adm-client-photo" src={c.photo} alt={`Photo de ${c.name ?? 'ce client'}`} />
+          : <span className="adm-client-photo vide">{(c.name ?? '?').trim().split(/\s+/).map((x) => x[0]).slice(0, 2).join('').toUpperCase()}</span>}
+        <div className="adm-drawer-tags" style={{ margin: 0 }}>
+          <span className={`adm-pill ${c.status === 'blocked' ? 'kyc-manual_review' : 'av-online'}`}>{c.status === 'blocked' ? 'Bloqué' : 'Actif'}</span>
+          {c.phone && <span className="adm-pill">{c.phone}{c.phoneVerifiedAt ? ' · vérifié ✓' : ' · non vérifié'}</span>}
+          {c.email && <span className="adm-pill">{c.email}</span>}
+          {!c.photo && !c.deletedAt && <span className="adm-pill">sans photo</span>}
+          {c.deletedAt && <span className="adm-pill kyc-manual_review">supprimé à sa demande</span>}
+        </div>
       </div>
       <div className="adm-mini-kpis">
         <div className="adm-mini-kpi"><span>Dépensé</span><strong>{fcfa(c.spent)}</strong></div>
-        <div className="adm-mini-kpi"><span>Courses</span><strong>{c.rides}</strong></div>
+        <div className="adm-mini-kpi"><span>Courses</span><strong>{c.terminees ?? c.rides} terminée(s){c.terminees !== undefined && c.rides !== c.terminees ? ` / ${c.rides} commandée(s)` : ''}</strong></div>
+        <div className="adm-mini-kpi"><span>Annulées par le client</span><strong>{c.cancellations ?? 0}{c.warnings ? ` · ${c.warnings} avert.` : ''}</strong></div>
         <div className="adm-mini-kpi"><span>Conversations</span><strong>{c.conversations.length}</strong></div>
       </div>
       <h4 className="adm-drawer-sec">Dernières courses</h4>
       {c.recentRides.length === 0 ? <p className="adm-muted">Aucune course.</p> : (
         <table className="adm-table sm">
-          <thead><tr><th>Course</th><th>Statut</th><th className="r">Montant</th></tr></thead>
+          <thead><tr><th>Course</th><th>Statut</th><th>Annulation</th><th className="r">Montant</th></tr></thead>
           <tbody>{c.recentRides.map((r) => (
-            <tr key={r.id}><td className="mono">{r.id.slice(0, 10)}</td><td>{rideStatusLabel(r.status)}</td><td className="r">{fcfa(r.amount)}</td></tr>
+            <tr key={r.id}>
+              <td className="mono">{r.id.slice(0, 10)}</td>
+              <td>{rideStatusLabel(r.status)}</td>
+              <td>{r.annulation
+                ? <>{PAR_LABEL[r.annulation.par] ?? r.annulation.par}{r.annulation.motif ? ` · ${MOTIF_LABEL[r.annulation.motif] ?? r.annulation.motif}` : ''}{r.annulation.frais ? ` · ${fcfa(r.annulation.frais)}` : ' · gratuite'}</>
+                : <span className="adm-muted">—</span>}</td>
+              <td className="r">{fcfa(r.amount)}</td>
+            </tr>
           ))}</tbody>
         </table>
       )}

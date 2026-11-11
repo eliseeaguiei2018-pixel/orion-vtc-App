@@ -56,6 +56,9 @@ J'ai déjà ajouté le workflow `.github/workflows/deploy-pages.yml`. Une seule 
 - **App chauffeur** : `DRIVER_JWT_SECRET` (généré automatiquement par le blueprint Render),
   puis, une fois l'opérateur SMS branché, `DRIVER_AUTH_STRICT=true`. Sans opérateur SMS, un
   serveur en production n'envoie pas le code de connexion chauffeur (voir docs/10 §6).
+- **App cliente** : `CLIENT_JWT_SECRET` (généré automatiquement par le blueprint Render). Le
+  compte client repose sur un numéro vérifié par code SMS : comme pour les chauffeurs, il faut
+  brancher l'opérateur SMS en production — le code de test n'est renvoyé qu'en développement.
 
 ---
 

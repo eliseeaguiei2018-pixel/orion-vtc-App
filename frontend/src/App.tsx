@@ -7,19 +7,19 @@ import {
   IconPhone, IconPhoneOff, IconPin, IconPlane, IconPlus, IconRing, IconSearch, IconSettings, IconShare,
   IconShield, IconShieldCheck, IconStar, IconTraffic, IconVolume, IconWallet, IconWifi,
 } from './icons';
-import { useTheme, type ThemeMode } from './theme';
 import { LogoGlyph } from './components/Logo';
 import { IllusCar, IllusMoto, IllusFood, IllusShop, IllusMarket, IllusColis } from './components/Illustrations';
-import { authenticateBiometric, isBiometricEnabled, setBiometricEnabled } from './security';
+import { authenticateBiometric, isBiometricEnabled } from './security';
 import type { TrustedContact } from './api';
 import {
-  ABIDJAN_PLACES, COUNTRIES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
+  ABIDJAN_PLACES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { EMERGENCY_NUMBERS, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, fetchSubPlans, fetchSubscription, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, paySubscriptionInvoice, previewDelivery, registerClientProfile, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type PkgSize, type RideHistoryItem, type SafeDriver, type SosSuivi, type SupportMessage } from './api';
-import { LANGUAGES, useI18n, type Lang } from './i18n';
+import { AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, fetchSubPlans, fetchSubscription, isLiveBackend, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type PkgSize, type SafeDriver, type SosSuivi, type SupportMessage } from './api';
+import { useI18n } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
+import { Avatar, CancelSheet, HistoryScreen, LegalScreen, PhotoScreen, ProfileScreen, SettingsScreen, SosHistoryScreen } from './components/CompteScreens';
 
 const PAYMENTS = [
   { method: 'orange_money', label: 'Orange Money' },
@@ -81,6 +81,21 @@ export function App() {
   const [quote, setQuote] = useState<Quote | null>(null);
   /** Nom saisi à l'inscription — enregistré côté serveur après vérification du numéro. */
   const [clientName, setClientName] = useState('');
+  /*
+   * COMPTE : le profil vérifié (nom, numéro, e-mail, photo). Conservé sur l'appareil
+   * avec la session : on ne refait pas l'inscription à chaque ouverture de l'app.
+   */
+  const [profil, setProfil] = useState<ProfilClient | null>(() => (sessionClient() ? profilEnCache() : null));
+  const [email, setEmail] = useState('');
+  const [devCode, setDevCode] = useState<string | undefined>();
+  const [erreurInscription, setErreurInscription] = useState<string | null>(null);
+  const [annulationOuverte, setAnnulationOuverte] = useState(false);
+  useEffect(() => { if (isLiveBackend() && sessionClient()) void chargerProfil().then((p) => { if (p) setProfil(p); }); }, []);
+  // Les compteurs du profil (courses, annulations, points) suivent l'activité :
+  // ils sont relus à chaque ouverture des paramètres.
+  useEffect(() => {
+    if (screen === 'settings' && isLiveBackend() && sessionClient()) void chargerProfil().then((p) => { if (p) setProfil(p); });
+  }, [screen]);
   /** Ce que l'abonnement ORION couvrirait sur cette course (aperçu, rien n'est consommé). */
   const [coverage, setCoverage] = useState<SubCoverage | null>(null);
   const [locked, setLocked] = useState(isBiometricEnabled());
@@ -327,9 +342,40 @@ export function App() {
   };
 
   const cancelCurrentRide = () => {
-    if (live && rideId) void cancelRide(rideId);
+    // Course réelle : motif demandé et frais annoncés avant de confirmer.
+    if (live && rideId) { setAnnulationOuverte(true); return; }
     showToast(t('toast_cancelled'));
     reset();
+  };
+  const annulationFaite = (f: FraisAnnulation) => {
+    setAnnulationOuverte(false);
+    showToast(f.montant > 0 ? t('cx_done_fee', { f: formatXOF(f.montant) }) : t('cx_done_free'), f.montant > 0);
+    reset();
+  };
+
+  /* ------------------------------ Compte client ------------------------------ */
+  const envoyerCode = async () => {
+    setErreurInscription(null);
+    if (!isLiveBackend()) { setScreen('otp'); return; } // démonstration sans serveur
+    const r = await demanderCode(phone);
+    if (!r.ok) { setErreurInscription(r.error); return; }
+    setDevCode(r.devCode);
+    setScreen('otp');
+  };
+  const verifierNumero = async (code: string): Promise<string | null> => {
+    if (!isLiveBackend()) { setScreen('photo'); return null; }
+    const r = await verifierCode(phone, code, clientName, email);
+    if (!r.ok) return r.error;
+    setProfil(r.client);
+    if (r.compteRetrouve) showToast(t('welcome_back', { name: r.client.name ?? '' }));
+    setScreen(r.client.photo ? 'permissions' : 'photo');
+    return null;
+  };
+  const quitterCompte = (message: string) => {
+    seDeconnecter();
+    setProfil(null); setClientName(''); setPhone(''); setEmail(''); setDevCode(undefined);
+    showToast(message);
+    setScreen('onboarding');
   };
 
   /** Coursier moto (livraison) — démo. */
@@ -406,25 +452,23 @@ export function App() {
         {sosLive && !sosOuvert && <SosPill suivi={sosLive} nonLu={sosNonLu} onOpen={() => setSosOuvert(true)} />}
         {locked && <LockScreen onUnlock={() => setLocked(false)} />}
 
-        {screen === 'splash' && <Splash onDone={() => setScreen('onboarding')} />}
+        {screen === 'splash' && <Splash onDone={() => setScreen(profil ? 'home' : 'onboarding')} />}
         {screen === 'onboarding' && <Onboarding onStart={() => setScreen('auth')} onLang={() => setScreen('settings')} />}
-        {screen === 'auth' && <AuthScreen phone={phone} setPhone={setPhone} name={clientName} setName={setClientName} onBack={() => setScreen('onboarding')} onNext={() => setScreen('otp')} onWhatsApp={(msg) => { showToast(msg); setScreen('otp'); }} />}
+        {screen === 'auth' && <AuthScreen phone={phone} setPhone={setPhone} name={clientName} setName={setClientName} email={email} setEmail={setEmail} erreur={erreurInscription} onBack={() => setScreen('onboarding')} onNext={() => void envoyerCode()} onWhatsApp={(msg) => { showToast(msg); void envoyerCode(); }} />}
         {screen === 'otp' && (
           <OtpScreen
             phone={phone}
+            devCode={devCode}
             onBack={() => setScreen('auth')}
-            onVerified={() => {
-              // Le numéro est vérifié : on enregistre la fiche pour que le support
-              // puisse rappeler. Sans cela, la console n'affiche qu'un identifiant.
-              void registerClientProfile(clientName, phone);
-              setScreen('permissions');
-            }}
+            onResend={async () => { const r = await demanderCode(phone); if (r.ok) setDevCode(r.devCode); return r.ok ? null : r.error; }}
+            onVerify={verifierNumero}
           />
         )}
+        {screen === 'photo' && <PhotoScreen profil={profil} onDone={(p) => { if (p) setProfil(p); setScreen('permissions'); }} />}
         {screen === 'permissions' && <PermissionsScreen onDone={() => setScreen('home')} />}
 
         {screen === 'home' && (
-          <HomeScreen announce={announce} closed={closed} deliveryOff={deliveryOff} city={appConfig?.city ?? null}
+          <HomeScreen announce={announce} closed={closed} deliveryOff={deliveryOff} city={appConfig?.city ?? null} profil={profil}
             onSearch={() => { if (guardOpen()) { setMode('ride'); setScreen('destination'); } }}
             onCourse={() => { if (guardOpen()) { setMode('ride'); setScreen('destination'); } }}
             onDelivery={() => { if (guardOpen()) { setMode('delivery'); setScreen('delivery'); } }}
@@ -469,6 +513,11 @@ export function App() {
             onServerCancel={() => { showToast(t('toast_no_driver'), true); reset(); }} />
         )}
 
+        {annulationOuverte && rideId && screen === 'tracking' && (
+          <CancelSheet rideId={rideId} onClose={() => setAnnulationOuverte(false)} onCancelled={annulationFaite}
+            onSos={() => { setAnnulationOuverte(false); void triggerSos(); }} />
+        )}
+
         {screen === 'payment' && destination && driver && (
           <PaymentScreen quote={quote} coverage={coverage} payment={payment} driver={driver} rideId={rideId}
             onPaid={() => setScreen('rating')} />
@@ -480,12 +529,20 @@ export function App() {
         )}
 
         {screen === 'settings' && (
-          <SettingsScreen onBack={() => setScreen('home')} onWallet={() => setScreen('wallet')}
+          <SettingsScreen profil={profil} onBack={() => setScreen(profil ? 'home' : 'onboarding')}
+            onProfile={() => setScreen('profile')} onHistory={() => setScreen('history')} onSos={() => setScreen('sosHistory')}
+            onWallet={() => setScreen('wallet')} onSubscription={() => setScreen('subscription')}
+            onHelp={() => setScreen('help')} onLegal={() => setScreen('legal')} onCreate={() => setScreen('auth')}
+            onLogout={() => quitterCompte(t('set_logged_out'))}
+            onDelete={() => void supprimerCompte().then((r) => (r.ok ? quitterCompte(t('set_deleted')) : showToast(r.error, true)))}
             trusted={trusted} setTrusted={(c) => { setTrusted(c); localStorage.setItem('orion.trusted', JSON.stringify(c)); }}
             shareRides={shareRides} setShareRides={(v) => { setShareRides(v); localStorage.setItem('orion.share', v ? '1' : '0'); }} />
         )}
+        {screen === 'profile' && <ProfileScreen profil={profil} onBack={() => setScreen('settings')} onSaved={setProfil} onToast={showToast} />}
+        {screen === 'sosHistory' && <SosHistoryScreen onBack={() => setScreen('settings')} />}
+        {screen === 'legal' && <LegalScreen onBack={() => setScreen('settings')} />}
         {screen === 'wallet' && <WalletScreen onBack={() => setScreen('home')} onToast={showToast} />}
-        {screen === 'history' && <HistoryScreen onBack={() => setScreen('home')} />}
+        {screen === 'history' && <HistoryScreen onBack={() => setScreen(profil ? 'settings' : 'home')} onLogin={() => setScreen('auth')} />}
         {screen === 'help' && <HelpScreen onBack={() => setScreen('home')} onSupport={() => setScreen('support')} />}
         {screen === 'support' && <SupportChatScreen onBack={() => setScreen('help')} />}
         {screen === 'subscription' && (
@@ -590,7 +647,7 @@ function SosLive({ suivi, horsLigne, onMinimize, onClose, onSend }: {
         <ol className="sos-steps">
           <li className="ok"><span className="dot" /><span className="grow">{t('sos_step_received')}</span><time>{heure(suivi.createdAt)}</time></li>
           {suivi.priseEnCharge
-            ? <li className="ok"><span className="dot" /><span className="grow">{t('sos_step_agent', { a: suivi.priseEnCharge.agent })}</span><time>{heure(suivi.priseEnCharge.at)}</time></li>
+            ? <li className="ok"><span className="dot" /><span className="grow">{(suivi.priseEnCharge.agent === AGENT_GENERIQUE ? t('sos_step_agent_team') : t('sos_step_agent', { a: suivi.priseEnCharge.agent }))}</span><time>{heure(suivi.priseEnCharge.at)}</time></li>
             : !close && <li className="wait"><span className="dot" /><span className="grow">{t('sos_step_waiting_agent')}</span></li>}
           {suivi.secours.length > 0
             ? suivi.secours.map((s, i) => (
@@ -647,7 +704,7 @@ function SosPill({ suivi, nonLu, onOpen }: { suivi: SosSuivi; nonLu: number; onO
   const { t } = useI18n();
   const etape = suivi.clotureeA ? t('sos_step_closed')
     : suivi.secours.some((s) => s.issue === 'joint') ? t('sos_rescue_joint', { s: suivi.secours.find((s) => s.issue === 'joint')!.service, n: suivi.secours.find((s) => s.issue === 'joint')!.numero })
-      : suivi.priseEnCharge ? t('sos_step_agent', { a: suivi.priseEnCharge.agent }) : t('sos_step_received');
+      : suivi.priseEnCharge ? (suivi.priseEnCharge.agent === AGENT_GENERIQUE ? t('sos_step_agent_team') : t('sos_step_agent', { a: suivi.priseEnCharge.agent })) : t('sos_step_received');
   return (
     <button className="sos-pill" onClick={onOpen}>
       <span className="sos-pill-dot" /> <strong>{t('sos_live_pill')}</strong> <span className="grow">{etape}</span>
@@ -726,13 +783,15 @@ function Onboarding({ onStart, onLang }: { onStart: () => void; onLang: () => vo
 }
 
 /* --------------------------- Inscription ----------------------------- */
-function AuthScreen({ phone, setPhone, name, setName, onBack, onNext, onWhatsApp }: {
+function AuthScreen({ phone, setPhone, name, setName, email, setEmail, erreur, onBack, onNext, onWhatsApp }: {
   phone: string; setPhone: (v: string) => void;
   name: string; setName: (v: string) => void;
+  email: string; setEmail: (v: string) => void; erreur: string | null;
   onBack: () => void; onNext: () => void; onWhatsApp: (msg: string) => void;
 }) {
   const { t } = useI18n();
-  const valid = phone.replace(/\D/g, '').length >= 8;
+  const valid = phone.replace(/\D/g, '').length >= 8 && name.trim().length >= 2
+    && (!email.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()));
   return (
     <div className="screen page">
       <OrionMap origin={DEFAULT_ORIGIN.location} />
@@ -745,10 +804,14 @@ function AuthScreen({ phone, setPhone, name, setName, onBack, onNext, onWhatsApp
         <div className="field" style={{ marginBottom: 10 }}>
           <input placeholder={t('reg_name')} value={name} onChange={(e) => setName(e.target.value)} />
         </div>
-        <div className="field" style={{ marginBottom: 16 }}>
+        <div className="field" style={{ marginBottom: 10 }}>
           <span className="dialcode">🇨🇮 +225</span>
           <input inputMode="tel" placeholder={t('reg_phone')} value={phone} onChange={(e) => setPhone(e.target.value)} />
         </div>
+        <div className="field" style={{ marginBottom: 16 }}>
+          <input type="email" inputMode="email" placeholder={t('reg_email')} value={email} onChange={(e) => setEmail(e.target.value)} />
+        </div>
+        {erreur && <p className="photo-erreur" style={{ marginTop: -6 }}>{erreur}</p>}
         <button className="btn btn-primary" disabled={!valid} onClick={onNext}>{t('reg_send')} <IconChevron size={18} /></button>
         <button className="btn btn-ghost" style={{ marginTop: 10, color: '#25D366' }} disabled={!valid} onClick={() => onWhatsApp(t('wa_otp'))}>
           <IconPhone size={18} /> {t('wa_otp')}
@@ -798,16 +861,34 @@ function PermissionsScreen({ onDone }: { onDone: () => void }) {
   );
 }
 
-function OtpScreen({ phone, onBack, onVerified }: { phone: string; onBack: () => void; onVerified: () => void }) {
+function OtpScreen({ phone, devCode, onBack, onResend, onVerify }: {
+  phone: string; devCode?: string; onBack: () => void;
+  onResend: () => Promise<string | null>; onVerify: (code: string) => Promise<string | null>;
+}) {
   const { t } = useI18n();
-  const [code, setCode] = useState(['', '', '', '']);
+  const N = 6;
+  const [code, setCode] = useState<string[]>(Array(N).fill(''));
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [enCours, setEnCours] = useState(false);
   const refs = useRef<Array<HTMLInputElement | null>>([]);
   const filled = code.every((c) => c !== '');
 
   const setDigit = (i: number, v: string) => {
-    const d = v.replace(/\D/g, '').slice(-1);
-    setCode((prev) => { const n = [...prev]; n[i] = d; return n; });
-    if (d && i < 3) refs.current[i + 1]?.focus();
+    const chiffres = v.replace(/\D/g, '');
+    // Collage d'un code entier (ou remplissage automatique du SMS) : on répartit.
+    if (chiffres.length > 1) {
+      setCode((prev) => prev.map((c, k) => (k >= i && chiffres[k - i] !== undefined ? chiffres[k - i]! : c)));
+      refs.current[Math.min(N - 1, i + chiffres.length)]?.focus();
+      return;
+    }
+    setCode((prev) => { const n = [...prev]; n[i] = chiffres; return n; });
+    if (chiffres && i < N - 1) refs.current[i + 1]?.focus();
+  };
+  const verifier = async () => {
+    setEnCours(true); setErreur(null);
+    const e = await onVerify(code.join(''));
+    setEnCours(false);
+    if (e) { setErreur(e); setCode(Array(N).fill('')); refs.current[0]?.focus(); }
   };
 
   return (
@@ -820,14 +901,16 @@ function OtpScreen({ phone, onBack, onVerified }: { phone: string; onBack: () =>
         <p className="h-sub" style={{ marginBottom: 18 }}>{t('otp_subtitle', { phone: `+225 ${phone}` })}</p>
         <div className="otp-row">
           {code.map((c, i) => (
-            <input key={i} ref={(el) => { refs.current[i] = el; }} className="otp-box" inputMode="numeric" maxLength={1}
+            <input key={i} ref={(el) => { refs.current[i] = el; }} className="otp-box" inputMode="numeric" autoComplete={i === 0 ? 'one-time-code' : 'off'}
               value={c} autoFocus={i === 0} onChange={(e) => setDigit(i, e.target.value)} />
           ))}
         </div>
-        <button className="btn btn-primary" style={{ marginTop: 20 }} disabled={!filled} onClick={onVerified}>
+        {devCode && <p className="otp-dev">{t('otp_dev', { code: devCode })}</p>}
+        {erreur && <p className="photo-erreur" style={{ textAlign: 'center' }}>{erreur}</p>}
+        <button className="btn btn-primary" style={{ marginTop: 16 }} disabled={!filled || enCours} onClick={() => void verifier()}>
           <IconCheck size={18} /> {t('otp_verify')}
         </button>
-        <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={() => setCode(['', '', '', ''])}>{t('otp_resend')}</button>
+        <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={() => { setCode(Array(N).fill('')); void onResend().then(setErreur); }}>{t('otp_resend')}</button>
       </Sheet>
     </div>
   );
@@ -845,7 +928,8 @@ function MiniSvc({ illus, label, onClick }: { illus: React.ReactNode; label: str
   );
 }
 
-function HomeScreen({ announce, closed, deliveryOff, city, onSearch, onCourse, onDelivery, onQuick, onNav, onSoon }: {
+function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onCourse, onDelivery, onQuick, onNav, onSoon }: {
+  profil: ProfilClient | null;
   announce: Announcement | null; closed: boolean; deliveryOff: boolean; city: string | null;
   onSearch: () => void; onCourse: () => void; onDelivery: () => void;
   onQuick: (p: Place) => void; onNav: (s: Screen) => void; onSoon: (name: string) => void;
@@ -858,9 +942,11 @@ function HomeScreen({ announce, closed, deliveryOff, city, onSearch, onCourse, o
       <div className="hub-hero">
         <div className="hub-top">
           <span className="hub-brand"><span className="hub-logo"><LogoGlyph size={20} /></span> ORION</span>
-          <button className="avatar hub-avatar" onClick={() => onNav('settings')} aria-label="Settings"><IconSettings size={20} /></button>
+          <button className="avatar hub-avatar" onClick={() => onNav('settings')} aria-label={t('set_title')}>
+            {profil ? <Avatar photo={profil.photo} name={profil.name} size={40} /> : <IconSettings size={20} />}
+          </button>
         </div>
-        <h2 className="hub-greet rise">{t('home_greeting')}</h2>
+        <h2 className="hub-greet rise">{profil?.name ? t('home_greeting_name', { name: profil.name.split(' ')[0]! }) : t('home_greeting')}</h2>
         <button className="hub-search rise rise-2" onClick={onSearch}>
           <IconSearch size={20} /> <span>{t('home_search')}</span>
         </button>
@@ -1410,11 +1496,9 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
             <span className="badge green" style={{ fontSize: 10 }}>À BORD</span>
           </div>
         )}
-        <div className="card" style={{ padding: 12, marginTop: 12 }}>
-          <div className="row gap-sm" style={{ fontSize: 13 }}>
-            <span className="list-ico" style={{ color: 'var(--green)', width: 32, height: 32 }}><IconShield size={16} /></span>
-            <span className="muted">{t('drv_supervised')}</span>
-          </div>
+        <div className="supervised-card">
+          <span className="supervised-ico"><IconShield size={16} /></span>
+          <span>{t('drv_supervised')}</span>
         </div>
       </Sheet>
 
@@ -1508,93 +1592,6 @@ function RatingScreen({ driver, quote, payment, destination, rating, setRating, 
 }
 
 /* ------------------------------ Settings ----------------------------- */
-function SettingsScreen({ onBack, onWallet, trusted, setTrusted, shareRides, setShareRides }: {
-  onBack: () => void; onWallet: () => void;
-  trusted: TrustedContact | null; setTrusted: (c: TrustedContact) => void;
-  shareRides: boolean; setShareRides: (v: boolean) => void;
-}) {
-  const { t, lang, setLang } = useI18n();
-  const { mode, setMode } = useTheme();
-  const [bio, setBio] = useState(isBiometricEnabled());
-  const [name, setName] = useState(trusted?.name ?? '');
-  const [phone, setPhone] = useState(trusted?.phone ?? '');
-  const themeOpts: Array<{ m: ThemeMode; k: string }> = [
-    { m: 'system', k: 'theme_auto' }, { m: 'light', k: 'theme_light' }, { m: 'dark', k: 'theme_dark' },
-  ];
-  const saveContact = (nm: string, ph: string) => { if (nm && ph) setTrusted({ name: nm, phone: ph }); };
-  return (
-    <div className="screen page">
-      <TopBar onBack={onBack} title={t('set_title')} />
-      <div className="page-body">
-        {/* Sécurité & confidentialité */}
-        <span className="eyebrow"><IconShieldCheck size={13} /> {t('sec_title')}</span>
-        <div className="opt" style={{ margin: '10px 0 8px' }}>
-          <span className="list-ico" style={{ color: 'var(--green)' }}><IconFingerprint size={18} /></span>
-          <span className="col grow" style={{ textAlign: 'start' }}>
-            <strong style={{ fontSize: 14 }}>{t('sec_biometric')}</strong>
-            <span className="faint" style={{ fontSize: 12 }}>{t('sec_biometric_d')}</span>
-          </span>
-          <button className={`toggle${bio ? ' on' : ''}`} onClick={() => { const v = !bio; setBio(v); setBiometricEnabled(v); }}><span /></button>
-        </div>
-        <p className="faint" style={{ fontSize: 11, margin: '0 0 18px' }}>🔒 {t('sec_privacy')}</p>
-
-        {/* Contact de confiance */}
-        <span className="eyebrow"><IconShield size={13} /> {t('tc_title')}</span>
-        <div className="field" style={{ margin: '10px 0 8px' }}>
-          <input placeholder={t('tc_name')} value={name} onChange={(e) => { setName(e.target.value); saveContact(e.target.value, phone); }} />
-        </div>
-        <div className="field" style={{ marginBottom: 8 }}>
-          <span className="dialcode">🇨🇮 +225</span>
-          <input inputMode="tel" placeholder={t('tc_phone')} value={phone} onChange={(e) => { setPhone(e.target.value); saveContact(name, e.target.value); }} />
-        </div>
-        <div className="opt" style={{ marginBottom: 18 }}>
-          <span className="col grow" style={{ textAlign: 'start' }}>
-            <strong style={{ fontSize: 14 }}>{t('tc_share')}</strong>
-            <span className="faint" style={{ fontSize: 12 }}>{t('tc_share_d')}</span>
-          </span>
-          <button className={`toggle${shareRides ? ' on' : ''}`} onClick={() => setShareRides(!shareRides)}><span /></button>
-        </div>
-
-        {/* Portefeuille */}
-        <button className="opt list-btn" style={{ marginBottom: 22 }} onClick={onWallet}>
-          <span className="list-ico" style={{ color: 'var(--green)' }}><IconWallet size={18} /></span>
-          <span className="grow" style={{ textAlign: 'start', fontWeight: 600 }}>{t('wal_title')}</span>
-          <IconChevron size={18} color="#6f8a7e" />
-        </button>
-
-        <span className="eyebrow">{t('set_theme')}</span>
-        <div className="chips" style={{ margin: '10px 0 22px' }}>
-          {themeOpts.map((o) => (
-            <button key={o.m} className={`chip${mode === o.m ? ' active' : ''}`} onClick={() => setMode(o.m)}>{t(o.k)}</button>
-          ))}
-        </div>
-
-        <span className="eyebrow"><IconGlobe size={13} /> {t('set_language')}</span>
-        <div className="grid2" style={{ margin: '10px 0 22px' }}>
-          {LANGUAGES.map((l) => (
-            <button key={l.code} className={`opt${l.code === lang ? ' active' : ''}`} onClick={() => setLang(l.code as Lang)}>
-              <span style={{ fontSize: 20 }}>{l.flag}</span> <span className="grow" style={{ textAlign: 'start' }}>{l.label}</span>
-              {l.code === lang && <IconCheck size={16} color="var(--green)" />}
-            </button>
-          ))}
-        </div>
-
-        <span className="eyebrow"><IconPin size={13} /> {t('set_country')}</span>
-        <p className="faint" style={{ fontSize: 12, margin: '4px 0 10px' }}>{t('set_region')}</p>
-        <div className="stack">
-          {COUNTRIES.map((c) => (
-            <div key={c.code} className={`opt${c.status === 'active' ? ' active' : ' muted-opt'}`} style={{ cursor: c.status === 'active' ? 'default' : 'not-allowed' }}>
-              <span style={{ fontSize: 20 }}>{c.flag}</span>
-              <span className="grow" style={{ textAlign: 'start' }}>{c.name}</span>
-              <span className={`badge ${c.status === 'active' ? 'green' : ''}`}>{c.status === 'active' ? t('set_active') : t('set_comingSoon')}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* --------------------------- Subscription ----------------------------
  *
  * Écran BRANCHÉ au serveur. Il affichait auparavant un simple état local : choisir
@@ -1791,95 +1788,6 @@ function WeddingScreen({ onBack, onReserve }: { onBack: () => void; onReserve: (
 
         <div className="fare-total" style={{ marginBottom: 14 }}><span className="muted">{t('wed_total')}</span><span className="amt">{formatXOF(total)}</span></div>
         <button className="btn btn-primary" onClick={onReserve}><IconRing size={18} /> {t('wed_reserve')}</button>
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------ Historique --------------------------- */
-const RIDE_STATUS_FR: Record<string, string> = {
-  searching: 'Recherche', accepted: 'Acceptée', driver_en_route: 'En approche', arrived: 'Arrivé',
-  in_progress: 'En course', completed: 'Terminée', paid: 'Payée', rated: 'Notée', cancelled: 'Annulée', no_driver: 'Sans chauffeur',
-};
-
-function demoHistory(): RideHistoryItem[] {
-  const P = ABIDJAN_PLACES;
-  const mk = (from: Place, to: Place, tierId: string, daysAgo: number, status: string): RideHistoryItem => {
-    const tier = tierById(tierId);
-    const q = previewQuote(from.location, to.location, tier);
-    return { id: `demo-${from.id}-${to.id}-${daysAgo}`, status, origin: from.location, destination: to.location, quote: q, createdAt: new Date(Date.now() - daysAgo * 86400000).toISOString() };
-  };
-  const byId = (id: string) => P.find((p) => p.id === id) ?? P[0]!;
-  return [
-    mk(byId('home'), byId('work'), 'or', 1, 'rated'),
-    mk(byId('work'), byId('home'), 'argent', 2, 'paid'),
-    mk(byId('home'), byId('fhb'), 'diamant', 5, 'rated'),
-    mk(byId('univ'), byId('home'), 'bronze', 8, 'cancelled'),
-  ];
-}
-
-function HistoryScreen({ onBack }: { onBack: () => void }) {
-  const { t } = useI18n();
-  const [items, setItems] = useState<RideHistoryItem[] | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      const remote = await listMyRides(clientId());
-      setItems(remote && remote.length ? remote : demoHistory());
-    })();
-  }, []);
-
-  const nameFor = (loc: LatLng) => {
-    let best = ABIDJAN_PLACES[0]!; let bd = Infinity;
-    for (const p of ABIDJAN_PLACES) {
-      const d = Math.hypot(p.location.lat - loc.lat, p.location.lng - loc.lng);
-      if (d < bd) { bd = d; best = p; }
-    }
-    return best.name;
-  };
-
-  return (
-    <div className="screen page">
-      <TopBar onBack={onBack} title={t('hist_title')} />
-      <div className="page-body">
-        {items === null && <p className="faint">…</p>}
-        {items?.length === 0 && <p className="faint" style={{ textAlign: 'center', padding: 24 }}>{t('hist_empty')}</p>}
-        <div className="stack">
-          {items?.map((r) => {
-            const open = openId === r.id;
-            const b = r.quote.breakdown;
-            return (
-              <div key={r.id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                <button className="list-btn" style={{ width: '100%', padding: 14, display: 'flex', gap: 12, alignItems: 'center' }} onClick={() => setOpenId(open ? null : r.id)}>
-                  <span className="list-ico" style={{ color: 'var(--green)' }}><IconClock size={18} /></span>
-                  <span className="col grow" style={{ textAlign: 'start' }}>
-                    <strong style={{ fontSize: 14 }}>{nameFor(r.origin)} → {nameFor(r.destination)}</strong>
-                    <span className="faint" style={{ fontSize: 12 }}>{new Date(r.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · {RIDE_STATUS_FR[r.status] ?? r.status}</span>
-                  </span>
-                  <span className="price" style={{ fontSize: 15 }}>{formatXOF(r.quote.amount)}</span>
-                </button>
-                {open && (
-                  <div style={{ padding: '0 14px 14px' }}>
-                    <div className="divider" style={{ margin: '4px 0 10px' }} />
-                    <span className="eyebrow">{t('hist_receipt')}</span>
-                    <div style={{ marginTop: 8 }}>
-                      <div className="fare-line"><span>{t('p_base')}</span><span>{formatXOF(b.base)}</span></div>
-                      <div className="fare-line"><span>{t('p_distance')} · {(r.quote.distanceMeters / 1000).toFixed(1)} km</span><span>{formatXOF(b.distance)}</span></div>
-                      <div className="fare-line"><span>{t('p_time')}</span><span>{formatXOF(b.time)}</span></div>
-                      {b.traffic > 0 && <div className="fare-line"><span>{t('p_traffic')}</span><span>+{formatXOF(b.traffic)}</span></div>}
-                      <div className="fare-line"><span>{t('p_tva')}</span><span>{formatXOF(b.tva)}</span></div>
-                      <div className="fare-line"><span>{t('p_fee')}</span><span>{formatXOF(b.fee)}</span></div>
-                      {b.insurance > 0 && <div className="fare-line"><span>{t('ins_line')}</span><span>{formatXOF(b.insurance)}</span></div>}
-                      <div className="divider" style={{ margin: '8px 0' }} />
-                      <div className="fare-total"><span className="muted">{t('conf_total')}</span><span className="amt">{formatXOF(r.quote.amount)}</span></div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
       </div>
     </div>
   );

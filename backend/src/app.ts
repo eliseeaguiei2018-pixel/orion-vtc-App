@@ -25,6 +25,7 @@ import { rentalRoutes } from './modules/rental/routes.js';
 import { insuranceRoutes } from './modules/insurance/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { supportClientRoutes } from './modules/support/routes.js';
+import { clientAccountRoutes } from './modules/clients/routes.js';
 import { driverAppRoutes, registerDriverGuard } from './modules/driver-app/routes.js';
 
 export interface BuiltApp {
@@ -116,6 +117,7 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
   await insuranceRoutes(app, container);
   await adminRoutes(app, container);
   await supportClientRoutes(app, container);
+  await clientAccountRoutes(app, container);
   // App Chauffeur : connexion, config flotte, historique, course en cours, canal WS.
   await driverAppRoutes(app, container);
 

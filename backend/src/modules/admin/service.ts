@@ -390,15 +390,28 @@ export class AdminService {
   /** Fiche détaillée d'un client : profil + dépenses + courses + conversations. */
   clientDetail(id: string) {
     const c = this.c.clients.get(id);
-    const rides = this.c.rides.listByClient(id).slice(0, 20).map((r) => ({
-      id: r.id, status: r.status, amount: r.quote.amount, createdAt: r.createdAt,
-    }));
+    const rides = this.c.rides.listByClient(id).slice(0, 20).map((r) => {
+      // Qui a annulé, et pourquoi : sans cela, la console ne distinguait pas un client
+      // qui change d'avis d'un chauffeur qui ne vient pas.
+      const annul = r.events.find((e) => e.type === 'cancelled')?.payload as { by?: string; motif?: string } | undefined;
+      const frais = (r.events.find((e) => e.type === 'cancel_fee')?.payload as { amount?: number } | undefined)?.amount;
+      return {
+        id: r.id, status: r.status, amount: r.quote.amount, createdAt: r.createdAt,
+        ...(r.status === 'cancelled' || r.status === 'no_driver'
+          ? { annulation: { par: r.status === 'no_driver' ? 'systeme' : (annul?.by ?? 'inconnu'), motif: r.status === 'no_driver' ? 'aucun_chauffeur' : (annul?.motif ?? null), frais: frais ?? 0 } }
+          : {}),
+      };
+    });
     const spent = this.c.rides.listByClient(id).filter((r) => REVENUE.has(r.status)).reduce((s, r) => s + r.quote.amount, 0);
     const conversations = this.c.support.listByClient(id).map((cv) => ({ id: cv.id, subject: cv.subject, status: cv.status, messages: cv.messages.length }));
     return {
       id,
       name: c?.name ?? null, phone: c?.phone ?? null, status: c?.status ?? 'active',
+      email: c?.email ?? null, photo: c?.photo ?? null,
+      phoneVerifiedAt: c?.phoneVerifiedAt ?? null, deletedAt: c?.deletedAt ?? null,
+      cancellations: c?.cancellations ?? 0, warnings: c?.warnings ?? 0,
       rides: c?.rides ?? rides.length, createdAt: c?.createdAt ?? null,
+      terminees: this.c.rides.listByClient(id).filter((r) => REVENUE.has(r.status)).length,
       spent: Math.round(spent),
       greenPoints: c?.greenPoints ?? 0,
       recentRides: rides,

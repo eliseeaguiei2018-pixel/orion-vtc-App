@@ -72,6 +72,24 @@ flowchart TD
     end
 ```
 
+### 1.4 Compte, photo, paramètres et annulation
+
+- **Compte** : nom, numéro, e-mail facultatif ; le numéro est vérifié par un code SMS à
+  6 chiffres. Un numéro vérifié = un compte : sur un nouveau téléphone, le client retrouve
+  son compte et son historique. Sur un téléphone partagé, une nouvelle inscription reçoit
+  son propre compte et n'écrase jamais celui de la personne précédente.
+- **Photo** : prise avec la caméra frontale ou choisie dans la galerie, recadrée et
+  compressée par l'app, vérifiée octet par octet par le serveur. Visible par la console
+  (fiche client) et dans le dossier SOS ; modifiable ou supprimable à tout moment.
+- **Paramètres** : profil (photo, nom, e-mail, numéro vérifié, compteurs), historique des
+  courses (terminées et annulées : qui, pourquoi, combien ; reçu, chauffeur, paiement,
+  note, alerte SOS), alertes SOS, portefeuille, abonnement, sécurité, préférences, aide,
+  conditions et confidentialité, déconnexion, suppression du compte.
+- **Annulation** : motif obligatoire, frais annoncés avant de confirmer. Gratuite sans
+  chauffeur attribué, pendant le délai de grâce, pour un motif de sécurité (le bouton SOS
+  est proposé) ou si le chauffeur a demandé l'annulation (signalé à la console).
+- Pendant la course, la carte « Course suivie par ORION · intervention possible » est en orange.
+
 > **Règle de transparence** : entre l'écran 6 (estimation) et l'écran 11 (paiement),
 > le prix ne change pas, **sauf** modification d'itinéraire par le passager
 > (arrêt ajouté, destination changée) — auquel cas un nouvel écran d'estimation est présenté.
