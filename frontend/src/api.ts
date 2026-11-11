@@ -224,6 +224,19 @@ function memoriserProfil(p: ProfilClient | null): void {
   try { if (p) localStorage.setItem(PROFIL_KEY, JSON.stringify(p)); else localStorage.removeItem(PROFIL_KEY); } catch { /* ignore */ }
 }
 
+/**
+ * Le message lisible d'une erreur serveur. Le serveur répond `{ error: { code, message } }`
+ * (ou `{ error: "texte" }` sur quelques routes) : afficher l'objet brut donnait
+ * « [object Object] » à la place de « Code incorrect ».
+ */
+export function messageErreur(json: Record<string, unknown>, status: number): string {
+  const e = json.error;
+  if (e && typeof e === 'object' && typeof (e as { message?: unknown }).message === 'string') return (e as { message: string }).message;
+  if (typeof e === 'string') return e;
+  if (typeof json.message === 'string') return json.message;
+  return status === 429 ? 'Trop de tentatives : patientez un instant.' : `Erreur ${status}`;
+}
+
 /** Appel avec retour d'erreur lisible (le message du serveur), au lieu d'un simple échec muet. */
 async function appel<T>(path: string, init: RequestInit = {}, timeoutMs = 8000): Promise<{ ok: true; data: T } | { ok: false; error: string; status: number }> {
   if (!API) return { ok: false, error: 'Mode démonstration : aucun serveur connecté.', status: 0 };
@@ -239,7 +252,7 @@ async function appel<T>(path: string, init: RequestInit = {}, timeoutMs = 8000):
     clearTimeout(timer);
     const txt = await res.text();
     const json = txt ? JSON.parse(txt) as Record<string, unknown> : {};
-    if (!res.ok) return { ok: false, error: String(json.error ?? json.message ?? `Erreur ${res.status}`), status: res.status };
+    if (!res.ok) return { ok: false, error: messageErreur(json, res.status), status: res.status };
     return { ok: true, data: json as T };
   } catch {
     return { ok: false, error: 'Connexion impossible. Vérifiez votre réseau et réessayez.', status: 0 };

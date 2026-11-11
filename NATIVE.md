@@ -6,21 +6,68 @@ tenant compte des **nouveautés Apple & Android récentes**.
 
 > L'app web (dossier `frontend/`) reste la source unique : Capacitor l'emballe sans réécriture.
 
-## 1. Mise en place
+## 1. État actuel : les deux apps existent
+
+| | Android | iOS |
+|---|---|---|
+| Projet | `frontend/android` (Gradle) | `frontend/ios/App` (Xcode, Swift Package Manager) |
+| Capacitor | 8.6 | 8.6 |
+| Cible | Android 16, API 36 (minimum Android 7, API 24) | SDK iOS 26 / Xcode 26 (minimum iOS 15) |
+| Identifiant | `ci.orion.app` | `ci.orion.app` |
+| Version | 1.0.0 (code 1) | 1.0.0 (build 1) |
+| Orientation | portrait | portrait, iPhone uniquement |
+| Autorisations déclarées | Internet, caméra (facultative) | caméra, photothèque (phrases en français) |
+
+**Principe : ne déclarer que ce que l'app utilise vraiment.** Apple et Google refusent une app
+qui demande une autorisation sans s'en servir. Le tableau §2 liste les autorisations à
+ajouter **au moment où** la fonctionnalité correspondante arrive (GPS chauffeur, notifications…).
+
+Déjà câblé :
+- **Bouton retour Android** : revient à l'écran parent (estimation → accueil, profil →
+  paramètres…), ferme d'abord le SOS ou la fenêtre d'annulation, et met l'app en arrière-plan
+  depuis l'accueil (`App.tsx`, `@capacitor/app`).
+- **Photo de profil** : selfie en direct (caméra frontale) ou galerie ; si la caméra est
+  absente, l'app propose la galerie.
+- **Icônes et écran de démarrage** générés depuis `frontend/assets/` :
+  `npx @capacitor/assets generate --iconBackgroundColor '#04100b' --splashBackgroundColor '#04100b'`.
+- **Réseau** : HTTPS obligatoire en production ; le HTTP local (`localhost`, `10.0.2.2`)
+  n'est autorisé que dans la version de test Android et via `NSAllowsLocalNetworking` sur iOS.
+
+### Compiler
 ```bash
 cd frontend
-npm i @capacitor/core @capacitor/cli
-npm i @capacitor/geolocation @capacitor/push-notifications @capacitor/local-notifications \
-      @capacitor/camera @capacitor/filesystem @capacitor/preferences @capacitor/haptics \
-      @capacitor/device @capacitor/network @capacitor/status-bar
-npx cap init   # appId: ci.orion.app, appName: ORION (déjà dans capacitor.config.ts)
-npm run build && npx cap add ios && npx cap add android
-```
-Fusionner ensuite :
-- iOS : [`../mobile/ios/Info.plist.snippet.xml`](mobile/ios/Info.plist.snippet.xml) → `Info.plist`
-- Android : [`../mobile/android/AndroidManifest.permissions.xml`](mobile/android/AndroidManifest.permissions.xml) → `AndroidManifest.xml`
+VITE_API_URL=https://orion-backend.onrender.com npm run build   # adresse du serveur
+npx cap sync
 
-## 2. Permissions (demandées à l'exécution)
+# Android : APK de test, puis bundle signé pour le Play Store
+cd android && ./gradlew assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
+./gradlew bundleRelease                      # nécessite la clé de signature (Android Studio)
+
+# iOS (Mac + Xcode 26) : ouvrir, choisir l'équipe Apple, puis Product → Archive
+npx cap open ios
+```
+
+Le serveur doit accepter les origines des apps : `CORS_ORIGIN` contient
+`capacitor://localhost` (iPhone) et `https://localhost` (Android).
+
+### Compilation et démonstration automatiques (GitHub Actions)
+Le workflow **« Applications mobiles »** (`.github/workflows/mobile.yml`) :
+1. compile l'**APK Android** et l'**app iOS pour simulateur** à chaque modification du front ;
+2. sur demande (`[demo-mobile]` dans le message de commit, ou lancement manuel), démarre le
+   serveur ORION, **installe l'app sur un émulateur Android et un simulateur iPhone**, l'ouvre
+   depuis son icône et réalise **l'inscription complète** (nom, numéro, code, photo depuis la
+   galerie, autorisations, accueil, profil), en filmant l'écran.
+
+Les scénarios sont écrits avec Maestro dans `mobile/maestro/` ; les vidéos et les APK sont
+téléchargeables dans l'onglet *Actions* du dépôt (rubrique *Artifacts*).
+
+Publication sur les stores : voir [`store/README.md`](store/README.md).
+
+## 2. Permissions à ajouter avec les fonctionnalités à venir
+Modèles prêts à fusionner, **ligne par ligne, seulement pour ce qui est utilisé** :
+[`mobile/ios/Info.plist.snippet.xml`](mobile/ios/Info.plist.snippet.xml) et
+[`mobile/android/AndroidManifest.permissions.xml`](mobile/android/AndroidManifest.permissions.xml).
+
 | Besoin | iOS | Android | Plugin |
 |--------|-----|---------|--------|
 | **Localisation** (chauffeurs, suivi) | `NSLocationWhenInUse…` / `Always` | `ACCESS_FINE/COARSE/BACKGROUND_LOCATION` | `@capacitor/geolocation` |

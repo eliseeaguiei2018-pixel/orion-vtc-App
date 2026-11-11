@@ -5,7 +5,8 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * iOS & Android (Play Store / App Store). Voir ../NATIVE.md pour l'installation et
  * la configuration complète des permissions et fonctionnalités natives.
  *
- * Activation : `npm i @capacitor/core @capacitor/cli && npx cap init` puis `npx cap add ios|android`.
+ * Les projets natifs sont générés (frontend/android, frontend/ios) : après `npm run build`,
+ * lancer `npx cap sync` pour y copier l'app web.
  */
 const config: CapacitorConfig = {
   appId: 'ci.orion.app',

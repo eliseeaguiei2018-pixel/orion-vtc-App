@@ -17,7 +17,8 @@ services:
         value: memory
       - key: SIMULATE_RIDES
         value: "true"
-      # ⚠️ En production, restreindre CORS au domaine du front (ex: https://orion.vercel.app)
+      # ⚠️ En production, restreindre CORS au domaine du front et aux apps mobiles, ex. :
+      # https://orion.vercel.app,capacitor://localhost,https://localhost
       - key: CORS_ORIGIN
         value: "*"
       # Jeton du dashboard Admin / supervision SAMU — définir un vrai secret dans Render.
@@ -29,6 +30,12 @@ services:
       # App cliente : secret de signature des sessions client (distinct, généré par Render).
       - key: CLIENT_JWT_SECRET
         generateValue: true
+      # Revue Apple / Google : numéro de démonstration et son code fixe (6 chiffres).
+      # À définir dans le tableau de bord Render, voir store/README.md §4.
+      - key: CLIENT_REVIEW_PHONE
+        sync: false
+      - key: CLIENT_REVIEW_CODE
+        sync: false
       # Clé Google Maps (optionnelle) — à définir dans le tableau de bord Render (secret).
       # - key: GOOGLE_MAPS_API_KEY
       #   sync: false

@@ -53,12 +53,15 @@ export async function clientAccountRoutes(app: FastifyInstance, container: Conta
     const body = parse(z.object({ phone: z.string().min(6).max(25) }), req.body);
     const phone = normalizePhone(body.phone);
     if (!phone) throw badRequest('Numéro de téléphone invalide');
-    const issued = otps.issue(phone);
+    // Numéro de vérification des stores : code fixe, connu des seuls vérificateurs.
+    const revue = config.CLIENT_REVIEW_PHONE && config.CLIENT_REVIEW_CODE
+      && normalizePhone(config.CLIENT_REVIEW_PHONE) === phone ? config.CLIENT_REVIEW_CODE : undefined;
+    const issued = otps.issue(phone, revue);
     if ('retryInSeconds' in issued) {
       throw new AppError(429, 'RATE_LIMITED', `Code déjà envoyé — réessayez dans ${issued.retryInSeconds} s`);
     }
     // Opérateur SMS à brancher en production ; ni le code ni le numéro complet ne sont journalisés.
-    req.log.info({ phone: masquer(phone) }, 'Code de connexion client émis');
+    req.log.info({ phone: masquer(phone), revue: Boolean(revue) }, 'Code de connexion client émis');
     return {
       sent: true, phone, expiresAt: issued.expiresAt,
       compteExistant: Boolean(container.clients.findByVerifiedPhone(phone)),

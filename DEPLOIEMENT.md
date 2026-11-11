@@ -52,6 +52,9 @@ J'ai déjà ajouté le workflow `.github/workflows/deploy-pages.yml`. Une seule 
 
 ### Étape C · Sécuriser (recommandé)
 - Sur Render, change `CORS_ORIGIN` pour mettre **l'URL exacte de ton front** (au lieu de `*`).
+  Si tu publies les apps mobiles, ajoute leurs origines : les apps Capacitor appellent le
+  serveur depuis `capacitor://localhost` (iPhone) et `https://localhost` (Android). Exemple :
+  `CORS_ORIGIN=https://orion.vercel.app,capacitor://localhost,https://localhost`.
 - En production réelle, mets `SIMULATE_RIDES=false` (l'app chauffeur fournit désormais les vraies positions).
 - **App chauffeur** : `DRIVER_JWT_SECRET` (généré automatiquement par le blueprint Render),
   puis, une fois l'opérateur SMS branché, `DRIVER_AUTH_STRICT=true`. Sans opérateur SMS, un
@@ -59,25 +62,32 @@ J'ai déjà ajouté le workflow `.github/workflows/deploy-pages.yml`. Une seule 
 - **App cliente** : `CLIENT_JWT_SECRET` (généré automatiquement par le blueprint Render). Le
   compte client repose sur un numéro vérifié par code SMS : comme pour les chauffeurs, il faut
   brancher l'opérateur SMS en production — le code de test n'est renvoyé qu'en développement.
+- **Revue Apple / Google** : `CLIENT_REVIEW_PHONE` et `CLIENT_REVIEW_CODE` réservent un numéro
+  de démonstration qui reçoit toujours le même code (lui seul). Voir `store/README.md` §4.
 
 ---
 
 ## Niveau 3 — Vraie app mobile (Play Store / App Store)
 
-L'app actuelle est une **app web**. Pour la rendre installable et utiliser le **GPS** et les
-**capteurs** (détection d'accident) du téléphone, on l'« emballe » avec **Capacitor** :
+Les applications natives **existent déjà** dans le dépôt (Capacitor 8) :
+`frontend/android` (Android Studio) et `frontend/ios` (Xcode 26). Elles embarquent l'app web
+compilée et appellent le même serveur.
 
 ```bash
 cd frontend
-npm install @capacitor/core @capacitor/cli
-npx cap init ORION ci.orion.app
-npm run build
-npx cap add android   # et/ou : npx cap add ios
-npx cap open android   # ouvre Android Studio pour générer l'APK / publier
+VITE_API_URL=https://orion-backend.onrender.com npm run build
+npx cap sync          # copie l'app web dans les projets Android et iOS
+npx cap open android  # Android Studio : Build → Generate Signed App Bundle
+npx cap open ios      # Xcode : Product → Archive (Mac obligatoire)
 ```
 
-> La publication sur les stores nécessite un compte développeur (Google Play : ~25 $ une fois ;
-> Apple : ~99 $/an). Je peux préparer toute la configuration Capacitor quand tu veux.
+- Détails techniques, permissions et compilation : [`NATIVE.md`](NATIVE.md).
+- Textes des fiches, visuels, confidentialité et compte de revue : [`store/README.md`](store/README.md).
+- Compilation automatique et démonstration sur émulateurs : workflow GitHub
+  **« Applications mobiles »** (`.github/workflows/mobile.yml`).
+
+> La publication sur les stores nécessite un compte développeur (Google Play : 25 $ une fois ;
+> Apple : 99 $/an) et un opérateur SMS branché sur le serveur.
 
 ---
 

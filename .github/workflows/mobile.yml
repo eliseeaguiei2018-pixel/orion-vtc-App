@@ -1,0 +1,171 @@
+name: Applications mobiles
+
+# Compile les applications natives ORION et, sur demande, FILME leur installation puis une
+# inscription complète sur un émulateur Android et un simulateur iPhone.
+# - À chaque modification du front : compilation de l'APK Android (runner Linux).
+# - Démonstration filmée : lancement manuel (onglet Actions) ou « [demo-mobile] » dans le
+#   message de commit. L'iPhone utilise un runner macOS : sur un dépôt privé, ses minutes
+#   comptent dix fois, d'où son déclenchement uniquement sur demande.
+# Vidéos, captures et APK : onglet Actions → l'exécution → rubrique Artifacts.
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'frontend/**'
+      - 'mobile/**'
+      - '.github/workflows/mobile.yml'
+  workflow_dispatch:
+    inputs:
+      ios:
+        description: "Inclure l'iPhone (runner macOS)"
+        type: boolean
+        default: true
+
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android · APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: App web (serveur de démonstration local)
+        working-directory: frontend
+        env:
+          VITE_API_URL: http://localhost:3000
+        run: |
+          npm ci
+          npm run build
+          npx cap sync android
+      - name: Compilation de l'APK
+        working-directory: frontend/android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orion-android-apk
+          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
+  android-demo:
+    name: Android · émulateur filmé
+    needs: android
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[demo-mobile]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/download-artifact@v4
+        with:
+          name: orion-android-apk
+          path: apk
+      - name: Serveur ORION
+        run: |
+          (cd backend && npm ci)
+          bash mobile/ci/serveur-demo.sh "$RUNNER_TEMP/serveur.log"
+      - name: Maestro (pilotage de l'écran)
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Accélération matérielle de l'émulateur (KVM)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Émulateur · installation · inscription
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          ram-size: 4096M
+          disk-size: 8G
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-front emulated -camera-back virtualscene
+          script: bash mobile/ci/android-demo.sh "$GITHUB_WORKSPACE/apk/app-debug.apk" "$GITHUB_WORKSPACE/demo-android"
+      - name: Journal du serveur
+        if: always()
+        run: cp "$RUNNER_TEMP/serveur.log" demo-android/ 2> /dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: orion-demo-android
+          path: demo-android
+          retention-days: 14
+
+  ios:
+    name: iPhone · simulateur filmé
+    if: (github.event_name == 'workflow_dispatch' && inputs.ios) || contains(github.event.head_commit.message, '[demo-mobile]')
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Xcode
+        run: xcodebuild -version
+      - name: App web (serveur de démonstration local)
+        working-directory: frontend
+        env:
+          VITE_API_URL: http://localhost:3000
+        run: |
+          npm ci
+          npm run build
+          npx cap sync ios
+      - name: Compilation iOS (simulateur)
+        working-directory: frontend/ios/App
+        run: |
+          set -o pipefail
+          xcodebuild -project App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/derived" CODE_SIGNING_ALLOWED=NO -quiet build
+          ls "$RUNNER_TEMP/derived/Build/Products/Debug-iphonesimulator/"
+      - name: Serveur ORION
+        run: |
+          (cd backend && npm ci)
+          bash mobile/ci/serveur-demo.sh "$RUNNER_TEMP/serveur.log"
+      - name: Maestro (pilotage de l'écran)
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Simulateur · installation · inscription
+        run: bash mobile/ci/ios-demo.sh "$RUNNER_TEMP/derived/Build/Products/Debug-iphonesimulator/App.app" "$GITHUB_WORKSPACE/demo-ios"
+      - name: Journal du serveur et app compilée
+        if: always()
+        run: |
+          mkdir -p demo-ios
+          cp "$RUNNER_TEMP/serveur.log" demo-ios/ 2> /dev/null || true
+          (cd "$RUNNER_TEMP/derived/Build/Products/Debug-iphonesimulator" && zip -qry "$GITHUB_WORKSPACE/demo-ios/ORION-simulateur.app.zip" App.app) || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: orion-demo-ios
+          path: demo-ios
+          retention-days: 14

@@ -1,0 +1,19 @@
+# Fin de l'inscription : autorisations, accueil personnalisé, puis le compte dans les paramètres.
+appId: ci.orion.app
+---
+- extendedWaitUntil:
+    visible: "Tout autoriser"
+    timeout: 30000
+- takeScreenshot: 06-autorisations
+- tapOn: "Tout autoriser"
+- extendedWaitUntil:
+    visible: "Bonjour Aya.*"
+    timeout: 30000
+- waitForAnimationToEnd
+- takeScreenshot: 07-accueil
+- tapOn: "Paramètres"
+- extendedWaitUntil:
+    visible: "Aya Kouassi"
+    timeout: 20000
+- waitForAnimationToEnd
+- takeScreenshot: 08-parametres

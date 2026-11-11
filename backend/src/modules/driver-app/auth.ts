@@ -31,13 +31,13 @@ export class OtpStore {
   private readonly pending = new Map<string, PendingOtp>();
 
   /** Génère un code à 6 chiffres. Renvoie null si un code vient d'être envoyé (anti-spam). */
-  issue(phone: string): { code: string; expiresAt: string } | { retryInSeconds: number } {
+  issue(phone: string, codeImpose?: string): { code: string; expiresAt: string } | { retryInSeconds: number } {
     const now = Date.now();
     const prev = this.pending.get(phone);
     if (prev && now - prev.sentAt < RESEND_COOLDOWN_MS && prev.expiresAt > now) {
       return { retryInSeconds: Math.ceil((RESEND_COOLDOWN_MS - (now - prev.sentAt)) / 1000) };
     }
-    const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+    const code = codeImpose ?? String(randomInt(0, 1_000_000)).padStart(6, '0');
     const expiresAt = now + config.DRIVER_OTP_TTL_SECONDS * 1000;
     this.pending.set(phone, { code, expiresAt, attempts: 0, sentAt: now });
     return { code, expiresAt: new Date(expiresAt).toISOString() };

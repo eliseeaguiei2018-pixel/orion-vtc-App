@@ -1,0 +1,46 @@
+# L'app vient d'être installée sur l'iPhone : on la trouve par son nom, on l'ouvre et on s'inscrit.
+appId: ci.orion.app
+---
+- takeScreenshot: 00-icone-installee
+- tapOn:
+    text: "ORION"
+    optional: true
+# Si l'icône est sur une autre page de l'écran d'accueil, on ouvre l'app comme iOS le ferait.
+- launchApp:
+    appId: ci.orion.app
+    stopApp: false
+- runFlow: ../commun/inscription.yaml
+
+# Le simulateur iPhone n'a pas de caméra : la photo vient de la photothèque.
+- tapOn: "Choisir dans la galerie"
+- tapOn:
+    text: "Phototh.*|Photo Library|Biblioth.*"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: 04c-galerie
+- tapOn:
+    text: "Photo.*(2026|Aujourd|aujourd|Today).*"
+    optional: true
+- extendedWaitUntil:
+    visible: "Utiliser cette photo"
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible: "Utiliser cette photo"
+    commands:
+      - takeScreenshot: 05-apercu-photo
+      - tapOn: "Utiliser cette photo"
+      - extendedWaitUntil:
+          visible: "Tout autoriser"
+          timeout: 30000
+# Sélecteur de photos non piloté : on le referme et on garde la photo pour plus tard.
+- runFlow:
+    when:
+      visible: "Votre photo de profil"
+    commands:
+      - tapOn:
+          text: "Annuler|Cancel"
+          optional: true
+      - tapOn: "Plus tard"
+- runFlow: ../commun/fin-inscription.yaml

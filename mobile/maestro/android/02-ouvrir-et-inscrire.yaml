@@ -1,0 +1,49 @@
+# L'app vient d'être installée : on la trouve par son nom, on l'ouvre et on s'inscrit.
+appId: ci.orion.app
+---
+- scrollUntilVisible:
+    element:
+      text: "ORION"
+    direction: DOWN
+    timeout: 20000
+- takeScreenshot: 00-icone-installee
+- tapOn: "ORION"
+- runFlow: ../commun/inscription.yaml
+
+# Selfie avec la caméra de l'appareil (autorisation système Android à la clé).
+- tapOn: "Prendre une photo"
+- tapOn:
+    id: "com.android.permissioncontroller:id/permission_allow_foreground_only_button"
+    optional: true
+- extendedWaitUntil:
+    visible: "Déclencher"
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible: "Déclencher"
+    commands:
+      - waitForAnimationToEnd
+      - takeScreenshot: 04b-camera
+      - tapOn: "Déclencher"
+      - tapOn: "Reprendre"
+# Si la caméra n'a pas répondu, Android a pu ouvrir son appli Appareil photo : on en revient.
+- runFlow:
+    when:
+      notVisible: "Choisir dans la galerie"
+    commands:
+      - back
+
+# Puis le choix dans la galerie du téléphone (portrait déposé dans « Images »).
+- tapOn: "Choisir dans la galerie"
+- extendedWaitUntil:
+    visible: "portrait-aya.*"
+    timeout: 20000
+- takeScreenshot: 04c-galerie
+- tapOn: "portrait-aya.*"
+- extendedWaitUntil:
+    visible: "Utiliser cette photo"
+    timeout: 30000
+- takeScreenshot: 05-apercu-photo
+- tapOn: "Utiliser cette photo"
+- runFlow: ../commun/fin-inscription.yaml

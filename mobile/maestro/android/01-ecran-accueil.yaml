@@ -1,0 +1,11 @@
+# Téléphone Android, écran d'accueil : on ouvre la liste des applications.
+# L'APK est installé juste après par le script : l'icône ORION y apparaît en direct.
+appId: ci.orion.app
+---
+- pressKey: Home
+- waitForAnimationToEnd
+- swipe:
+    start: "50%, 92%"
+    end: "50%, 25%"
+    duration: 600
+- waitForAnimationToEnd

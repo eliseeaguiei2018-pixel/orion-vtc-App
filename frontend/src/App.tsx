@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { App as AppNative } from '@capacitor/app';
 import { OrionMap } from './components/OrionMap';
 import { Sheet, TopBar, Toast } from './components/ui';
 import {
@@ -90,6 +92,14 @@ export function App() {
   const [devCode, setDevCode] = useState<string | undefined>();
   const [erreurInscription, setErreurInscription] = useState<string | null>(null);
   const [annulationOuverte, setAnnulationOuverte] = useState(false);
+
+  /*
+   * BOUTON RETOUR ANDROID. Dans l'app native, il fermait ORION quel que soit l'écran :
+   * un client dans ses paramètres perdait l'app d'un geste. Il revient désormais à
+   * l'écran précédent ; il ferme d'abord une feuille ouverte ; il réduit l'alerte SOS
+   * sans jamais la clore ; à la racine, il met l'app en arrière-plan.
+   */
+  const etatRetour = useRef<{ screen: Screen; sos: boolean; annulation: boolean }>({ screen: 'splash', sos: false, annulation: false });
   useEffect(() => { if (isLiveBackend() && sessionClient()) void chargerProfil().then((p) => { if (p) setProfil(p); }); }, []);
   // Les compteurs du profil (courses, annulations, points) suivent l'activité :
   // ils sont relus à chaque ouverture des paramètres.
@@ -352,6 +362,26 @@ export function App() {
     showToast(f.montant > 0 ? t('cx_done_fee', { f: formatXOF(f.montant) }) : t('cx_done_free'), f.montant > 0);
     reset();
   };
+
+  etatRetour.current = { screen, sos: sosOuvert, annulation: annulationOuverte };
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== 'android') return;
+    const PARENT: Partial<Record<Screen, Screen>> = {
+      auth: 'onboarding', otp: 'auth', destination: 'home', delivery: 'home', estimate: 'home', confirm: 'estimate',
+      settings: 'home', profile: 'settings', sosHistory: 'settings', legal: 'settings', history: 'settings',
+      wallet: 'home', help: 'home', support: 'help', subscription: 'home', rental: 'home', myRentals: 'home', wedding: 'home',
+    };
+    const ecoute = AppNative.addListener('backButton', () => {
+      const e = etatRetour.current;
+      if (e.annulation) { setAnnulationOuverte(false); return; }
+      if (e.sos) { setSosOuvert(false); return; }
+      const parent = PARENT[e.screen];
+      // Pendant une course (suivi, paiement, notation), le retour ne quitte pas le parcours.
+      if (parent) setScreen(parent);
+      else if (!['tracking', 'searching', 'payment', 'rating', 'photo', 'permissions'].includes(e.screen)) void AppNative.minimizeApp();
+    });
+    return () => { void ecoute.then((l) => l.remove()); };
+  }, []);
 
   /* ------------------------------ Compte client ------------------------------ */
   const envoyerCode = async () => {
@@ -802,14 +832,14 @@ function AuthScreen({ phone, setPhone, name, setName, email, setEmail, erreur, o
         <h2 className="h-title">{t('reg_title')}</h2>
         <p className="h-sub" style={{ marginBottom: 16 }}>{t('reg_subtitle')}</p>
         <div className="field" style={{ marginBottom: 10 }}>
-          <input placeholder={t('reg_name')} value={name} onChange={(e) => setName(e.target.value)} />
+          <input aria-label={t('reg_name')} autoComplete="name" placeholder={t('reg_name')} value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div className="field" style={{ marginBottom: 10 }}>
           <span className="dialcode">🇨🇮 +225</span>
-          <input inputMode="tel" placeholder={t('reg_phone')} value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <input inputMode="tel" aria-label={t('reg_phone')} autoComplete="tel-national" placeholder={t('reg_phone')} value={phone} onChange={(e) => setPhone(e.target.value)} />
         </div>
         <div className="field" style={{ marginBottom: 16 }}>
-          <input type="email" inputMode="email" placeholder={t('reg_email')} value={email} onChange={(e) => setEmail(e.target.value)} />
+          <input type="email" inputMode="email" aria-label={t('reg_email')} autoComplete="email" placeholder={t('reg_email')} value={email} onChange={(e) => setEmail(e.target.value)} />
         </div>
         {erreur && <p className="photo-erreur" style={{ marginTop: -6 }}>{erreur}</p>}
         <button className="btn btn-primary" disabled={!valid} onClick={onNext}>{t('reg_send')} <IconChevron size={18} /></button>
@@ -901,7 +931,7 @@ function OtpScreen({ phone, devCode, onBack, onResend, onVerify }: {
         <p className="h-sub" style={{ marginBottom: 18 }}>{t('otp_subtitle', { phone: `+225 ${phone}` })}</p>
         <div className="otp-row">
           {code.map((c, i) => (
-            <input key={i} ref={(el) => { refs.current[i] = el; }} className="otp-box" inputMode="numeric" autoComplete={i === 0 ? 'one-time-code' : 'off'}
+            <input key={i} ref={(el) => { refs.current[i] = el; }} className="otp-box" inputMode="numeric" aria-label={t('otp_digit', { n: String(i + 1) })} autoComplete={i === 0 ? 'one-time-code' : 'off'}
               value={c} autoFocus={i === 0} onChange={(e) => setDigit(i, e.target.value)} />
           ))}
         </div>

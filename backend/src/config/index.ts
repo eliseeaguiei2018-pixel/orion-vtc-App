@@ -95,6 +95,11 @@ const schema = z.object({
   CLIENT_JWT_SECRET: z.string().default('orion-dev-client-secret-change-me'),
   // Session client : 90 jours (le client ne revalide pas son numéro à chaque course).
   CLIENT_JWT_TTL_SECONDS: z.coerce.number().int().positive().default(7_776_000),
+  // COMPTE DE VÉRIFICATION APP STORE / GOOGLE PLAY. Les vérificateurs d'Apple et de
+  // Google doivent pouvoir se connecter, mais ne reçoivent pas nos SMS : un SEUL
+  // numéro, désigné ici, accepte un code fixe. Vide = désactivé (par défaut).
+  CLIENT_REVIEW_PHONE: z.string().optional(),
+  CLIENT_REVIEW_CODE: z.string().regex(/^\d{6}$/, 'CLIENT_REVIEW_CODE : 6 chiffres').optional(),
   // Validité d'un code SMS de connexion (secondes).
   DRIVER_OTP_TTL_SECONDS: z.coerce.number().int().positive().default(300),
   // Mode STRICT : si "true", le jeton chauffeur devient OBLIGATOIRE sur toutes les routes
