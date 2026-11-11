@@ -23,7 +23,7 @@ test('choc modéré en mouvement détecté', () => {
   assert.equal(isLikelyCrash({ ax: 5, ay: 0, az: 1, speedKmh: 40 }), true);
 });
 
-test('SOS lève une alerte dispatchée au SAMU + diffusion temps réel', () => {
+test('SOS reçu par la supervision — mais aucun secours n’est déclaré prévenu tant que personne n’a appelé', () => {
   const hub = new RealtimeHub();
   let received: unknown = null;
   hub.subscribe(EMERGENCY_ROOM, (m) => (received = m));
@@ -31,8 +31,10 @@ test('SOS lève une alerte dispatchée au SAMU + diffusion temps réel', () => {
 
   const alert = safety.raiseSos({ userId: 'u1', location: abidjan, rideId: 'r1' });
   assert.equal(alert.kind, 'sos');
-  assert.equal(alert.status, 'dispatched');
-  assert.ok(alert.dispatchedTo.includes('185')); // SAMU CI
+  // Avant : « dispatched » vers 185 et 170 dès la création, alors qu'aucun numéro
+  // n'avait été composé — le dossier et l'usager croyaient le SAMU en route.
+  assert.equal(alert.status, 'raised');
+  assert.deepEqual(alert.dispatchedTo, []);
   assert.ok(alert.zoneName); // rattaché à une zone (Plateau)
   assert.ok(received, 'le poste de supervision a reçu l’alerte');
 });

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { LatLng } from '../../core/geo.js';
-import { EMERGENCY_ROOM, rideRoom, type RealtimeHub } from '../realtime/hub.js';
+import { EMERGENCY_ROOM, rideRoom, sosRoom, type RealtimeHub } from '../realtime/hub.js';
 import { nearestZone } from '../geo-ci/zones.js';
 
 /**
@@ -93,6 +93,58 @@ export interface EmergencyAlert {
   /** Dossier scellé numériquement (accès direction uniquement après clôture). */
   sealed?: boolean;
   sealedAt?: string;
+  /**
+   * Services de secours RÉELLEMENT sollicités par la supervision (SAMU, police,
+   * pompiers), avec l'heure et l'issue de l'appel. Vide tant que personne n'a
+   * appelé : on ne laisse jamais croire qu'une ambulance arrive alors qu'aucun
+   * numéro n'a été composé.
+   */
+  secours?: SecoursSollicite[];
+}
+
+export interface SecoursSollicite {
+  /** Entrée du journal de contacts (permet de suivre l'issue de l'appel). */
+  entryId: string;
+  service: string;
+  numero: string;
+  canal: 'appel' | 'sms' | 'whatsapp';
+  at: string;
+  issue: 'tentative' | 'joint' | 'non_joint' | 'messagerie';
+}
+
+/**
+ * Ce que la personne en détresse voit de son alerte : l'essentiel, rien d'interne.
+ * Ni note de clôture, ni journal des appels internes, ni nom complet de l'agent.
+ */
+export interface SuiviUsager {
+  id: string;
+  kind: AlertKind;
+  status: AlertStatus;
+  createdAt: string;
+  location: LatLng;
+  zoneName?: string;
+  priseEnCharge: { agent: string; at: string } | null;
+  chat: SosChatMessage[];
+  secours: Array<{ service: string; numero: string; canal: SecoursSollicite['canal']; at: string; issue: SecoursSollicite['issue'] }>;
+  clotureeA: string | null;
+}
+
+/** Prénom seul pour l'usager : humain, sans exposer l'identité complète du personnel. */
+export function agentPublic(nom: string | undefined): string {
+  const prenom = (nom ?? '').trim().split(/\s+/)[0] ?? '';
+  if (!prenom || /^(super|admin|système|systeme)$/i.test(prenom)) return 'Supervision ORION';
+  return prenom;
+}
+
+export function vueUsager(a: EmergencyAlert): SuiviUsager {
+  return {
+    id: a.id, kind: a.kind, status: a.status, createdAt: a.createdAt,
+    location: a.location, zoneName: a.zoneName,
+    priseEnCharge: a.agent ? { agent: agentPublic(a.agent), at: a.claimedAt ?? a.updatedAt } : null,
+    chat: (a.chat ?? []).map((m) => ({ ...m, author: m.from === 'agent' ? agentPublic(m.author) : undefined })),
+    secours: (a.secours ?? []).map(({ service, numero, canal, at, issue }) => ({ service, numero, canal, at, issue })),
+    clotureeA: a.status === 'resolved' || a.status === 'cancelled' ? a.updatedAt : null,
+  };
 }
 
 /**
@@ -180,14 +232,17 @@ export class SafetyService {
       id: randomUUID(),
       kind: input.kind,
       level: LEVEL_FOR[input.kind],
-      status: 'dispatched',
+      // « raised » : reçue par la supervision ORION, PAS encore transmise aux secours.
+      // Elle passe « dispatched » quand un agent joint réellement le SAMU ou la police.
+      status: 'raised',
       rideId: input.rideId,
       userId: input.userId,
       source: input.source,
       location: input.location,
       zoneName: zone?.name,
       impactG: input.impactG,
-      dispatchedTo: [EMERGENCY_NUMBERS.samu, EMERGENCY_NUMBERS.police],
+      dispatchedTo: [],
+      secours: [],
       createdAt: now,
       updatedAt: now,
       note: input.note,
@@ -199,6 +254,54 @@ export class SafetyService {
     this.realtime.publish(EMERGENCY_ROOM, 'emergency.alert', alert);
     if (alert.rideId) this.realtime.publish(rideRoom(alert.rideId), 'emergency.alert', alert);
     return alert;
+  }
+
+  /**
+   * Côté usager : chaque changement de son alerte lui parvient en direct, sur la
+   * room de l'alerte et sur celle de sa course. C'est ce qui manquait : la console
+   * voyait tout, la personne en détresse ne savait même pas qu'on l'avait lue.
+   */
+  private informerUsager(a: EmergencyAlert): void {
+    const suivi = vueUsager(a);
+    this.realtime.publish(sosRoom(a.id), 'sos.suivi', suivi);
+    if (a.rideId) this.realtime.publish(rideRoom(a.rideId), 'sos.suivi', suivi);
+  }
+
+  /** Vue usager d'une alerte, si elle lui appartient bien. */
+  suiviPour(id: string, userId: string): SuiviUsager | 'interdit' | undefined {
+    const a = this.alerts.get(id);
+    if (!a) return undefined;
+    if (a.userId !== userId) return 'interdit';
+    return vueUsager(a);
+  }
+
+  /**
+   * Un service de secours a été sollicité depuis le poste SAMU. L'usager le voit
+   * aussitôt (« ORION a prévenu le SAMU — 185 ») et l'alerte passe « dispatched ».
+   */
+  secoursSollicite(id: string, s: Omit<SecoursSollicite, 'at' | 'issue'>): EmergencyAlert | undefined {
+    const a = this.alerts.get(id);
+    if (!a) return undefined;
+    const at = new Date().toISOString();
+    (a.secours ??= []).push({ ...s, at, issue: 'tentative' });
+    if (!a.dispatchedTo.includes(s.service)) a.dispatchedTo.push(s.service);
+    if (a.status === 'raised' || a.status === 'acknowledged') a.status = 'dispatched';
+    a.updatedAt = at;
+    this.realtime.publish(EMERGENCY_ROOM, 'emergency.update', a);
+    this.informerUsager(a);
+    return a;
+  }
+
+  /** Issue de l'appel aux secours (joint, injoignable…), répercutée à l'usager. */
+  issueSecours(id: string, entryId: string, issue: SecoursSollicite['issue']): EmergencyAlert | undefined {
+    const a = this.alerts.get(id);
+    const s = a?.secours?.find((x) => x.entryId === entryId);
+    if (!a || !s) return undefined;
+    s.issue = issue;
+    a.updatedAt = new Date().toISOString();
+    this.realtime.publish(EMERGENCY_ROOM, 'emergency.update', a);
+    this.informerUsager(a);
+    return a;
   }
 
   get(id: string): EmergencyAlert | undefined {
@@ -213,11 +316,15 @@ export class SafetyService {
     const a = this.alerts.get(id);
     if (!a) return undefined;
     if (a.agent && a.agent !== agent) return 'taken';
+    const premiere = !a.agent;
     a.agent = agent;
     a.claimedAt ??= new Date().toISOString();
-    if (a.status === 'raised' || a.status === 'dispatched') a.status = 'acknowledged';
+    // Prise en charge : « raised » → « acknowledged ». Une alerte déjà transmise
+    // aux secours reste « dispatched » : on ne recule jamais dans le circuit.
+    if (a.status === 'raised') a.status = 'acknowledged';
     a.updatedAt = new Date().toISOString();
     this.realtime.publish(EMERGENCY_ROOM, 'emergency.update', a);
+    if (premiere) this.informerUsager(a);
     return a;
   }
 
@@ -230,6 +337,7 @@ export class SafetyService {
     a.updatedAt = m.at;
     this.realtime.publish(EMERGENCY_ROOM, 'emergency.chat', { alertId: id, message: m });
     if (a.rideId) this.realtime.publish(rideRoom(a.rideId), 'emergency.chat', { alertId: id, message: m });
+    this.informerUsager(a);
     return m;
   }
 
@@ -248,6 +356,7 @@ export class SafetyService {
     a.sealedAt = new Date().toISOString();
     a.updatedAt = a.sealedAt;
     this.realtime.publish(EMERGENCY_ROOM, 'emergency.update', a);
+    this.informerUsager(a);
     return a;
   }
 
@@ -257,6 +366,7 @@ export class SafetyService {
     a.status = status;
     a.updatedAt = new Date().toISOString();
     this.realtime.publish(EMERGENCY_ROOM, 'emergency.update', a);
+    this.informerUsager(a);
     return a;
   }
 

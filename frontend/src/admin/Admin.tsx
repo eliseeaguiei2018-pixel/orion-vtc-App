@@ -52,6 +52,28 @@ interface LoginResponse { token: string; expiresAt: string; account: Me;
   csrfToken?: string }
 
 /* --------------------------- Porte d'entrée -------------------------- */
+/** Ce que dit le bandeau selon l'origine de l'alerte : une déviation n'est pas un SOS. */
+const ALARME_LIBELLE: Record<string, string> = {
+  sos: 'NOUVELLE ALERTE SOS', crash: 'ACCIDENT DÉTECTÉ', deviation: 'DÉVIATION D’ITINÉRAIRE',
+  immobilisation: 'VÉHICULE IMMOBILISÉ', mot_sensible: 'MOT SENSIBLE SIGNALÉ',
+};
+
+/** Deux bips courts à l'arrivée d'une détresse. Sans effet si l'audio est bloqué. */
+function sonnerAlarme(): void {
+  try {
+    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    [0, 0.28].forEach((t0, i) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.frequency.value = i === 0 ? 880 : 660; g.gain.value = 0.08;
+      o.connect(g); g.connect(ctx.destination);
+      o.start(ctx.currentTime + t0); o.stop(ctx.currentTime + t0 + 0.2);
+    });
+    window.setTimeout(() => void ctx.close(), 1200);
+  } catch { /* audio indisponible */ }
+}
+
 export function Admin() {
   const [authed, setAuthed] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -214,6 +236,14 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [churn, setChurn] = useState<ChurnReport | null>(null);
   const [corporate, setCorporate] = useState<CorporateAccount[]>([]);
   const [sosSel, setSosSel] = useState<SosDossier | null>(null);
+  /**
+   * ALARME SOS en temps réel. La console relisait les alertes toutes les 6 s et le
+   * flux d'urgence du serveur n'était branché nulle part : une détresse pouvait
+   * attendre plusieurs secondes avant d'apparaître, sans aucun signal.
+   */
+  const [alarmeSos, setAlarmeSos] = useState<{ id: string; kind: string; level: string; zone?: string; at: string } | null>(null);
+  const sosSelId = useRef<string | null>(null);
+  useEffect(() => { sosSelId.current = sosSel?.alert.id ?? null; }, [sosSel]);
   const [security, setSecurity] = useState<SecurityAttempt[]>([]);
   /* --- Équipages, caisses, poste d'équipe, télématique, annuaire --- */
   const [equipages, setEquipages] = useState<EquipageRow[]>([]);
@@ -435,6 +465,47 @@ function Console({ onLogout }: { onLogout: () => void }) {
   }, [loadDemo, statsDays, ridesPage, driversPage, clientsPage, execJours, livrePage, livreFiltre]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  // Flux d'urgence : nouvelle alerte → alarme + file à jour ; tout geste sur une
+  // alerte (prise en charge, message, secours joints, réponse de l'usager) →
+  // file et dossier ouvert rafraîchis à l'instant, sur tous les postes.
+  const peutSuperviser = Boolean(me?.permissions.includes('alerts:read'));
+  useEffect(() => {
+    if (!LIVE || !peutSuperviser) return;
+    let ferme = false;
+    let ws: WebSocket | null = null;
+    let relance: number | undefined;
+    const rafraichir = async (alertId?: string) => {
+      try {
+        setAlerts((await adminGet<{ alerts: Alert[] }>('/admin/sos')).alerts);
+        if (alertId && sosSelId.current === alertId) setSosSel(await adminGet<SosDossier>(`/admin/sos/${alertId}`));
+      } catch { /* refus déjà signalé par la couche réseau */ }
+    };
+    const connecter = () => {
+      let hote = window.location.host;
+      let proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      if (API) { try { const u = new URL(API); hote = u.host; proto = u.protocol === 'https:' ? 'wss:' : 'ws:'; } catch { /* URL invalide */ } }
+      ws = new WebSocket(`${proto}//${hote}/ws/emergency`);
+      ws.onmessage = (ev) => {
+        try {
+          const m = JSON.parse(ev.data as string) as { type: string; data?: { id?: string; alertId?: string; kind?: string; level?: string; zoneName?: string; createdAt?: string } };
+          if (m.type === 'emergency.alert' && m.data?.id) {
+            const level = m.data.level ?? 'rouge';
+            setAlarmeSos({ id: m.data.id, kind: m.data.kind ?? 'sos', level, zone: m.data.zoneName, at: m.data.createdAt ?? new Date().toISOString() });
+            // Le signal sonore est réservé au niveau rouge (SOS, choc) : une déviation
+            // d'itinéraire s'affiche, mais ne fait pas sursauter toute la salle.
+            if (level === 'rouge') sonnerAlarme();
+            void rafraichir();
+          } else if (m.type === 'emergency.update' || m.type === 'emergency.chat' || m.type === 'sos.contact') {
+            void rafraichir(m.data?.alertId ?? m.data?.id);
+          }
+        } catch { /* trame illisible */ }
+      };
+      ws.onclose = () => { if (!ferme) relance = window.setTimeout(connecter, 3000); };
+    };
+    connecter();
+    return () => { ferme = true; window.clearTimeout(relance); ws?.close(); };
+  }, [peutSuperviser]);
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     const p = LIVE ? setInterval(() => void refresh(), 6000) : undefined;
@@ -1284,6 +1355,16 @@ function Console({ onLogout }: { onLogout: () => void }) {
       </aside>
 
       <main className="adm-main">
+        {alarmeSos && (
+          <div className={`adm-alarme lvl-${alarmeSos.level}`} role="alert">
+            <span className="adm-alarme-dot" />
+            <strong>{ALARME_LIBELLE[alarmeSos.kind] ?? 'NOUVELLE ALERTE'}</strong>
+            <span>{alarmeSos.zone ?? 'Zone inconnue'} · reçue il y a {Math.max(0, Math.round((now.getTime() - Date.parse(alarmeSos.at)) / 1000))} s</span>
+            <span className="grow" />
+            <button className="adm-btn xs solid" onClick={() => { setSection('alerts'); void openSos(alarmeSos.id); setAlarmeSos(null); }}>Ouvrir le dossier</button>
+            <button className="adm-btn xs ghost" onClick={() => setAlarmeSos(null)} aria-label="Masquer">✕</button>
+          </div>
+        )}
         <header className="adm-mhead">
           <h2>{NAV.find((n) => n.id === section)?.label}</h2>
           {can('search:read') && (

@@ -16,7 +16,7 @@ import {
   ABIDJAN_PLACES, COUNTRIES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { EMERGENCY_NUMBERS, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, fetchSubPlans, fetchSubscription, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, paySubscriptionInvoice, previewDelivery, registerClientProfile, previewQuote, rateRide, rideSocketUrl, sos, subscribePlan, type Announcement, type AppConfig, type PkgSize, type RideHistoryItem, type SafeDriver, type SupportMessage } from './api';
+import { EMERGENCY_NUMBERS, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, fetchSubPlans, fetchSubscription, isLiveBackend, listAnnouncements, listMyRides, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, paySubscriptionInvoice, previewDelivery, registerClientProfile, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type PkgSize, type RideHistoryItem, type SafeDriver, type SosSuivi, type SupportMessage } from './api';
 import { LANGUAGES, useI18n, type Lang } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
@@ -98,6 +98,65 @@ export function App() {
   const [toast, setToast] = useState<{ message: string; danger?: boolean } | null>(null);
   /** État de l'alerte SOS : envoi en cours, ou échec (le passager doit appeler lui-même). */
   const [sosState, setSosState] = useState<'sending' | 'failed' | null>(null);
+  /**
+   * Alerte SOS EN COURS, suivie en direct : prise en charge, messages de l'agent,
+   * secours réellement prévenus. Avant, après l'envoi, le passager ne recevait
+   * plus rien — alors que la console, elle, voyait tout.
+   */
+  const [sosLive, setSosLive] = useState<SosSuivi | null>(null);
+  const [sosOuvert, setSosOuvert] = useState(false);
+  const [sosNonLu, setSosNonLu] = useState(0);
+  const [sosHorsLigne, setSosHorsLigne] = useState(false);
+  const sosOuvertRef = useRef(false);
+  /** Messages d'agent déjà connus : sert à compter les nouveaux quand le panneau est réduit. */
+  const sosAgentVus = useRef(0);
+  const nbAgent = (sv: SosSuivi) => sv.chat.filter((c) => c.from === 'agent').length;
+  useEffect(() => { sosOuvertRef.current = sosOuvert; if (sosOuvert) setSosNonLu(0); }, [sosOuvert]);
+  const sosId = sosLive?.id ?? null;
+
+  // Reprise : une alerte ouverte survit à la fermeture de l'app.
+  useEffect(() => {
+    if (!isLiveBackend()) return;
+    let id: string | null = null;
+    try { id = localStorage.getItem('orion.sos'); } catch { /* stockage indisponible */ }
+    if (!id) return;
+    void sosSuivi(id, clientId()).then((sv) => {
+      if (sv && !sv.clotureeA) { sosAgentVus.current = nbAgent(sv); setSosLive(sv); }
+      else { try { localStorage.removeItem('orion.sos'); } catch { /* ignore */ } }
+    });
+  }, []);
+
+  // Temps réel : chaque geste de la supervision arrive ici, sans recharger.
+  useEffect(() => {
+    if (!sosId) return;
+    let ferme = false;
+    let ws: WebSocket | null = null;
+    let relance: number | undefined;
+    const connecter = () => {
+      const url = sosSocketUrl(sosId, clientId());
+      if (!url) return;
+      ws = new WebSocket(url);
+      ws.onopen = () => setSosHorsLigne(false);
+      ws.onmessage = (ev) => {
+        try {
+          const m = JSON.parse(ev.data as string) as { type: string; suivi?: SosSuivi; data?: SosSuivi };
+          const sv = m.type === 'connected' ? m.suivi : m.type === 'sos.suivi' ? m.data : undefined;
+          if (!sv) return;
+          const nouveaux = nbAgent(sv) - sosAgentVus.current;
+          sosAgentVus.current = nbAgent(sv);
+          if (nouveaux > 0 && !sosOuvertRef.current) setSosNonLu((n) => n + nouveaux);
+          setSosLive(sv);
+        } catch { /* trame illisible */ }
+      };
+      ws.onclose = () => {
+        if (ferme) return;
+        setSosHorsLigne(true);
+        relance = window.setTimeout(connecter, 3000);
+      };
+    };
+    connecter();
+    return () => { ferme = true; window.clearTimeout(relance); ws?.close(); };
+  }, [sosId]);
   const [announce, setAnnounce] = useState<Announcement | null>(null);
   useEffect(() => { listAnnouncements().then((a) => setAnnounce(a[0] ?? null)); }, []);
 
@@ -240,10 +299,31 @@ export function App() {
    */
   const triggerSos = async () => {
     if (!isLiveBackend()) { showToast(t('toast_sos'), true); return; } // démo : simulation
+    // Une alerte est déjà ouverte : on la rouvre au lieu d'en créer une seconde.
+    if (sosLive && !sosLive.clotureeA) { setSosOuvert(true); return; }
     setSosState('sending');
     const res = await sos(clientId(), carPos ?? origin.location, rideId ?? undefined);
-    if (res.delivered) { setSosState(null); showToast(t('toast_sos'), true); return; }
+    if (res.delivered) {
+      setSosState(null);
+      if (res.suivi) {
+        sosAgentVus.current = nbAgent(res.suivi);
+        setSosLive(res.suivi);
+        setSosOuvert(true);
+        try { localStorage.setItem('orion.sos', res.suivi.id); } catch { /* ignore */ }
+      } else showToast(t('toast_sos'), true);
+      return;
+    }
     setSosState('failed'); // échec : le passager doit appeler lui-même
+  };
+
+  const repondreSos = async (texte: string) => {
+    if (!sosLive) return;
+    const sv = await sosRepondre(sosLive.id, clientId(), texte);
+    if (sv) setSosLive(sv);
+  };
+  const fermerSos = () => {
+    setSosLive(null); setSosOuvert(false); setSosNonLu(0);
+    try { localStorage.removeItem('orion.sos'); } catch { /* ignore */ }
   };
 
   const cancelCurrentRide = () => {
@@ -320,6 +400,10 @@ export function App() {
       <div className="phone">
         {toast && <Toast message={toast.message} danger={toast.danger} />}
         {sosState && <SosOverlay state={sosState} onRetry={() => void triggerSos()} onClose={() => setSosState(null)} />}
+        {sosLive && sosOuvert && (
+          <SosLive suivi={sosLive} horsLigne={sosHorsLigne} onMinimize={() => setSosOuvert(false)} onClose={fermerSos} onSend={(x) => void repondreSos(x)} />
+        )}
+        {sosLive && !sosOuvert && <SosPill suivi={sosLive} nonLu={sosNonLu} onOpen={() => setSosOuvert(true)} />}
         {locked && <LockScreen onUnlock={() => setLocked(false)} />}
 
         {screen === 'splash' && <Splash onDone={() => setScreen('onboarding')} />}
@@ -461,6 +545,114 @@ function SosOverlay({ state, onRetry, onClose }: { state: 'sending' | 'failed'; 
         )}
       </div>
     </div>
+  );
+}
+
+/* ------------------------ SOS : suivi en direct ------------------------ */
+const heure = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+/**
+ * Ce que vit la personne en détresse après avoir appuyé sur SOS : chaque étape
+ * réelle de sa prise en charge, au moment où elle a lieu dans la console. Rien
+ * n'est affiché par anticipation — un secours n'apparaît « prévenu » que lorsqu'un
+ * agent l'a effectivement appelé.
+ */
+function SosLive({ suivi, horsLigne, onMinimize, onClose, onSend }: {
+  suivi: SosSuivi; horsLigne: boolean; onMinimize: () => void; onClose: () => void; onSend: (t: string) => void;
+}) {
+  const { t } = useI18n();
+  const [texte, setTexte] = useState('');
+  const finChat = useRef<HTMLDivElement>(null);
+  useEffect(() => { finChat.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [suivi.chat.length]);
+  const close = suivi.clotureeA !== null;
+  const envoyer = (x: string) => { const v = x.trim(); if (v) { onSend(v); setTexte(''); } };
+  const libelleSecours = (s: SosSuivi['secours'][number]) =>
+    s.issue === 'joint' ? t('sos_rescue_joint', { s: s.service, n: s.numero })
+      : s.issue === 'tentative'
+        // Un SMS ou un WhatsApp n'est pas un appel : c'est la position qui est partie.
+        ? t(s.canal === 'appel' ? 'sos_rescue_calling' : 'sos_rescue_sent', { s: s.service, n: s.numero })
+        : t('sos_rescue_failed', { s: s.service, n: s.numero });
+  const numeros: Array<[string, string]> = [['SAMU', EMERGENCY_NUMBERS.samu], [t('help_police'), EMERGENCY_NUMBERS.police], [t('help_fire'), EMERGENCY_NUMBERS.pompiers]];
+
+  return (
+    <div className="sos-live" role="dialog" aria-live="polite" aria-label={t('sos_live_title')}>
+      <div className={`sos-live-head${close ? ' done' : ''}`}>
+        <div className="row between">
+          <span className="sos-live-badge">{close ? '✓' : 'SOS'}</span>
+          {!close && <button className="sos-live-min" onClick={onMinimize}>{t('sos_live_minimize')}</button>}
+        </div>
+        <h2>{close ? t('sos_step_closed') : t('sos_live_title')}</h2>
+        <p>{t('sos_live_sent', { h: heure(suivi.createdAt) })}{suivi.zoneName ? ` · ${suivi.zoneName}` : ''}</p>
+      </div>
+
+      <div className="sos-live-body">
+        {horsLigne && !close && <p className="sos-offline">{t('sos_live_offline')}</p>}
+        <ol className="sos-steps">
+          <li className="ok"><span className="dot" /><span className="grow">{t('sos_step_received')}</span><time>{heure(suivi.createdAt)}</time></li>
+          {suivi.priseEnCharge
+            ? <li className="ok"><span className="dot" /><span className="grow">{t('sos_step_agent', { a: suivi.priseEnCharge.agent })}</span><time>{heure(suivi.priseEnCharge.at)}</time></li>
+            : !close && <li className="wait"><span className="dot" /><span className="grow">{t('sos_step_waiting_agent')}</span></li>}
+          {suivi.secours.length > 0
+            ? suivi.secours.map((s, i) => (
+              <li key={i} className={s.issue === 'joint' || (s.issue === 'tentative' && s.canal !== 'appel') ? 'ok rescue' : s.issue === 'tentative' ? 'wait rescue' : 'warn'}>
+                <span className="dot" /><span className="grow">{libelleSecours(s)}</span><time>{heure(s.at)}</time>
+              </li>
+            ))
+            : !close && <li className="idle"><span className="dot" /><span className="grow">{t('sos_step_no_rescue')}</span></li>}
+          {close && <li className="ok"><span className="dot" /><span className="grow">{t('sos_step_closed')}</span><time>{heure(suivi.clotureeA!)}</time></li>}
+        </ol>
+
+        {!close && <p className="sos-geo"><IconShield size={14} /> {t('sos_position')}</p>}
+
+        <div className="sos-chat-box">
+          <span className="eyebrow">{t('sos_chat_title')}</span>
+          <div className="sos-chat">
+            {suivi.chat.map((m, i) => (
+              <div key={i} className={`sos-bubble ${m.from}`}>
+                <span>{m.text}</span>
+                <small>{m.from === 'agent' ? (m.author ?? 'ORION') : t('sos_you')} · {heure(m.at)}</small>
+              </div>
+            ))}
+            <div ref={finChat} />
+          </div>
+          {!close && (
+            <>
+              <div className="sos-quick">
+                {[t('sos_quick_safe'), t('sos_quick_cant_talk'), t('sos_quick_help')].map((q) => (
+                  <button key={q} className="chip" onClick={() => envoyer(q)}>{q}</button>
+                ))}
+              </div>
+              <div className="sos-input">
+                <input value={texte} onChange={(e) => setTexte(e.target.value)} placeholder={t('sos_chat_placeholder')} onKeyDown={(e) => { if (e.key === 'Enter') envoyer(texte); }} />
+                <button className="btn btn-primary" onClick={() => envoyer(texte)}>{t('sos_send')}</button>
+              </div>
+            </>
+          )}
+        </div>
+
+        <span className="eyebrow" style={{ display: 'block', marginTop: 14 }}>{t('sos_call_direct')}</span>
+        <div className="sos-direct">
+          {numeros.map(([label, num]) => (
+            <a key={num} href={`tel:${num}`}><IconPhone size={15} /> <strong>{num}</strong> <span>{label}</span></a>
+          ))}
+        </div>
+        {close && <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={onClose}>{t('sos_live_close')}</button>}
+      </div>
+    </div>
+  );
+}
+
+/** Rappel permanent d'une alerte ouverte quand le panneau est réduit. */
+function SosPill({ suivi, nonLu, onOpen }: { suivi: SosSuivi; nonLu: number; onOpen: () => void }) {
+  const { t } = useI18n();
+  const etape = suivi.clotureeA ? t('sos_step_closed')
+    : suivi.secours.some((s) => s.issue === 'joint') ? t('sos_rescue_joint', { s: suivi.secours.find((s) => s.issue === 'joint')!.service, n: suivi.secours.find((s) => s.issue === 'joint')!.numero })
+      : suivi.priseEnCharge ? t('sos_step_agent', { a: suivi.priseEnCharge.agent }) : t('sos_step_received');
+  return (
+    <button className="sos-pill" onClick={onOpen}>
+      <span className="sos-pill-dot" /> <strong>{t('sos_live_pill')}</strong> <span className="grow">{etape}</span>
+      {nonLu > 0 && <span className="sos-pill-count">{nonLu}</span>}
+    </button>
   );
 }
 

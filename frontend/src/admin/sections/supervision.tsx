@@ -373,6 +373,19 @@ function PosteContact({ dossier, canWrite, onContact, onIssue }: {
     id: k, label: k.toUpperCase(), numero: v, categorie: 'secours' as const, note: null,
   }));
   const journal = dossier.journalContacts ?? [];
+  /*
+   * Ce que les secours doivent savoir, rédigé d'avance : position GPS (lien carte),
+   * passager, véhicule, chauffeur. L'agent n'a plus à dicter ni recopier quoi que ce
+   * soit — un SMS ou un WhatsApp vers le SAMU ou la police part complet.
+   */
+  const pos = dossier.alert.location;
+  const messageSecours = [
+    `ORION · SOS ${dossier.alert.id.slice(0, 8)}${dossier.alert.zoneName ? ` · ${dossier.alert.zoneName}` : ''}`,
+    `Position : https://maps.google.com/?q=${pos.lat.toFixed(5)},${pos.lng.toFixed(5)}`,
+    `Passager : ${dossier.passenger.name ?? dossier.passenger.id}${dossier.passenger.phone ? ` ${dossier.passenger.phone}` : ''}`,
+    dossier.vehicle ? `Véhicule : ${dossier.vehicle.plate} ${dossier.vehicle.model}` : null,
+    dossier.driver ? `Chauffeur : ${dossier.driver.name}${dossier.driver.phone ? ` ${dossier.driver.phone}` : ''}` : null,
+  ].filter(Boolean).join(' — ');
   const dejaJoint = (id: string) => journal.some((e) => e.contactId === id && e.issue === 'joint');
 
   return (
@@ -399,14 +412,19 @@ function PosteContact({ dossier, canWrite, onContact, onIssue }: {
                   <div className="row" style={{ gap: 4 }}>
                     <button className="adm-btn xs solid" disabled={!canWrite} title={`Appeler ${l.label}`}
                       onClick={() => onContact(a.id, { canal: 'appel', contactId: l.id, numero: l.numero, label: l.label })}>📞</button>
-                    <button className="adm-btn xs" disabled={!canWrite} title={`SMS à ${l.label}`}
-                      onClick={() => onContact(a.id, { canal: 'sms', contactId: l.id, numero: l.numero, label: l.label, message: message || undefined })}>✉️</button>
-                    <button className="adm-btn xs" disabled={!canWrite} title={`WhatsApp à ${l.label}`}
-                      onClick={() => onContact(a.id, { canal: 'whatsapp', contactId: l.id, numero: l.numero, label: l.label, message: message || undefined })}>💬</button>
+                    <button className="adm-btn xs" disabled={!canWrite} title={cat === 'secours' ? `Envoyer la position et le dossier par SMS à ${l.label}` : `SMS à ${l.label}`}
+                      onClick={() => onContact(a.id, { canal: 'sms', contactId: l.id, numero: l.numero, label: l.label, message: message || (cat === 'secours' ? messageSecours : undefined) })}>✉️</button>
+                    <button className="adm-btn xs" disabled={!canWrite} title={cat === 'secours' ? `Envoyer la position et le dossier par WhatsApp à ${l.label}` : `WhatsApp à ${l.label}`}
+                      onClick={() => onContact(a.id, { canal: 'whatsapp', contactId: l.id, numero: l.numero, label: l.label, message: message || (cat === 'secours' ? messageSecours : undefined) })}>💬</button>
                   </div>
                 </div>
               ))}
             </div>
+            {cat === 'secours' && (
+              <p className="adm-muted" style={{ fontSize: 11.5, margin: '6px 2px 0' }}>
+                ✉️ / 💬 vers un secours transmet : « {messageSecours} »
+              </p>
+            )}
           </div>
         );
       })}

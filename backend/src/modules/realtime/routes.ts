@@ -1,13 +1,17 @@
 import type { FastifyInstance } from 'fastify';
 import websocket from '@fastify/websocket';
 import type { Container } from '../../container.js';
-import { CONFIG_ROOM, EMERGENCY_ROOM, rideRoom } from './hub.js';
+import { CONFIG_ROOM, EMERGENCY_ROOM, rideRoom, sosRoom } from './hub.js';
+import { accesPersonnel } from '../admin/acces-hors-console.js';
 
 /**
  * Passerelle temps réel (WebSocket) pour un tracking précis et fluide.
  *
  *  - GET /ws/rides/:id   → flux d'une course (position chauffeur, transitions, alertes)
- *  - GET /ws/emergency   → flux du poste de supervision (alertes SOS / accidents → SAMU)
+ *  - GET /ws/emergency   → flux du poste de supervision (alertes SOS / accidents → SAMU),
+ *                          réservé au personnel habilité (`alerts:read`)
+ *  - GET /ws/sos/:id     → suivi d'UNE alerte par la personne qui l'a déclenchée
+ *                          (`?userId=` doit être le sien)
  *  - GET /ws/config      → config publique en temps réel (maintenance, services,
  *                          passerelles) : l'app cliente se met à jour sans redémarrer
  *
@@ -25,8 +29,31 @@ export async function realtimeRoutes(app: FastifyInstance, container: Container)
       attach(socket, container, rideRoom(id), { rideId: id });
     });
 
-    scoped.get('/ws/emergency', { websocket: true }, (socket) => {
+    // Supervision : positions et identités de personnes en détresse. Le contrôle se
+    // fait AVANT la mise à niveau WebSocket — un refus est une simple réponse HTTP.
+    scoped.get('/ws/emergency', {
+      websocket: true,
+      preValidation: async (req, reply) => {
+        const acces = accesPersonnel(req, 'alerts:read');
+        if (!acces.ok) await reply.code(acces.code).send({ error: acces.message });
+      },
+    }, (socket) => {
       attach(socket, container, EMERGENCY_ROOM, {});
+    });
+
+    // Suivi usager : l'état courant à la connexion, puis chaque évolution.
+    scoped.get('/ws/sos/:id', {
+      websocket: true,
+      preValidation: async (req, reply) => {
+        const { id } = req.params as { id: string };
+        const userId = (req.query as { userId?: string }).userId ?? '';
+        const suivi = container.safety.suiviPour(id, userId);
+        if (!suivi || suivi === 'interdit') await reply.code(404).send({ error: 'Alerte introuvable' });
+      },
+    }, (socket, req) => {
+      const { id } = req.params as { id: string };
+      const userId = (req.query as { userId?: string }).userId ?? '';
+      attach(socket, container, sosRoom(id), { suivi: container.safety.suiviPour(id, userId) });
     });
 
     // Config publique temps réel : l'app cliente reçoit l'état courant à la connexion

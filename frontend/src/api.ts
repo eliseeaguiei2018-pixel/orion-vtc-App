@@ -202,9 +202,28 @@ export async function registerClientProfile(name: string, phone: string): Promis
 /** Numéros de secours en Côte d'Ivoire, à composer si l'alerte ne part pas. */
 export const EMERGENCY_NUMBERS = { samu: '185', police: '170', pompiers: '180' } as const;
 
+/**
+ * Ce que le passager voit de SON alerte, en direct : qui l'a prise en charge, les
+ * messages de l'agent, les secours RÉELLEMENT prévenus (et l'issue de l'appel).
+ */
+export interface SosSuivi {
+  id: string;
+  kind: string;
+  status: 'raised' | 'dispatched' | 'acknowledged' | 'resolved' | 'cancelled';
+  createdAt: string;
+  location: LatLng;
+  zoneName?: string;
+  priseEnCharge: { agent: string; at: string } | null;
+  chat: Array<{ from: 'agent' | 'usager'; author?: string; text: string; at: string }>;
+  secours: Array<{ service: string; numero: string; canal: 'appel' | 'sms' | 'whatsapp'; at: string; issue: 'tentative' | 'joint' | 'non_joint' | 'messagerie' }>;
+  clotureeA: string | null;
+}
+
 export interface SosResult {
   /** true UNIQUEMENT si ORION a bien reçu l'alerte. Jamais optimiste. */
   delivered: boolean;
+  /** Suivi en direct de l'alerte (absent si l'envoi a échoué). */
+  suivi?: SosSuivi;
   alert?: unknown;
 }
 
@@ -224,8 +243,8 @@ export async function sos(userId: string, location: LatLng, rideId?: string): Pr
   const body = JSON.stringify({ userId, location, rideId });
   for (let essai = 0; essai < 3; essai++) {
     // 8 s : une urgence mérite plus de patience qu'un appel ordinaire (2,5 s).
-    const remote = await tryFetch<{ alert: unknown }>('/safety/sos', { method: 'POST', body }, 8000);
-    if (remote) return { delivered: true, alert: remote.alert };
+    const remote = await tryFetch<{ alert: unknown; suivi?: SosSuivi }>('/safety/sos', { method: 'POST', body }, 8000);
+    if (remote) return { delivered: true, alert: remote.alert, suivi: remote.suivi };
     if (essai < 2) await new Promise((r) => setTimeout(r, 600 * (essai + 1)));
   }
   return { delivered: false };
@@ -378,6 +397,23 @@ function wsUrl(path: string): string | null {
 /** URL WebSocket de suivi d'une course (null si pas de backend configuré). */
 export function rideSocketUrl(rideId: string): string | null {
   return wsUrl(`/ws/rides/${rideId}`);
+}
+
+/** Suivi temps réel d'une alerte SOS par la personne qui l'a déclenchée. */
+export function sosSocketUrl(alertId: string, userId: string): string | null {
+  return wsUrl(`/ws/sos/${alertId}?userId=${encodeURIComponent(userId)}`);
+}
+
+/** État courant de son alerte (reprise après fermeture de l'app, réseau revenu). */
+export async function sosSuivi(alertId: string, userId: string): Promise<SosSuivi | null> {
+  const r = await tryFetch<{ suivi: SosSuivi }>(`/safety/sos/${alertId}?userId=${encodeURIComponent(userId)}`, undefined, 6000);
+  return r?.suivi ?? null;
+}
+
+/** Réponse discrète du passager à l'agent ORION. */
+export async function sosRepondre(alertId: string, userId: string, text: string): Promise<SosSuivi | null> {
+  const r = await tryFetch<{ suivi: SosSuivi }>(`/safety/sos/${alertId}/message`, { method: 'POST', body: JSON.stringify({ userId, text }) }, 8000);
+  return r?.suivi ?? null;
 }
 
 /**

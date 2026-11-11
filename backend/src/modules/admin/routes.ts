@@ -767,7 +767,14 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
       const { entry, lien } = container.contacts.consigner({ dossierType: 'sos', dossierId: id, agent: account.name, ...body });
       // Le dossier d'alerte garde la trace du service prévenu (réquisition PDF).
-      if (!alert.dispatchedTo.includes(entry.label)) alert.dispatchedTo.push(entry.label);
+      // Un service de SECOURS (SAMU, police, pompiers) est en plus annoncé à
+      // l'usager en direct : c'est la seule information qui le rassure vraiment.
+      const fiche = body.contactId ? container.contacts.actifs().find((c) => c.id === body.contactId) : undefined;
+      if (fiche?.categorie === 'secours') {
+        container.safety.secoursSollicite(id, { entryId: entry.id, service: fiche.label, numero: entry.numero, canal: entry.canal });
+      } else if (!alert.dispatchedTo.includes(entry.label)) {
+        alert.dispatchedTo.push(entry.label);
+      }
       audit(req, 'sos.contact', id, { cible: entry.label, canal: entry.canal, numero: entry.numero });
       // La supervision voit en direct qui est en train d'être joint.
       container.realtime.publish('emergency', 'sos.contact', { alertId: id, label: entry.label, canal: entry.canal, agent: account.name });
@@ -786,6 +793,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         req.body,
       );
       const entry = container.contacts.conclure(entryId, body.issue, body.compteRendu);
+      // Sans effet si l'appel ne visait pas un service de secours.
+      container.safety.issueSecours(id, entryId, body.issue);
       audit(req, 'sos.contact.issue', id, { entryId, issue: body.issue });
       return { entry, journal: container.contacts.pourAlerte(id) };
     });

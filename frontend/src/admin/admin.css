@@ -431,3 +431,20 @@ html[data-adm-theme='dark'] .samu-room .adm-card { background: #0a0d0b; }
 .mono { font-family: ui-monospace, monospace; }
 .pos { color: var(--a-green); }
 .neg { color: var(--a-amber); }
+
+/* ---- Alarme SOS temps réel (flux d'urgence) ---- */
+.adm-alarme { position: sticky; top: 0; z-index: 60; display: flex; align-items: center; gap: 12px;
+  margin: -4px 0 14px; padding: 12px 16px; border-radius: 12px; color: #fff;
+  background: linear-gradient(90deg, #b91c1c, #dc2626); box-shadow: 0 10px 30px rgba(185,28,28,0.35);
+  animation: admAlarme 1.2s ease-in-out infinite alternate; }
+.adm-alarme strong { letter-spacing: 0.04em; }
+.adm-alarme .grow { flex: 1; }
+.adm-alarme .adm-btn.solid { background: #fff; color: #b91c1c; border-color: #fff; }
+.adm-alarme .adm-btn.ghost { color: #fff; border-color: rgba(255,255,255,0.5); }
+.adm-alarme-dot { width: 10px; height: 10px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 0 rgba(255,255,255,0.7);
+  animation: admAlarmeDot 1s ease-out infinite; }
+@keyframes admAlarme { from { filter: brightness(1); } to { filter: brightness(1.18); } }
+@keyframes admAlarmeDot { to { box-shadow: 0 0 0 10px rgba(255,255,255,0); } }
+.adm-alarme.lvl-orange { background: linear-gradient(90deg, #c2410c, #ea580c); animation: none; }
+.adm-alarme.lvl-jaune { background: linear-gradient(90deg, #a16207, #ca8a04); animation: none; }
+.adm-alarme.lvl-orange .adm-btn.solid { color: #c2410c; } .adm-alarme.lvl-jaune .adm-btn.solid { color: #a16207; }
