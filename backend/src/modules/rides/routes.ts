@@ -11,6 +11,7 @@ import { rideRoom } from '../realtime/hub.js';
 import type { Ride } from './store.js';
 import { publishAssignment } from '../driver-app/offers.js';
 import { categorieDeFlotte } from './matching.js';
+import { config } from '../../config/index.js';
 
 const createSchema = z.object({
   clientId: z.string().min(1),
@@ -72,6 +73,19 @@ export function fraisAnnulation(container: Container, ride: Ride, motif?: MotifA
   if (motif === 'securite') return { ...base, montant: 0, raisonGratuite: 'securite' };
   if (motif === 'chauffeur_demande') return { ...base, montant: 0, raisonGratuite: 'chauffeur_demande' };
   return { ...base, montant: pr.cancelFee, raisonGratuite: pr.cancelFee > 0 ? null : 'gratuit' };
+}
+
+/** Calcule et enregistre l'itinéraire réel d'une course qui n'en a pas encore. */
+async function enregistrerItineraire(container: Container, rideId: string): Promise<void> {
+  try {
+    const ride = container.rides.get(rideId);
+    if (!ride || ride.itineraire) return;
+    const r = await container.routage.itineraire([ride.origin, ride.destination]);
+    const actuel = container.rides.get(rideId);
+    if (!actuel || actuel.itineraire) return;
+    actuel.itineraire = { geometrie: r.geometrie, distanceMeters: r.distanceMeters, durationSeconds: r.durationSeconds, ponts: r.ponts, provider: r.provider };
+    container.rides.persist(actuel);
+  } catch { /* sans itinéraire, le tracé reste approximatif : rien de bloquant */ }
 }
 
 export async function rideRoutes(app: FastifyInstance, container: Container): Promise<void> {
@@ -173,6 +187,10 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       // Tracking live : le serveur simule le trajet du chauffeur et émet les événements
       // temps réel (driver.location + ride.status) consommés par l'app via WebSocket.
       if (created.status === 'accepted') container.simulator.start(created);
+      // Itinéraire routier réel de la commande, quel que soit le conducteur (vrai téléphone
+      // ou simulateur) : le tableau de bord et la console tracent la vraie route, jamais
+      // une ligne droite. Calculé en arrière-plan, sans retarder la réponse au client.
+      if (created.status === 'accepted' && config.NODE_ENV !== 'test') void enregistrerItineraire(container, created.id);
       return created;
     });
 
@@ -338,6 +356,8 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     ride.status = 'rated';
     appendEvent(ride, 'rated', { stars: body.stars, comment: body.comment });
     container.rides.persist(ride);
+    // Le chauffeur et le tableau de bord voient la note arriver.
+    container.realtime.publish(rideRoom(ride.id), 'ride.status', { rideId: ride.id, status: ride.status });
 
     const driver = ride.driverId ? container.drivers.get(ride.driverId) : undefined;
     if (driver) {

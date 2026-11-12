@@ -34,8 +34,8 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
     <div className="dv-ride">
       <div className="dv-ride-map">
         {toPickup
-          ? <OrionMap origin={app.position} destination={ride.origin} car={app.position} traffic />
-          : <OrionMap origin={ride.origin} destination={ride.destination} car={app.position} traffic />}
+          ? <OrionMap origin={app.position} destination={ride.origin} car={app.position} vehicle={livraison ? 'moto' : 'car'} traffic />
+          : <OrionMap origin={ride.origin} destination={ride.destination} car={app.position} vehicle={livraison ? 'moto' : 'car'} traffic />}
         <div className="dv-map-chip"><span className="dv-link online"><i />{statutLabel(ride.status, livraison)}</span></div>
         <button className="sos" style={{ bottom: 40 }} onClick={() => setSos(true)} aria-label="SOS">SOS</button>
       </div>

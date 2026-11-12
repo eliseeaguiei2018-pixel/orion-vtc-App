@@ -200,6 +200,32 @@ Accès console : permission `medical:read` (rôle opérations), **uniquement** p
 pris en charge une alerte SOS en cours. Chaque ouverture est inscrite au journal d'audit et
 signalée au client par un message ; toute tentative hors de ces conditions est refusée et journalisée.
 
+## Tableau de bord ORION (écran de supervision)
+
+Une interface à part, pensée pour l'écran de la salle de supervision : **`/dashboard.html`**
+(lien « 📺 Tableau de bord » dans la console). Même identifiants et même session que la
+console ; accès réservé au personnel qui a la permission `overview:read`.
+
+- **Synchronisé avec tout l'écosystème** : chaque événement du serveur (commande de l'app
+  cliente, geste de l'app chauffeur, action de la console, paiement, alerte) arrive dans le
+  journal d'activité à l'instant où il se produit (WebSocket `/ws/dashboard`), et les chiffres
+  suivent (`GET /admin/dashboard`).
+- **Contenu** : courses et livraisons en cours, conducteurs en ligne, chiffre d'affaires et
+  courses terminées du jour, sécurité ; carte réelle de la flotte (voitures et motos, trajets
+  en cours sur les vraies routes) ; commandes heure par heure ; encaissements par moyen de paiement.
+- **Confidentialité** : aucune donnée de santé ; les clients n'y apparaissent que par leur
+  prénom et l'initiale de leur nom.
+- Sans serveur configuré, l'écran s'ouvre en mode démonstration.
+
+## Livraison moto et paiements mobile money
+
+- Les livraisons sont attribuées aux **coursiers à moto** (catégorie « moto », choisie à
+  l'inscription dans l'app chauffeur). La taille du colis ne sert qu'au prix.
+- Mobile money : l'app envoie le numéro vérifié du client. **Hors production**, le bac à sable
+  confirme le paiement comme le ferait l'opérateur ; **en production**, le paiement reste « en
+  attente » jusqu'à la confirmation de l'opérateur réel (Orange Money, Wave, MTN, Moov), à
+  brancher avec leurs API.
+
 ## Messagerie ORION et contrôle de sécurité
 
 La console (section **Messages clients**) écrit aux clients dans l'app : information,

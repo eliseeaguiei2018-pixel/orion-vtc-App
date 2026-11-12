@@ -169,4 +169,8 @@ test('Livraison : paiement mobile money enregistré de bout en bout (bac à sabl
   assert.equal(container.drivers.get(coursier)!.availability, 'online', 'le coursier est libéré');
   const note = await app.inject({ method: 'POST', url: `/rides/${ride.id}/rate`, payload: { stars: 5 } });
   assert.equal(note.statusCode, 200, note.body);
+  // Tout le parcours est visible dans le journal du tableau de bord.
+  const titres = container.tableau.journalRecent(20).map((e) => e.titre);
+  assert.ok(titres.some((x) => x.startsWith('Paiement reçu')), titres.join(' | '));
+  assert.ok(titres.some((x) => x.startsWith('Livraison notée 5')), titres.join(' | '));
 });
