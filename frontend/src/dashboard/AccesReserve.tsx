@@ -4,8 +4,9 @@ import { changerDeCompte, demanderAcces, lireMonAcces, NonConnecte, type MonAcce
 /**
  * ACCÈS RÉSERVÉ : ce que voit une personne connectée qui n'a pas le droit d'ouvrir le
  * tableau de bord. Un manager peut y demander l'accès : la demande part au service
- * informatique, qui la transmet à la direction. L'écran vérifie toutes les 30 secondes
- * si la direction a accordé l'accès, et s'ouvre alors de lui-même.
+ * informatique, qui la transmet à la direction. L'écran vérifie régulièrement (toutes les
+ * 10 secondes tant qu'une demande est en cours) si l'accès est accordé, et s'ouvre alors
+ * de lui-même.
  */
 
 const date = (iso?: string) => (iso ? new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '');
@@ -26,11 +27,15 @@ export function AccesReserve({ onAcces, onConnexion }: { onAcces: () => void; on
     }
   }, [onAcces, onConnexion]);
 
+  // Demande en cours : on vérifie plus souvent, l'écran s'ouvre vite après l'accord.
+  const enAttente = moi?.habilitation?.statut === 'demandee' || moi?.habilitation?.statut === 'transmise';
   useEffect(() => {
     void relire();
-    const t = window.setInterval(() => void relire(), 30_000);
-    return () => window.clearInterval(t);
   }, [relire]);
+  useEffect(() => {
+    const t = window.setInterval(() => void relire(), enAttente ? 10_000 : 30_000);
+    return () => window.clearInterval(t);
+  }, [relire, enAttente]);
 
   const envoyer = async (e: React.FormEvent) => {
     e.preventDefault();

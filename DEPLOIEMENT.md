@@ -223,7 +223,7 @@ console.
      accorder, et personne ne traite sa propre habilitation.
   L'habilitation tombe à sa date de fin et se **révoque** à tout moment (motif obligatoire).
   Chaque étape est journalisée (`habilitation.*`) et chacun est prévenu par la messagerie
-  interne ; l'écran du manager s'ouvre de lui-même dans les 30 secondes qui suivent l'accord.
+  interne ; l'écran du manager s'ouvre de lui-même dans les 10 secondes qui suivent l'accord.
 - **Tous les autres** : refusés. Chaque tentative (HTTP comme WebSocket) est journalisée et
   signalée à la direction dans les alertes sécurité.
 

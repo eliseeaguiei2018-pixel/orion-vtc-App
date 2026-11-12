@@ -128,7 +128,10 @@ test('objectifs : lus par les comptes habilités, fixés par la finance, journal
   assert.equal((await app.inject({ method: 'PUT', url: '/admin/objectifs', headers: daf, payload: { jour: -5 } })).statusCode, 400);
   assert.equal((await app.inject({ method: 'PUT', url: '/admin/objectifs', headers: daf, payload: {} })).statusCode, 400);
 
+  const recus: string[] = [];
+  container.realtime.subscribe('tableau', (m) => recus.push(m.type));
   const maj = await app.inject({ method: 'PUT', url: '/admin/objectifs', headers: daf, payload: { jour: 500_000, mois: 15_000_000 } });
+  assert.ok(recus.includes('objectifs'), 'les écrans du tableau de bord sont prévenus à l’instant');
   assert.equal(maj.statusCode, 200, maj.body);
   assert.equal(maj.json().objectifs.jour, 500_000);
   assert.equal(maj.json().objectifs.semaine, OBJECTIFS_DEFAUT.semaine, 'les autres objectifs ne bougent pas');

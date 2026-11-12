@@ -121,7 +121,7 @@ function useTableauDirect(onAnalyse: (f: (n: number) => number) => void) {
       window.clearTimeout(relecture.current);
       relecture.current = window.setTimeout(() => void charger(), 500);
       if (GENRES_ANALYSE.has(e.genre)) onAnalyse((n) => n + 1);
-    }, setDirect);
+    }, setDirect, () => onAnalyse((n) => n + 1));
     return fin;
   }, [charger, connexion, refus, pret, onAnalyse]);
 

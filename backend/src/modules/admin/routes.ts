@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { parse } from '../../core/validate.js';
 import { AppError, notFound, unauthorized, forbidden } from '../../core/errors.js';
-import { driverRoom, CONFIG_ROOM } from '../realtime/hub.js';
+import { driverRoom, CONFIG_ROOM, DASHBOARD_ROOM } from '../realtime/hub.js';
 import { AdminService, paginate } from './service.js';
 import { can, resolveAccount, ROLE_PERMISSIONS, ROLE_LABEL, type AdminAccount, type Permission, type Role } from './roles.js';
 import {
@@ -279,6 +279,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       audit(req, 'objectifs.mise_a_jour', 'objectifs-financiers', {
         avant: { jour: avant.jour, semaine: avant.semaine, mois: avant.mois, annee: avant.annee }, apres: body,
       });
+      // Les écrans du tableau de bord recalculent leurs courbes à l'instant.
+      container.realtime.publish(DASHBOARD_ROOM, 'objectifs', { jour: objectifs.jour, semaine: objectifs.semaine, mois: objectifs.mois, annee: objectifs.annee });
       return { objectifs };
     });
 

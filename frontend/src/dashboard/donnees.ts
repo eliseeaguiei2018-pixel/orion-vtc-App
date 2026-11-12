@@ -81,7 +81,7 @@ export async function seConnecter(username: string, password: string, code?: str
 export function oublierSession() { clearSession(); }
 
 /** Le direct : chaque ligne du journal arrive dès que le serveur la publie. */
-export function ecouter(onEntree: (e: EntreeJournal) => void, onEtat: (connecte: boolean) => void): () => void {
+export function ecouter(onEntree: (e: EntreeJournal) => void, onEtat: (connecte: boolean) => void, onObjectifs?: () => void): () => void {
   if (!LIVE) {
     // Démonstration sans serveur : un journal qui vit quand même.
     onEtat(true);
@@ -101,6 +101,8 @@ export function ecouter(onEntree: (e: EntreeJournal) => void, onEtat: (connecte:
       try {
         const m = JSON.parse(ev.data as string) as { type: string; data?: EntreeJournal };
         if (m.type === 'journal' && m.data) onEntree(m.data);
+        // Objectifs changés dans la console : les courbes se recalculent tout de suite.
+        else if (m.type === 'objectifs') onObjectifs?.();
       } catch { /* message illisible : ignoré */ }
     };
     ws.onclose = () => { onEtat(false); if (!ferme) relance = window.setTimeout(connecter, 3000); };
