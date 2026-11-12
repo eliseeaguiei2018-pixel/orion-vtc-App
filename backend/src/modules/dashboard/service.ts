@@ -4,6 +4,8 @@ import type { LatLng } from '../../core/geo.js';
 import { nearestZone } from '../geo-ci/zones.js';
 import { DASHBOARD_ROOM, type RealtimeMessage } from '../realtime/hub.js';
 import type { Ride } from '../rides/store.js';
+import { config } from '../../config/index.js';
+import { analyser, evenementsDe, historiqueDemo, type Sources } from './analyse.js';
 
 /**
  * TABLEAU DE BORD ORION : la vue d'ensemble de tout l'écosystème, en direct.
@@ -43,6 +45,13 @@ const service = (r: Ride): Service => (r.serviceType === 'delivery' ? 'livraison
 /** Moment où la course a atteint un statut (horodatage de l'événement). */
 const momentDe = (r: Ride, type: string) => r.events.find((e) => e.type === type)?.at;
 const commune = (p: LatLng) => nearestZone(p)?.zone.name ?? 'Abidjan';
+
+/** Jours d'historique de démonstration : jamais en production, 730 par défaut en développement simulé. */
+export function joursDeDemo(): number {
+  if (config.NODE_ENV === 'production') return 0;
+  if (config.DEMO_HISTORY_DAYS !== undefined) return config.DEMO_HISTORY_DAYS;
+  return config.NODE_ENV === 'development' && config.SIMULATE_RIDES ? 730 : 0;
+}
 
 export class TableauDeBord {
   private readonly journal: EntreeJournal[] = [];
@@ -150,6 +159,31 @@ export class TableauDeBord {
       default:
         return null;
     }
+  }
+
+  /** Historique de démonstration, généré une fois par jour (journée entière, filtrée à l'usage). */
+  private demo?: { jour: string; sources: Sources };
+
+  /**
+   * Objectifs financiers et niveau des commandes (courbes de l'onglet « Objectifs et
+   * tendances »). Toujours calculé sur les vraies courses ; en développement, un
+   * historique synthétique s'y ajoute, signalé à l'écran.
+   */
+  analyse(maintenant = new Date()) {
+    const reelles = evenementsDe(this.c.rides.listAll());
+    const jours = joursDeDemo();
+    if (jours === 0) return analyser(reelles, this.c.objectifs.get(), maintenant, false);
+    const jour = new Date(debutDuJour(maintenant)).toISOString();
+    if (this.demo?.jour !== jour) {
+      const finDuJour = new Date(debutDuJour(maintenant) + 86_400_000 - 1);
+      this.demo = { jour, sources: historiqueDemo(jours, finDuJour) };
+    }
+    const now = +maintenant;
+    const sources: Sources = {
+      revenus: [...this.demo.sources.revenus.filter((e) => e.t <= now), ...reelles.revenus],
+      commandes: [...this.demo.sources.commandes.filter((e) => e.t <= now), ...reelles.commandes],
+    };
+    return analyser(sources, this.c.objectifs.get(), maintenant, true);
   }
 
   journalRecent(n = 30): EntreeJournal[] {

@@ -141,6 +141,13 @@ const schema = z.object({
   // tout se passe bien. 0 = désactivé.
   SAFETY_CHECKIN_SECONDS: z.coerce.number().int().min(0).default(180),
 
+  // --- Tableau de bord : historique de démonstration ---
+  // Nombre de jours d'historique SYNTHÉTIQUE ajoutés aux courbes d'objectifs et de
+  // commandes, pour qu'un serveur qui vient de démarrer montre des tendances lisibles.
+  // Non défini : 730 jours en développement avec simulation, 0 sinon. Toujours ignoré en
+  // production : la direction n'y voit que les vraies courses.
+  DEMO_HISTORY_DAYS: z.coerce.number().int().min(0).max(800).optional(),
+
   // --- ORION Assurance : chiffrement du dossier médical (AES-256-GCM) ---
   // 32 octets aléatoires encodés en base64 (ex. : openssl rand -base64 32). À ne JAMAIS
   // régénérer une fois des dossiers enregistrés : ils deviendraient illisibles.

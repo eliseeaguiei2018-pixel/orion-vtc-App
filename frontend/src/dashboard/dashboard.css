@@ -17,6 +17,14 @@
   /* Séries des graphiques : validées pour la vision des couleurs sur fond sombre. */
   --serie-course: #18a571;
   --serie-livraison: #3987e5;
+  /* Objectifs et tendances : période en cours, période de comparaison, rythme de l'objectif. */
+  --serie-actuelle: #2bffa6;
+  --serie-precedente: #8aa79a;
+  --serie-objectif: #e8f3ee;
+  /* Hausse et baisse : paire divergente validée (vision des couleurs), milieu neutre. */
+  --hausse: #3987e5;
+  --baisse: #e66767;
+  --milieu: #5d7a6d;
   --rayon: 18px;
   --police-titre: 'Sora', 'Inter', system-ui, sans-serif;
   --police: 'Inter', system-ui, sans-serif;
@@ -171,6 +179,127 @@ body { min-height: 100vh; }
 .tb-connexion-carte button:disabled { opacity: 0.55; cursor: default; }
 .tb-connexion-err { color: var(--danger) !important; margin: 4px 0 6px !important; }
 
+/* ============================ Onglets de l'en-tête ============================ */
+.tb-onglets { display: flex; align-items: center; gap: 6px; padding: 4px; border-radius: 14px; border: 1px solid var(--trait); background: rgba(255, 255, 255, 0.02); }
+.tb-onglets > button { font: 600 13.5px var(--police); color: var(--texte-2); background: none; border: none; padding: 8px 14px; border-radius: 10px; cursor: pointer; white-space: nowrap; }
+.tb-onglets > button:hover { color: var(--texte); }
+.tb-onglets > button.on { color: #04140d; background: linear-gradient(140deg, var(--vert), var(--vert-2)); }
+.tb-onglets > button:focus-visible, .ob-segments button:focus-visible, .ob-carte:focus-visible, .ob-bouton-tableau:focus-visible { outline: 2px solid var(--vert); outline-offset: 2px; }
+.tb-defil { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muet); padding: 0 8px 0 10px; border-left: 1px solid var(--trait); cursor: pointer; white-space: nowrap; }
+.tb-defil input { position: absolute; opacity: 0; pointer-events: none; }
+.tb-defil-int { width: 30px; height: 17px; border-radius: 999px; background: var(--trait); position: relative; transition: background 0.2s; }
+.tb-defil-int::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: var(--texte-2); transition: transform 0.2s; }
+.tb-defil input:checked + .tb-defil-int { background: var(--vert-2); }
+.tb-defil input:checked + .tb-defil-int::after { transform: translateX(13px); background: #04140d; }
+.tb-defil input:focus-visible + .tb-defil-int { outline: 2px solid var(--vert); outline-offset: 2px; }
+
+/* ============================ Objectifs et tendances ============================ */
+.ob { flex: 1; display: grid; gap: 14px; grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-areas: "o o o o o o o o o o o o" "ca ca ca ca ca ca ca ca r r r r" "cm cm cm cm cm cm cm cm cm cm cm cm"; align-content: start; }
+.ob > .tb-erreur { grid-column: 1 / -1; }
+.ob-cartes { grid-area: o; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.ob-ca { grid-area: ca; }
+.ob-retenir { grid-area: r; }
+.ob-commandes { grid-area: cm; }
+
+/* Cartes objectifs : un bouton par période (choisit la courbe affichée). */
+.ob-carte { font: inherit; color: inherit; text-align: left; cursor: pointer; display: grid; gap: 4px; padding: 14px 16px 13px; border-radius: var(--rayon);
+  border: 1px solid var(--trait); background: linear-gradient(180deg, var(--panneau), var(--panneau-2)); position: relative; overflow: hidden; transition: border-color 0.2s, box-shadow 0.2s; }
+.ob-carte:hover { border-color: rgba(43, 255, 166, 0.35); }
+.ob-carte.choisie { border-color: rgba(43, 255, 166, 0.6); box-shadow: inset 0 0 0 1px rgba(43, 255, 166, 0.25), 0 10px 30px -18px rgba(43, 255, 166, 0.55); }
+.ob-carte.choisie::before { content: ""; position: absolute; left: 0; top: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--vert), transparent); }
+.ob-carte-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ob-carte-titre { font-size: 13px; color: var(--texte-2); }
+.ob-statut { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; padding: 3px 8px 3px 6px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+.ob-statut.bon { color: var(--vert); border-color: rgba(43, 255, 166, 0.4); background: rgba(43, 255, 166, 0.08); }
+.ob-statut.neutre { color: var(--texte-2); border-color: var(--trait); background: rgba(255, 255, 255, 0.03); }
+.ob-statut.attention { color: var(--ambre); border-color: rgba(245, 196, 81, 0.45); background: rgba(245, 196, 81, 0.08); }
+.ob-carte-val { font: 800 28px var(--police-titre); letter-spacing: -0.02em; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.ob-carte-sur { font-size: 12.5px; color: var(--muet); font-variant-numeric: tabular-nums; }
+.ob-carte-sur strong { color: var(--texte); font-weight: 700; }
+.ob-jauge { position: relative; display: block; height: 10px; border-radius: 4px; background: rgba(255, 255, 255, 0.06); margin: 6px 0 2px; }
+.ob-jauge-plein { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: linear-gradient(90deg, var(--vert-2), var(--vert)); transition: width 0.8s ease; }
+/* Repère du rythme attendu : trait clair, cerné de la couleur du fond pour rester lisible sur la barre. */
+.ob-jauge-rythme { position: absolute; top: -4px; bottom: -4px; width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--serie-objectif); box-shadow: 0 0 0 2px var(--panneau); }
+.ob-carte-rythme { font-size: 11.5px; color: var(--muet); }
+.ob-carte-pied { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--texte-2); margin-top: 4px; padding-top: 8px; border-top: 1px dashed var(--trait); }
+.ob-carte-pied strong { color: var(--texte); font-variant-numeric: tabular-nums; }
+
+/* Variation : flèche colorée, texte dans les couleurs du texte. */
+.ob-var { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--texte-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ob-var-fleche { font-size: 10px; }
+.ob-var.hausse .ob-var-fleche { color: var(--hausse); }
+.ob-var.baisse .ob-var-fleche { color: var(--baisse); }
+.ob-var.neutre { color: var(--muet); font-weight: 400; }
+
+/* Sélecteurs et sous-en-têtes */
+.ob-segments { display: inline-flex; gap: 2px; padding: 3px; border-radius: 11px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--trait); }
+.ob-segments button { font: 600 12.5px var(--police); color: var(--texte-2); background: none; border: none; border-radius: 8px; padding: 6px 11px; cursor: pointer; white-space: nowrap; }
+.ob-segments button:hover { color: var(--texte); }
+.ob-segments button.on { color: var(--texte); background: rgba(43, 255, 166, 0.14); box-shadow: inset 0 0 0 1px rgba(43, 255, 166, 0.35); }
+.ob-sous { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: -2px 0 8px; }
+.ob-trait { display: inline-block; overflow: visible; }
+.ob-carre { width: 10px !important; height: 10px !important; border-radius: 3px !important; }
+.ob-carre.hausse { background: var(--hausse); }
+.ob-carre.baisse { background: var(--baisse); }
+.ob-bouton-tableau { display: inline-flex; align-items: center; gap: 6px; font: 600 12px var(--police); color: var(--texte-2); background: none; border: 1px solid var(--trait); border-radius: 9px; padding: 5px 10px; cursor: pointer; }
+.ob-bouton-tableau:hover { color: var(--texte); border-color: var(--vert-2); }
+.ob-demo { font-size: 11.5px; font-weight: 600; color: var(--ambre); padding: 3px 9px; border-radius: 999px; border: 1px dashed rgba(245, 196, 81, 0.5); white-space: nowrap; cursor: help; }
+
+/* Tracés */
+.ob-graph { width: 100%; min-height: 220px; }
+.ob-graph svg { width: auto; }
+.ob-l-courant { fill: none; stroke: var(--serie-actuelle); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.ob-l-courant.entame { stroke-dasharray: 4 4; opacity: 0.8; }
+.ob-l-precedent { fill: none; stroke: var(--serie-precedente); stroke-width: 2; stroke-dasharray: 7 5; stroke-linejoin: round; }
+.ob-l-objectif { fill: none; stroke: var(--serie-objectif); stroke-width: 2; stroke-dasharray: 1.5 5; stroke-linecap: round; opacity: 0.85; }
+.ob-ref-objectif { stroke: var(--serie-objectif); stroke-width: 1; opacity: 0.18; }
+.ob-base { stroke: var(--trait); stroke-width: 1.5; }
+.ob-milieu { stroke: var(--milieu); stroke-width: 1.5; }
+.ob-maintenant { stroke: var(--texte-2); stroke-width: 1; stroke-dasharray: 2 3; opacity: 0.6; }
+.ob-maintenant-t { fill: var(--muet); font-size: 10.5px; font-family: var(--police); letter-spacing: 0.04em; }
+.ob-point-courant { fill: var(--serie-actuelle); stroke: var(--panneau); stroke-width: 2; }
+.ob-point-entame { fill: var(--panneau); stroke: var(--serie-actuelle); stroke-width: 2; }
+.ob-point-precedent { fill: var(--serie-precedente); stroke: var(--panneau); stroke-width: 2; }
+.ob-point-objectif { fill: var(--serie-objectif); stroke: var(--panneau); stroke-width: 2; }
+.ob-val-courant { fill: var(--texte); font: 700 13px var(--police-titre); paint-order: stroke; stroke: var(--panneau); stroke-width: 4px; stroke-linejoin: round; }
+.ob-etiq-nom { fill: var(--muet); font-size: 11.5px; font-family: var(--police); }
+.ob-etiq-val { fill: var(--texte); font: 700 12.5px var(--police); font-variant-numeric: tabular-nums; }
+.ob-curseur { stroke: var(--texte-2); stroke-width: 1; opacity: 0.55; }
+.ob-colonne { fill: rgba(255, 255, 255, 0.04); }
+.ob-barre.hausse { color: var(--hausse); }
+.ob-barre.baisse { color: var(--baisse); }
+/* Tranche à très faible volume (moins de 4 commandes) : variation peu significative, atténuée. */
+.ob-barre.faible { opacity: 0.4; }
+.ob-ecrete { stroke: var(--panneau); stroke-width: 2; }
+.ob-val-barre { fill: var(--texte-2); font-size: 11px; font-family: var(--police); font-variant-numeric: tabular-nums; }
+.ob-titre-bas { fill: var(--texte-2); font: 600 12px var(--police); }
+.ob-axe-fort { fill: var(--texte); font-weight: 700; }
+.ob-bulle { top: 0; min-width: 200px; transform: translateX(14px); }
+.ob-bulle.gauche { transform: translateX(calc(-100% - 14px)); }
+.ob-bulle b { color: var(--texte); font-weight: 700; font-variant-numeric: tabular-nums; }
+.ob-bulle em { font-style: normal; color: var(--muet); font-size: 11.5px; max-width: 280px; white-space: normal; }
+.ob-bulle-var { gap: 6px; }
+
+/* Ce qu'il faut retenir : la hauteur de la rangée suit la courbe ; la liste défile au besoin. */
+.ob-retenir { contain: size; overflow: hidden; }
+.ob-points { list-style: none; display: grid; gap: 6px; align-content: start; overflow-y: auto; min-height: 0; flex: 1; padding-right: 2px; }
+.ob-points.deborde { -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 26px), transparent); mask-image: linear-gradient(180deg, #000 calc(100% - 26px), transparent); padding-bottom: 18px; }
+.ob-points li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; font-size: 12.8px; line-height: 1.36; color: var(--texte-2);
+  padding: 7px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.025); border: 1px solid var(--trait); }
+.ob-point-ico { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; color: var(--texte-2); background: rgba(255, 255, 255, 0.05); }
+.ob-points li.objectif .ob-point-ico { color: var(--vert); background: rgba(43, 255, 166, 0.1); }
+.ob-points li.hausse .ob-point-ico { color: var(--hausse); background: rgba(57, 135, 229, 0.14); }
+.ob-points li.baisse .ob-point-ico { color: var(--baisse); background: rgba(230, 103, 103, 0.14); }
+.ob-points li.pic .ob-point-ico { color: var(--ambre); background: rgba(245, 196, 81, 0.1); }
+
+/* Vue en tableau */
+.ob-table-boite { overflow: auto; max-height: 360px; border-radius: 12px; border: 1px solid var(--trait); }
+.ob-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.ob-table th { position: sticky; top: 0; background: var(--panneau); color: var(--texte-2); font-weight: 600; text-align: right; padding: 8px 12px; border-bottom: 1px solid var(--trait); white-space: nowrap; }
+.ob-table td { text-align: right; padding: 7px 12px; border-bottom: 1px solid rgba(28, 58, 44, 0.6); white-space: nowrap; }
+.ob-table th:first-child, .ob-table td:first-child { text-align: left; }
+
 /* Écrans plus petits : on empile */
 @media (max-width: 1280px) {
   .tb-tuiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -178,8 +307,25 @@ body { min-height: 100vh; }
     "t t t t t t t t t t t t" "c c c c c c c c c c c c" "j j j j j j j j j j j j" "h h h h h h h p p p p p"; }
   .tb-journal { max-height: 520px; }
 }
+@media (min-width: 1281px) and (max-width: 1600px) {
+  .ob { grid-template-areas: "o o o o o o o o o o o o" "ca ca ca ca ca ca ca r r r r r" "cm cm cm cm cm cm cm cm cm cm cm cm"; }
+}
+@media (max-width: 1280px) {
+  .ob-cartes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ob { grid-template-areas: "o o o o o o o o o o o o" "ca ca ca ca ca ca ca ca ca ca ca ca" "r r r r r r r r r r r r" "cm cm cm cm cm cm cm cm cm cm cm cm"; }
+  .ob-retenir { contain: none; }
+  .ob-points { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); overflow: visible; }
+}
 @media (max-width: 760px) {
   .tb { padding: 12px 16px 16px; }
+  .tb-onglets { order: 3; width: 100%; flex-wrap: wrap; }
+  .tb-onglets > button { flex: 1; padding: 8px 10px; }
+  .tb-defil { border-left: none; padding: 4px 6px; width: 100%; justify-content: center; }
+  .ob-cartes { grid-template-columns: 1fr; }
+  .ob-carte-val { font-size: 24px; }
+  .ob-points { grid-template-columns: 1fr; }
+  .ob-segments { width: 100%; }
+  .ob-segments button { flex: 1; padding: 6px 4px; }
   .tb-tuiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tb-grille { grid-template-areas: "t t t t t t t t t t t t" "c c c c c c c c c c c c" "j j j j j j j j j j j j" "h h h h h h h h h h h h" "p p p p p p p p p p p p"; }
   .tb-tuile-val { font-size: 26px; }
@@ -188,4 +334,5 @@ body { min-height: 100vh; }
 @media (prefers-reduced-motion: reduce) {
   .tb-ligne.nouveau, .tb-direct i { animation: none; }
   .tb-vehicule { transition: none; }
+  .ob-jauge-plein, .tb-defil-int, .tb-defil-int::after { transition: none; }
 }

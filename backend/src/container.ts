@@ -1,4 +1,5 @@
 import { TableauDeBord } from './modules/dashboard/service.js';
+import { ServiceObjectifs } from './modules/dashboard/objectifs.js';
 import { creerSms, type SmsSender } from './modules/sms/index.js';
 import { randomUUID } from 'node:crypto';
 import { createGeoIndex, type GeoIndex } from './core/geo.js';
@@ -86,6 +87,8 @@ export interface Container {
   routage: Routage;
   /** Tableau de bord ORION : journal d'activité de tout l'écosystème, en direct. */
   tableau: TableauDeBord;
+  /** Objectifs financiers (jour, semaine, mois, année) fixés par la direction. */
+  objectifs: ServiceObjectifs;
   simulator: RideSimulator;
   wallet: WalletService;
   clientWallet: WalletService;
@@ -351,6 +354,7 @@ export function createContainer(): Container {
     assistant: undefined as unknown as AssistantService,
     rideRelease: undefined as unknown as RideReleaseService,
     tableau: undefined as unknown as TableauDeBord,
+    objectifs: new ServiceObjectifs(createRepository('objectifs')),
     sms: creerSms(config),
   };
   // La direction générale ne stocke rien, elle lit les autres modules. On la câble

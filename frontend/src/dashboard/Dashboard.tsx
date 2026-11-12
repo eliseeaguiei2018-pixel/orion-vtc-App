@@ -6,6 +6,7 @@ import { styleOrion } from '../components/styleCarte';
 import { getVectorConfig } from '../mapConfig';
 import { LIVE } from '../admin/api';
 import { NonConnecte, ecouter, lireEtat, seConnecter } from './donnees';
+import { Objectifs } from './Objectifs';
 import type { CourseActive, EntreeJournal, EtatTableau, VehiculeFlotte } from './types';
 
 /**
@@ -27,7 +28,46 @@ const ilYa = (iso: string, maintenant: number) => {
   return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 };
 
+type Vue = 'direct' | 'objectifs';
+/** Événements qui changent les chiffres des objectifs et des tendances. */
+const GENRES_ANALYSE = new Set<EntreeJournal['genre']>(['commande', 'terminee', 'paiement', 'annulation']);
+const DEFILEMENT_MS = 45_000;
+const lirePref = (cle: string) => { try { return localStorage.getItem(cle); } catch { return null; } };
+const ecrirePref = (cle: string, v: string) => { try { localStorage.setItem(cle, v); } catch { /* stockage indisponible */ } };
+
 export function Tableau() {
+  const [vue, setVueEtat] = useState<Vue>(() => (window.location.hash === '#objectifs' ? 'objectifs' : 'direct'));
+  // Écran mural : les deux vues peuvent défiler seules.
+  const [defilement, setDefilementEtat] = useState(() => lirePref('orion.tableau.defilement') === '1');
+  const [signal, setSignal] = useState(0);
+  const setVue = useCallback((v: Vue) => {
+    setVueEtat(v);
+    try { window.history.replaceState(null, '', v === 'objectifs' ? '#objectifs' : window.location.pathname + window.location.search); } catch { /* aperçu sans historique */ }
+  }, []);
+  const setDefilement = (on: boolean) => { setDefilementEtat(on); ecrirePref('orion.tableau.defilement', on ? '1' : '0'); };
+  useEffect(() => {
+    if (!defilement) return;
+    const t = window.setInterval(() => setVueEtat((v) => (v === 'direct' ? 'objectifs' : 'direct')), DEFILEMENT_MS);
+    return () => window.clearInterval(t);
+  }, [defilement]);
+  const flux = useTableauDirect(setSignal);
+  const surNonConnecte = useCallback(() => flux.setConnexion(true), [flux.setConnexion]);
+
+  if (flux.connexion) return <Connexion onOk={() => { flux.setConnexion(false); }} />;
+
+  return (
+    <div className="tb">
+      <Entete direct={flux.direct} maintenant={flux.maintenant} vue={vue} setVue={setVue} defilement={defilement} setDefilement={setDefilement} />
+      {flux.erreur && <div className="tb-erreur" role="status">{flux.erreur}</div>}
+      {vue === 'objectifs'
+        ? <Objectifs signal={signal} onNonConnecte={surNonConnecte} />
+        : <VueDirect etat={flux.etat} journal={flux.journal} nouveaux={flux.nouveaux} maintenant={flux.maintenant} />}
+    </div>
+  );
+}
+
+/** Le direct : état complet toutes les 4 s, journal par WebSocket. */
+function useTableauDirect(onAnalyse: (f: (n: number) => number) => void) {
   const [etat, setEtat] = useState<EtatTableau | null>(null);
   const [journal, setJournal] = useState<EntreeJournal[]>([]);
   const [nouveaux, setNouveaux] = useState<Set<string>>(new Set());
@@ -63,22 +103,22 @@ export function Tableau() {
       window.setTimeout(() => setNouveaux((n) => { const m = new Set(n); m.delete(e.id); return m; }), 2600);
       window.clearTimeout(relecture.current);
       relecture.current = window.setTimeout(() => void charger(), 500);
+      if (GENRES_ANALYSE.has(e.genre)) onAnalyse((n) => n + 1);
     }, setDirect);
     return () => { window.clearInterval(t); fin(); };
-  }, [charger, connexion]);
+  }, [charger, connexion, onAnalyse]);
 
   useEffect(() => {
     const t = window.setInterval(() => setMaintenant(new Date()), 1000);
     return () => window.clearInterval(t);
   }, []);
 
-  if (connexion) return <Connexion onOk={() => { setConnexion(false); }} />;
+  return { etat, journal, nouveaux, direct, connexion, setConnexion, erreur, maintenant };
+}
 
+function VueDirect({ etat, journal, nouveaux, maintenant }: { etat: EtatTableau | null; journal: EntreeJournal[]; nouveaux: Set<string>; maintenant: Date }) {
+  if (!etat) return <div className="tb-chargement">Chargement du tableau de bord…</div>;
   return (
-    <div className="tb">
-      <Entete direct={direct} maintenant={maintenant} />
-      {erreur && <div className="tb-erreur" role="status">{erreur}</div>}
-      {!etat ? <div className="tb-chargement">Chargement du tableau de bord…</div> : (
         <main className="tb-grille">
           <Tuiles e={etat} />
           <section className="tb-panneau tb-carte" aria-label="Carte de la flotte en direct">
@@ -110,14 +150,14 @@ export function Tableau() {
             <Paiements paiements={etat.paiements} />
           </section>
         </main>
-      )}
-    </div>
   );
 }
 
 /* --------------------------------- En-tête --------------------------------- */
 
-function Entete({ direct, maintenant }: { direct: boolean; maintenant: Date }) {
+function Entete({ direct, maintenant, vue, setVue, defilement, setDefilement }: {
+  direct: boolean; maintenant: Date; vue: Vue; setVue: (v: Vue) => void; defilement: boolean; setDefilement: (on: boolean) => void;
+}) {
   return (
     <header className="tb-entete">
       <div className="tb-marque">
@@ -129,6 +169,14 @@ function Entete({ direct, maintenant }: { direct: boolean; maintenant: Date }) {
           <span>Tableau de bord</span>
         </div>
       </div>
+      <nav className="tb-onglets" aria-label="Vues du tableau de bord">
+        <button type="button" className={vue === 'direct' ? 'on' : ''} aria-current={vue === 'direct' ? 'page' : undefined} onClick={() => setVue('direct')}>En direct</button>
+        <button type="button" className={vue === 'objectifs' ? 'on' : ''} aria-current={vue === 'objectifs' ? 'page' : undefined} onClick={() => setVue('objectifs')}>Objectifs et tendances</button>
+        <label className="tb-defil" title="Écran mural : alterne les deux vues toutes les 45 secondes">
+          <input type="checkbox" checked={defilement} onChange={(e) => setDefilement(e.target.checked)} />
+          <span className="tb-defil-int" aria-hidden />Défilement auto
+        </label>
+      </nav>
       <div className="tb-entete-d">
         <span className={`tb-direct${direct ? '' : ' hors'}`} role="status">
           <i aria-hidden />{direct ? (LIVE ? 'EN DIRECT' : 'DÉMONSTRATION') : 'RECONNEXION…'}

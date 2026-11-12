@@ -242,6 +242,33 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       return container.tableau.etat();
     });
 
+    // Objectifs financiers et niveau des commandes : les courbes du tableau de bord.
+    scoped.get('/admin/dashboard/analyse', async (req, reply) => {
+      require(req, 'overview:read');
+      reply.header('cache-control', 'no-store');
+      return container.tableau.analyse();
+    });
+
+    // OBJECTIFS FINANCIERS : lus par toute la supervision, fixés par la direction
+    // financière (finance:write). Chaque changement est journalisé avec l'ancienne valeur.
+    scoped.get('/admin/objectifs', async (req) => {
+      require(req, 'overview:read');
+      return { objectifs: container.objectifs.get() };
+    });
+    scoped.put('/admin/objectifs', async (req) => {
+      require(req, 'finance:write');
+      const montant = z.number().int().positive().max(100_000_000_000);
+      const body = parse(z.object({ jour: montant, semaine: montant, mois: montant, annee: montant }).partial()
+        .refine((o) => Object.keys(o).length > 0, 'Aucun objectif à modifier'), req.body);
+      const avant = container.objectifs.get();
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const objectifs = container.objectifs.mettreAJour(body, account.name);
+      audit(req, 'objectifs.mise_a_jour', 'objectifs-financiers', {
+        avant: { jour: avant.jour, semaine: avant.semaine, mois: avant.mois, annee: avant.annee }, apres: body,
+      });
+      return { objectifs };
+    });
+
     scoped.get('/admin/stats', async (req) => {
       require(req, 'overview:read');
       const q = parse(z.object({ days: z.coerce.number().int().min(1).max(90).optional() }), req.query);

@@ -217,6 +217,35 @@ console ; accès réservé au personnel qui a la permission `overview:read`.
   prénom et l'initiale de leur nom.
 - Sans serveur configuré, l'écran s'ouvre en mode démonstration.
 
+### Onglet « Objectifs et tendances »
+
+Deuxième vue du tableau de bord (`/dashboard.html#objectifs`, données : `GET /admin/dashboard/analyse`).
+Le bouton **Défilement auto** alterne les deux vues toutes les 45 secondes (écran mural).
+
+- **Objectifs financiers** du jour, de la semaine, du mois et de l'année : réalisé, part de
+  l'objectif, rythme attendu à ce stade, projection en fin de période, comparaison à la période
+  précédente au même moment, et un statut (en avance, dans les temps, en retard).
+- **Courbe du chiffre d'affaires cumulé** de la période choisie, face à la période précédente et
+  au rythme de l'objectif. Le rythme d'une journée ou d'une semaine suit le profil observé
+  (heures sur 28 jours, jours sur 8 semaines) : à 9 h, une journée ordinaire n'a fait qu'une
+  petite part de son chiffre.
+- **Niveau des commandes** par heure (aujourd'hui, hier, moyenne des 4 mêmes jours), par jour
+  (cette semaine, la précédente), sur 30 jours (moyenne glissante sur 7 jours) et par mois (cette
+  année, la précédente), avec la **hausse ou la baisse** de chaque tranche. Une tranche entamée
+  est comparée au même instant de la période de comparaison.
+- **Ce qu'il faut retenir** : heure la plus chargée, plus forte hausse et plus forte baisse,
+  tendance sur 7 jours, jour le plus chargé.
+- Chaque courbe a sa vue « Voir les chiffres » (tableau) ; tout se recalcule toutes les 30 s et
+  dès qu'une commande, une course terminée ou un paiement arrive.
+
+Les **objectifs** se règlent dans la console, section Direction Générale, carte « Objectifs
+financiers » (`GET`/`PUT /admin/objectifs`). Lecture : `overview:read` ; modification :
+`finance:write`, journalisée avec l'ancienne valeur (`objectifs.mise_a_jour`).
+
+| Variable | Rôle |
+| --- | --- |
+| `DEMO_HISTORY_DAYS` | Jours d'historique **fictif** ajoutés aux courbes pour lire des tendances sur un serveur neuf. Non définie : 730 en développement avec simulation, 0 sinon. **Toujours ignorée en production.** L'écran affiche alors « Historique de démonstration ». |
+
 ## Livraison moto et paiements mobile money
 
 - Les livraisons sont attribuées aux **coursiers à moto** (catégorie « moto », choisie à

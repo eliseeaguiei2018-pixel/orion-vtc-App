@@ -7,6 +7,7 @@ import { RolesSection, SessionsSection, TeamsSection } from './sections/organisa
 import { OverviewSection, SamuSection, SecuritySection, SosDrawer } from './sections/supervision';
 import { RentalSection, RentalTarifsSection, SubscriptionsSection } from './sections/location';
 import { DirectionSection } from './sections/direction';
+import { ObjectifsFinanciersCarte } from './sections/objectifs';
 import { VigilanceSection } from './sections/vigilance';
 import { MonPosteSection, type NouvelleRequete } from './sections/monposte';
 import { MessagesClientsSection } from './sections/messagerie';
@@ -1418,6 +1419,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
             onRapportPdf={() => void downloadFile(`/admin/executive/rapport.pdf?days=${execJours}`, 'orion-rapport-executif.pdf')}
           />
         )}
+        {section === 'direction' && <ObjectifsFinanciersCarte peutModifier={can('finance:write')} />}
         {section === 'monPoste' && (
           <MonPosteSection
             poste={monPoste}
