@@ -24,6 +24,12 @@ export interface Ride {
   trustedContact?: TrustedContact;
   /** Tracé GPS de la course (échantillonné, borné à 200 points) — instruction des litiges. */
   trace?: LatLng[];
+  /**
+   * Indice du tracé où commence le trajet avec le client (prise en charge). Ce qui
+   * précède est l'approche du chauffeur : elle ne compte pas dans la détection d'une
+   * déviation d'itinéraire.
+   */
+  traceDepart?: number;
   /** Itinéraire routier prévu (tracé réel des routes, ponts empruntés). */
   itineraire?: { geometrie: LatLng[]; distanceMeters: number; durationSeconds: number; ponts: string[]; provider: string };
   /** Minutes d'attente facturables (pauses demandées par le client en course). */

@@ -66,6 +66,9 @@ export class RideSimulator {
         this.transition(ride, 'arrived');
         // Courte pause "à l'arrêt" puis départ.
         const pause = setTimeout(() => {
+          // Le tracé de la course proprement dite commence ici (l'approche est avant).
+          const current = this.rides.get(ride.id);
+          if (current) current.traceDepart = current.trace?.length ?? 0;
           this.transition(ride, 'in_progress');
           this.animate(ride, trajet, this.opts.tripMs, () => {
             this.transition(ride, 'completed');

@@ -91,11 +91,18 @@ export class AdminService {
     if ((r.status === 'searching' || r.status === 'no_driver') && ageMin > 5) return 'sans_chauffeur';
     if ((r.waitMinutes ?? 0) >= 10) return 'attente_longue';
     if (r.status === 'accepted' && ageMin > 15) return 'immobile';
-    if (r.status === 'in_progress' && r.trace && r.trace.length >= 8) {
-      const direct = haversineMeters(r.origin, r.destination);
-      let path = 0;
-      for (let i = 1; i < r.trace.length; i++) path += haversineMeters(r.trace[i - 1]!, r.trace[i]!);
-      if (direct > 500 && path > direct * 1.9) return 'detour';
+    if (r.status === 'in_progress' && r.trace) {
+      // Seul le trajet AVEC le client compte : l'approche du chauffeur précède la prise en
+      // charge. On compare au trajet routier prévu (ponts, échangeurs), pas à la ligne
+      // droite : à Abidjan, la route fait souvent une fois et demie la ligne droite, et
+      // l'ancienne règle signalait une « déviation majeure » sur des courses normales.
+      const trajet = r.trace.slice(r.traceDepart ?? 0);
+      if (trajet.length >= 8) {
+        const prevu = r.itineraire?.distanceMeters ?? haversineMeters(r.origin, r.destination) * 1.4;
+        let path = 0;
+        for (let i = 1; i < trajet.length; i++) path += haversineMeters(trajet[i - 1]!, trajet[i]!);
+        if (prevu > 500 && path > prevu * 1.6) return 'detour';
+      }
     }
     return null;
   }
