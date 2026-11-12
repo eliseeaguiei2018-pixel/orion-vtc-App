@@ -103,8 +103,7 @@ export const COMPLEMENTS: Record<'fr' | 'en', Dict> = {
     msg_clos: 'Course terminée. En cas d’urgence, le bouton SOS reste à votre disposition.',
     legal_sante_t: 'Vos données de santé (ORION Assurance)',
     legal_sante: 'Si vous vous inscrivez à ORION Assurance, votre dossier de premiers secours est chiffré sur nos serveurs et n’est jamais enregistré sur votre téléphone. Il n’est ouvert que par l’agent SAMU d’ORION qui gère votre alerte en cours ; chaque ouverture vous est signalée. Vous pouvez le supprimer à tout moment.',
-    legal_credits_t: 'Photos et cartes',
-    legal_credits: 'Les photos des véhicules proviennent de Wikimedia Commons, publiées sous licence libre par leurs auteurs :',
+    legal_credits_t: 'Cartes et itinéraires',
     legal_carte: 'Cartes : © les contributeurs d’OpenStreetMap (licence ODbL), tuiles OpenFreeMap, itinéraires calculés avec OSRM.',
   },
   en: {
@@ -161,8 +160,7 @@ export const COMPLEMENTS: Record<'fr' | 'en', Dict> = {
     msg_clos: 'Ride finished. In an emergency, the SOS button is always there for you.',
     legal_sante_t: 'Your health data (ORION Insurance)',
     legal_sante: 'If you sign up for ORION Insurance, your first-aid file is encrypted on our servers and never saved on your phone. Only the ORION SAMU agent handling your ongoing alert can open it; every opening is reported to you. You can delete it at any time.',
-    legal_credits_t: 'Photos and maps',
-    legal_credits: 'Vehicle photos come from Wikimedia Commons, published under free licences by their authors:',
+    legal_credits_t: 'Maps and routes',
     legal_carte: 'Maps: © OpenStreetMap contributors (ODbL licence), OpenFreeMap tiles, routes computed with OSRM.',
   },
 };

@@ -1097,56 +1097,6 @@ body { letter-spacing: -0.005em; text-rendering: optimizeLegibility; }
 .carte-ponts span { color: var(--green); font-weight: 600; margin-right: 4px; }
 
 /* ============================================================
-   VRAIES PHOTOS DES VÉHICULES (flotte ORION)
-   ============================================================ */
-.photo-vehicule {
-  display: block; max-width: 100%; height: auto; object-fit: contain; user-select: none; -webkit-user-drag: none;
-  filter: drop-shadow(0 10px 10px rgba(0, 0, 0, 0.5)) saturate(1.04) contrast(1.03);
-}
-[data-theme='light'] .photo-vehicule { filter: drop-shadow(0 10px 12px rgba(10, 30, 25, 0.3)) saturate(1.04); }
-.svc-card .svc-illus.photo { display: grid; place-items: end center; padding: 0 6px 10px; }
-.svc-card .svc-illus.photo .photo-vehicule { width: 100%; max-height: 92px; transform: translateY(4px); transition: transform 0.35s var(--ease-out); }
-.svc-card:active .svc-illus.photo .photo-vehicule { transform: translateY(4px) translateX(4px) scale(1.02); }
-.svc-illus.small.photo { display: grid; place-items: center; }
-.veh-illus.photo .photo-vehicule { width: 100%; height: 100%; position: relative; z-index: 1; }
-.veh.active .veh-illus.photo .photo-vehicule { transform: translateX(3px) scale(1.04); transition: transform 0.35s var(--ease-out); }
-
-/* Choix de carrosserie : deux vraies photos (AVATR 12, Huawei AITO M9) */
-.carrosseries { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
-.carrosserie {
-  position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
-  padding: 8px 12px 10px; border-radius: 18px; text-align: start; overflow: hidden; color: var(--text);
-  background: linear-gradient(180deg, var(--surface-2), var(--surface)); border: 1px solid var(--stroke);
-  box-shadow: var(--elev-1); transition: border-color 0.2s, box-shadow 0.25s, transform 0.15s var(--ease-out);
-}
-.carrosserie:active { transform: var(--press); }
-.carrosserie.active {
-  border-color: var(--green);
-  box-shadow: 0 0 0 1px var(--green) inset, 0 14px 30px -18px rgba(var(--accent-rgb), 0.9);
-}
-/* Cadre de hauteur FIXE en flex : la photo s'y loge entière, quelles que soient ses proportions
-   (l'AITO M9, plus haute, débordait sur le nom en grille). */
-.carrosserie-photo {
-  width: 100%; height: 70px; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 4px; overflow: visible;
-  background: radial-gradient(55% 40% at 50% 92%, rgba(var(--accent-rgb), 0.22), transparent 72%);
-}
-.carrosserie-photo .photo-vehicule { width: 100%; height: 100%; min-height: 0; object-fit: contain; object-position: center bottom; transform-origin: center bottom; transition: transform 0.35s var(--ease-out); }
-.carrosserie.active .carrosserie-photo .photo-vehicule { transform: scale(1.05); }
-.carrosserie-nom { font: 800 15px var(--font-display); letter-spacing: -0.01em; }
-.carrosserie-modele { font-size: 11.5px; color: var(--text-dim); }
-
-/* Médaillon de gamme : le métal de la gamme, pas un dessin de voiture */
-.medaillon {
-  display: grid; place-items: center; flex: none; border-radius: 50%;
-  font-family: var(--font-display); font-weight: 800; color: #24180a; letter-spacing: -0.02em;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), inset 0 -3px 6px rgba(0, 0, 0, 0.28), 0 8px 16px -8px rgba(0, 0, 0, 0.7);
-}
-.medaillon-bronze { background: radial-gradient(circle at 32% 26%, #ffd9b0, #c87d3c 52%, #7a4316); }
-.medaillon-argent { background: radial-gradient(circle at 32% 26%, #ffffff, #c9d1d8 52%, #7c8892); color: #1f272d; }
-.medaillon-or { background: radial-gradient(circle at 32% 26%, #fff5cc, #e4b441 52%, #8a6312); }
-.medaillon-diamant { background: radial-gradient(circle at 32% 26%, #f4fcff, #8fd3ff 48%, #2f6f9b); color: #0b2233; }
-
-/* ============================================================
    ORION ASSURANCE
    ============================================================ */
 .as-page { display: flex; flex-direction: column; gap: 12px; }
@@ -1265,8 +1215,5 @@ body { letter-spacing: -0.005em; text-rendering: optimizeLegibility; }
 .controle-ico { display: inline-grid; place-items: center; width: 56px; height: 56px; border-radius: 18px; color: #fff; background: radial-gradient(120% 120% at 20% 10%, var(--green-bright), var(--green) 45%, var(--green-deep)); }
 .controle-plus-tard { margin-top: 10px; }
 
-/* Crédits des photos (mentions légales) */
-.credits-photos { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 12.5px; color: var(--text-dim); }
-.credits-photos a { color: var(--accent); text-decoration: none; font-weight: 600; }
 
 .message-clos { margin: 8px 0 0; font-size: 12.5px; color: var(--text-dim); font-style: italic; }

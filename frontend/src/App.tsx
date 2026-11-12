@@ -11,7 +11,7 @@ import {
 } from './icons';
 import { LogoGlyph } from './components/Logo';
 import { IllusFood, IllusShop, IllusMarket, IllusColis } from './components/Illustrations';
-import { PhotoVehicule, MedaillonGamme, photoDuModele, photoDisponible } from './components/PhotosVehicules';
+import { Voiture, Scooter, vehiculeDeGamme } from './components/Vehicules';
 import { AssuranceScreen } from './components/AssuranceScreens';
 import { BoutonMessages, ControleSecurite, MessagesScreen, useMessagerie } from './components/MessagesOrion';
 import type { MessageOrion } from './api';
@@ -61,16 +61,13 @@ function plateFromMatricule(m: string): string {
 }
 
 /** Le véhicule de la gamme (silhouette et peinture : bronze, argent, or, nuit). */
-/**
- * Vignette du véhicule : la vraie photo du modèle quand on la connaît (modèle du chauffeur,
- * ou carrosserie choisie), sinon le médaillon de la gamme. Plus aucun dessin de voiture.
- */
-function TierBadge({ tier, size = 50, suv, modele }: { tier: string; size?: number; suv?: boolean; modele?: string }) {
-  const photo = (modele ? photoDuModele(modele) : null) ?? (suv === undefined ? null : suv ? 'aito-m9' : 'avatr-12');
-  if (photo && photoDisponible(photo)) {
-    return <span className="veh-illus photo" style={{ width: size * 1.75, height: size }}><PhotoVehicule id={photo} largeur={Math.round(size * 1.75)} /></span>;
-  }
-  return <MedaillonGamme gamme={tier} taille={size * 0.84} />;
+function TierBadge({ tier, size = 50, suv = false }: { tier: string; size?: number; suv?: boolean }) {
+  const v = vehiculeDeGamme(tier);
+  return (
+    <span className="veh-illus" style={{ width: size * 1.75, height: size }}>
+      <Voiture modele={suv ? 'suv' : v.modele === 'suv' ? 'berline' : v.modele} peinture={v.peinture} largeur={size * 1.75} phares={false} />
+    </span>
+  );
 }
 
 type TripPhase = 'enroute' | 'arrived' | 'inprogress' | 'completed';
@@ -1062,12 +1059,12 @@ function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onC
             l'a désactivée (services.delivery = false) ; tout est grisé en maintenance. */}
         <div className="svc-grid rise rise-2">
           <button className={`svc-card course${closed ? ' svc-off' : ''}`} onClick={onCourse} disabled={closed}>
-            <span className="svc-illus photo"><PhotoVehicule id="avatr-12" largeur={170} /></span>
+            <span className="svc-illus"><Voiture modele="berline" peinture="accent" largeur={150} /></span>
             <span className="svc-meta"><strong>{t('svc_course')}</strong><span>{t('svc_course_d')}</span></span>
           </button>
           {!deliveryOff && (
             <button className={`svc-card deliver${closed ? ' svc-off' : ''}`} onClick={onDelivery} disabled={closed}>
-              <span className="svc-illus photo"><PhotoVehicule id="bmw-ce-04" largeur={150} /></span>
+              <span className="svc-illus"><Scooter largeur={150} /></span>
               <span className="svc-meta"><strong>{t('svc_delivery')}</strong><span>{t('svc_delivery_d')}</span></span>
             </button>
           )}
@@ -1130,7 +1127,7 @@ function DeliveryScreen({ origin, pkgSize, onBack, onConfirm }: {
       <div style={{ flex: 1 }} />
       <Sheet>
         <div className="del-head">
-          <span className="svc-illus small photo"><PhotoVehicule id="bmw-ce-04" largeur={96} /></span>
+          <span className="svc-illus small"><Scooter largeur={92} /></span>
           <div className="col grow" style={{ textAlign: 'start' }}>
             <strong style={{ fontSize: 17 }}>{t('del_title')}</strong>
             <span className="faint" style={{ fontSize: 12.5 }}>{t('svc_delivery_d')}</span>
@@ -1258,21 +1255,17 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
           <span className="row gap-sm"><TrafficBadge level={traffic} /><span className="badge green"><IconClock size={12} /> {tier.eta} {t('est_min')}</span></span>
         </div>
 
-        {/* Carrosserie : vraies photos de la flotte, AVATR 12 (berline) et Huawei AITO M9 (SUV) */}
-        <div className="carrosseries" role="radiogroup" aria-label={t('est_choose')}>
+        {/* Carrosserie : SUV ou Berline */}
+        <div className="chips" style={{ marginBottom: 12 }}>
           {(['berline', 'suv'] as const).map((b) => (
-            <button key={b} role="radio" aria-checked={b === bodyType} className={`carrosserie${b === bodyType ? ' active' : ''}`} onClick={() => onBody(b)}>
-              <span className="carrosserie-photo"><PhotoVehicule id={b === 'suv' ? 'aito-m9' : 'avatr-12'} largeur={180} /></span>
-              <span className="carrosserie-nom">{t(`body_${b}`)}</span>
-              <span className="carrosserie-modele">{b === 'suv' ? 'Huawei AITO M9' : 'AVATR 12'}</span>
-            </button>
+            <button key={b} className={`chip${b === bodyType ? ' active' : ''}`} onClick={() => onBody(b)}>{t(`body_${b}`)}</button>
           ))}
         </div>
 
         <div className="stack">
           {TIERS.map((v) => (
             <button key={v.id} className={`veh${v.id === tier.id ? ' active' : ''}`} style={{ width: '100%', ...(v.id === tier.id ? { borderColor: v.accent, boxShadow: `0 0 22px ${v.accent}44` } : {}) }} onClick={() => onTier(v)}>
-              <MedaillonGamme gamme={v.id} taille={42} />
+              <TierBadge tier={v.id} suv={bodyType === 'suv'} />
               <span className="col grow" style={{ textAlign: 'start' }}>
                 <strong style={{ fontSize: 16 }}>{t(v.key)}</strong>
                 <span className="faint" style={{ fontSize: 12.5 }}>{v.cars[0]}{v.cars.length > 1 ? ` +${v.cars.length - 1}` : ''} · {v.capacity} {t('seats')}</span>
@@ -1563,8 +1556,8 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
             </span>
             <span className="col drv-vehicule">
               {del
-                ? <span className="veh-illus photo" style={{ width: 60, height: 34 }}><PhotoVehicule id="bmw-ce-04" largeur={60} /></span>
-                : <TierBadge tier={tier.id} size={34} modele={driver.car} />}
+                ? <span className="veh-illus" style={{ width: 60, height: 34 }}><Scooter largeur={60} /></span>
+                : <TierBadge tier={tier.id} size={34} />}
               <span className="plate">{driver.plate}</span>
             </span>
           </div>
@@ -1855,7 +1848,7 @@ function WeddingScreen({ onBack, onReserve }: { onBack: () => void; onReserve: (
         <div className="stack" style={{ margin: '10px 0 18px' }}>
           {TIERS.map((v) => (
             <button key={v.id} className={`veh${v.id === tier.id ? ' active' : ''}`} style={v.id === tier.id ? { borderColor: v.accent, boxShadow: `0 0 22px ${v.accent}44` } : {}} onClick={() => setTier(v)}>
-              <TierBadge tier={v.id} modele={v.cars[0]} />
+              <TierBadge tier={v.id} />
               <span className="col grow" style={{ textAlign: 'start' }}>
                 <strong style={{ fontSize: 15 }}>{t(v.key)}</strong>
                 <span className="faint" style={{ fontSize: 12 }}>{v.cars.join(' · ')}</span>

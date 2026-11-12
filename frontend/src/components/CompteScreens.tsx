@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Sheet, TopBar } from './ui';
-import { CREDITS_PHOTOS } from './PhotosVehicules';
 import {
   IconCamera, IconCheck, IconChevron, IconClock, IconFingerprint, IconGlobe, IconImage, IconLock,
   IconPin, IconShield, IconShieldCheck, IconWallet, IconCrown, IconPhone, IconCar, IconMedical,
@@ -582,16 +581,10 @@ export function LegalScreen({ onBack }: { onBack: () => void }) {
             <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: '6px 0 0' }}>{t(`legal_${s}`)}</p>
           </div>
         ))}
-        {/* Condition d'utilisation des photos libres et des données de carte : citer leurs auteurs. */}
+        {/* Condition d'utilisation des données de carte : citer leurs auteurs. */}
         <div style={{ marginBottom: 16 }}>
           <span className="eyebrow">{t('legal_credits_t')}</span>
-          <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: '6px 0 8px' }}>{t('legal_credits')}</p>
-          <ul className="credits-photos">
-            {CREDITS_PHOTOS.map((c) => (
-              <li key={c.id}><strong>{c.modele}</strong> · {c.auteur} · <a href={c.source} target="_blank" rel="noopener noreferrer">{c.licence}</a></li>
-            ))}
-          </ul>
-          <p className="faint" style={{ fontSize: 12.5, lineHeight: 1.5, margin: '8px 0 0' }}>{t('legal_carte')}</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: '6px 0 0' }}>{t('legal_carte')}</p>
         </div>
       </div>
     </div>
