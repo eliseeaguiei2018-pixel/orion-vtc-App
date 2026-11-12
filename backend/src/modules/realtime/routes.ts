@@ -12,7 +12,7 @@ import { accesPersonnel } from '../admin/acces-hors-console.js';
  *                          réservé au personnel habilité (`alerts:read`)
  *  - GET /ws/sos/:id     → suivi d'UNE alerte par la personne qui l'a déclenchée
  *                          (`?userId=` doit être le sien)
- *  - GET /ws/dashboard   → journal d'activité du tableau de bord (`overview:read`)
+ *  - GET /ws/dashboard   → journal d'activité du tableau de bord (direction ou habilitation)
  *  - GET /ws/config      → config publique en temps réel (maintenance, services,
  *                          passerelles) : l'app cliente se met à jour sans redémarrer
  *
@@ -47,7 +47,14 @@ export async function realtimeRoutes(app: FastifyInstance, container: Container)
       websocket: true,
       preValidation: async (req, reply) => {
         const acces = accesPersonnel(req, 'overview:read');
-        if (!acces.ok) await reply.code(acces.code).send({ error: acces.message });
+        if (!acces.ok) { await reply.code(acces.code).send({ error: acces.message }); return; }
+        // Même règle que /admin/dashboard : de droit, ou manager habilité par la direction.
+        if (!container.habilitations.peutVoirTableau(acces.compte)) {
+          const c = acces.compte;
+          container.security.record({ username: c.username, name: c.name, role: c.role, permission: 'dashboard:read', path: '/ws/dashboard', ip: req.ip });
+          container.audit.log({ actor: c.name, role: c.role, action: 'access.denied', details: { permission: 'dashboard:read', path: '/ws/dashboard' } });
+          await reply.code(403).send({ error: 'Tableau de bord réservé à la direction et aux comptes habilités.' });
+        }
       },
     }, (socket) => {
       attach(socket, container, DASHBOARD_ROOM, {});

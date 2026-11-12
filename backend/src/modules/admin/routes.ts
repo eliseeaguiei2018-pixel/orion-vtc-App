@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { parse } from '../../core/validate.js';
@@ -9,7 +9,7 @@ import { can, resolveAccount, ROLE_PERMISSIONS, ROLE_LABEL, type AdminAccount, t
 import {
   authenticate, issueToken, verifyToken, bearerToken,
   lockedFor, recordLoginFailure, clearLoginFailures,
-  verifyTotp, registerSession, touchSession, revokeSession, listSessions, isSessionInactive,
+  verifyTotp, registerSession, touchSession, revokeSession, listSessions, isSessionInactive, adminUsers,
 } from './auth.js';
 import { config } from '../../config/index.js';
 import {
@@ -22,6 +22,7 @@ import { COUPURES, ECART_TOLERE, ORIGINE_LABEL, SORTIE_LABEL, totalComptage, typ
 import { TYPE_LABEL as CREW_TYPE_LABEL, STATUT_LABEL as CREW_STATUT_LABEL, TYPES_FINANCIERS, PLAFOND_AVANCE, PLAFOND_PRET, MAX_ECHEANCES, type TypeRequete } from '../crew/requests.js';
 import { consoleForced, consoleReassigned } from '../driver-app/offers.js';
 import { categorieDeFlotte } from '../rides/matching.js';
+import { ROLES_HABILITABLES, STATUT_HABILITATION_LABEL, type ErreurHabilitation, type Habilitation } from '../dashboard/habilitations.js';
 
 /** Rôles de direction : accès complet, 2FA exigible via ADMIN_REQUIRE_2FA. */
 const EXEC_ROLES = new Set(['ceo', 'dg', 'daa', 'coo', 'super_admin']);
@@ -190,7 +191,10 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         name: account.name,
         role: account.role,
         roleLabel: ROLE_LABEL[account.role],
-        permissions: ROLE_PERMISSIONS[account.role],
+        // Permissions EFFECTIVES : un manager habilité par la direction voit le tableau de bord.
+        permissions: !can(account.role, 'dashboard:read') && container.habilitations.peutVoirTableau(account)
+          ? [...ROLE_PERMISSIONS[account.role], 'dashboard:read']
+          : ROLE_PERMISSIONS[account.role],
         username: account.username,
         service: fiche?.service,
         teamId: fiche?.teamId,
@@ -236,15 +240,24 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
 
     // TABLEAU DE BORD (interface à part, dashboard.html) : l'état de tout l'écosystème.
     // Le direct passe par /ws/dashboard ; cet appel donne l'état complet à l'instant.
+    // TABLEAU DE BORD : de droit pour la direction, la trésorerie, la comptabilité et le
+    // service informatique ; pour un manager, seulement sur habilitation accordée par la
+    // direction. Tout autre accès est refusé, journalisé et signalé à la direction.
+    const accesTableau = (req: FastifyRequest): void => {
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      if (container.habilitations.peutVoirTableau(account)) return;
+      require(req, 'dashboard:read');
+    };
+
     scoped.get('/admin/dashboard', async (req, reply) => {
-      require(req, 'overview:read');
+      accesTableau(req);
       reply.header('cache-control', 'no-store');
       return container.tableau.etat();
     });
 
     // Objectifs financiers et niveau des commandes : les courbes du tableau de bord.
     scoped.get('/admin/dashboard/analyse', async (req, reply) => {
-      require(req, 'overview:read');
+      accesTableau(req);
       reply.header('cache-control', 'no-store');
       return container.tableau.analyse();
     });
@@ -252,7 +265,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     // OBJECTIFS FINANCIERS : lus par toute la supervision, fixés par la direction
     // financière (finance:write). Chaque changement est journalisé avec l'ancienne valeur.
     scoped.get('/admin/objectifs', async (req) => {
-      require(req, 'overview:read');
+      accesTableau(req);
       return { objectifs: container.objectifs.get() };
     });
     scoped.put('/admin/objectifs', async (req) => {
@@ -267,6 +280,147 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         avant: { jour: avant.jour, semaine: avant.semaine, mois: avant.mois, annee: avant.annee }, apres: body,
       });
       return { objectifs };
+    });
+
+    /* ============ HABILITATIONS AU TABLEAU DE BORD (managers) ============ */
+
+    const ERREUR_HABILITATION: Record<ErreurHabilitation, [number, string]> = {
+      role_non_habilitable: [400, 'Seul un manager peut recevoir une habilitation au tableau de bord.'],
+      deja_en_cours: [409, 'Une demande est déjà en cours ou une habilitation déjà active pour ce compte.'],
+      introuvable: [404, 'Habilitation introuvable.'],
+      mauvais_statut: [409, 'Cette étape n’est pas possible au statut actuel de la demande.'],
+      separation_des_taches: [403, 'Séparation des tâches : celui qui a transmis la demande ne peut pas l’accorder.'],
+      sur_soi_meme: [403, 'Personne ne traite sa propre habilitation.'],
+      date_passee: [400, 'La date de fin doit être dans le futur.'],
+    };
+    const resultatHabilitation = (reply: FastifyReply, r: Habilitation | ErreurHabilitation) => {
+      if (typeof r === 'string') {
+        const [code, message] = ERREUR_HABILITATION[r];
+        reply.code(code);
+        return { error: message, code: r };
+      }
+      return { habilitation: publierHabilitation(r) };
+    };
+    const publierHabilitation = (h: Habilitation) => ({
+      ...h, roleLabel: ROLE_LABEL[h.role], statutLabel: STATUT_HABILITATION_LABEL[h.statut],
+      expiree: h.statut === 'accordee' && container.habilitations.estExpiree(h),
+    });
+    /** Prévenir par la messagerie interne les comptes qui ont la permission donnée. */
+    const prevenir = (req: FastifyRequest, permission: Permission, sujet: string, texte: string, sauf?: string) => {
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      // Comptes de configuration et de l'annuaire (actifs) : la direction peut venir des deux.
+      for (const c of adminUsers()) {
+        if (c.username === sauf || !can(c.role, permission) || c.role === 'super_admin') continue;
+        container.staffComms.ecrire({ de: account.username ?? 'orion', deNom: account.name, a: c.username, aNom: c.name, sujet, texte, reponseAttendue: false });
+      }
+    };
+    const prevenirManager = (req: FastifyRequest, h: Habilitation, sujet: string, texte: string) => {
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      container.staffComms.ecrire({ de: account.username ?? 'orion', deNom: account.name, a: h.username, aNom: h.nom, sujet, texte });
+    };
+    const dateFin = z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional()
+      .transform((v) => (v && v.length === 10 ? new Date(`${v}T23:59:59`).toISOString() : v));
+
+    // Le manager connaît l'état de SA demande (sans aucun droit particulier).
+    scoped.get('/admin/habilitations/moi', async (req) => {
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const derniere = account.username ? container.habilitations.derniere(account.username) : undefined;
+      return {
+        acces: container.habilitations.peutVoirTableau(account),
+        deDroit: can(account.role, 'dashboard:read'),
+        habilitable: ROLES_HABILITABLES.includes(account.role) && Boolean(account.username),
+        roleLabel: ROLE_LABEL[account.role],
+        habilitation: derniere ? publierHabilitation(derniere) : null,
+      };
+    });
+
+    // Étape 1 : le manager demande l'accès ; le service informatique est prévenu.
+    scoped.post('/admin/habilitations/demande', async (req, reply) => {
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const body = parse(z.object({ motif: z.string().trim().min(10, 'Expliquez en quelques mots pourquoi vous en avez besoin.').max(500) }), req.body);
+      const r = container.habilitations.demander(account, body.motif);
+      if (typeof r !== 'string') {
+        audit(req, 'habilitation.demande', r.id, { username: r.username });
+        prevenir(req, 'habilitations:write', 'Demande d’accès au tableau de bord',
+          `${r.nom} (${ROLE_LABEL[r.role]}) demande l’accès au tableau de bord. Motif : ${r.motif}. À vérifier puis transmettre à la direction (console, section Habilitations).`);
+      }
+      return resultatHabilitation(reply, r);
+    });
+
+    // Liste des demandes, des managers habilitables et des rôles qui ont l'accès de droit.
+    scoped.get('/admin/habilitations', async (req) => {
+      require(req, 'habilitations:read');
+      return {
+        habilitations: container.habilitations.liste().map(publierHabilitation),
+        managers: adminUsers()
+          .filter((c) => ROLES_HABILITABLES.includes(c.role))
+          .map((c) => ({ username: c.username, nom: c.name, role: c.role, roleLabel: ROLE_LABEL[c.role], service: container.accounts.get(c.username)?.service })),
+        deDroit: (Object.keys(ROLE_PERMISSIONS) as Role[]).filter((r) => can(r, 'dashboard:read')).map((r) => ROLE_LABEL[r]),
+      };
+    });
+
+    // Étape 1 bis : le service informatique inscrit un manager ; la demande part à la direction.
+    scoped.post('/admin/habilitations', async (req, reply) => {
+      require(req, 'habilitations:write');
+      const body = parse(z.object({ username: z.string().min(2).max(60), motif: z.string().trim().min(10).max(500), expireLe: dateFin }), req.body);
+      // Comptes actifs uniquement (configuration ou annuaire) : un compte désactivé n'y figure pas.
+      const fiche = adminUsers().find((u) => u.username === body.username);
+      if (!fiche) throw notFound('Compte introuvable ou désactivé');
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const r = container.habilitations.inscrire({ username: fiche.username, nom: fiche.name, role: fiche.role }, body.motif, body.expireLe, account);
+      if (typeof r !== 'string') {
+        audit(req, 'habilitation.transmise', r.id, { username: r.username, expireLe: r.expireLe });
+        prevenir(req, 'habilitations:approve', 'Habilitation au tableau de bord à décider',
+          `Le service informatique transmet la demande de ${r.nom} (${ROLE_LABEL[r.role]}). Motif : ${r.motif}. À accorder ou refuser (console, section Habilitations).`, account.username);
+      }
+      return resultatHabilitation(reply, r);
+    });
+
+    // Étape 2 : le service informatique transmet une demande de manager à la direction.
+    scoped.post('/admin/habilitations/:id/transmettre', async (req, reply) => {
+      require(req, 'habilitations:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ expireLe: dateFin, note: z.string().max(300).optional() }), req.body ?? {});
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const r = container.habilitations.transmettre(id, account, body.expireLe, body.note);
+      if (typeof r !== 'string') {
+        audit(req, 'habilitation.transmise', r.id, { username: r.username, expireLe: r.expireLe });
+        prevenir(req, 'habilitations:approve', 'Habilitation au tableau de bord à décider',
+          `Le service informatique transmet la demande de ${r.nom} (${ROLE_LABEL[r.role]}). Motif : ${r.motif}. À accorder ou refuser (console, section Habilitations).`, account.username);
+      }
+      return resultatHabilitation(reply, r);
+    });
+
+    // Étape 3 : la direction accorde ou refuse (jamais celui qui a transmis).
+    scoped.post('/admin/habilitations/:id/decision', async (req, reply) => {
+      require(req, 'habilitations:approve');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ accorder: z.boolean(), raison: z.string().trim().max(300).optional() })
+        .refine((b) => b.accorder || (b.raison && b.raison.length >= 5), 'Un refus doit être motivé.'), req.body);
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const r = container.habilitations.statuer(id, body.accorder, account, body.raison);
+      if (typeof r !== 'string') {
+        audit(req, body.accorder ? 'habilitation.accordee' : 'habilitation.refusee', r.id, { username: r.username, raison: body.raison });
+        prevenirManager(req, r, body.accorder ? 'Accès au tableau de bord accordé' : 'Accès au tableau de bord refusé',
+          body.accorder
+            ? `La direction vous a accordé l’accès au tableau de bord${r.expireLe ? ` jusqu’au ${new Date(r.expireLe).toLocaleDateString('fr-FR')}` : ''}.`
+            : `La direction a refusé votre accès au tableau de bord. Motif : ${body.raison}.`);
+      }
+      return resultatHabilitation(reply, r);
+    });
+
+    // Révocation (service informatique ou direction), toujours motivée.
+    scoped.post('/admin/habilitations/:id/revoquer', async (req, reply) => {
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      if (!can(account.role, 'habilitations:approve')) require(req, 'habilitations:write');
+      const { id } = req.params as { id: string };
+      const body = parse(z.object({ raison: z.string().trim().min(5, 'Une révocation doit être motivée.').max(300) }), req.body);
+      const r = container.habilitations.revoquer(id, account, body.raison);
+      if (typeof r !== 'string') {
+        audit(req, 'habilitation.revoquee', r.id, { username: r.username, raison: body.raison });
+        prevenirManager(req, r, 'Accès au tableau de bord retiré', `Votre accès au tableau de bord a été retiré. Motif : ${body.raison}.`);
+      }
+      return resultatHabilitation(reply, r);
     });
 
     scoped.get('/admin/stats', async (req) => {

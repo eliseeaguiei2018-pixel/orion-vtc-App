@@ -204,7 +204,33 @@ signalée au client par un message ; toute tentative hors de ces conditions est 
 
 Une interface à part, pensée pour l'écran de la salle de supervision : **`/dashboard.html`**
 (lien « 📺 Tableau de bord » dans la console). Même identifiants et même session que la
-console ; accès réservé au personnel qui a la permission `overview:read`.
+console.
+
+### Qui peut l'ouvrir
+
+- **De droit** (permission `dashboard:read`) : PDG, Directeur Général, Directeur des Affaires
+  Administratives, Directeur des Opérations, Directeur Financier, DAF, trésorier(ère)s,
+  **service informatique** (rôle `informatique`) et **comptables** (rôle `comptable`), plus le
+  compte technique `super_admin`.
+- **Managers** (`manager`, `fleet_manager`) : uniquement sur **habilitation individuelle**,
+  en trois temps :
+  1. le manager la demande depuis l'écran « Accès réservé » du tableau de bord (motif
+     obligatoire), ou le service informatique l'inscrit pour lui ;
+  2. le service informatique la vérifie et la **transmet à la direction**, avec une date de fin
+     facultative ;
+  3. un membre de la direction (PDG, DG, DAA, directeur des opérations, directeur financier,
+     DAF) l'**accorde** ou la **refuse** avec un motif. Celui qui a transmis ne peut jamais
+     accorder, et personne ne traite sa propre habilitation.
+  L'habilitation tombe à sa date de fin et se **révoque** à tout moment (motif obligatoire).
+  Chaque étape est journalisée (`habilitation.*`) et chacun est prévenu par la messagerie
+  interne ; l'écran du manager s'ouvre de lui-même dans les 30 secondes qui suivent l'accord.
+- **Tous les autres** : refusés. Chaque tentative (HTTP comme WebSocket) est journalisée et
+  signalée à la direction dans les alertes sécurité.
+
+Console : section **Habilitations** (service informatique et direction). Routes :
+`GET /admin/habilitations`, `POST /admin/habilitations` (inscription), `POST
+/admin/habilitations/:id/transmettre`, `/decision`, `/revoquer` ; côté manager
+`GET /admin/habilitations/moi` et `POST /admin/habilitations/demande`.
 
 - **Synchronisé avec tout l'écosystème** : chaque événement du serveur (commande de l'app
   cliente, geste de l'app chauffeur, action de la console, paiement, alerte) arrive dans le
@@ -239,7 +265,7 @@ Le bouton **Défilement auto** alterne les deux vues toutes les 45 secondes (éc
   dès qu'une commande, une course terminée ou un paiement arrive.
 
 Les **objectifs** se règlent dans la console, section Direction Générale, carte « Objectifs
-financiers » (`GET`/`PUT /admin/objectifs`). Lecture : `overview:read` ; modification :
+financiers » (`GET`/`PUT /admin/objectifs`). Lecture : comptes qui ouvrent le tableau de bord ; modification :
 `finance:write`, journalisée avec l'ancienne valeur (`objectifs.mise_a_jour`).
 
 | Variable | Rôle |

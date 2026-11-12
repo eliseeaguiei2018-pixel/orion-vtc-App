@@ -300,6 +300,28 @@ body { min-height: 100vh; }
 .ob-table td { text-align: right; padding: 7px 12px; border-bottom: 1px solid rgba(28, 58, 44, 0.6); white-space: nowrap; }
 .ob-table th:first-child, .ob-table td:first-child { text-align: left; }
 
+/* Accès réservé */
+.tb-reserve { width: min(480px, 100%); }
+.tb-reserve .tb-cadenas { background: linear-gradient(140deg, var(--ambre), #e0a93a); box-shadow: 0 8px 22px -10px rgba(245, 196, 81, 0.8); }
+.tb-reserve p { line-height: 1.5; }
+.tb-reserve-qui { color: var(--texte-2) !important; }
+.tb-reserve-qui strong { color: var(--texte); }
+.tb-reserve-note { color: var(--ambre) !important; }
+.tb-reserve-etat { text-align: left; margin-bottom: 14px; }
+.tb-reserve-etat p { color: var(--texte-2) !important; font-size: 13.5px; margin-bottom: 0 !important; }
+.tb-reserve-refus { color: var(--ambre) !important; }
+.tb-reserve-suivi { padding: 12px 14px; border-radius: 14px; border: 1px solid var(--trait); background: rgba(255, 255, 255, 0.025); }
+.tb-reserve-suivi ol { list-style: none; display: flex; gap: 6px; margin-bottom: 10px; }
+.tb-reserve-suivi li { flex: 1; font-size: 11.5px; font-weight: 600; color: var(--muet); padding-top: 8px; border-top: 3px solid var(--trait); }
+.tb-reserve-suivi li.fait { color: var(--vert); border-color: var(--vert-2); }
+.tb-reserve-suivi li.encours { color: var(--ambre); border-color: var(--ambre); }
+.tb-reserve form { text-align: left; }
+.tb-reserve textarea { font: inherit; font-size: 14px; color: var(--texte); background: var(--fond); border: 1px solid var(--trait); border-radius: 12px; padding: 10px 12px; resize: vertical; }
+.tb-reserve textarea:focus { outline: none; border-color: var(--vert-2); }
+.tb-reserve-actions { display: flex; justify-content: space-between; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--trait); }
+.tb-reserve-actions a, .tb-reserve-actions button { font: 600 13px var(--police); color: var(--texte-2); background: none; border: none; padding: 0; width: auto; margin: 0; cursor: pointer; text-decoration: none; }
+.tb-reserve-actions a:hover, .tb-reserve-actions button:hover { color: var(--texte); }
+
 /* Écrans plus petits : on empile */
 @media (max-width: 1280px) {
   .tb-tuiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }

@@ -1,5 +1,6 @@
 import { TableauDeBord } from './modules/dashboard/service.js';
 import { ServiceObjectifs } from './modules/dashboard/objectifs.js';
+import { ServiceHabilitations, type Habilitation } from './modules/dashboard/habilitations.js';
 import { creerSms, type SmsSender } from './modules/sms/index.js';
 import { randomUUID } from 'node:crypto';
 import { createGeoIndex, type GeoIndex } from './core/geo.js';
@@ -89,6 +90,8 @@ export interface Container {
   tableau: TableauDeBord;
   /** Objectifs financiers (jour, semaine, mois, année) fixés par la direction. */
   objectifs: ServiceObjectifs;
+  /** Habilitations des managers au tableau de bord (informatique → direction). */
+  habilitations: ServiceHabilitations;
   simulator: RideSimulator;
   wallet: WalletService;
   clientWallet: WalletService;
@@ -355,6 +358,7 @@ export function createContainer(): Container {
     rideRelease: undefined as unknown as RideReleaseService,
     tableau: undefined as unknown as TableauDeBord,
     objectifs: new ServiceObjectifs(createRepository('objectifs')),
+    habilitations: new ServiceHabilitations(createRepository<Habilitation>('habilitations_tableau')),
     sms: creerSms(config),
   };
   // La direction générale ne stocke rien, elle lit les autres modules. On la câble

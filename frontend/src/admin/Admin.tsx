@@ -8,6 +8,7 @@ import { OverviewSection, SamuSection, SecuritySection, SosDrawer } from './sect
 import { RentalSection, RentalTarifsSection, SubscriptionsSection } from './sections/location';
 import { DirectionSection } from './sections/direction';
 import { ObjectifsFinanciersCarte } from './sections/objectifs';
+import { HabilitationsSection } from './sections/habilitations';
 import { VigilanceSection } from './sections/vigilance';
 import { MonPosteSection, type NouvelleRequete } from './sections/monposte';
 import { MessagesClientsSection } from './sections/messagerie';
@@ -160,7 +161,7 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'monPoste' | 'posteEquipe' | 'crew' | 'caisses' | 'telematique' | 'comptes' | 'overview' | 'direction' | 'vigilance' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'clients' | 'support' | 'messagesClients' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles';
+type Section = 'monPoste' | 'posteEquipe' | 'crew' | 'caisses' | 'telematique' | 'comptes' | 'overview' | 'direction' | 'vigilance' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'clients' | 'support' | 'messagesClients' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles' | 'habilitations';
 const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'monPoste', label: 'Mon poste', perm: '', icon: '🗂️' },
   { id: 'posteEquipe', label: 'Mon équipe', perm: 'teams:read', icon: '🧭' },
@@ -197,6 +198,7 @@ const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
   { id: 'sessions', label: 'Sessions actives', perm: 'sessions:read', icon: '🖥️' },
   { id: 'security', label: 'Alertes sécurité', perm: 'security:read', icon: '🛑' },
   { id: 'comptes', label: 'Personnel & accès', perm: 'accounts:read', icon: '🪪' },
+  { id: 'habilitations', label: 'Habilitations', perm: 'habilitations:read', icon: '🔐' },
   { id: 'roles', label: 'Rôles & accès', perm: 'roles:read', icon: '🛡️' },
 ];
 
@@ -1393,8 +1395,10 @@ function Console({ onLogout }: { onLogout: () => void }) {
             />
           )}
           <div className="adm-top-right">
-            {can('overview:read') && (
-              <a className="adm-btn ghost" href="./dashboard.html" target="_blank" rel="noopener" title="Ouvrir le tableau de bord en direct (écran à part)">📺 Tableau de bord</a>
+            {/* Tableau de bord : de droit pour la direction, la trésorerie, la comptabilité et
+                l'informatique ; un manager le voit aussi, pour pouvoir y demander l'accès. */}
+            {(can('dashboard:read') || me.role === 'manager' || me.role === 'fleet_manager') && (
+              <a className="adm-btn ghost" href="./dashboard.html" target="_blank" rel="noopener" title={can('dashboard:read') ? 'Ouvrir le tableau de bord en direct (écran à part)' : 'Accès sur habilitation de la direction : demande possible depuis cet écran'}>📺 Tableau de bord{can('dashboard:read') ? '' : ' 🔒'}</a>
             )}
             <button className="adm-btn ghost adm-mute" title={theme === 'dark' ? 'Passer en mode jour' : 'Passer en mode nuit'} onClick={toggleTheme}>
               {theme === 'dark' ? '☀️' : '🌙'}
@@ -1575,6 +1579,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'sessions' && <SessionsSection sessions={sessions} self={selfSession} canWrite={can('sessions:write')} onRevoke={revokeSess} />}
         {section === 'security' && <SecuritySection attempts={security} />}
         {section === 'roles' && <RolesSection me={me} />}
+        {section === 'habilitations' && <HabilitationsSection can={can} />}
       </main>
 
       {driverSel && <DriverDrawer d={driverSel} onClose={() => setDriverSel(null)} />}

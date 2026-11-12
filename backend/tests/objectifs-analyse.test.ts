@@ -12,6 +12,7 @@ const HASH = scryptSync('Objectif#2026', SALT, 32).toString('hex');
 process.env.ADMIN_USERS = JSON.stringify([
   { username: 'daf', name: 'Directrice Financière', role: 'daf', salt: SALT, hash: HASH },
   { username: 'agent', name: 'Agent Terrain', role: 'agent', salt: SALT, hash: HASH },
+  { username: 'compta', name: 'Comptable Koné', role: 'comptable', salt: SALT, hash: HASH },
 ]);
 
 const { buildApp } = await import('../src/app.js');
@@ -102,7 +103,7 @@ test('historique de démonstration : stable, jamais dans le futur, proche des ob
   assert.ok(r.finances.jour.projection !== null);
 });
 
-test('objectifs : lus par la supervision, fixés par la finance, journalisés', async (t) => {
+test('objectifs : lus par les comptes habilités, fixés par la finance, journalisés', async (t) => {
   const { app, container } = await buildApp();
   t.after(() => app.close());
 
@@ -111,14 +112,18 @@ test('objectifs : lus par la supervision, fixés par la finance, journalisés', 
 
   const daf = await login(app, 'daf');
   const agent = await login(app, 'agent');
+  const compta = await login(app, 'compta');
 
-  const lu = (await app.inject({ method: 'GET', url: '/admin/objectifs', headers: agent })).json();
-  assert.equal(lu.objectifs.jour, OBJECTIFS_DEFAUT.jour);
-
-  // Un agent voit les courbes mais ne peut pas changer les objectifs (et c'est signalé).
-  const refus = await app.inject({ method: 'PUT', url: '/admin/objectifs', headers: agent, payload: { jour: 1 } });
-  assert.equal(refus.statusCode, 403);
+  // Un agent n'a pas accès au tableau de bord : ni courbes ni objectifs, et c'est signalé.
+  assert.equal((await app.inject({ method: 'GET', url: '/admin/objectifs', headers: agent })).statusCode, 403);
+  assert.equal((await app.inject({ method: 'GET', url: '/admin/dashboard/analyse', headers: agent })).statusCode, 403);
   assert.ok(container.audit.list(50).some((e) => e.action === 'access.denied' && e.actor === 'Agent Terrain'));
+
+  // La comptabilité lit les objectifs, mais ne les fixe pas.
+  const lu = (await app.inject({ method: 'GET', url: '/admin/objectifs', headers: compta })).json();
+  assert.equal(lu.objectifs.jour, OBJECTIFS_DEFAUT.jour);
+  const refus = await app.inject({ method: 'PUT', url: '/admin/objectifs', headers: compta, payload: { jour: 1 } });
+  assert.equal(refus.statusCode, 403);
 
   assert.equal((await app.inject({ method: 'PUT', url: '/admin/objectifs', headers: daf, payload: { jour: -5 } })).statusCode, 400);
   assert.equal((await app.inject({ method: 'PUT', url: '/admin/objectifs', headers: daf, payload: {} })).statusCode, 400);
@@ -133,7 +138,7 @@ test('objectifs : lus par la supervision, fixés par la finance, journalisés', 
   assert.deepEqual((trace!.details as { avant: { jour: number } }).avant.jour, OBJECTIFS_DEFAUT.jour);
 
   // Les courbes suivent aussitôt le nouvel objectif ; en test, aucun historique fictif.
-  const analyse = (await app.inject({ method: 'GET', url: '/admin/dashboard/analyse', headers: agent })).json();
+  const analyse = (await app.inject({ method: 'GET', url: '/admin/dashboard/analyse', headers: compta })).json();
   assert.equal(analyse.finances.jour.objectif, 500_000);
   assert.equal(analyse.finances.mois.objectif, 15_000_000);
   assert.equal(analyse.historiqueDemo, false);

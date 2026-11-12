@@ -183,6 +183,14 @@ textarea.adm-select { resize: vertical; font-family: inherit; width: 100%; }
 .adm-table .r { text-align: right; } .adm-table .mono { font-family: ui-monospace, monospace; color: var(--a-muted); }
 .adm-table .cap { text-transform: capitalize; }
 .adm-pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--a-stroke); }
+/* Habilitations au tableau de bord */
+.adm-pill.hab-green { color: var(--a-green); border-color: rgba(43,255,166,0.4); }
+.adm-pill.hab-amber { color: var(--a-amber); border-color: rgba(245,196,81,0.4); }
+.adm-pill.hab-red { color: var(--a-danger); border-color: rgba(255,84,104,0.45); }
+.adm-pill.hab-green, .adm-pill.hab-amber, .adm-pill.hab-red { display: inline-block; white-space: nowrap; }
+a.adm-btn { text-decoration: none; }
+.hab-etapes { display: flex; gap: 8px; flex-wrap: wrap; }
+.hab-etapes span { font-size: 12px; color: var(--a-text); padding: 6px 10px; border-radius: 10px; background: var(--a-panel2); border: 1px solid var(--a-stroke); }
 .adm-pill.av-online, .adm-pill.kyc-active, .adm-pill.kyc-approved { color: var(--a-green); border-color: rgba(43,255,166,0.4); }
 .adm-pill.av-on_trip { color: var(--a-amber); border-color: rgba(245,196,81,0.4); }
 .adm-pill.kyc-manual_review { color: var(--a-amber); border-color: rgba(245,196,81,0.4); }

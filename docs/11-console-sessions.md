@@ -140,12 +140,14 @@ périmètre.
 
 | Rôle | Périmètre |
 |------|-----------|
-| `super_admin`, `ceo`, `dg`, `daa`, `coo` | Tout. |
+| `super_admin`, `ceo`, `dg`, `daa`, `coo` | Tout ; la direction accorde ou refuse les habilitations au tableau de bord, que seul le service informatique prépare. |
 | `cfo` | Pilotage financier complet, demande de virement, jamais l'approbation. |
 | `daf` | Même périmètre financier ; dépose et statue sur les demandes des autres ; gère les caisses et les équipages. |
-| `tresorier` | Sa caisse, ses versements, ses demandes ; aucune approbation. |
+| `tresorier` | Sa caisse, ses versements, ses demandes ; aucune approbation. Ouvre le tableau de bord. |
+| `informatique` | Service informatique : sessions, journal, alertes sécurité, annuaire en lecture ; prépare et transmet les habilitations des managers au tableau de bord, sans jamais les accorder. |
+| `comptable` | Flux, caisses et trésorerie en lecture ; ouvre le tableau de bord. |
 | `fleet_manager` | KYC, véhicules, dispatch, équipes, location. |
-| `manager` | Ses équipes, ses membres, leurs comptes, la flotte accréditée. |
+| `manager` | Ses équipes, ses membres, leurs comptes, la flotte accréditée. Tableau de bord seulement sur habilitation de la direction. |
 | `agent` | La flotte que son manager lui a accréditée. |
 | `chauffeur` | Son dossier, ses courses, ses revenus, ses requêtes. |
 | `ops`, `support`, `finance`, `financial_analyst`, `viewer` | Métiers transverses, en lecture ou en écriture selon la matrice de `roles.ts`. |

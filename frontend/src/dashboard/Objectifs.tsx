@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { NonConnecte, lireAnalyse } from './donnees';
+import { AccesRefuse, NonConnecte, lireAnalyse } from './donnees';
 import type { AnalysePeriode, AnalyseTableau, Periode, StatutObjectif } from './types';
 
 /**
@@ -76,7 +76,7 @@ const borne = (min: number, v: number, max: number) => Math.round(Math.min(max, 
 
 const chemin = (pts: Array<[number, number]>) => pts.map(([a, b], i) => `${i ? 'L' : 'M'}${a.toFixed(1)},${b.toFixed(1)}`).join('');
 
-export function Objectifs({ signal, onNonConnecte }: { signal: number; onNonConnecte: () => void }) {
+export function Objectifs({ signal, onRefus }: { signal: number; onRefus: (connexion: boolean) => void }) {
   const [a, setA] = useState<AnalyseTableau | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [periode, setPeriode] = useState<Periode>('jour');
@@ -89,10 +89,11 @@ export function Objectifs({ signal, onNonConnecte }: { signal: number; onNonConn
       setA(await lireAnalyse());
       setErreur(null);
     } catch (e) {
-      if (e instanceof NonConnecte) onNonConnecte();
+      if (e instanceof NonConnecte) onRefus(true);
+      else if (e instanceof AccesRefuse) onRefus(false);
       else setErreur('Analyse indisponible : nouvelle tentative dans 30 secondes.');
     }
-  }, [onNonConnecte]);
+  }, [onRefus]);
 
   useEffect(() => {
     void charger();

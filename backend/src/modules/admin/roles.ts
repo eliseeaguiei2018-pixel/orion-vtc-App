@@ -23,6 +23,8 @@ export type Role =
   | 'agent'             // Membre d'équipe — gère la flotte que son manager lui accrédite
   | 'daf'               // Directeur Administratif et Financier — demande ET statue
   | 'tresorier'         // Trésorier(ère) — tient sa caisse, compte les espèces, verse
+  | 'informatique'      // Service informatique — sessions, journaux, habilitations techniques
+  | 'comptable'         // Comptable — écritures, caisses et trésorerie en lecture
   | 'chauffeur'         // Chauffeur ORION — son dossier et ses requêtes, rien d'autre
   | 'ops'         // Équipe opérations / dispatch
   | 'finance'     // Équipe finance (lecture trésorerie, pas de demande)
@@ -78,7 +80,19 @@ export type Permission =
   | 'medical:read'
   /** Alertes sécurité interne (tentatives d'accès non autorisé) — direction uniquement. */
   | 'security:read'
-  | 'roles:read';
+  | 'roles:read'
+  /**
+   * TABLEAU DE BORD DE DIRECTION (écran de supervision, objectifs financiers et
+   * tendances). De droit : direction, trésorerie, comptabilité, service informatique.
+   * Un manager n'y accède que sur HABILITATION individuelle (voir `habilitations:*`).
+   */
+  | 'dashboard:read'
+  /** Habilitations : consulter les demandes d'accès des managers au tableau de bord. */
+  | 'habilitations:read'
+  /** Service informatique : inscrire, transmettre à la direction, révoquer une habilitation. */
+  | 'habilitations:write'
+  /** Direction : accorder ou refuser une habilitation transmise par le service informatique. */
+  | 'habilitations:approve';
 
 const ALL: Permission[] = [
   'overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write',
@@ -92,23 +106,35 @@ const ALL: Permission[] = [
   'crew:read', 'crew:write', 'crew:self',
   'accounts:read', 'accounts:write',
   'medical:read',
+  'dashboard:read', 'habilitations:read', 'habilitations:write', 'habilitations:approve',
 ];
+
+/**
+ * La direction voit et décide les habilitations, mais ne les inscrit pas : c'est le
+ * service informatique qui les prépare. Celui qui transmet ne peut jamais accorder.
+ */
+const DIRECTION_TABLEAU: Permission[] = ['dashboard:read', 'habilitations:read', 'habilitations:approve'];
 
 /** Matrice rôle → permissions (couches d'accès selon le poste). */
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   super_admin: ALL,
-  ceo: ALL,
-  dg: ALL,
-  daa: ALL,
-  coo: ALL,
+  ceo: ALL.filter((p) => p !== 'habilitations:write'),
+  dg: ALL.filter((p) => p !== 'habilitations:write'),
+  daa: ALL.filter((p) => p !== 'habilitations:write'),
+  coo: ALL.filter((p) => p !== 'habilitations:write'),
   // CFO : pilotage financier complet + DEMANDE de virement — jamais l'approbation.
-  cfo: ['overview:read', 'rides:read', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'finance:read', 'finance:write', 'treasury:read', 'treasury:request', 'caisse:read', 'search:read', 'notify:read', 'audit:read', 'security:read', 'roles:read', 'rental:read', 'executive:read', 'vigilance:read', 'crew:read'],
+  cfo: ['overview:read', 'rides:read', 'pricing:read', 'pricing:write', 'promos:read', 'promos:write', 'services:read', 'finance:read', 'finance:write', 'treasury:read', 'treasury:request', 'caisse:read', 'search:read', 'notify:read', 'audit:read', 'security:read', 'roles:read', 'rental:read', 'executive:read', 'vigilance:read', 'crew:read', ...DIRECTION_TABLEAU],
   // DAF : même périmètre financier que le CFO. Il DÉPOSE des demandes et STATUE sur
   // celles des autres — jamais sur la sienne, la séparation est imposée au service.
-  daf: ['overview:read', 'rides:read', 'drivers:read', 'pricing:read', 'promos:read', 'services:read', 'finance:read', 'finance:write', 'treasury:read', 'treasury:request', 'caisse:read', 'caisse:write', 'search:read', 'notify:read', 'audit:read', 'roles:read', 'rental:read', 'executive:read', 'vigilance:read', 'crew:read', 'crew:write', 'teams:read'],
+  daf: ['overview:read', 'rides:read', 'drivers:read', 'pricing:read', 'promos:read', 'services:read', 'finance:read', 'finance:write', 'treasury:read', 'treasury:request', 'caisse:read', 'caisse:write', 'search:read', 'notify:read', 'audit:read', 'roles:read', 'rental:read', 'executive:read', 'vigilance:read', 'crew:read', 'crew:write', 'teams:read', ...DIRECTION_TABLEAU],
   // Trésorier(ère) : sa caisse, les espèces qu'il/elle encaisse, ses versements et ses
   // demandes. Aucune approbation : compter et faire approuver sont deux métiers.
-  tresorier: ['overview:read', 'finance:read', 'treasury:read', 'treasury:request', 'caisse:read', 'caisse:write', 'drivers:read', 'search:read', 'notify:read', 'crew:read'],
+  tresorier: ['overview:read', 'finance:read', 'treasury:read', 'treasury:request', 'caisse:read', 'caisse:write', 'drivers:read', 'search:read', 'notify:read', 'crew:read', 'dashboard:read'],
+  // Service informatique : sessions, journaux, santé de la plateforme. Il prépare les
+  // habilitations des managers et les transmet à la direction ; il ne les accorde pas.
+  informatique: ['overview:read', 'dashboard:read', 'sessions:read', 'sessions:write', 'audit:read', 'security:read', 'roles:read', 'accounts:read', 'vigilance:read', 'search:read', 'notify:read', 'habilitations:read', 'habilitations:write'],
+  // Comptable : lecture des flux, des caisses et de la trésorerie, exports.
+  comptable: ['overview:read', 'dashboard:read', 'rides:read', 'finance:read', 'treasury:read', 'caisse:read', 'rental:read', 'audit:read', 'search:read', 'notify:read'],
   // Gestionnaire de flotte : validation chauffeurs (KYC), véhicules, surveillance dispatch.
   fleet_manager: ['overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write', 'alerts:read', 'teams:read', 'teams:write', 'search:read', 'notify:read', 'rental:read', 'rental:write', 'vigilance:read'],
   // Analyste financier : accès RESTREINT en lecture — exports, factures, paiements chauffeurs.
@@ -141,6 +167,8 @@ export const ROLE_LABEL: Record<Role, string> = {
   agent: 'Agent d’équipe',
   daf: 'Directeur Administratif et Financier (DAF)',
   tresorier: 'Trésorier(ère)',
+  informatique: 'Service informatique',
+  comptable: 'Comptable',
   chauffeur: 'Chauffeur ORION',
   ops: 'Opérations / Dispatch',
   finance: 'Équipe Finance',

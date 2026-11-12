@@ -1,4 +1,4 @@
-import { API, LIVE, clearSession, expKey, setCsrf } from '../admin/api';
+import { API, H, LIVE, clearSession, expKey, logout, setCsrf } from '../admin/api';
 import type { AnalysePeriode, AnalyseTableau, EntreeJournal, EtatTableau, JourCommandes, ObjectifsFinanciers, PointCommandes, PointCourbe } from './types';
 
 /**
@@ -7,12 +7,52 @@ import type { AnalysePeriode, AnalyseTableau, EntreeJournal, EtatTableau, JourCo
  */
 
 export class NonConnecte extends Error {}
+/** Connecté, mais sans droit sur le tableau de bord (ni de droit, ni par habilitation). */
+export class AccesRefuse extends Error {}
+
+const verifier = (r: Response) => {
+  if (r.status === 401) throw new NonConnecte();
+  if (r.status === 403) throw new AccesRefuse();
+  if (!r.ok) throw new Error(`Serveur ORION : ${r.status}`);
+};
+
+/** Habilitation d'un manager, telle que la renvoie le serveur. */
+export interface HabilitationPublique {
+  id: string; username: string; nom: string; role: string; roleLabel: string;
+  statut: 'demandee' | 'transmise' | 'accordee' | 'refusee' | 'revoquee'; statutLabel: string; expiree: boolean;
+  motif: string; expireLe?: string; demandeLe: string; demandePar: string;
+  transmiseLe?: string; transmisePar?: string; decisionLe?: string; decisionPar?: string; raison?: string;
+  historique: Array<{ at: string; par: string; action: string; detail?: string }>;
+}
+export interface MonAcces { nom: string; roleLabel: string; acces: boolean; habilitable: boolean; habilitation: HabilitationPublique | null }
+
+/** Qui est connecté, et où en est sa demande d'accès (aucun droit particulier requis). */
+export async function lireMonAcces(): Promise<MonAcces> {
+  const [me, moi] = await Promise.all([
+    fetch(`${API}/admin/me`, { credentials: 'include' }),
+    fetch(`${API}/admin/habilitations/moi`, { credentials: 'include' }),
+  ]);
+  if (me.status === 401 || moi.status === 401) throw new NonConnecte();
+  if (!me.ok || !moi.ok) throw new Error('Serveur ORION injoignable');
+  const m = await me.json() as { name: string; roleLabel: string };
+  const h = await moi.json() as Omit<MonAcces, 'nom'>;
+  return { ...h, nom: m.name, roleLabel: m.roleLabel ?? h.roleLabel };
+}
+
+/** Le manager demande l'accès ; renvoie un message d'erreur, ou null si la demande est partie. */
+export async function demanderAcces(motif: string): Promise<string | null> {
+  const r = await fetch(`${API}/admin/habilitations/demande`, { method: 'POST', credentials: 'include', headers: H(), body: JSON.stringify({ motif }) });
+  if (r.ok) return null;
+  const d = await r.json().catch(() => ({})) as { error?: string; message?: string };
+  return d.error ?? d.message ?? 'La demande n’a pas pu partir. Réessayez dans un instant.';
+}
+
+export async function changerDeCompte(): Promise<void> { await logout(); }
 
 export async function lireEtat(): Promise<EtatTableau> {
   if (!LIVE) return etatDemo();
   const r = await fetch(`${API}/admin/dashboard`, { credentials: 'include' });
-  if (r.status === 401 || r.status === 403) throw new NonConnecte();
-  if (!r.ok) throw new Error(`Serveur ORION : ${r.status}`);
+  verifier(r);
   return r.json() as Promise<EtatTableau>;
 }
 
@@ -20,8 +60,7 @@ export async function lireEtat(): Promise<EtatTableau> {
 export async function lireAnalyse(): Promise<AnalyseTableau> {
   if (!LIVE) return analyseDemo();
   const r = await fetch(`${API}/admin/dashboard/analyse`, { credentials: 'include' });
-  if (r.status === 401 || r.status === 403) throw new NonConnecte();
-  if (!r.ok) throw new Error(`Serveur ORION : ${r.status}`);
+  verifier(r);
   return r.json() as Promise<AnalyseTableau>;
 }
 

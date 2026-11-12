@@ -5,7 +5,8 @@ import { chargerML } from '../components/chargerCarte';
 import { styleOrion } from '../components/styleCarte';
 import { getVectorConfig } from '../mapConfig';
 import { LIVE } from '../admin/api';
-import { NonConnecte, ecouter, lireEtat, seConnecter } from './donnees';
+import { AccesRefuse, NonConnecte, ecouter, lireEtat, seConnecter } from './donnees';
+import { AccesReserve } from './AccesReserve';
 import { Objectifs } from './Objectifs';
 import type { CourseActive, EntreeJournal, EtatTableau, VehiculeFlotte } from './types';
 
@@ -51,16 +52,22 @@ export function Tableau() {
     return () => window.clearInterval(t);
   }, [defilement]);
   const flux = useTableauDirect(setSignal);
-  const surNonConnecte = useCallback(() => flux.setConnexion(true), [flux.setConnexion]);
+  const { setConnexion, setRefus } = flux;
+  const surRefus = useCallback((connexion: boolean) => (connexion ? setConnexion(true) : setRefus(true)), [setConnexion, setRefus]);
+  const surAcces = useCallback(() => setRefus(false), [setRefus]);
+  const surConnexion = useCallback(() => { setRefus(false); setConnexion(true); }, [setConnexion, setRefus]);
 
-  if (flux.connexion) return <Connexion onOk={() => { flux.setConnexion(false); }} />;
+  if (flux.connexion) return <Connexion onOk={() => { setConnexion(false); }} />;
+  // Connecté sans droit : rien du tableau n'est chargé ni affiché.
+  if (flux.refus) return <AccesReserve onAcces={surAcces} onConnexion={surConnexion} />;
 
   return (
     <div className="tb">
       <Entete direct={flux.direct} maintenant={flux.maintenant} vue={vue} setVue={setVue} defilement={defilement} setDefilement={setDefilement} />
       {flux.erreur && <div className="tb-erreur" role="status">{flux.erreur}</div>}
       {vue === 'objectifs'
-        ? <Objectifs signal={signal} onNonConnecte={surNonConnecte} />
+        // Les courbes attendent que l'accès soit vérifié : une seule lecture refusée, pas deux.
+        ? (flux.pret ? <Objectifs signal={signal} onRefus={surRefus} /> : <div className="tb-chargement">Vérification de l’accès…</div>)
         : <VueDirect etat={flux.etat} journal={flux.journal} nouveaux={flux.nouveaux} maintenant={flux.maintenant} />}
     </div>
   );
@@ -73,6 +80,9 @@ function useTableauDirect(onAnalyse: (f: (n: number) => number) => void) {
   const [nouveaux, setNouveaux] = useState<Set<string>>(new Set());
   const [direct, setDirect] = useState(false);
   const [connexion, setConnexion] = useState(false);
+  const [refus, setRefus] = useState(false);
+  // Le direct (WebSocket) ne s'ouvre qu'une fois l'accès vérifié par une première lecture.
+  const [pret, setPret] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [maintenant, setMaintenant] = useState(() => new Date());
   const relecture = useRef<number | undefined>(undefined);
@@ -81,6 +91,7 @@ function useTableauDirect(onAnalyse: (f: (n: number) => number) => void) {
     try {
       const e = await lireEtat();
       setEtat(e);
+      setPret(true);
       setErreur(null);
       // Le journal du serveur fait foi ; les lignes arrivées en direct entre-temps restent.
       setJournal((j) => {
@@ -88,15 +99,21 @@ function useTableauDirect(onAnalyse: (f: (n: number) => number) => void) {
         return [...j.filter((x) => !ids.has(x.id) && Date.parse(x.at) > Date.parse(e.journal[0]?.at ?? '0')), ...e.journal].slice(0, 30);
       });
     } catch (err) {
-      if (err instanceof NonConnecte) setConnexion(true);
+      if (err instanceof NonConnecte) { setConnexion(true); setPret(false); }
+      else if (err instanceof AccesRefuse) { setRefus(true); setPret(false); setEtat(null); }
       else setErreur('Serveur ORION injoignable : nouvelle tentative…');
     }
   }, []);
 
   useEffect(() => {
-    if (connexion) return;
+    if (connexion || refus) return;
     void charger();
     const t = window.setInterval(() => void charger(), 4000);
+    return () => window.clearInterval(t);
+  }, [charger, connexion, refus]);
+
+  useEffect(() => {
+    if (!pret || connexion || refus) return;
     const fin = ecouter((e) => {
       setJournal((j) => (j.some((x) => x.id === e.id) ? j : [e, ...j].slice(0, 30)));
       setNouveaux((n) => new Set(n).add(e.id));
@@ -105,15 +122,15 @@ function useTableauDirect(onAnalyse: (f: (n: number) => number) => void) {
       relecture.current = window.setTimeout(() => void charger(), 500);
       if (GENRES_ANALYSE.has(e.genre)) onAnalyse((n) => n + 1);
     }, setDirect);
-    return () => { window.clearInterval(t); fin(); };
-  }, [charger, connexion, onAnalyse]);
+    return fin;
+  }, [charger, connexion, refus, pret, onAnalyse]);
 
   useEffect(() => {
     const t = window.setInterval(() => setMaintenant(new Date()), 1000);
     return () => window.clearInterval(t);
   }, []);
 
-  return { etat, journal, nouveaux, direct, connexion, setConnexion, erreur, maintenant };
+  return { etat, journal, nouveaux, direct, connexion, setConnexion, refus, setRefus, pret, erreur, maintenant };
 }
 
 function VueDirect({ etat, journal, nouveaux, maintenant }: { etat: EtatTableau | null; journal: EntreeJournal[]; nouveaux: Set<string>; maintenant: Date }) {
