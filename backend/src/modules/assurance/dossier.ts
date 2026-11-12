@@ -126,6 +126,11 @@ export class DossierMedicalService {
     return this.coffre.disponible;
   }
 
+  /** Nombre de clients inscrits (tableau de bord : aucune donnée de santé n'en sort). */
+  nombreInscrits(): number {
+    return this.repo.all().length;
+  }
+
   estInscrit(clientId: string): boolean {
     return Boolean(this.repo.get(clientId));
   }

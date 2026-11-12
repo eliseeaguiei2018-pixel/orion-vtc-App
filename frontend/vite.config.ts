@@ -16,6 +16,8 @@ export default defineConfig({
       input: {
         main: new URL('./index.html', import.meta.url).pathname,
         admin: new URL('./admin.html', import.meta.url).pathname,
+        // Tableau de bord ORION : écran de supervision à part, synchronisé en direct.
+        dashboard: new URL('./dashboard.html', import.meta.url).pathname,
         driver: new URL('./driver.html', import.meta.url).pathname,
         // Pages publiques exigées par l'App Store et Google Play.
         confidentialite: new URL('./confidentialite.html', import.meta.url).pathname,

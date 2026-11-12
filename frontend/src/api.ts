@@ -462,6 +462,8 @@ export interface SafeDriver {
   matricule: string;
   ratingAvg: number;
   ratingCount: number;
+  /** Véhicule du conducteur (ex. « Scooter électrique » pour un coursier). */
+  vehicleModel?: string | null;
 }
 
 export interface RideCreateResult {

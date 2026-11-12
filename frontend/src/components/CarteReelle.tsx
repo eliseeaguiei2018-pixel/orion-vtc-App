@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GeoJSONSource, Map as CarteML, Marker } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-// MapLibre 6 cherche son « worker » à côté de son propre module : une fois l'app empaquetée,
-// il n'y est plus. Vite publie le fichier tel quel et nous en donne l'adresse.
-import urlTravailleur from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
+import { chargerML } from './chargerCarte';
 import type { LatLng } from '../types';
 import { useTheme } from '../theme';
 import type { VectorConfig } from '../mapConfig';
@@ -32,17 +30,6 @@ interface Props {
   basCouvert?: number;
 }
 
-type ML = typeof import('maplibre-gl');
-/** MapLibre est chargé à la demande (bibliothèque lourde) ; selon le bundler, il arrive sous `default`. */
-let chargement: Promise<ML> | null = null;
-function chargerML(): Promise<ML> {
-  chargement ??= import('maplibre-gl').then((mod) => {
-    const ml = (mod as unknown as { default?: ML }).default ?? mod;
-    ml.setWorkerUrl(new URL(urlTravailleur, window.location.href).href);
-    return ml;
-  });
-  return chargement;
-}
 
 const couleur = (v: string, defaut: string) => {
   const c = getComputedStyle(document.documentElement).getPropertyValue(v).trim();

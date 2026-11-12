@@ -10,6 +10,7 @@ import { rideStateMachine, type RideStatus } from '../services/ride/stateMachine
 import { rideRoom } from '../realtime/hub.js';
 import type { Ride } from './store.js';
 import { publishAssignment } from '../driver-app/offers.js';
+import { categorieDeFlotte } from './matching.js';
 
 const createSchema = z.object({
   clientId: z.string().min(1),
@@ -149,7 +150,7 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       // de course payée en espèces (il reste éligible aux paiements électroniques).
       const cashCap = body.paymentMethod === 'cash' ? container.settings.getOps().cashDebtLimit : undefined;
       const eligible = cashCap === undefined ? undefined : (d: { id: string }) => container.wallet.balance(d.id) >= -cashCap;
-      const match = await container.matching.findDriver(created.origin, quote.category, quote.distanceMeters, body.clientId, eligible);
+      const match = await container.matching.findDriver(created.origin, categorieDeFlotte(quote.serviceType, quote.category), quote.distanceMeters, body.clientId, eligible);
       if (match) {
         rideStateMachine.assertTransition(created.status, 'accepted');
         created.status = 'accepted';
@@ -162,6 +163,8 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       }
 
       container.rides.save(created);
+      // Nouvelle commande : le tableau de bord l'affiche aussitôt.
+      container.realtime.publish(rideRoom(created.id), 'ride.created', { rideId: created.id, status: created.status });
       // App chauffeur : affectation poussée en direct sur son canal personnel.
       if (created.status === 'accepted') publishAssignment(container, created, match?.etaSeconds);
       // Rattache la course au client (fiche client / support).
@@ -179,7 +182,7 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     reply.code(201);
     return {
       ride,
-      driver: drv ? { name: drv.name, matricule: drv.matricule, ratingAvg: drv.ratingAvg, ratingCount: drv.ratingCount } : null,
+      driver: drv ? { name: drv.name, matricule: drv.matricule, ratingAvg: drv.ratingAvg, ratingCount: drv.ratingCount, vehicleModel: drv.vehicleModel ?? null } : null,
       shareUrl: ride.shareToken ? `/share/${ride.shareToken}` : null,
     };
   });

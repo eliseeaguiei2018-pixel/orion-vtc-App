@@ -294,7 +294,8 @@ export function useDriver() {
     },
     goOnline: () => run(async () => { await backend.goOnline(posRef.current); await refresh(); }, 'Vous êtes en ligne'),
     goOffline: () => run(async () => { await backend.goOffline(); await refresh(); }, 'Vous êtes hors ligne'),
-    accept: (rideId: string) => run(async () => { setActiveRide(await backend.acceptOffer(rideId)); }, 'Course acceptée — en route !'),
+    accept: (rideId: string) => run(async () => { setActiveRide(await backend.acceptOffer(rideId)); },
+      activeRide?.serviceType === 'delivery' ? 'Livraison acceptée, cap sur le colis !' : 'Course acceptée — en route !'),
     decline: (rideId: string, reason?: string) => run(async () => { await backend.declineOffer(rideId, reason); setActiveRide(null); await refresh(); }, 'Offre refusée'),
     transition: (rideId: string, to: RideStatus) => run(async () => {
       await backend.transition(rideId, to);

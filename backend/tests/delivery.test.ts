@@ -107,9 +107,11 @@ test('Livraison : une course de livraison peut être créée depuis le devis', a
   const { app } = await buildApp();
   t.after(() => app.close());
 
-  // Un coursier en ligne près du point de retrait.
-  const drv = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Coursier Moto', category: 'bronze' } })).json().driver.id;
+  // Un coursier à moto ET une voiture bronze, tous deux tout près du point de retrait.
+  const drv = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Coursier Moto', category: 'moto' } })).json().driver.id;
   await app.inject({ method: 'POST', url: `/drivers/${drv}/online`, payload: { position: { lat: 5.3240, lng: -4.0220 } } });
+  const voiture = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Berline Bronze', category: 'bronze' } })).json().driver.id;
+  await app.inject({ method: 'POST', url: `/drivers/${voiture}/online`, payload: { position: { lat: 5.3237, lng: -4.0218 } } });
 
   const q = (await app.inject({ method: 'POST', url: '/pricing/estimate', payload: {
     serviceType: 'delivery', origin: ORIGIN, destination: DEST, category: 'moyen',
@@ -122,4 +124,49 @@ test('Livraison : une course de livraison peut être créée depuis le devis', a
   const created = ride.json().ride;
   assert.equal(created.quote.serviceType, 'delivery', 'la course garde le type livraison');
   assert.equal(created.quote.amount, q.amount, 'prix verrouillé : le montant du devis est conservé');
+  // La taille du colis (« moyen ») n'est pas une gamme : la livraison va au coursier à
+  // moto, jamais à la voiture pourtant plus proche.
+  assert.ok(['accepted', 'driver_en_route'].includes(created.status), `un coursier est attribué (statut ${created.status})`);
+  assert.equal(created.driverId, drv, 'la livraison part à moto');
+
+  // Une course bronze, elle, ne part jamais à moto.
+  const qc = (await app.inject({ method: 'POST', url: '/pricing/estimate', payload: {
+    serviceType: 'ride', origin: ORIGIN, destination: DEST, category: 'bronze',
+  } })).json().quote;
+  const course = (await app.inject({ method: 'POST', url: '/rides', headers: { 'idempotency-key': 'course-1' },
+    payload: { clientId: 'c-course', lockId: qc.lockId } })).json().ride;
+  assert.equal(course.driverId, voiture, 'la course part en voiture');
+});
+
+test('Livraison : paiement mobile money enregistré de bout en bout (bac à sable), coursier libéré', async (t) => {
+  const { buildApp } = await import('../src/app.js');
+  const { app, container } = await buildApp();
+  t.after(() => app.close());
+  const coursier = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Coursier Moto', category: 'moto' } })).json().driver.id;
+  await app.inject({ method: 'POST', url: `/drivers/${coursier}/online`, payload: { position: { lat: 5.3240, lng: -4.0220 } } });
+  const recus: string[] = [];
+  container.realtime.subscribe(`driver:${coursier}`, (m) => recus.push(m.type));
+
+  const q = (await app.inject({ method: 'POST', url: '/pricing/estimate', payload: {
+    serviceType: 'delivery', origin: ORIGIN, destination: DEST, category: 'petit',
+  } })).json().quote;
+  const ride = (await app.inject({ method: 'POST', url: '/rides', headers: { 'idempotency-key': 'livraison-om' },
+    payload: { clientId: 'c-om', lockId: q.lockId, paymentMethod: 'orange_money' } })).json().ride;
+  const r = container.rides.get(ride.id)!;
+  r.status = 'completed';
+  container.rides.persist(r);
+
+  // Sans numéro : refus explicite, la course reste à payer (l'app ne doit pas annoncer un succès).
+  const sans = (await app.inject({ method: 'POST', url: `/rides/${ride.id}/pay`, headers: { 'idempotency-key': 'om-0' }, payload: { method: 'orange_money' } })).json();
+  assert.equal(sans.payment.status, 'failed');
+  assert.equal(sans.rideStatus, 'completed');
+
+  // Avec le numéro vérifié du client : confirmé par le bac à sable, course payée.
+  const pay = await app.inject({ method: 'POST', url: `/rides/${ride.id}/pay`, headers: { 'idempotency-key': 'om-1' }, payload: { method: 'orange_money', phone: '+2250707070707' } });
+  assert.equal(pay.statusCode, 200, pay.body);
+  assert.equal(pay.json().rideStatus, 'paid');
+  assert.ok(recus.includes('payment.received'), 'le coursier est prévenu du paiement');
+  assert.equal(container.drivers.get(coursier)!.availability, 'online', 'le coursier est libéré');
+  const note = await app.inject({ method: 'POST', url: `/rides/${ride.id}/rate`, payload: { stars: 5 } });
+  assert.equal(note.statusCode, 200, note.body);
 });

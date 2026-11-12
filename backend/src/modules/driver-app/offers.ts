@@ -3,6 +3,7 @@ import { badRequest, conflict, notFound } from '../../core/errors.js';
 import { driverRoom, rideRoom } from '../realtime/hub.js';
 import type { Ride } from '../rides/store.js';
 import { driverRideView } from './views.js';
+import { categorieDeFlotte } from '../rides/matching.js';
 
 /**
  * OFFRES DE COURSE (app chauffeur).
@@ -138,7 +139,7 @@ export class OfferService {
 
     const cashCap = ride.paymentMethod === 'cash' ? this.c.settings.getOps().cashDebtLimit : undefined;
     const match = await this.c.matching.findDriver(
-      ride.origin, ride.quote.category, ride.quote.distanceMeters, ride.clientId,
+      ride.origin, categorieDeFlotte(ride.serviceType, ride.quote.category), ride.quote.distanceMeters, ride.clientId,
       (d) => !excluded.has(d.id) && (cashCap === undefined || this.c.wallet.balance(d.id) >= -cashCap),
     );
     const now = new Date().toISOString();

@@ -21,6 +21,7 @@ import { MOTIF_LABEL as IMMO_MOTIF_LABEL, VITESSE_COUPURE_MAX } from '../rental/
 import { COUPURES, ECART_TOLERE, ORIGINE_LABEL, SORTIE_LABEL, totalComptage, type Comptage } from '../treasury/caisse.js';
 import { TYPE_LABEL as CREW_TYPE_LABEL, STATUT_LABEL as CREW_STATUT_LABEL, TYPES_FINANCIERS, PLAFOND_AVANCE, PLAFOND_PRET, MAX_ECHEANCES, type TypeRequete } from '../crew/requests.js';
 import { consoleForced, consoleReassigned } from '../driver-app/offers.js';
+import { categorieDeFlotte } from '../rides/matching.js';
 
 /** Rôles de direction : accès complet, 2FA exigible via ADMIN_REQUIRE_2FA. */
 const EXEC_ROLES = new Set(['ceo', 'dg', 'daa', 'coo', 'super_admin']);
@@ -231,6 +232,14 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       const enService = container.drivers.list().filter((d) => d.availability === 'online' || d.availability === 'on_trip');
       const joignables = enService.filter((d) => presents.has(d.id)).length;
       return { ...ov, drivers: { ...ov.drivers, joignables, muets: enService.length - joignables } };
+    });
+
+    // TABLEAU DE BORD (interface à part, dashboard.html) : l'état de tout l'écosystème.
+    // Le direct passe par /ws/dashboard ; cet appel donne l'état complet à l'instant.
+    scoped.get('/admin/dashboard', async (req, reply) => {
+      require(req, 'overview:read');
+      reply.header('cache-control', 'no-store');
+      return container.tableau.etat();
     });
 
     scoped.get('/admin/stats', async (req) => {
@@ -1186,7 +1195,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         }
         next = d.id;
       } else {
-        const match = await container.matching.findDriver(ride.origin, ride.quote.category);
+        const match = await container.matching.findDriver(ride.origin, categorieDeFlotte(ride.serviceType, ride.quote.category));
         next = match && match.driverId !== previous ? match.driverId : null;
         if (match && match.driverId === previous) container.matching.releaseLock(match.driverId);
       }

@@ -17,6 +17,9 @@ export interface RealtimeMessage {
 
 export type RealtimeListener = (msg: RealtimeMessage) => void;
 
+/** Canal interne qui reçoit une copie de chaque message publié. */
+const TOUTES_LES_ROOMS = '*';
+
 export class RealtimeHub {
   private readonly emitter = new EventEmitter();
 
@@ -33,7 +36,14 @@ export class RealtimeHub {
   publish(room: string, type: string, data: unknown): RealtimeMessage {
     const msg: RealtimeMessage = { type, room, at: new Date().toISOString(), data };
     this.emitter.emit(room, msg);
+    // Copie sur le canal global : le tableau de bord voit tout l'écosystème en direct.
+    this.emitter.emit(TOUTES_LES_ROOMS, msg);
     return msg;
+  }
+
+  /** Tous les messages, toutes rooms confondues (tableau de bord, journal serveur). */
+  subscribeAll(listener: RealtimeListener): () => void {
+    return this.subscribe(TOUTES_LES_ROOMS, listener);
   }
 
   subscriberCount(room: string): number {
@@ -60,3 +70,5 @@ export const CONFIG_ROOM = 'config';
  * (délai d'offre, commissions, dette espèces, heures creuses, attente, zones). Toutes les
  * apps chauffeur connectées s'y mettent à jour instantanément. */
 export const DRIVER_CONFIG_ROOM = 'driver-config';
+/** Room du tableau de bord ORION (journal d'activité de tout l'écosystème). */
+export const DASHBOARD_ROOM = 'tableau';

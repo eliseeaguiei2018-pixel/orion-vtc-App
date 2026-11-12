@@ -79,6 +79,7 @@ export function Login({ app }: { app: DriverApp }) {
                   <option value="argent">Argent — berline confort</option>
                   <option value="or">Or — berline premium</option>
                   <option value="diamant">Diamant — prestige</option>
+                  <option value="moto">Moto — coursier (livraison de colis)</option>
                 </select>
               </label>
             </>

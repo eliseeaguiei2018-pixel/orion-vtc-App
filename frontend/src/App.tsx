@@ -304,13 +304,14 @@ export function App() {
   };
 
   /** Construit la fiche chauffeur à partir du VRAI chauffeur matché par le backend. */
-  const driverFromSafe = (s: SafeDriver): Driver => ({
+  /** Le vrai véhicule du conducteur quand le serveur le connaît ; un coursier roule à moto. */
+  const driverFromSafe = (s: SafeDriver, livraison = false): Driver => ({
     name: s.name,
     matricule: s.matricule,
     rating: s.ratingAvg,
     trips: s.ratingCount,
     plate: plateFromMatricule(s.matricule),
-    car: tier.cars[Math.floor(Math.random() * tier.cars.length)] ?? tier.cars[0]!,
+    car: s.vehicleModel ?? (livraison ? 'Scooter électrique' : tier.cars[Math.floor(Math.random() * tier.cars.length)] ?? tier.cars[0]!),
     color: '',
   });
 
@@ -462,7 +463,7 @@ export function App() {
         if (res?.ride?.driverId) {
           setRideId(res.ride.id);
           setLive(true);
-          setDriver(res.driver ? driverFromSafe(res.driver) : pickCourier());
+          setDriver(res.driver ? driverFromSafe(res.driver, true) : pickCourier());
           setCarPos(null);
           setTripPhase('enroute');
           setScreen('tracking');
@@ -585,8 +586,8 @@ export function App() {
         )}
 
         {screen === 'rating' && destination && driver && (
-          <RatingScreen driver={driver} quote={quote} payment={payment} destination={destination} rating={rating}
-            setRating={setRating} onDone={() => { if (live && rideId && rating) void rateRide(rideId, rating); showToast(t('toast_done')); reset(); }} />
+          <RatingScreen driver={driver} quote={quote} payment={payment} destination={destination} rating={rating} livraison={mode === 'delivery'}
+            setRating={setRating} onDone={() => { if (live && rideId && rating) void rateRide(rideId, rating); showToast(t(mode === 'delivery' ? 'toast_done_liv' : 'toast_done')); reset(); }} />
         )}
 
         {assuranceRequise && screen === 'confirm' && (
@@ -1581,7 +1582,7 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
         <p className="faint" style={{ fontSize: 11, textAlign: 'center', marginTop: 6 }}>📶 {t('call_nounits')}</p>
 
         {(phase === 'enroute' || phase === 'arrived') && (
-          <button className="btn btn-danger" style={{ marginTop: 10 }} onClick={onCancel}>{t('act_cancel')}</button>
+          <button className="btn btn-danger" style={{ marginTop: 10 }} onClick={onCancel}>{t(del ? 'act_cancel_liv' : 'act_cancel')}</button>
         )}
         {!del && (
           <div className="perk" style={{ marginTop: 12 }}>
@@ -1647,8 +1648,10 @@ function CallOverlay({ driver, tier, onClose }: { driver: Driver; tier: TierOpti
 }
 
 /* ------------------------------ Rating ------------------------------- */
-function RatingScreen({ driver, quote, payment, destination, rating, setRating, onDone }: {
+function RatingScreen({ driver, quote, payment, destination, rating, setRating, onDone, livraison = false }: {
   driver: Driver; quote: Quote | null; payment: string; destination: Place; rating: number; setRating: (n: number) => void; onDone: () => void;
+  /** Livraison à moto : « Livraison terminée » plutôt que « Course terminée ». */
+  livraison?: boolean;
 }) {
   const { t } = useI18n();
   const [tip, setTip] = useState(0);
@@ -1656,7 +1659,7 @@ function RatingScreen({ driver, quote, payment, destination, rating, setRating, 
   return (
     <div className="screen">
       <OrionMap origin={DEFAULT_ORIGIN.location} destination={destination.location} />
-      <TopBar title={t('rate_done')} />
+      <TopBar title={t(livraison ? 'rate_done_liv' : 'rate_done')} />
       <div style={{ flex: 1 }} />
       <Sheet>
         <div className="col" style={{ alignItems: 'center', marginBottom: 8 }}>
@@ -2010,20 +2013,40 @@ function PaymentScreen({ quote, coverage, payment, driver, rideId, onPaid }: {
   const provider = PAYMENTS.find((p) => p.method === payment)?.label ?? payment;
   const mobile = ['orange_money', 'wave', 'mtn_momo', 'moov_money'].includes(payment);
   const [phase, setPhase] = useState<'idle' | 'redirect' | 'success'>('idle');
+  const [erreur, setErreur] = useState<string | null>(null);
 
   const pay = () => {
-    if (!mobile) { finalize(); return; }
+    setErreur(null);
+    if (!mobile) { void finalize(); return; }
     setPhase('redirect');
   };
-  const finalize = () => {
-    setPhase('success');
+  /**
+   * Le succès n'est affiché que si le SERVEUR a enregistré le paiement. Avant, l'app
+   * annonçait « paiement reçu » sans regarder la réponse : sans numéro mobile money, le
+   * paiement était refusé en silence et le chauffeur restait bloqué « en course ».
+   */
+  const finalize = async () => {
     if (isLiveBackend() && rideId) {
-      void fetch(`${import.meta.env.VITE_API_URL}/rides/${rideId}/pay`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'idempotency-key': `pay-${rideId}` },
-        body: JSON.stringify({ method: payment }),
-      }).catch(() => {});
+      try {
+        const r = await fetch(`${import.meta.env.VITE_API_URL}/rides/${rideId}/pay`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'idempotency-key': `pay-${rideId}-${payment}` },
+          // Le numéro vérifié du compte : celui sur lequel l'opérateur demande la confirmation.
+          body: JSON.stringify({ method: payment, phone: profilEnCache()?.phone ?? undefined }),
+        });
+        const j = await r.json().catch(() => null) as { rideStatus?: string; payment?: { status?: string; message?: string }; error?: { message?: string } } | null;
+        if (!r.ok || j?.rideStatus !== 'paid') {
+          setPhase('idle');
+          setErreur(j?.payment?.status === 'pending' ? t('pay_confirm_in', { p: provider }) : (j?.payment?.message ?? j?.error?.message ?? t('pay_failed')));
+          return;
+        }
+      } catch {
+        setPhase('idle');
+        setErreur(t('pay_failed'));
+        return;
+      }
     }
+    setPhase('success');
     window.setTimeout(onPaid, 2200);
   };
 
@@ -2041,6 +2064,7 @@ function PaymentScreen({ quote, coverage, payment, driver, rideId, onPaid }: {
             </div>
             <div className="chip active" style={{ width: '100%', justifyContent: 'flex-start', marginBottom: 14 }}><IconWallet size={16} /> {provider}</div>
             <button className="btn btn-primary" onClick={pay}><IconWallet size={18} /> {t('pay_now')} · {formatXOF(quote?.amount ?? 0)}</button>
+            {erreur && <p className="pay-erreur" role="alert">{erreur}</p>}
             {mobile && <p className="faint" style={{ fontSize: 12, textAlign: 'center', marginTop: 8 }}>{t('pay_redirect', { p: provider })}</p>}
           </>
         ) : (
@@ -2060,7 +2084,7 @@ function PaymentScreen({ quote, coverage, payment, driver, rideId, onPaid }: {
           <h2 className="h-title">{t('pay_redirect', { p: provider })}</h2>
           <p className="h-sub" style={{ textAlign: 'center' }}>{t('pay_confirm_in', { p: provider })}</p>
           <div className="pay-spinner" />
-          <button className="btn btn-primary" style={{ maxWidth: 260 }} onClick={finalize}>{t('pay_open', { p: provider })}</button>
+          <button className="btn btn-primary" style={{ maxWidth: 260 }} onClick={() => void finalize()}>{t('pay_open', { p: provider })}</button>
         </div>
       )}
     </div>

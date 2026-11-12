@@ -4,7 +4,7 @@ import { IconClock, IconPhone, IconPin, IconWallet } from '../../icons';
 import type { DriverApp } from '../useDriver';
 import type { ActiveRide, RideStatus, RideView } from '../types';
 import { Banner, Modal } from '../ui';
-import { fcfa, haversine, km, methodLabel, navLinks, STATUS_LABEL } from '../format';
+import { fcfa, haversine, km, methodLabel, navLinks, statutLabel, TAILLE_COLIS } from '../format';
 
 const STEPS: RideStatus[] = ['driver_en_route', 'arrived', 'in_progress', 'completed'];
 
@@ -27,6 +27,8 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
   const cashAllowed = gateways['cash'] !== false;
   const electronic = ride.paymentMethod !== null && ride.paymentMethod !== 'cash';
   const t = (to: RideStatus) => void app.actions.transition(ride.id, to);
+  // Livraison à moto : mêmes étapes, mots du coursier (colis à retirer puis à livrer).
+  const livraison = ride.serviceType === 'delivery';
 
   return (
     <div className="dv-ride">
@@ -34,19 +36,21 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
         {toPickup
           ? <OrionMap origin={app.position} destination={ride.origin} car={app.position} traffic />
           : <OrionMap origin={ride.origin} destination={ride.destination} car={app.position} traffic />}
-        <div className="dv-map-chip"><span className="dv-link online"><i />{STATUS_LABEL[ride.status]}</span></div>
+        <div className="dv-map-chip"><span className="dv-link online"><i />{statutLabel(ride.status, livraison)}</span></div>
         <button className="sos" style={{ bottom: 40 }} onClick={() => setSos(true)} aria-label="SOS">SOS</button>
       </div>
 
       <div className="dv-ride-sheet">
-        <div className="dv-steps" aria-label="Étapes de la course">
+        <div className="dv-steps" aria-label={livraison ? 'Étapes de la livraison' : 'Étapes de la course'}>
           {STEPS.map((s, i) => <span key={s} className={i <= step ? 'done' : ''} />)}
         </div>
 
         <div className="row between">
           <div>
-            <div className="eyebrow">{toPickup ? 'Prise en charge' : ride.status === 'arrived' ? 'Client attendu' : 'Destination'}</div>
-            <div className="h-title" style={{ fontSize: 19 }}>{ride.client.name ?? 'Passager ORION'}</div>
+            <div className="eyebrow">{livraison
+              ? (toPickup ? 'Retrait du colis' : ride.status === 'arrived' ? `Colis à récupérer · ${TAILLE_COLIS[ride.category] ?? ride.category}` : 'Livraison du colis')
+              : (toPickup ? 'Prise en charge' : ride.status === 'arrived' ? 'Client attendu' : 'Destination')}</div>
+            <div className="h-title" style={{ fontSize: 19 }}>{ride.client.name ?? (livraison ? 'Client ORION' : 'Passager ORION')}</div>
             <div className="faint" style={{ fontSize: 12.5 }}>
               {km(haversine(app.position, target))} · {methodLabel(ride.paymentMethod)}{ride.pickupZone ? ` · ${ride.pickupZone.name}` : ''}
             </div>
@@ -78,10 +82,10 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
           </div>
         )}
 
-        {ride.status === 'accepted' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('driver_en_route')}>Je pars vers le client</button>}
-        {ride.status === 'driver_en_route' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('arrived')}>Je suis arrivé</button>}
-        {ride.status === 'arrived' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('in_progress')}>Client à bord — démarrer</button>}
-        {ride.status === 'in_progress' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('completed')}>Terminer la course</button>}
+        {ride.status === 'accepted' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('driver_en_route')}>{livraison ? 'Je pars chercher le colis' : 'Je pars vers le client'}</button>}
+        {ride.status === 'driver_en_route' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('arrived')}>{livraison ? 'Je suis au point de retrait' : 'Je suis arrivé'}</button>}
+        {ride.status === 'arrived' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('in_progress')}>{livraison ? 'Colis récupéré, je livre' : 'Client à bord — démarrer'}</button>}
+        {ride.status === 'in_progress' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('completed')}>{livraison ? 'Colis livré' : 'Terminer la course'}</button>}
 
         {ride.status === 'completed' && (
           <div className="col" style={{ gap: 10 }}>
@@ -102,7 +106,7 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
         )}
 
         {(ride.status === 'accepted' || ride.status === 'driver_en_route' || ride.status === 'arrived') && (
-          <button className="btn btn-ghost" onClick={() => setCancel(true)} disabled={app.busy}>Annuler la course</button>
+          <button className="btn btn-ghost" onClick={() => setCancel(true)} disabled={app.busy}>{livraison ? 'Annuler la livraison' : 'Annuler la course'}</button>
         )}
       </div>
 
@@ -141,7 +145,7 @@ export function SettledModal({ app }: { app: DriverApp }) {
   }, [app.backend, settled.rideId]);
   const e = view?.earnings;
   return (
-    <Modal title="Course payée ✅" onClose={app.actions.dismissSettled}>
+    <Modal title={view?.serviceType === 'delivery' ? 'Livraison payée ✅' : 'Course payée ✅'} onClose={app.actions.dismissSettled}>
       <div className="col" style={{ gap: 10 }}>
         <div className="row between"><span className="muted">Montant payé ({methodLabel(settled.method)})</span><strong>{fcfa(settled.amount)}</strong></div>
         {e && (

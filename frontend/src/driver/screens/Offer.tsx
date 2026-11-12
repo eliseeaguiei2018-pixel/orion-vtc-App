@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { IconCar, IconClock, IconPin, IconWallet } from '../../icons';
 import type { DriverApp } from '../useDriver';
 import type { ActiveRide } from '../types';
-import { fcfa, haversine, km, methodLabel, minutes, pct, TIER_LABEL, zoneAt } from '../format';
+import { fcfa, haversine, km, methodLabel, minutes, pct, TAILLE_COLIS, TIER_LABEL, zoneAt } from '../format';
 
 /** Bip d'alerte (WebAudio, sans fichier) à l'arrivée d'une offre. */
 function beep(): void {
@@ -64,13 +64,14 @@ export function OfferSheet({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
   const c = 2 * Math.PI * r;
   const ratio = total > 0 ? left / total : 0;
   const urgent = left <= 4;
+  const livraison = ride.serviceType === 'delivery';
 
   return (
     <div className="dv-offer-back">
-      <div className="dv-offer" role="dialog" aria-label="Nouvelle offre de course">
+      <div className="dv-offer" role="dialog" aria-label={livraison ? 'Nouvelle offre de livraison' : 'Nouvelle offre de course'}>
         <div className="row between">
           <div>
-            <div className="eyebrow">Nouvelle course · {TIER_LABEL[ride.category] ?? ride.category}</div>
+            <div className="eyebrow">{livraison ? `Nouvelle livraison moto · ${TAILLE_COLIS[ride.category] ?? ride.category}` : `Nouvelle course · ${TIER_LABEL[ride.category] ?? ride.category}`}</div>
             <div className="dv-price">{fcfa(ride.amount)}</div>
             <div className="muted" style={{ fontSize: 13 }}>≈ {fcfa(net)} nets pour vous · commission {pct(rate)}</div>
           </div>
@@ -86,18 +87,18 @@ export function OfferSheet({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
 
         <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
           <span className={`dv-pill ${ride.paymentMethod === 'cash' ? 'gold' : 'green'}`}><IconWallet size={13} /> {methodLabel(ride.paymentMethod)}</span>
-          <span className="dv-pill"><IconPin size={13} /> Prise en charge à {km(toPickup)}</span>
+          <span className="dv-pill"><IconPin size={13} /> {livraison ? 'Retrait du colis' : 'Prise en charge'} à {km(toPickup)}</span>
           <span className="dv-pill"><IconCar size={13} /> {km(ride.distanceMeters)}</span>
           <span className="dv-pill"><IconClock size={13} /> {minutes(ride.etaSeconds)}</span>
           {ride.pickupZone && ride.pickupZone.driverBonus > 0 && <span className="dv-pill green">Bonus {ride.pickupZone.name} +{fcfa(ride.pickupZone.driverBonus)}</span>}
         </div>
 
         <div className="dv-route card" style={{ padding: '12px 14px 12px 36px' }}>
-          <div><strong>Départ</strong> <span className="muted">· {fromName}</span></div>
-          <div><strong>Arrivée</strong> <span className="muted">· {toName}</span></div>
+          <div><strong>{livraison ? 'Retrait' : 'Départ'}</strong> <span className="muted">· {fromName}</span></div>
+          <div><strong>{livraison ? 'Livraison' : 'Arrivée'}</strong> <span className="muted">· {toName}</span></div>
         </div>
         <div className="faint" style={{ fontSize: 12.5 }}>
-          Client : {ride.client.name ?? 'Passager ORION'}{ride.client.rides > 0 ? ` · ${ride.client.rides} course${ride.client.rides > 1 ? 's' : ''} ORION` : ''} · Prix fixe garanti, embouteillages inclus.
+          {livraison ? 'Expéditeur' : 'Client'} : {ride.client.name ?? (livraison ? 'Client ORION' : 'Passager ORION')}{ride.client.rides > 0 ? ` · ${ride.client.rides} course${ride.client.rides > 1 ? 's' : ''} ORION` : ''} · Prix fixe garanti, embouteillages inclus.
         </div>
 
         {declining ? (

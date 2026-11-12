@@ -30,7 +30,15 @@ export const KYC_LABEL: Record<KycStatus, string> = {
   approved: 'Validé', active: 'Actif', suspended: 'Suspendu',
 };
 
-export const TIER_LABEL: Record<string, string> = { bronze: 'Bronze', argent: 'Argent', or: 'Or', diamant: 'Diamant' };
+export const TIER_LABEL: Record<string, string> = { bronze: 'Bronze', argent: 'Argent', or: 'Or', diamant: 'Diamant', moto: 'Coursier moto' };
+
+/** Livraison à moto : les mêmes étapes, dites avec les mots du coursier. */
+export const STATUS_LABEL_LIVRAISON: Partial<Record<RideStatus, string>> = {
+  accepted: 'Livraison attribuée', driver_en_route: 'En route vers le colis', arrived: 'Au point de retrait',
+  in_progress: 'Livraison en cours', completed: 'Colis livré · paiement',
+};
+export const TAILLE_COLIS: Record<string, string> = { petit: 'petit colis', moyen: 'colis moyen', grand: 'grand colis' };
+export const statutLabel = (status: RideStatus, livraison: boolean) => (livraison ? STATUS_LABEL_LIVRAISON[status] : undefined) ?? STATUS_LABEL[status];
 const TIER_RANK: Record<string, number> = { bronze: 0, argent: 1, or: 2, diamant: 3 };
 export const meetsStandard = (category: string, min: string | null): boolean => !min || (TIER_RANK[category] ?? 0) >= (TIER_RANK[min] ?? 0);
 

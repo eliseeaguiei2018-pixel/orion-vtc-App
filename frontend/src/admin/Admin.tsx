@@ -1392,6 +1392,9 @@ function Console({ onLogout }: { onLogout: () => void }) {
             />
           )}
           <div className="adm-top-right">
+            {can('overview:read') && (
+              <a className="adm-btn ghost" href="./dashboard.html" target="_blank" rel="noopener" title="Ouvrir le tableau de bord en direct (écran à part)">📺 Tableau de bord</a>
+            )}
             <button className="adm-btn ghost adm-mute" title={theme === 'dark' ? 'Passer en mode jour' : 'Passer en mode nuit'} onClick={toggleTheme}>
               {theme === 'dark' ? '☀️' : '🌙'}
             </button>

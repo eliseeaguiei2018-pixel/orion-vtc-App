@@ -63,9 +63,18 @@ export interface PaymentProvider {
 
 const CI_PHONE = /^\+225\d{8,10}$/;
 
-/** Adaptateur mobile money de référence (sandbox). */
+/**
+ * Adaptateur mobile money de référence (bac à sable).
+ *
+ * Aucun opérateur réel n'est encore branché. Hors production, le bac à sable joue le
+ * rôle de l'opérateur et CONFIRME le paiement comme le client le ferait sur son
+ * téléphone : sans cela, un paiement Orange Money, Wave ou MTN restait « en attente »
+ * pour toujours, l'app cliente affichait « paiement reçu » alors que le serveur ne
+ * l'enregistrait pas, et le chauffeur restait bloqué « en course ». En production,
+ * le statut reste « en attente » jusqu'à la confirmation de l'opérateur réel.
+ */
 class MobileMoneyProvider implements PaymentProvider {
-  constructor(public readonly method: PaymentMethod) {}
+  constructor(public readonly method: PaymentMethod, private readonly bacASable: boolean) {}
   async charge(req: ChargeRequest): Promise<ChargeResult> {
     if (!req.phone || !CI_PHONE.test(req.phone)) {
       return {
@@ -75,6 +84,16 @@ class MobileMoneyProvider implements PaymentProvider {
         currency: 'XOF',
         status: 'failed',
         message: 'Numéro mobile money invalide (format +225XXXXXXXX)',
+      };
+    }
+    if (this.bacASable) {
+      return {
+        reference: req.reference,
+        method: this.method,
+        amount: req.amount,
+        currency: 'XOF',
+        status: 'captured',
+        message: 'Paiement confirmé (bac à sable : aucun opérateur réel branché)',
       };
     }
     // En prod : appel API opérateur → push USSD/notification de confirmation.
@@ -122,9 +141,10 @@ class CardProvider implements PaymentProvider {
 export class PaymentRegistry {
   private readonly providers = new Map<PaymentMethod, PaymentProvider>();
 
-  constructor() {
+  /** `bacASable` : hors production, les paiements mobile money sont confirmés sur-le-champ. */
+  constructor(bacASable = false) {
     for (const m of ['orange_money', 'mtn_momo', 'moov_money', 'wave'] as const) {
-      this.providers.set(m, new MobileMoneyProvider(m));
+      this.providers.set(m, new MobileMoneyProvider(m, bacASable));
     }
     this.providers.set('cash', new CashProvider());
     this.providers.set('card', new CardProvider());

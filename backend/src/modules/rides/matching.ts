@@ -1,6 +1,19 @@
 import type { GeoIndex, LatLng } from '../../core/geo.js';
 import type { DriverStore, Driver } from '../drivers/store.js';
 
+/** Catégorie de flotte des coursiers (livraison à moto). */
+export const CATEGORIE_COURSIER = 'moto';
+
+/**
+ * Catégorie de flotte à chercher pour une commande. Une livraison cherche un COURSIER à
+ * moto : son devis porte la taille du colis (petit, moyen, grand) dans `category`, que
+ * l'on comparait aux gammes des voitures. Aucune ne correspondait : chaque livraison
+ * réelle finissait « sans chauffeur ». Une course cherche la gamme demandée.
+ */
+export function categorieDeFlotte(serviceType: string | undefined, category: string | undefined): string | undefined {
+  return serviceType === 'delivery' ? CATEGORIE_COURSIER : category;
+}
+
 export interface MatchResult {
   driverId: string;
   distanceMeters: number;

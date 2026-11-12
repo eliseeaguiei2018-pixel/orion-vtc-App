@@ -1,3 +1,4 @@
+import { TableauDeBord } from './modules/dashboard/service.js';
 import { creerSms, type SmsSender } from './modules/sms/index.js';
 import { randomUUID } from 'node:crypto';
 import { createGeoIndex, type GeoIndex } from './core/geo.js';
@@ -83,6 +84,8 @@ export interface Container {
   maps: MapsProvider;
   /** Itinéraires routiers réels (OSRM / OpenStreetMap), avec repli. */
   routage: Routage;
+  /** Tableau de bord ORION : journal d'activité de tout l'écosystème, en direct. */
+  tableau: TableauDeBord;
   simulator: RideSimulator;
   wallet: WalletService;
   clientWallet: WalletService;
@@ -283,7 +286,7 @@ export function createContainer(): Container {
     drivers,
     rides,
     matching,
-    payments: new PaymentRegistry(),
+    payments: new PaymentRegistry(config.NODE_ENV !== 'production'),
     safety,
     realtime,
     contacts: new EmergencyContactsService(
@@ -347,6 +350,7 @@ export function createContainer(): Container {
     teamWorkspace: undefined as unknown as TeamWorkspaceService,
     assistant: undefined as unknown as AssistantService,
     rideRelease: undefined as unknown as RideReleaseService,
+    tableau: undefined as unknown as TableauDeBord,
     sms: creerSms(config),
   };
   // La direction générale ne stocke rien, elle lit les autres modules. On la câble
@@ -358,6 +362,7 @@ export function createContainer(): Container {
   container.teamWorkspace = new TeamWorkspaceService(container);
   container.assistant = new AssistantService(container);
   container.rideRelease = new RideReleaseService(container, config.RIDE_UNPAID_RELEASE_MINUTES);
+  container.tableau = new TableauDeBord(container);
 
   // MODE SIMULATION : la présence géographique d'un chauffeur expire après
   // PRESENCE_TTL_SECONDS sans position reçue — c'est l'app chauffeur qui la
@@ -429,6 +434,10 @@ export async function seedDemoDrivers(c: Container): Promise<void> {
     { name: 'Grace Kouamé', lat: 5.353, lng: -3.995, category: 'or', phone: '+2250706070809' },
     { name: 'Fatou Koné', lat: 5.301, lng: -3.998, category: 'diamant', phone: '+2250707080910' },
     { name: 'Serge Gbagbo', lat: 5.3265, lng: -4.0185, category: 'diamant', phone: '+2250708091011' },
+    // Coursiers à moto (livraison) : sans eux, aucune livraison ne trouvait de coursier.
+    { name: 'Yacouba Ouattara', lat: 5.3228, lng: -4.0168, category: 'moto', phone: '+2250709101112' },
+    { name: 'Bintou Coulibaly', lat: 5.3492, lng: -3.9935, category: 'moto', phone: '+2250710111213' },
+    { name: 'Hervé Kouadio', lat: 5.3049, lng: -3.9871, category: 'moto', phone: '+2250711121314' },
   ];
   for (const s of seeds) {
     const d = c.drivers.upsert({
@@ -441,6 +450,7 @@ export async function seedDemoDrivers(c: Container): Promise<void> {
       availability: 'offline',
       ratingAvg: 4.9,
       ratingCount: 1000,
+      ...(s.category === 'moto' ? { vehicleModel: 'Scooter électrique', engine: 'electric' as const } : {}),
     });
     await c.drivers.goOnline(d.id, { lat: s.lat, lng: s.lng });
   }

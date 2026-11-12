@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import websocket from '@fastify/websocket';
 import type { Container } from '../../container.js';
-import { CONFIG_ROOM, EMERGENCY_ROOM, rideRoom, sosRoom } from './hub.js';
+import { CONFIG_ROOM, DASHBOARD_ROOM, EMERGENCY_ROOM, rideRoom, sosRoom } from './hub.js';
 import { accesPersonnel } from '../admin/acces-hors-console.js';
 
 /**
@@ -12,6 +12,7 @@ import { accesPersonnel } from '../admin/acces-hors-console.js';
  *                          réservé au personnel habilité (`alerts:read`)
  *  - GET /ws/sos/:id     → suivi d'UNE alerte par la personne qui l'a déclenchée
  *                          (`?userId=` doit être le sien)
+ *  - GET /ws/dashboard   → journal d'activité du tableau de bord (`overview:read`)
  *  - GET /ws/config      → config publique en temps réel (maintenance, services,
  *                          passerelles) : l'app cliente se met à jour sans redémarrer
  *
@@ -39,6 +40,17 @@ export async function realtimeRoutes(app: FastifyInstance, container: Container)
       },
     }, (socket) => {
       attach(socket, container, EMERGENCY_ROOM, {});
+    });
+
+    // Tableau de bord ORION : le journal d'activité de tout l'écosystème, en direct.
+    scoped.get('/ws/dashboard', {
+      websocket: true,
+      preValidation: async (req, reply) => {
+        const acces = accesPersonnel(req, 'overview:read');
+        if (!acces.ok) await reply.code(acces.code).send({ error: acces.message });
+      },
+    }, (socket) => {
+      attach(socket, container, DASHBOARD_ROOM, {});
     });
 
     // Suivi usager : l'état courant à la connexion, puis chaque évolution.
