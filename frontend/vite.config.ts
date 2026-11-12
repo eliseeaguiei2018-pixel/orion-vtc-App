@@ -21,6 +21,13 @@ export default defineConfig({
         confidentialite: new URL('./confidentialite.html', import.meta.url).pathname,
         suppression: new URL('./suppression-compte.html', import.meta.url).pathname,
       },
+      output: {
+        // Le « worker » de la carte (MapLibre) est publié en .js : la WebView d'iOS ne
+        // reconnaît pas toujours .mjs et refuserait de le charger comme script.
+        assetFileNames: (asset) => (asset.names?.[0] ?? asset.name ?? '').endsWith('.mjs')
+          ? 'assets/[name]-[hash].js'
+          : 'assets/[name]-[hash][extname]',
+      },
     },
   },
   server: {
