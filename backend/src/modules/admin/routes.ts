@@ -886,10 +886,14 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       // Niveau de batterie des téléphones (remontée app ; valeur stable simulée à défaut).
       const pseudoBatt = (s: string) => 30 + ([...s].reduce((a, c) => a + c.charCodeAt(0), 0) % 66);
       const trace = ride?.trace ?? [];
+      // Vitesse sur le VRAI intervalle entre les deux derniers points. Avant, l'écart
+      // était supposé d'une seconde : avec un point toutes les 2 s, l'agent lisait le
+      // double de la vitesse réelle. Sans horodatage ou sans point récent : pas de chiffre.
       let speedEstimateKmh: number | null = null;
-      if (trace.length >= 2) {
+      const [avant, dernier] = trace.slice(-2);
+      if (avant?.t && dernier?.t && dernier.t > avant.t && Date.now() - dernier.t < 30_000) {
         const { haversineMeters } = await import('../../core/geo.js');
-        speedEstimateKmh = Math.round(haversineMeters(trace[trace.length - 2]!, trace[trace.length - 1]!) * 3.6);
+        speedEstimateKmh = Math.round((haversineMeters(avant, dernier) / ((dernier.t - avant.t) / 1000)) * 3.6);
       }
       return {
         alert,

@@ -150,3 +150,31 @@ test('tableau de bord : un SOS donne UNE ligne, avec la commune', async (t) => {
   assert.equal(sos.length, 1, `lignes : ${lignes.map((l) => l.titre).join(' | ')}`);
   assert.match(sos[0]!.titre, /Alerte SOS · \S/, 'la commune suit le titre');
 });
+
+test('tracé GPS : la position continue au-delà de 200 points, vitesse sur le vrai intervalle', async () => {
+  const { ajouterPoint, MAX_POINTS_TRACE } = await import('../src/modules/rides/simulator.js');
+  const ride = { trace: [], traceDepart: 41 } as unknown as Ride;
+  for (let i = 0; i < 260; i++) ride.trace = ajouterPoint(ride, { lat: 5.3 + i * 0.0001, lng: -4.0, t: 1_000 + i * 2_000 });
+  assert.ok(ride.trace!.length <= MAX_POINTS_TRACE, 'tracé borné');
+  assert.equal(ride.trace!.at(-1)!.lat, 5.3 + 259 * 0.0001, 'le dernier point est la position actuelle');
+  assert.equal(ride.trace![0]!.lat, 5.3, 'le départ est conservé');
+  assert.ok(ride.traceDepart! < 41, 'le début du trajet suit l’éclaircissement');
+});
+
+test('dossier SOS : la vitesse estimée tient compte de l’intervalle entre deux points', async (t) => {
+  const { app, container } = await buildApp();
+  t.after(() => app.close());
+  const ride = course(9001, 'drv-x', 'in_progress');
+  const maintenant = Date.now();
+  // 100 m en 2 s = 180 km/h ; l'ancien calcul (1 s supposée) affichait 360 km/h.
+  ride.trace = [{ lat: 5.3, lng: -4.0, t: maintenant - 2_000 }, { lat: 5.3 + 100 / 111_195, lng: -4.0, t: maintenant }];
+  container.rides.save(ride);
+  const alerte = container.safety.raiseSos({ userId: ride.clientId, location: ride.trace[1]!, rideId: ride.id, source: 'client' });
+  const d = (await app.inject({ method: 'GET', url: `/admin/sos/${alerte.id}`, headers: AUTH })).json();
+  assert.ok(Math.abs(d.telemetry.speedEstimateKmh - 180) <= 2, `vitesse ${d.telemetry.speedEstimateKmh} km/h`);
+  // Sans horodatage (ancien tracé) : pas de chiffre plutôt qu'un chiffre faux.
+  ride.trace = [{ lat: 5.3, lng: -4.0 }, { lat: 5.301, lng: -4.0 }];
+  container.rides.save(ride);
+  const sans = (await app.inject({ method: 'GET', url: `/admin/sos/${alerte.id}`, headers: AUTH })).json();
+  assert.equal(sans.telemetry.speedEstimateKmh, null);
+});

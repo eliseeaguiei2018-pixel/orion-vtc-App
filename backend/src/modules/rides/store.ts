@@ -22,8 +22,12 @@ export interface Ride {
   shareToken?: string;
   /** Contact de confiance prévenu au départ — ORION peut le joindre en cas d'accident. */
   trustedContact?: TrustedContact;
-  /** Tracé GPS de la course (échantillonné, borné à 200 points) — instruction des litiges. */
-  trace?: LatLng[];
+  /**
+   * Tracé GPS de la course (borné à 200 points, éclairci au-delà) — instruction des
+   * litiges ; le dernier point est la position actuelle. Points horodatés (`t`, en ms) :
+   * la vitesse se calcule sur le vrai intervalle.
+   */
+  trace?: Array<LatLng & { t?: number }>;
   /**
    * Indice du tracé où commence le trajet avec le client (prise en charge). Ce qui
    * précède est l'approche du chauffeur : elle ne compte pas dans la détection d'une

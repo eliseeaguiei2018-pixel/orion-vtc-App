@@ -24,6 +24,22 @@ export interface SimulatorOptions {
   pauseMs: number;
 }
 
+/** Borne du tracé conservé sur une course. */
+export const MAX_POINTS_TRACE = 200;
+
+/** Ajoute un point au tracé ; à la borne, l'éclaircit (un point sur deux) au lieu de figer la position. */
+export function ajouterPoint(ride: Ride, point: LatLng & { t: number }): NonNullable<Ride['trace']> {
+  let trace = ride.trace ?? [];
+  if (trace.length >= MAX_POINTS_TRACE) {
+    const dernier = trace.length - 1;
+    trace = trace.filter((_, i) => i % 2 === 0 || i === dernier);
+    // Le début du trajet (après l'approche) suit l'éclaircissement.
+    if (ride.traceDepart) ride.traceDepart = Math.ceil(ride.traceDepart / 2);
+  }
+  trace.push(point);
+  return trace;
+}
+
 export class RideSimulator {
   private readonly timers = new Set<ReturnType<typeof setInterval>>();
   private readonly opts: SimulatorOptions;
@@ -120,9 +136,11 @@ export class RideSimulator {
       }
       const t = Math.min(1, (Date.now() - startedAt) / durationMs);
       const pos = pointSurTrace(trace, t);
-      // Tracé GPS conservé sur la course (borné) — sert à l'instruction des litiges.
-      current.trace ??= [];
-      if (current.trace.length < 200) current.trace.push({ lat: pos.lat, lng: pos.lng });
+      // Tracé GPS conservé sur la course (borné) — sert à l'instruction des litiges, et
+      // son dernier point est LA position de la course (SOS, tableau de bord). Arrivé à
+      // la borne, on ne s'arrête plus d'enregistrer (la position restait figée pour le
+      // reste du trajet) : on garde un point sur deux, et le tracé continue.
+      current.trace = ajouterPoint(current, { lat: pos.lat, lng: pos.lng, t: Date.now() });
       this.realtime.publish(rideRoom(ride.id), 'driver.location', { driverId: ride.driverId, position: pos });
       if (t >= 1) {
         this.clear(timer);
