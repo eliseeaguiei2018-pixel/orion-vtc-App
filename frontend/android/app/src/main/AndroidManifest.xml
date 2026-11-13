@@ -37,6 +37,28 @@
       ajouter le jour où la fonction correspondante est branchée.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      Bouton « Appeler » : un lien tel: ouvre le CLAVIER du téléphone avec le numéro déjà
+      composé ; la personne n'a plus qu'à appuyer sur la touche d'appel. Aucune permission
+      CALL_PHONE : l'app ne passe jamais un appel à la place de l'utilisateur (Google Play
+      la réserve aux applications de téléphonie). Les déclarations ci-dessous rendent le
+      clavier et les SMS visibles depuis l'app (Android 11 et plus).
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="sms" />
+        </intent>
+    </queries>
     <!-- Photo de profil : prise de vue avec la caméra frontale. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- L'app s'installe aussi sur un appareil sans caméra (la galerie reste possible). -->

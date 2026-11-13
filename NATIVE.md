@@ -102,8 +102,9 @@ accès avant la demande système — recommandé par Apple et Google (meilleur t
 - Sert à : maj de la course, file d'attente hors-ligne, état du wallet.
 
 ## 6. Graphismes & performance (taux de rafraîchissement adaptatif)
-- **iOS ProMotion** (jusqu'à 120 Hz) : actif automatiquement ; pour les animations
-  `requestAnimationFrame` plein débit, ajouter la clé `CADisableMinimumFrameDurationOnPhone = true`.
+- **iOS ProMotion** (jusqu'à 120 Hz) : la clé `CADisableMinimumFrameDurationOnPhone = true`
+  est posée dans `Info.plist`. Sans elle, iOS bride les animations des apps à 60 images
+  par seconde.
 - **Android** : taux adaptatif (90/120/144 Hz) géré par le système ; on peut demander le mode
   haute fréquence via `WindowManager.LayoutParams.preferredDisplayModeId`.
 - **Adaptation à la qualité du téléphone** : `@capacitor/device` fournit le modèle/RAM ; l'app
@@ -115,16 +116,39 @@ accès avant la demande système — recommandé par Apple et Google (meilleur t
 - Géré côté app (`ThemeProvider`) : `light` / `dark` / `system` (suit le téléphone en temps réel).
 - Natif : `@capacitor/status-bar` aligne la barre d'état ; `colorScheme` synchronisé.
 
-## 8. Appel chauffeur ↔ client via internet (VoIP)
+## 8. Bouton « Appeler » : le clavier du téléphone
 
-Le client peut **appeler le chauffeur sans unités** (data uniquement) via **WebRTC** :
-- L'app établit un appel audio peer-to-peer chiffré (DTLS-SRTP).
-- **Signaling** : via le WebSocket existant (`/ws/rides/:id`) — échange offre/réponse/ICE.
-- **TURN/STUN** : serveur TURN requis pour traverser les NAT (ex. coturn) ; l'app récupère
-  les credentials ICE via un endpoint backend `/calls/ice` (à brancher, court-lived).
-- Numéros masqués : ni le client ni le chauffeur ne voient le vrai numéro de l'autre.
-- Repli : appel cellulaire classique si l'utilisateur le préfère.
-- L'écran d'appel in-app (minuteur, muet, haut-parleur) est déjà présent (`CallOverlay`).
+Un toucher sur « Appeler » ouvre **le clavier téléphonique du portable**, avec le numéro
+de l'autre personne déjà composé. Il ne reste qu'à appuyer sur la touche d'appel :
+l'app n'appelle jamais à la place de l'utilisateur.
+
+| Où | Numéro composé |
+|---|---|
+| App client, suivi de course | le chauffeur de la course |
+| App chauffeur, course en cours | le passager |
+| Console (SOS, Mon poste, télématique, équipes) | l'usager, le contact d'urgence, le locataire, le chef d'équipe |
+
+- **Le numéro vient du serveur** (`GET /rides/:id/contact`). Il n'est remis qu'aux deux
+  participants de la course, et seulement pendant la course : après, il faut passer par
+  le support. Chaque remise de numéro est journalisée.
+- **Format composable** : espaces retirés et indicatif +225 ajouté à un numéro local à
+  10 chiffres (`frontend/src/telephone.ts`, même règle que le serveur). Un touriste avec
+  un téléphone étranger peut donc composer le numéro.
+- **Android** : `<queries>` déclare le clavier (`DIAL`) et les SMS (`SENDTO`). Il n'y a
+  **pas** de permission `CALL_PHONE` : Google Play la réserve aux applications de
+  téléphonie.
+- **iOS** : `LSApplicationQueriesSchemes` (`tel`, `telprompt`, `sms`). iOS affiche sa
+  fenêtre d'appel avec le numéro.
+- **Ordinateur** (console) : le lien `tel:` ouvre l'application d'appel associée (Teams,
+  Skype, téléphone relié). Un lien WhatsApp s'ouvre dans un nouvel onglet, sans quitter
+  la console.
+- **Preuve automatique sur émulateur** : `mobile/maestro/android/03-course-et-appeler.yaml`
+  commande une course, touche « Appeler » et photographie l'application Téléphone
+  d'Android.
+
+L'ancien écran d'« appel internet » était simulé : aucun appel ne partait. Il est retiré.
+Un vrai appel par internet, avec numéros masqués, demandera un fournisseur de téléphonie
+(WebRTC avec un serveur TURN, ou numéros relais type Twilio Proxy). Ce n'est pas branché.
 
 ## 9. Détection de choc / SOS
 - Accéléromètre (`DeviceMotion`) → endpoint `/safety/sensor` (déjà codé) → alerte SAMU (185).

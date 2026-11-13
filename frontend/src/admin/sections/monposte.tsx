@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Kpi } from '../ui';
 import type { MonPoste } from '../types';
+import { lienTel } from '../../telephone';
 
 /**
  * SESSION « MON POSTE » — la journée de travail de l'employé connecté.
@@ -308,7 +309,7 @@ export function MonPosteSection({ poste, onAller, onLireMessage, onRepondre, onR
                     {f.requetesOuvertes > 0 && <> <span className="adm-pill tr-pending">{f.requetesOuvertes} requête(s)</span></>}
                     {f.alertes === 0 && f.requetesOuvertes === 0 && <span className="adm-muted">—</span>}
                   </td>
-                  <td>{f.phone ? <a className="adm-btn xs solid" href={`tel:${f.phone}`}>📞 Appeler</a> : <span className="adm-muted">n° inconnu</span>}</td>
+                  <td>{f.phone ? <a className="adm-btn xs solid" href={lienTel(f.phone) ?? undefined}>📞 Appeler</a> : <span className="adm-muted">n° inconnu</span>}</td>
                   <td><button className="adm-btn xs" onClick={() => onOuvrirChauffeur(f.driverId)}>Ouvrir</button></td>
                 </tr>
               ))}
@@ -533,7 +534,7 @@ function PosteChauffeur({ poste, dossier: d, onChangerMotDePasse, onDeposer }: {
             {d.equipe ? (
               <div className="row between" style={{ gap: 10, flexWrap: 'wrap' }}>
                 <span><strong>{d.equipe.name}</strong><br /><span className="adm-muted">Chef d’équipe : {d.equipe.managerName ?? 'non désigné'}</span></span>
-                {d.equipe.managerPhone && <a className="adm-btn solid" href={`tel:${d.equipe.managerPhone}`}>📞 Appeler mon chef d’équipe</a>}
+                {d.equipe.managerPhone && <a className="adm-btn solid" href={lienTel(d.equipe.managerPhone) ?? undefined}>📞 Appeler mon chef d’équipe</a>}
               </div>
             ) : <p className="adm-muted" style={{ margin: 0 }}>Vous n’êtes rattaché(e) à aucune équipe. Vos demandes vont directement à la direction.</p>}
           </div>

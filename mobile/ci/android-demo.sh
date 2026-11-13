@@ -86,6 +86,12 @@ STATUT=$?
 jalon "Fin du scénario (code $STATUT)"
 sleep 5
 
+if [ "$STATUT" = "0" ]; then
+  jalon "Course et bouton Appeler (clavier du téléphone)"
+  maestro test "$RACINE/mobile/maestro/android/03-course-et-appeler.yaml" || echo "(appel : échec non bloquant, voir maestro-debug)"
+  sleep 3
+fi
+
 touch "$SORTIE/.fin"
 adb shell pkill -INT screenrecord > /dev/null 2>&1 || adb shell killall -INT screenrecord > /dev/null 2>&1 || true
 sleep 4

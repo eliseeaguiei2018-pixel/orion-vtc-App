@@ -15,6 +15,22 @@ import { publishAssignment } from '../driver-app/offers.js';
 import { categorieDeFlotte } from './matching.js';
 import { config } from '../../config/index.js';
 
+/** Statuts pendant lesquels les deux participants d'une course peuvent s'appeler. */
+const COURSE_JOIGNABLE = new Set(['accepted', 'driver_en_route', 'arrived', 'in_progress']);
+
+/**
+ * Numéro composable par le clavier du téléphone : chiffres et « + » initial seulement
+ * (« +225 07 01 02 03 04 » → « +2250701020304 »). Un numéro ivoirien local à 10 chiffres
+ * reçoit l'indicatif +225, pour qu'un téléphone étranger (touriste) puisse le composer.
+ */
+export function numeroComposable(brut: string | null | undefined): string | null {
+  if (!brut) return null;
+  const n = brut.trim().replace(/[^\d+]/g, '').replace(/(?!^)\+/g, '');
+  if (n.startsWith('00')) return `+${n.slice(2)}`;
+  if (/^0\d{9}$/.test(n)) return `+225${n}`;
+  return /^\+?\d{6,15}$/.test(n) ? n : null;
+}
+
 const createSchema = z.object({
   clientId: z.string().min(1),
   lockId: z.string().min(1), // devis verrouillé issu de /pricing/estimate
@@ -234,6 +250,40 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     const ride = container.rides.get(id);
     if (!ride) throw notFound('Course introuvable');
     return { ride };
+  });
+
+  /**
+   * BOUTON « APPELER » : le numéro de l'autre participant de la course, pour ouvrir le
+   * clavier téléphonique du portable (lien tel:).
+   *
+   * - Le passager obtient le numéro de SON chauffeur ; le chauffeur, celui de SON passager.
+   *   Personne d'autre : il faut la session du titulaire ou le jeton du chauffeur assigné.
+   * - Seulement pendant la course (acceptée → en cours). Après, le numéro n'est plus
+   *   donné : un objet oublié passe par le support, pas par un appel direct.
+   * - Chaque remise de numéro est journalisée (qui, quelle course, quand), pour pouvoir
+   *   répondre à une plainte de harcèlement.
+   */
+  app.get('/rides/:id/contact', async (req) => {
+    const { id } = req.params as { id: string };
+    const ride = container.rides.get(id);
+    if (!ride) throw notFound('Course introuvable');
+    const chauffeur = verifyDriverToken(driverTokenOf(req));
+    const parLeChauffeur = Boolean(chauffeur && chauffeur === ride.driverId);
+    if (!parLeChauffeur) requireClient(req, ride.clientId);
+    if (!COURSE_JOIGNABLE.has(ride.status)) throw forbidden('La course est terminée : passez par le support ORION pour joindre l’autre partie');
+    const autre = parLeChauffeur
+      ? (() => { const c = container.clients.get(ride.clientId); return { nom: c?.name ?? 'Passager', telephone: c?.phone }; })()
+      : (() => { const d = ride.driverId ? container.drivers.get(ride.driverId) : undefined; return { nom: d?.name ?? 'Chauffeur', telephone: d?.phone }; })();
+    const telephone = numeroComposable(autre.telephone);
+    if (!telephone) throw notFound(parLeChauffeur ? 'Le passager n’a pas de numéro enregistré' : 'Le chauffeur n’a pas de numéro enregistré');
+    container.audit.log({
+      actor: parLeChauffeur ? `chauffeur:${chauffeur}` : `client:${ride.clientId}`,
+      role: parLeChauffeur ? 'chauffeur' : 'client',
+      action: 'course.contact',
+      target: ride.id,
+      details: { vers: parLeChauffeur ? 'passager' : 'chauffeur' },
+    });
+    return { nom: autre.nom, telephone, lien: `tel:${telephone}`, role: parLeChauffeur ? 'passager' : 'chauffeur' };
   });
 
   /**

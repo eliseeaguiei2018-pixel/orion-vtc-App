@@ -6,8 +6,8 @@ import { Sheet, TopBar, Toast } from './components/ui';
 import {
   IconBell, IconBolt, IconBriefcase, IconCalendar, IconCamera, IconCar, IconCheck, IconChevron, IconClock, IconCrown,
   IconFingerprint, IconGem, IconGlobe, IconHome, IconImage, IconLeaf, IconLock, IconMic, IconMinus,
-  IconPhone, IconPhoneOff, IconPin, IconPlane, IconPlus, IconRing, IconSearch, IconSettings, IconShare,
-  IconShield, IconShieldCheck, IconMedical, IconStar, IconTraffic, IconVolume, IconWallet, IconWifi,
+  IconPhone, IconPin, IconPlane, IconPlus, IconRing, IconSearch, IconSettings, IconShare,
+  IconShield, IconShieldCheck, IconMedical, IconStar, IconTraffic, IconWallet, IconWifi,
 } from './icons';
 import { LogoGlyph } from './components/Logo';
 import { IllusFood, IllusShop, IllusMarket, IllusColis } from './components/Illustrations';
@@ -17,11 +17,12 @@ import { BoutonMessages, ControleSecurite, MessagesScreen, useMessagerie } from 
 import type { MessageOrion } from './api';
 import { authenticateBiometric, isBiometricEnabled } from './security';
 import type { TrustedContact } from './api';
+import { numeroLisible, ouvrirClavier } from './telephone';
 import {
   ABIDJAN_PLACES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { lireCodePriseEnCharge, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type PkgSize, type SafeDriver, type SosSuivi, type SupportMessage } from './api';
+import { contactCourse, lireCodePriseEnCharge, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type PkgSize, type SafeDriver, type SosSuivi, type SupportMessage } from './api';
 import { useI18n } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
@@ -1493,7 +1494,25 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
 }) {
   const { t } = useI18n();
   const del = mode === 'delivery';
-  const [calling, setCalling] = useState(false);
+  // BOUTON « APPELER » : le numéro du chauffeur vient du serveur (aux seuls participants,
+  // pendant la course). Le bouton est un vrai lien tel: : un toucher ouvre le clavier du
+  // téléphone avec le numéro composé ; il ne reste qu'à appuyer sur la touche d'appel.
+  const [contact, setContact] = useState<{ nom: string; telephone: string; lien: string } | null>(null);
+  const [avisAppel, setAvisAppel] = useState<string | null>(null);
+  useEffect(() => {
+    if (!live || !rideId) return;
+    let actif = true;
+    void contactCourse(rideId).then((c) => { if (actif && c) setContact(c); });
+    return () => { actif = false; };
+  }, [live, rideId, phase]);
+  const appeler = async () => {
+    if (!live || !rideId) { setAvisAppel(t('call_demo')); return; }
+    const c = contact ?? await contactCourse(rideId);
+    if (!c) { setAvisAppel(t('call_indispo')); return; }
+    setContact(c);
+    setAvisAppel(null);
+    ouvrirClavier(c.lien);
+  };
   const progressRef = useRef(0);
   // CODE DE PRISE EN CHARGE : affiché au passager pendant l'approche ; le chauffeur le
   // saisit pour démarrer. Démonstration sans serveur : un code local, validé au départ.
@@ -1626,9 +1645,15 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
 
         <div className="row gap-sm">
           <button className="btn btn-ghost" onClick={onShare}><IconShare size={18} /> {t('track_share')}</button>
-          <button className="btn btn-primary" onClick={() => setCalling(true)}><IconPhone size={18} /> {t('track_call')}</button>
+          <a className="btn btn-primary" href={contact?.lien ?? '#appeler'} data-testid="bouton-appeler"
+            aria-label={contact ? `${t('track_call')} ${contact.nom} ${numeroLisible(contact.telephone)}` : t('track_call')}
+            onClick={(e) => { if (!contact) { e.preventDefault(); void appeler(); } }} style={{ textDecoration: 'none' }}>
+            <IconPhone size={18} /> {t('track_call')}
+          </a>
         </div>
-        <p className="faint" style={{ fontSize: 11, textAlign: 'center', marginTop: 6 }}>📶 {t('call_nounits')}</p>
+        <p className="faint" style={{ fontSize: 11, textAlign: 'center', marginTop: 6 }} role={avisAppel ? 'status' : undefined}>
+          {avisAppel ?? (contact ? `📞 ${numeroLisible(contact.telephone)} · ${t('call_clavier')}` : t('call_clavier'))}
+        </p>
 
         {(phase === 'enroute' || phase === 'arrived') && (
           <button className="btn btn-danger" style={{ marginTop: 10 }} onClick={onCancel}>{t(del ? 'act_cancel_liv' : 'act_cancel')}</button>
@@ -1646,52 +1671,6 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
         </div>
       </Sheet>
 
-      {calling && <CallOverlay driver={driver} tier={tier} onClose={() => setCalling(false)} />}
-    </div>
-  );
-}
-
-/* --------------------------- Appel internet -------------------------- */
-function CallOverlay({ driver, tier, onClose }: { driver: Driver; tier: TierOption; onClose: () => void }) {
-  const { t } = useI18n();
-  const [seconds, setSeconds] = useState(0);
-  const [connected, setConnected] = useState(false);
-  const [muted, setMuted] = useState(false);
-  const [speaker, setSpeaker] = useState(true);
-
-  useEffect(() => {
-    const c = window.setTimeout(() => setConnected(true), 1600);
-    return () => window.clearTimeout(c);
-  }, []);
-  useEffect(() => {
-    if (!connected) return;
-    const id = window.setInterval(() => setSeconds((s) => s + 1), 1000);
-    return () => window.clearInterval(id);
-  }, [connected]);
-
-  const mmss = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
-
-  return (
-    <div className="call-overlay">
-      <div className="call-top">
-        <span className="badge green"><IconShield size={12} /> {t('call_internet')}</span>
-        <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>{t('call_nounits')}</p>
-      </div>
-      <div className="call-center">
-        <span className="call-avatar" style={{ color: tier.accent }}>{driver.name.charAt(0)}</span>
-        <h2 className="h-title" style={{ marginTop: 16 }}>{driver.name}</h2>
-        <p className="faint" style={{ fontSize: 13 }}>{driver.matricule}</p>
-        <p className="muted" style={{ marginTop: 8, fontSize: 14 }}>{connected ? mmss : t('call_connecting')}</p>
-      </div>
-      <div className="call-actions">
-        <button className={`call-btn${muted ? ' on' : ''}`} onClick={() => setMuted((m) => !m)}>
-          <IconMic size={22} /><span>{t('call_mute')}</span>
-        </button>
-        <button className="call-btn end" onClick={onClose}><IconPhoneOff size={24} /><span>{t('call_end')}</span></button>
-        <button className={`call-btn${speaker ? ' on' : ''}`} onClick={() => setSpeaker((s) => !s)}>
-          <IconVolume size={22} /><span>{t('call_speaker')}</span>
-        </button>
-      </div>
     </div>
   );
 }

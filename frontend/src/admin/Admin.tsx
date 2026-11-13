@@ -19,6 +19,7 @@ import { TelematiqueSection } from './sections/telematique';
 import { AnnuaireSection, ChangerMotDePasse } from './sections/annuaire';
 import type { AccountsStats, ActiveSession, Alert, Amortization, Announcement, AssistantSujet, CaisseConsolidation, CaisseEtat, CaisseReferentiel, CrewTableau, DossierEquipage, EquipageRow, PosteEquipe, RoleOption, StaffAccountRow, SuiviFlotte, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, ContactJournal, ContactUrgence, CopilotAnswer, ExecutiveBoard, MonPoste, MouvementPage, SanteVigilance, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, RentalTarifEtat, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
 import { ClientDrawer, DriverDrawer } from './ui';
+import { lienTel, numeroComposable, ouvrirClavier } from '../telephone';
 
 
 
@@ -777,14 +778,25 @@ function Console({ onLogout }: { onLogout: () => void }) {
   };
 
   /**
+   * Ouvre un lien de contact sans quitter la console : tel: et sms: vont au clavier ou à
+   * l'application de messages du poste (téléphone, ordinateur relié, softphone) ; un lien
+   * WhatsApp s'ouvre dans un nouvel onglet. Avant, `window.open(…, '_self')` remplaçait la
+   * console par la page WhatsApp au milieu d'une crise.
+   */
+  const ouvrirLienContact = (lien: string) => {
+    if (/^https?:/i.test(lien)) window.open(lien, '_blank', 'noopener');
+    else ouvrirClavier(lien);
+  };
+
+  /**
    * MISE EN RELATION GÉNÉRIQUE — disponible depuis toutes les sessions.
    * Le serveur consigne la tentative puis renvoie le lien que le poste ouvre.
    */
   const contacter = async (p: { dossierType: string; dossierId: string; canal: 'appel' | 'sms' | 'whatsapp'; numero: string; label: string; message?: string }) => {
-    if (!LIVE) { window.open(p.canal === 'appel' ? `tel:${p.numero}` : `sms:${p.numero}`, '_self'); return; }
+    if (!LIVE) { ouvrirClavier(p.canal === 'appel' ? (lienTel(p.numero) ?? `tel:${p.numero}`) : `sms:${numeroComposable(p.numero) ?? p.numero}`); return; }
     try {
       const r = await adminPost<{ lien: string }>('/admin/contact', p);
-      window.open(r.lien, '_self');
+      ouvrirLienContact(r.lien);
     } catch { /* le refus (droit manquant) est déjà remonté */ }
   };
 
@@ -801,14 +813,14 @@ function Console({ onLogout }: { onLogout: () => void }) {
   ) => {
     if (!LIVE) {
       // Mode démo : on ouvre quand même le lien, mais sans inventer d'entrée au registre.
-      if (p.numero) window.open(p.canal === 'appel' ? `tel:${p.numero}` : `sms:${p.numero}`, '_self');
+      if (p.numero) ouvrirClavier(p.canal === 'appel' ? (lienTel(p.numero) ?? `tel:${p.numero}`) : `sms:${numeroComposable(p.numero) ?? p.numero}`);
       return;
     }
     try {
       const r = await adminPost<{ lien: string; journal: ContactJournal[] }>(`/admin/sos/${alertId}/contact`, p);
       setSosSel((d) => (d && d.alert.id === alertId ? { ...d, journalContacts: r.journal } : d));
       // Ouvre le combiné / l'application de messagerie du poste.
-      window.open(r.lien, '_self');
+      ouvrirLienContact(r.lien);
     } catch { /* le refus est déjà remonté par la couche réseau */ }
   };
 

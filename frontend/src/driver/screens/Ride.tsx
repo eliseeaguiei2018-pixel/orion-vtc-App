@@ -5,6 +5,7 @@ import type { DriverApp } from '../useDriver';
 import type { ActiveRide, RideStatus, RideView } from '../types';
 import { Banner, Modal } from '../ui';
 import { fcfa, haversine, km, methodLabel, navLinks, statutLabel, TAILLE_COLIS } from '../format';
+import { lienTel, numeroLisible } from '../../telephone';
 
 const STEPS: RideStatus[] = ['driver_en_route', 'arrived', 'in_progress', 'completed'];
 
@@ -64,8 +65,10 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
         <div className="dv-actions">
           <a className="dv-act" href={links.google} target="_blank" rel="noreferrer"><IconPin size={18} />Google Maps</a>
           <a className="dv-act" href={links.waze} target="_blank" rel="noreferrer"><IconPin size={18} />Waze</a>
-          {ride.client.phone
-            ? <a className="dv-act" href={`tel:${ride.client.phone}`}><IconPhone size={18} />Appeler</a>
+          {/* Un toucher ouvre le clavier du téléphone avec le numéro du passager composé
+              (indicatif +225 ajouté au besoin) ; le chauffeur n'a plus qu'à appuyer. */}
+          {lienTel(ride.client.phone)
+            ? <a className="dv-act" href={lienTel(ride.client.phone)!} data-testid="appeler-passager" aria-label={`Appeler le passager ${numeroLisible(ride.client.phone)}`}><IconPhone size={18} />Appeler</a>
             : <span className="dv-act" style={{ opacity: 0.5 }}><IconPhone size={18} />Numéro masqué</span>}
         </div>
 

@@ -80,6 +80,20 @@
 		<true/>
 	</dict>
 	<!-- Aucun chiffrement propriétaire : évite le questionnaire d'export à chaque envoi. -->
+	<!-- Bouton « Appeler » : tel: ouvre la fenêtre d'appel d'iOS avec le numéro composé,
+	     sms: l'app Messages. Déclarés pour que l'app puisse vérifier qu'ils sont disponibles
+	     (un iPad sans forfait n'a pas de téléphone). -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tel</string>
+		<string>telprompt</string>
+		<string>sms</string>
+	</array>
+	<!-- Écrans ProMotion (iPhone Pro, jusqu'à 120 Hz) : sans cette clé, iOS bride les
+	     animations des applications à 60 images par seconde. Le système abaisse la
+	     fréquence de lui-même quand rien ne bouge (économie de batterie). -->
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>UISupportedInterfaceOrientations~ipad</key>

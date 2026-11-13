@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Kpi } from '../ui';
 import type { SuiviFlotte, VehiculeSuivi } from '../types';
+import { lienTel } from '../../telephone';
 
 /**
  * TÉLÉMATIQUE DES VÉHICULES DE LOCATION.
@@ -199,7 +200,7 @@ function VehiculeLigne({ v, ouvert, onBasculer, motifs, vitesseCoupureMax, peutA
           {v.locataire.telephone
             ? (
               <span className="row" style={{ gap: 6, marginTop: 4 }}>
-                <a className="adm-btn xs solid" href={`tel:${v.locataire.telephone}`}>📞 Appeler</a>
+                <a className="adm-btn xs solid" href={lienTel(v.locataire.telephone) ?? undefined}>📞 Appeler</a>
                 <a className="adm-btn xs" href={`sms:${v.locataire.telephone}`}>✉️ SMS</a>
                 <span className="adm-muted mono" style={{ fontSize: 12 }}>{v.locataire.telephone}</span>
               </span>

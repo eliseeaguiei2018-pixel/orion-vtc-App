@@ -9,6 +9,7 @@ import { SupervisionMap } from '../SupervisionMap';
 import { LIVE, adminGet, fcfa } from '../api';
 import type { Alert, ContactLigne, ContactUrgence, FleetUnit, Overview, SecurityAttempt, SosDossier, Stats } from '../types';
 import { Drawer, Kpi, statusLabel } from '../ui';
+import { lienTel } from '../../telephone';
 
 export function OverviewSection({ ov, fleet, openAlerts, stats, statsDays, onStatsDays }: { ov: Overview; fleet: FleetUnit[]; openAlerts: Alert[]; stats: Stats | null; statsDays: number; onStatsDays: (d: number) => void }) {
   return (
@@ -135,7 +136,7 @@ export function SamuSection({ alerts, fleet, openAlerts, canWrite, contacts, onC
                   {/* Joindre la personne sans ouvrir le dossier : une seconde compte. */}
                   {open && a.userPhone && (
                     <div className="row" style={{ gap: 6, marginTop: 4 }}>
-                      <a className="adm-btn xs solid" href={`tel:${a.userPhone}`}>📞 Appeler</a>
+                      <a className="adm-btn xs solid" href={lienTel(a.userPhone) ?? undefined}>📞 Appeler</a>
                       <a className="adm-btn xs" href={`sms:${a.userPhone}`}>✉️ SMS</a>
                     </div>
                   )}
@@ -470,7 +471,7 @@ function DossierMedicalUrgence({ alerteId, agent, ouverte }: { alerteId: string;
           <div className="adm-medical-contact">
             <span>Personne à prévenir</span>
             <strong>{fiche.urgence.nom} · {fiche.urgence.lien}</strong>
-            <a className="adm-btn xs solid" href={`tel:${fiche.urgence.telephone.replace(/\s/g, '')}`}>📞 {telLisible(fiche.urgence.telephone)}</a>
+            <a className="adm-btn xs solid" href={lienTel(fiche.urgence.telephone) ?? undefined}>📞 {telLisible(fiche.urgence.telephone)}</a>
             {fiche.medecin && <span className="adm-muted">Médecin : {fiche.medecin.nom}{fiche.medecin.telephone ? ` · ${telLisible(fiche.medecin.telephone)}` : ''}</span>}
           </div>
           <button className="adm-btn ghost xs" onClick={() => setFiche(null)}>Masquer le dossier</button>

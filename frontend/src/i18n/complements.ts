@@ -6,6 +6,9 @@ import type { Dict } from './translations';
  */
 export const COMPLEMENTS: Record<'fr' | 'en', Dict> = {
   fr: {
+    call_clavier: 'Ouvre le clavier de votre téléphone',
+    call_demo: 'Mode démonstration : en service, ce bouton ouvre le clavier de votre téléphone avec le numéro du chauffeur.',
+    call_indispo: 'Numéro du chauffeur indisponible pour le moment. Réessayez dans un instant, ou écrivez-lui.',
     as_title: 'ORION Assurance',
     as_tag: 'Votre santé protégée pendant chaque course',
     as_quoi_t: 'Qu’est-ce que c’est ?',
@@ -115,6 +118,9 @@ export const COMPLEMENTS: Record<'fr' | 'en', Dict> = {
     legal_carte: 'Cartes : © les contributeurs d’OpenStreetMap (licence ODbL), tuiles OpenFreeMap, itinéraires calculés avec OSRM.',
   },
   en: {
+    call_clavier: 'Opens your phone’s dialer',
+    call_demo: 'Demo mode: in service, this button opens your phone’s dialer with the driver’s number.',
+    call_indispo: 'The driver’s number is unavailable right now. Try again in a moment, or send a message.',
     as_title: 'ORION Insurance',
     as_tag: 'Your health protected on every ride',
     as_quoi_t: 'What is it?',

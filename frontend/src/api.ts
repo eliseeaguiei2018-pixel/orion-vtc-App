@@ -513,6 +513,14 @@ export async function createRide(lockId: string, cid: string, trustedContact?: T
  * Code de prise en charge d'une course en cours : mémorisé à la commande, sinon relu
  * auprès du serveur (session du passager). Null si la course n'en a pas.
  */
+/**
+ * Bouton « Appeler » : numéro de l'autre participant de la course (le chauffeur pour le
+ * passager), donné par le serveur aux seuls participants et pendant la course seulement.
+ */
+export async function contactCourse(rideId: string): Promise<{ nom: string; telephone: string; lien: string } | null> {
+  return tryFetch<{ nom: string; telephone: string; lien: string }>(`/rides/${rideId}/contact`);
+}
+
 export async function lireCodePriseEnCharge(rideId: string): Promise<{ code: string; verifie: boolean } | null> {
   const r = await tryFetch<{ code: string; verifie: boolean }>(`/rides/${rideId}/code`);
   if (r) return r;
