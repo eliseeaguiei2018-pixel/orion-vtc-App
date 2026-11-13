@@ -15,6 +15,7 @@ Documentation fonctionnelle et technique de la plateforme de mobilité verte ORI
 | 09 | [Dossier de reprise — App Chauffeur](./09-reprise-app-chauffeur.md) | Contexte, règles du projet, points d'accroche |
 | 10 | [Application Chauffeur](./10-app-chauffeur.md) | Fonctionnalités, synchronisation console, endpoints, règles métier, sécurité |
 | 11 | [Console : les sessions](./11-console-sessions.md) | Le poste de travail de chaque employé : accès et comptes, carte des sessions, interconnexion, rôles, règles du dispatch |
+| 12 | [Test de charge](./12-test-de-charge.md) | 5 000 courses simultanées et des centaines de SOS : lancer le banc, mesures, résultats, faiblesses corrigées |
 
 > Les diagrammes sont en **Mermaid** et se rendent automatiquement sur GitHub.
 
