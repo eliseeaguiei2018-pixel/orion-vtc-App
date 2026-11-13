@@ -99,6 +99,10 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
     allowList: (req) => req.url.split('?')[0] === '/admin/logout',
   });
 
+  // Le serveur ORION n'a rien à faire dans un moteur de recherche : aucune de ses réponses
+  // ne doit être indexée, même si une adresse fuit dans une page publique.
+  app.addHook('onSend', async (_req, reply) => { reply.header('x-robots-tag', 'noindex, nofollow, noarchive'); });
+
   // Gestion d'erreur homogène : codes métier stables + pas de fuite de stack en prod.
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof AppError) {

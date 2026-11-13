@@ -6,10 +6,167 @@
   "_comment_admin": "Sous-domaine admin : remplacer 'admin.orion.ci' par ton vrai domaine admin dans Vercel (Domains).",
   "_comment_chauffeur": "Sous-domaine chauffeur : remplacer 'chauffeur.orion.ci' par ton vrai domaine chauffeur (sinon /driver.html).",
   "rewrites": [
-    { "source": "/", "has": [{ "type": "host", "value": "admin.orion.ci" }], "destination": "/admin.html" },
-    { "source": "/(.*)", "has": [{ "type": "host", "value": "admin.orion.ci" }], "destination": "/admin.html" },
-    { "source": "/", "has": [{ "type": "host", "value": "chauffeur.orion.ci" }], "destination": "/driver.html" },
-    { "source": "/(.*)", "has": [{ "type": "host", "value": "chauffeur.orion.ci" }], "destination": "/driver.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "admin.orion.ci"
+        }
+      ],
+      "destination": "/admin.html"
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "admin.orion.ci"
+        }
+      ],
+      "destination": "/admin.html"
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "console.orion.ci"
+        }
+      ],
+      "destination": "/admin.html"
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "console.orion.ci"
+        }
+      ],
+      "destination": "/admin.html"
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "tableau.orion.ci"
+        }
+      ],
+      "destination": "/dashboard.html"
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "tableau.orion.ci"
+        }
+      ],
+      "destination": "/dashboard.html"
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "chauffeur.orion.ci"
+        }
+      ],
+      "destination": "/driver.html"
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "chauffeur.orion.ci"
+        }
+      ],
+      "destination": "/driver.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "_comment_tableau": "Sous-domaine du tableau de bord : remplacer 'tableau.orion.ci' par le vrai domaine. 'console.orion.ci' est un second nom pour la console.",
+  "headers": [
+    {
+      "source": "/(admin|dashboard|driver).html",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "(admin|console|tableau|chauffeur).orion.ci"
+        }
+      ],
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        },
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/"
+        }
+      ]
+    },
+    {
+      "source": "/(.*).webmanifest",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/manifest+json; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
   ]
 }

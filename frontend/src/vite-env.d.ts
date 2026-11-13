@@ -2,6 +2,8 @@
 
 interface ImportMetaEnv {
   readonly VITE_API_URL?: string;
+  /** Adresses de secours du serveur, séparées par des virgules (console et tableau de bord). */
+  readonly VITE_API_URLS_SECOURS?: string;
   readonly VITE_GOOGLE_MAPS_API_KEY?: string;
   /** Fond de carte réel : 'osm' | 'maptiler' | 'google' (sinon carte stylisée). */
   readonly VITE_MAP_PROVIDER?: string;

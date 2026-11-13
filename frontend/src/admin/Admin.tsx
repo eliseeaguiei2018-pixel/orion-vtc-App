@@ -21,6 +21,8 @@ import type { AccountsStats, ActiveSession, Alert, Amortization, Announcement, A
 import { ClientDrawer, DriverDrawer } from './ui';
 import { lienTel, numeroComposable, ouvrirClavier } from '../telephone';
 import { EnrolementAppareil, LigneAppareil, estAppEmballee, useEtatAppareil, type AppareilPublic, type ClassesFormulaire } from '../appareil';
+import { BoutonInstaller } from '../pwa';
+import { surServeurDeSecours } from '../serveur';
 
 
 
@@ -195,6 +197,7 @@ function Login({ onDone }: { onDone: () => void }) {
         {mfa && <button className="adm-btn ghost" type="button" style={{ marginTop: 8 }} onClick={() => { setMfa(false); setCode(''); setErr(''); }}>← Retour</button>}
         {!API && <p className="adm-login-demo">Mode démo — n'importe quels identifiants ouvrent la console (données simulées).</p>}
         <LigneAppareil etat={etatAppareil} classe="adm-login-sub" onEnroler={() => setEnrolement(true)} />
+        <BoutonInstaller classe="adm-btn ghost" nom="ORION Console" />
       </form>
     </div>
   );
@@ -265,6 +268,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [now, setNow] = useState(() => new Date());
   // L'employé arrive sur SON poste : ce qui l'attend, pas un tableau de bord général.
   const [section, setSection] = useState<Section>('monPoste');
+  // Téléphone et tablette en portrait : le menu est un tiroir, fermé par défaut.
+  const [menuOuvert, setMenuOuvert] = useState(false);
   const [driverSel, setDriverSel] = useState<DriverDetail | null>(null);
   const [clientSel, setClientSel] = useState<ClientDetail | null>(null);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
@@ -1427,8 +1432,9 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const openAlerts = alerts.filter((a) => a.status !== 'resolved' && a.status !== 'cancelled');
 
   return (
-    <div className="adm-shell">
-      <aside className="adm-side">
+    <div className={`adm-shell${menuOuvert ? ' menu-ouvert' : ''}`}>
+      <button type="button" className="adm-voile" aria-label="Fermer le menu" tabIndex={menuOuvert ? 0 : -1} onClick={() => setMenuOuvert(false)} />
+      <aside className="adm-side" id="adm-menu">
         <div className="adm-brand">
           <span className="adm-logo" aria-hidden>
             <svg width="20" height="20" viewBox="0 0 512 512"><path d="M256 92 C 338 150 372 252 318 350 C 300 382 280 404 256 424 C 232 404 212 382 194 350 C 140 252 174 150 256 92 Z" fill="#04140d"/><g fill="#04140d"><circle cx="372" cy="120" r="15"/><circle cx="406" cy="150" r="12"/><circle cx="430" cy="186" r="9"/></g></svg>
@@ -1446,7 +1452,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
                 key={n.id}
                 className={`adm-navi${section === n.id ? ' on' : ''}${allowed ? '' : ' locked'}`}
                 title={allowed ? undefined : 'Session non autorisée pour votre rôle'}
-                onClick={() => { if (allowed) setSection(n.id); else void openLocked(n.id, n.label); }}
+                onClick={() => { setMenuOuvert(false); if (allowed) setSection(n.id); else void openLocked(n.id, n.label); }}
               >
                 <span className="adm-navi-ico">{n.icon}</span> {n.label}
                 {allowed && n.id === 'alerts' && openAlerts.length > 0 && <span className="adm-navi-badge">{openAlerts.length}</span>}
@@ -1476,6 +1482,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
         <header className="adm-mhead">
+          <button type="button" className="adm-menu-btn" aria-label="Ouvrir le menu des sessions" aria-controls="adm-menu" aria-expanded={menuOuvert} onClick={() => setMenuOuvert(true)}>☰</button>
           <h2>{NAV.find((n) => n.id === section)?.label}</h2>
           {can('search:read') && (
             <GlobalSearch
@@ -1489,7 +1496,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
             {/* Tableau de bord : de droit pour la direction, la trésorerie, la comptabilité et
                 l'informatique ; un manager le voit aussi, pour pouvoir y demander l'accès. */}
             {(can('dashboard:read') || me.role === 'manager' || me.role === 'fleet_manager') && (
-              <a className="adm-btn ghost" href="./dashboard.html" target="_blank" rel="noopener" title={can('dashboard:read') ? 'Ouvrir le tableau de bord en direct (écran à part)' : 'Accès sur habilitation de la direction : demande possible depuis cet écran'}>📺 Tableau de bord{can('dashboard:read') ? '' : ' 🔒'}</a>
+              <a className="adm-btn ghost" href="./dashboard.html" target="_blank" rel="noopener" title={can('dashboard:read') ? 'Ouvrir le tableau de bord en direct (écran à part)' : 'Accès sur habilitation de la direction : demande possible depuis cet écran'} aria-label="Tableau de bord">📺<span className="adm-lbl"> Tableau de bord</span>{can('dashboard:read') ? '' : ' 🔒'}</a>
             )}
             <button className="adm-btn ghost adm-mute" title={theme === 'dark' ? 'Passer en mode jour' : 'Passer en mode nuit'} onClick={toggleTheme}>
               {theme === 'dark' ? '☀️' : '🌙'}
@@ -1497,9 +1504,11 @@ function Console({ onLogout }: { onLogout: () => void }) {
             <button className={`adm-btn ghost adm-mute${muted ? ' off' : ''}`} title={muted ? 'Réactiver la sirène SAMU' : 'Couper la sirène SAMU'} onClick={toggleMute}>
               {muted ? '🔕' : '🔔'}
             </button>
-            <span className={`adm-live ${live ? 'on' : 'demo'}`}>{live ? '● EN DIRECT' : '● MODE DÉMO'}</span>
+            <span className={`adm-live ${live ? 'on' : 'demo'}`} title={surServeurDeSecours() ? 'Le serveur principal ne répond pas : la console travaille sur un serveur de secours.' : undefined}>
+              {live ? (surServeurDeSecours() ? '● EN DIRECT · SECOURS' : '● EN DIRECT') : '● MODE DÉMO'}
+            </span>
             <span className="adm-clock">{now.toLocaleTimeString('fr-FR')}</span>
-            <button className="adm-btn ghost" onClick={() => void refresh()}>Rafraîchir</button>
+            <button className="adm-btn ghost" onClick={() => void refresh()} aria-label="Rafraîchir"><span className="adm-ico-seul" aria-hidden>⟳</span><span className="adm-lbl">Rafraîchir</span></button>
           </div>
         </header>
 

@@ -1,10 +1,9 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import { Tableau } from './Dashboard';
-import './dashboard.css';
+import { enregistrerServiceWorker } from '../pwa';
+import { choisirServeur } from '../serveur';
 
-ReactDOM.createRoot(document.getElementById('tableau-root')!).render(
-  <React.StrictMode>
-    <Tableau />
-  </React.StrictMode>,
-);
+// Le serveur d'abord : le principal s'il répond, sinon une adresse de secours. Le tableau
+// de bord n'est chargé qu'ensuite, pour que tous ses appels partent vers le bon serveur.
+void choisirServeur().then(() => import('./demarrage'));
+
+// Application web installable (Windows, macOS, tablettes, téléphones) et accès de secours.
+enregistrerServiceWorker();

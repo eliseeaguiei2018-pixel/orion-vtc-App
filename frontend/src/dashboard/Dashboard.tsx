@@ -10,6 +10,7 @@ import { AccesReserve } from './AccesReserve';
 import { Objectifs } from './Objectifs';
 import type { CourseActive, EntreeJournal, EtatTableau, VehiculeFlotte } from './types';
 import { EnrolementAppareil, LigneAppareil, estAppEmballee, useEtatAppareil, type ClassesFormulaire } from '../appareil';
+import { BoutonInstaller } from '../pwa';
 
 /**
  * TABLEAU DE BORD ORION : une interface à part, pensée pour l'écran de la salle de
@@ -648,6 +649,7 @@ function Connexion({ onOk }: { onOk: () => void }) {
         {erreur && <p className="tb-connexion-err" role="alert">{erreur}</p>}
         <button type="submit" disabled={envoi || !id || !mdp}>{envoi ? 'Connexion…' : 'Ouvrir le tableau de bord'}</button>
         <LigneAppareil etat={etatAppareil} classe="tb-enrol-sous" onEnroler={() => setEnrolement(true)} />
+        <BoutonInstaller classe="tb-enrol-lien" nom="ORION Tableau de bord" />
       </form>
     </div>
   );

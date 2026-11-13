@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { serveurActif } from './serveur';
 
 /**
  * APPAREIL DE CONFIANCE : enrôlement de la console et du tableau de bord avec le code de
@@ -9,7 +10,7 @@ import { useEffect, useState } from 'react';
  * elle accompagne d'elle-même chaque requête. L'appareil apparaît alors dans la console
  * (section Sessions), d'où il peut être révoqué.
  */
-const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
+const API = serveurActif();
 
 export type Plateforme = 'windows' | 'macos' | 'linux' | 'ios' | 'android' | 'harmonyos' | 'web';
 export interface AppareilPublic {

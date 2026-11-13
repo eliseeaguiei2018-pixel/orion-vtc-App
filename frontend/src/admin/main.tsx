@@ -1,10 +1,9 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import { Admin } from './Admin';
-import './admin.css';
+import { enregistrerServiceWorker } from '../pwa';
+import { choisirServeur } from '../serveur';
 
-ReactDOM.createRoot(document.getElementById('admin-root')!).render(
-  <React.StrictMode>
-    <Admin />
-  </React.StrictMode>,
-);
+// Le serveur d'abord : le principal s'il répond, sinon une adresse de secours. La console
+// n'est chargée qu'ensuite, pour que tous ses appels partent vers le bon serveur.
+void choisirServeur().then(() => import('./demarrage'));
+
+// Application web installable (Windows, macOS, tablettes, téléphones) et accès de secours.
+enregistrerServiceWorker();

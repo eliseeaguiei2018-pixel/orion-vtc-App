@@ -5,6 +5,7 @@
  * Extraite de Admin.tsx lors de l'audit.
  */
 import type { PageMeta } from './types';
+import { serveurActif } from '../serveur';
 
 export const PAGE_SIZE = 25;
 /** Pagination locale (mode démo) — même contrat que le serveur. */
@@ -15,7 +16,9 @@ export function pageSlice<T>(list: T[], page: number): { items: T[]; meta: PageM
 }
 
 /* ------------------------------- API --------------------------------- */
-export const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
+// Adresse du serveur en service : la principale, ou une adresse de secours choisie au
+// lancement si la principale ne répond pas (voir ../serveur.ts).
+export const API = serveurActif();
 
 /**
  * Un backend est-il joignable ?

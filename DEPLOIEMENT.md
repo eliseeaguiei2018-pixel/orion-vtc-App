@@ -196,6 +196,55 @@ nouveau code.
 > seul, et que chaque appareil reste révocable un par un. Pour la direction, gardez la
 > double authentification (`ADMIN_REQUIRE_2FA=true`).
 
+### Console et tableau de bord : partout, et un lien de secours
+
+La console et le tableau de bord sont **une seule application web**, servie à une
+adresse. Tout le reste en découle :
+
+| Où | Comment |
+|---|---|
+| Navigateur (Chrome, Edge, Safari, Firefox) | ouvrir l'adresse : `console.orion.ci`, `tableau.orion.ci` |
+| Windows, macOS | bouton **Installer** de l'écran de connexion (Edge, Chrome), ou les applications de bureau du dossier `bureau/` |
+| Android, HarmonyOS | **Installer** : icône sur l'écran d'accueil, plein écran |
+| iPhone, iPad | Safari : **Partager**, puis **Sur l'écran d'accueil** |
+
+**Le lien de secours, c'est cette adresse.** Si une application installée pose problème
+(mise à jour ratée, poste qui change), l'employé ouvre la même adresse dans n'importe
+quel navigateur et retrouve les mêmes données, en direct. Il n'y a rien à maintenir en
+double.
+
+**Absentes des moteurs de recherche, volontairement.** Les trois outils internes
+(console, tableau de bord, app chauffeur) portent `noindex` (balise et en-tête
+`X-Robots-Tag`), et le serveur aussi. On y accède par leur adresse, pas par une
+recherche Google : une console d'administration qui apparaît dans un moteur attire les
+attaques. « Utilisable dans Chrome, Edge ou Safari » : oui. « Trouvable en cherchant
+ORION dans Google » : non, et c'est une protection.
+
+**Téléphone et tablette.** Sur un écran étroit, le menu de la console devient un tiroir
+(bouton ☰), les tableaux larges défilent dans leur carte, et les boutons font au moins
+40 px de haut.
+
+**Hors connexion.** L'enveloppe de l'application (pages, scripts, styles) est gardée
+par l'appareil : elle s'ouvre tout de suite, même sur un réseau lent. Les données, elles,
+ne sont **jamais** gardées : courses, alertes et soldes viennent toujours du serveur.
+
+**Serveur de secours (facultatif).** À la construction du site :
+
+```bash
+VITE_API_URL=https://api.orion.ci
+VITE_API_URLS_SECOURS=https://api2.orion.ci
+```
+
+Au lancement, si le serveur principal ne répond pas en 2,5 s, la console et le tableau
+de bord travaillent sur la première adresse de secours qui répond. La pastille de
+l'en-tête affiche alors « EN DIRECT · SECOURS ». Sur un autre domaine, il faut se
+reconnecter. Tant que les données ne sont pas dans une base commune (document 13), un
+serveur de secours n'a de sens que s'il lit la même base que le principal.
+
+**Domaines.** Dans `frontend/vercel.json`, remplacer `console.orion.ci`,
+`tableau.orion.ci` et `chauffeur.orion.ci` par les vrais domaines, et les ajouter dans
+Vercel → Domains.
+
 ### Mettre l'admin sur un sous-domaine dédié (recommandé)
 1. Dans Vercel → **Domains**, ajoute `admin.tondomaine.ci` au projet frontend.
 2. Dans `frontend/vercel.json`, remplace `admin.orion.ci` par ce domaine (règles `rewrites`
