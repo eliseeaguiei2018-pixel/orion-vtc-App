@@ -212,12 +212,16 @@ a.adm-btn { text-decoration: none; }
 /* Boîte de dialogue centrée (changement de mot de passe, confirmation). Le tiroir
    latéral existant est fait pour une fiche que l'on consulte, pas pour une action
    qui doit bloquer l'écran. */
-.adm-modal-wrap { position: fixed; inset: 0; background: rgba(2,10,7,0.65); backdrop-filter: blur(4px);
+/* Voiles SANS flou d'arrière-plan : le flou de tout l'écran se recalcule à chaque image
+   quand quelque chose bouge dessous (alarme, alertes qui pulsent, chronos). Mesuré au test
+   de charge : dossier SOS ouvert, la console et le tableau de bord tombaient de 55 à
+   13 images par seconde sur un poste sans carte graphique. Un voile plus dense suffit. */
+.adm-modal-wrap { position: fixed; inset: 0; background: rgba(2,10,7,0.72);
   display: flex; align-items: center; justify-content: center; z-index: 70; padding: 20px; animation: adm-fade .15s ease; }
 .adm-modal { width: min(440px, 100%); background: var(--a-panel); border: 1px solid var(--a-stroke);
   border-radius: 16px; padding: 20px; box-shadow: 0 30px 80px rgba(0,0,0,0.5); }
 
-.adm-drawer-wrap { position: fixed; inset: 0; background: rgba(2,10,7,0.55); backdrop-filter: blur(3px); display: flex; justify-content: flex-end; z-index: 60; animation: adm-fade .15s ease; }
+.adm-drawer-wrap { position: fixed; inset: 0; background: rgba(2,10,7,0.62); display: flex; justify-content: flex-end; z-index: 60; animation: adm-fade .15s ease; }
 .adm-drawer { width: min(460px, 100%); height: 100%; background: var(--a-panel); border-left: 1px solid var(--a-stroke); box-shadow: -20px 0 60px rgba(0,0,0,0.4); display: flex; flex-direction: column; animation: adm-slide .2s ease; }
 @keyframes adm-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes adm-slide { from { transform: translateX(30px); opacity: .6; } to { transform: translateX(0); opacity: 1; } }
@@ -326,7 +330,7 @@ html[data-adm-theme='light'] .adm-trace-bg { fill: #0b1f14; }
 .adm-navi-lock { margin-left: auto; font-size: 11px; }
 
 /* Modale « accès refusé » */
-.adm-denied-wrap { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(4,10,7,0.68); backdrop-filter: blur(3px); padding: 20px; }
+.adm-denied-wrap { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(4,10,7,0.74); padding: 20px; }
 .adm-denied { max-width: 460px; background: var(--a-panel); border: 1px solid var(--a-danger); border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 30px 80px rgba(0,0,0,0.5); }
 .adm-denied h3 { margin: 0 0 10px; color: var(--a-danger); font-size: 19px; }
 .adm-denied p { margin: 0 0 18px; color: var(--a-text); font-size: 14px; line-height: 1.5; }
