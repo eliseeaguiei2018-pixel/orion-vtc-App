@@ -27,7 +27,13 @@ import { ClientDrawer, DriverDrawer } from './ui';
 const themeKey = 'orion.admin.theme';
 type AdmTheme = 'dark' | 'light';
 function applyTheme(t: AdmTheme): void { document.documentElement.setAttribute('data-adm-theme', t); }
-function savedTheme(): AdmTheme { return localStorage.getItem(themeKey) === 'light' ? 'light' : 'dark'; }
+/** Choix mémorisé s'il existe ; sinon la console suit l'appareil (mode clair ou sombre du système). */
+function savedTheme(): AdmTheme {
+  let choix: string | null = null;
+  try { choix = localStorage.getItem(themeKey); } catch { /* stockage indisponible */ }
+  if (choix === 'light' || choix === 'dark') return choix;
+  return typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
 applyTheme(savedTheme()); // appliqué dès le chargement (écran de connexion inclus)
 
 /** Sirène d'alerte SAMU (deux tons), générée en WebAudio — aucun fichier audio requis. */

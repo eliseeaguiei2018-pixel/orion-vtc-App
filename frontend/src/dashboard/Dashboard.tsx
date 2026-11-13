@@ -36,7 +36,33 @@ const DEFILEMENT_MS = 45_000;
 const lirePref = (cle: string) => { try { return localStorage.getItem(cle); } catch { return null; } };
 const ecrirePref = (cle: string, v: string) => { try { localStorage.setItem(cle, v); } catch { /* stockage indisponible */ } };
 
+/** Thème : suit le téléphone ou l'ordinateur (auto), ou un choix explicite mémorisé. */
+type ChoixTheme = 'auto' | 'light' | 'dark';
+type Theme = 'light' | 'dark';
+const systemeClair = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: light)').matches;
+function useThemeTableau() {
+  const [choix, setChoixEtat] = useState<ChoixTheme>(() => {
+    const c = lirePref('orion.tableau.theme');
+    return c === 'light' || c === 'dark' ? c : 'auto';
+  });
+  const [systeme, setSysteme] = useState<Theme>(() => (systemeClair() ? 'light' : 'dark'));
+  useEffect(() => {
+    if (typeof matchMedia === 'undefined') return;
+    const mq = matchMedia('(prefers-color-scheme: light)');
+    const suivre = () => setSysteme(mq.matches ? 'light' : 'dark');
+    mq.addEventListener?.('change', suivre);
+    return () => mq.removeEventListener?.('change', suivre);
+  }, []);
+  useEffect(() => {
+    if (choix === 'auto') delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = choix;
+  }, [choix]);
+  const setChoix = (c: ChoixTheme) => { setChoixEtat(c); ecrirePref('orion.tableau.theme', c); };
+  return { choix, setChoix, theme: (choix === 'auto' ? systeme : choix) as Theme };
+}
+
 export function Tableau() {
+  const apparence = useThemeTableau();
   const [vue, setVueEtat] = useState<Vue>(() => (window.location.hash === '#objectifs' ? 'objectifs' : 'direct'));
   // Écran mural : les deux vues peuvent défiler seules.
   const [defilement, setDefilementEtat] = useState(() => lirePref('orion.tableau.defilement') === '1');
@@ -63,12 +89,13 @@ export function Tableau() {
 
   return (
     <div className="tb">
-      <Entete direct={flux.direct} maintenant={flux.maintenant} vue={vue} setVue={setVue} defilement={defilement} setDefilement={setDefilement} />
+      <Entete direct={flux.direct} maintenant={flux.maintenant} vue={vue} setVue={setVue} defilement={defilement} setDefilement={setDefilement}
+        choixTheme={apparence.choix} setChoixTheme={apparence.setChoix} />
       {flux.erreur && <div className="tb-erreur" role="status">{flux.erreur}</div>}
       {vue === 'objectifs'
         // Les courbes attendent que l'accès soit vérifié : une seule lecture refusée, pas deux.
         ? (flux.pret ? <Objectifs signal={signal} onRefus={surRefus} /> : <div className="tb-chargement">Vérification de l’accès…</div>)
-        : <VueDirect etat={flux.etat} journal={flux.journal} nouveaux={flux.nouveaux} maintenant={flux.maintenant} />}
+        : <VueDirect etat={flux.etat} journal={flux.journal} nouveaux={flux.nouveaux} maintenant={flux.maintenant} theme={apparence.theme} />}
     </div>
   );
 }
@@ -133,7 +160,7 @@ function useTableauDirect(onAnalyse: (f: (n: number) => number) => void) {
   return { etat, journal, nouveaux, direct, connexion, setConnexion, refus, setRefus, pret, erreur, maintenant };
 }
 
-function VueDirect({ etat, journal, nouveaux, maintenant }: { etat: EtatTableau | null; journal: EntreeJournal[]; nouveaux: Set<string>; maintenant: Date }) {
+function VueDirect({ etat, journal, nouveaux, maintenant, theme }: { etat: EtatTableau | null; journal: EntreeJournal[]; nouveaux: Set<string>; maintenant: Date; theme: Theme }) {
   if (!etat) return <div className="tb-chargement">Chargement du tableau de bord…</div>;
   return (
         <main className="tb-grille">
@@ -143,7 +170,7 @@ function VueDirect({ etat, journal, nouveaux, maintenant }: { etat: EtatTableau 
               <h2>Flotte en direct · Abidjan</h2>
               <Legende />
             </div>
-            <CarteFlotte flotte={etat.flotte} courses={etat.coursesActives} />
+            <CarteFlotte key={theme} theme={theme} flotte={etat.flotte} courses={etat.coursesActives} />
           </section>
           <section className="tb-panneau tb-journal" aria-label="Journal d'activité">
             <div className="tb-panneau-h">
@@ -172,8 +199,12 @@ function VueDirect({ etat, journal, nouveaux, maintenant }: { etat: EtatTableau 
 
 /* --------------------------------- En-tête --------------------------------- */
 
-function Entete({ direct, maintenant, vue, setVue, defilement, setDefilement }: {
+const THEME_SUIVANT: Record<ChoixTheme, ChoixTheme> = { auto: 'light', light: 'dark', dark: 'auto' };
+const THEME_LIBELLE: Record<ChoixTheme, string> = { auto: 'Auto', light: 'Clair', dark: 'Sombre' };
+
+function Entete({ direct, maintenant, vue, setVue, defilement, setDefilement, choixTheme, setChoixTheme }: {
   direct: boolean; maintenant: Date; vue: Vue; setVue: (v: Vue) => void; defilement: boolean; setDefilement: (on: boolean) => void;
+  choixTheme: ChoixTheme; setChoixTheme: (c: ChoixTheme) => void;
 }) {
   return (
     <header className="tb-entete">
@@ -200,6 +231,11 @@ function Entete({ direct, maintenant, vue, setVue, defilement, setDefilement }: 
         </span>
         <span className="tb-date">{maintenant.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
         <span className="tb-horloge" aria-label="Heure">{heure(maintenant)}</span>
+        <button type="button" className="tb-theme" onClick={() => setChoixTheme(THEME_SUIVANT[choixTheme])}
+          title="Thème : automatique (suit l’appareil), clair ou sombre" aria-label={`Thème : ${THEME_LIBELLE[choixTheme]}. Changer de thème`}>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><circle cx="12" cy="12" r="8.5" /><path d="M12 3.5v17" /><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" /></svg>
+          {THEME_LIBELLE[choixTheme]}
+        </button>
         <a className="tb-lien" href="./admin.html">Console ↗</a>
       </div>
     </header>
@@ -274,7 +310,13 @@ function arriveesGeoJSON(courses: CourseActive[]) {
   };
 }
 
-function CarteFlotte({ flotte, courses }: { flotte: VehiculeFlotte[]; courses: CourseActive[] }) {
+/** Couleurs des tracés sur la carte, par thème (mêmes séries que les graphiques). */
+const TRACES: Record<Theme, { course: string; livraison: string; halo: string; bord: string }> = {
+  dark: { course: '#18a571', livraison: '#3987e5', halo: '#04110b', bord: '#0b1a14' },
+  light: { course: '#13976a', livraison: '#2a78d6', halo: '#ffffff', bord: '#ffffff' },
+};
+
+function CarteFlotte({ flotte, courses, theme }: { flotte: VehiculeFlotte[]; courses: CourseActive[]; theme: Theme }) {
   const boite = useRef<HTMLDivElement>(null);
   const carte = useRef<CarteML | null>(null);
   const marqueurs = useRef(new Map<string, Marker>());
@@ -288,7 +330,7 @@ function CarteFlotte({ flotte, courses }: { flotte: VehiculeFlotte[]; courses: C
     void chargerML().then((ml) => {
       if (annule || !boite.current) return;
       const m = new ml.Map({
-        container: boite.current, style: styleOrion('dark', config), center: [-3.995, 5.333], zoom: 11.9,
+        container: boite.current, style: styleOrion(theme, config), center: [-3.995, 5.333], zoom: 11.9,
         attributionControl: false, dragRotate: false, pitchWithRotate: false, fadeDuration: 120,
       });
       m.addControl(new ml.AttributionControl({ compact: true, customAttribution: config.attribution }), 'bottom-left');
@@ -296,17 +338,18 @@ function CarteFlotte({ flotte, courses }: { flotte: VehiculeFlotte[]; courses: C
         boite.current?.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');
         m.addSource('trajets', { type: 'geojson', data: trajetsGeoJSON([]) });
         m.addSource('arrivees', { type: 'geojson', data: arriveesGeoJSON([]) });
-        const couleur = ['match', ['get', 'service'], 'livraison', '#3987e5', '#18a571'] as unknown as string;
-        m.addLayer({ id: 'trajets-halo', type: 'line', source: 'trajets', paint: { 'line-color': '#04110b', 'line-width': 7, 'line-opacity': 0.55 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
+        const T = TRACES[theme];
+        const couleur = ['match', ['get', 'service'], 'livraison', T.livraison, T.course] as unknown as string;
+        m.addLayer({ id: 'trajets-halo', type: 'line', source: 'trajets', paint: { 'line-color': T.halo, 'line-width': 7, 'line-opacity': 0.55 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
         m.addLayer({ id: 'trajets', type: 'line', source: 'trajets', paint: { 'line-color': couleur, 'line-width': 3.5 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
-        m.addLayer({ id: 'arrivees', type: 'circle', source: 'arrivees', paint: { 'circle-radius': 6, 'circle-color': couleur, 'circle-stroke-color': '#0b1a14', 'circle-stroke-width': 2.5 } });
+        m.addLayer({ id: 'arrivees', type: 'circle', source: 'arrivees', paint: { 'circle-radius': 6, 'circle-color': couleur, 'circle-stroke-color': T.bord, 'circle-stroke-width': 2.5 } });
         carte.current = m;
         setPrete(true);
       });
       m.on('error', (e) => { if (!m.loaded() && /Failed to fetch|NetworkError|AJAXError/i.test(String((e as unknown as { error?: { message?: string } }).error?.message ?? ''))) setIndispo(true); });
     }).catch(() => setIndispo(true));
     return () => { annule = true; carte.current?.remove(); carte.current = null; marqueurs.current.clear(); };
-  }, [config]);
+  }, [config, theme]);
 
   // Trajets en cours.
   useEffect(() => {
