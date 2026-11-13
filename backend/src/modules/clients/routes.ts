@@ -160,9 +160,9 @@ export async function clientAccountRoutes(app: FastifyInstance, container: Conta
     const { clientId } = req.params as { clientId: string };
     requireClient(req, clientId);
     const zone = (p: { lat: number; lng: number }) => nearestZone(p)?.zone.name ?? 'Abidjan';
-    const alertes = container.safety.list().filter((a) => a.userId === clientId);
+    const alertes = container.safety.parUsager(clientId);
+    // listByClient rend déjà les courses de la plus récente à la plus ancienne (index).
     const courses = container.rides.listByClient(clientId)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((r) => {
         const d = r.driverId ? container.drivers.get(r.driverId) : undefined;
         const ev = (t: string) => r.events.find((e) => e.type === t);
@@ -205,6 +205,6 @@ export async function clientAccountRoutes(app: FastifyInstance, container: Conta
   app.get('/clients/:clientId/sos', async (req) => {
     const { clientId } = req.params as { clientId: string };
     requireClient(req, clientId);
-    return { alertes: container.safety.list().filter((a) => a.userId === clientId).map(vueUsager) };
+    return { alertes: container.safety.parUsager(clientId).map(vueUsager) };
   });
 }

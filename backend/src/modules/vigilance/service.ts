@@ -109,7 +109,7 @@ export class VigilanceService {
 
     /* ---------------------------- EXPLOITATION ---------------------------- */
 
-    const alertes = this.c.safety.list().filter((a) => a.status !== 'resolved' && a.status !== 'cancelled');
+    const alertes = this.c.safety.list(0);
     const sansAgent = alertes.filter((a) => !a.agent && now - Date.parse(a.createdAt) > 3 * MINUTE);
     if (sansAgent.length > 0) {
       const pire = Math.round((now - Math.min(...sansAgent.map((a) => Date.parse(a.createdAt)))) / MINUTE);
@@ -186,8 +186,8 @@ export class VigilanceService {
       });
     }
 
-    const courses = this.c.rides.listAll();
-    const recentes = courses.filter((r) => now - Date.parse(r.createdAt) < 24 * HEURE);
+    // VOLUME : la fenêtre de 24 h se lit dans l'index chronologique.
+    const recentes = this.c.rides.createdSince(now - 24 * HEURE);
     const sansOffre = recentes.filter((r) => r.status === 'no_driver');
     if (recentes.length >= 10 && sansOffre.length / recentes.length > 0.15) {
       push({
@@ -377,7 +377,7 @@ export class VigilanceService {
     /* ----------------------------- CONFIGURATION ----------------------------- */
 
     const services = this.c.settings.getServices();
-    const enCours = courses.filter((r) => ['accepted', 'driver_en_route', 'arrived', 'in_progress'].includes(r.status));
+    const enCours = this.c.rides.listActives().filter((r) => ['accepted', 'driver_en_route', 'arrived', 'in_progress'].includes(r.status));
     if (!services.open && enCours.length > 0) {
       push({
         id: 'ferme-avec-courses', severite: 'eleve', domaine: 'configuration',

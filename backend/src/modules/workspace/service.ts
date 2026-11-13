@@ -161,7 +161,7 @@ export class WorkspaceService {
     /* --------------------- Dossiers portant son nom --------------------- */
     const mesDossiers: TacheAssignee[] = [];
 
-    for (const a of this.c.safety.list()) {
+    for (const a of this.c.safety.list(0)) {
       if (a.agent !== nom) continue;
       if (a.status === 'resolved' || a.status === 'cancelled') continue;
       mesDossiers.push({
@@ -324,9 +324,7 @@ export class WorkspaceService {
         if (!d) return null;
         const zone = (p: { lat: number; lng: number }) => nearestZone(p)?.zone.name ?? 'Abidjan';
         const manager = d.equipe?.managerUsername ? this.c.accounts.get(d.equipe.managerUsername) : undefined;
-        const courses = this.c.rides.listAll()
-          .filter((r) => r.driverId === fiche.driverId)
-          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        const courses = this.c.rides.listByDriver(fiche.driverId!)
           .slice(0, 8)
           .map((r) => {
             const note = r.events.find((e) => e.type === 'rated')?.payload as { stars?: number; rating?: number } | undefined;

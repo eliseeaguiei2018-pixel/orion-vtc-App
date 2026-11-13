@@ -703,7 +703,12 @@ export function GlobalSearch({ onSearch, onOpenDriver, onOpenClient, onOpenRide 
       />
       {open && results && (
         <div className="adm-search-pop">
-          {empty && <p className="adm-muted" style={{ margin: 8 }}>Aucun résultat pour « {q} ».</p>}
+          {empty && <p className="adm-muted" style={{ margin: 8 }}>Aucun résultat pour « {q} »{results.partiel ? ' dans les fiches les plus récentes' : ''}.</p>}
+          {results.partiel && (
+            <p className="adm-muted" style={{ margin: 8, fontSize: 12 }}>
+              Recherche limitée aux fiches les plus récentes. Saisissez un matricule, un numéro de téléphone ou un identifiant complet pour un résultat exact.
+            </p>
+          )}
           {results.drivers.length > 0 && (
             <div className="adm-search-group">
               <span className="adm-search-cat">Chauffeurs</span>

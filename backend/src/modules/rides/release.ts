@@ -54,8 +54,12 @@ export class RideReleaseService {
   /** Courses terminées, non réglées, dont le chauffeur attend toujours : à surveiller. */
   enAttenteDePaiement(now = Date.now()): Array<{ rideId: string; driverId: string; depuisMin: number; montant: number }> {
     const out: Array<{ rideId: string; driverId: string; depuisMin: number; montant: number }> = [];
-    for (const r of this.c.rides.listAll()) {
-      if (r.status !== 'completed' || !r.driverId) continue;
+    // Ensemble des courses terminées non payées, tenu par le magasin : aucune relecture
+    // des fins de course du mois.
+    const depuis = new Date(now - 30 * 24 * 60 * MINUTE).toISOString();
+    for (const r of this.c.rides.listAwaitingPayment()) {
+      if (!r.driverId) continue;
+      if ((r.events.find((e) => e.type === 'completed')?.at ?? r.createdAt) < depuis) continue;
       const fin = r.events.find((e) => e.type === 'completed')?.at ?? r.createdAt;
       out.push({
         rideId: r.id, driverId: r.driverId,
@@ -69,8 +73,10 @@ export class RideReleaseService {
   /** Un passage : libère ce qui doit l'être, renvoie ce qui a été fait. */
   tick(now = Date.now()): LiberationFaite[] {
     const faites: LiberationFaite[] = [];
-    for (const r of this.c.rides.listAll()) {
-      if (r.status !== 'completed' || !r.driverId) continue;
+    const depuis = new Date(now - 30 * 24 * 60 * MINUTE).toISOString();
+    for (const r of this.c.rides.listAwaitingPayment()) {
+      if (!r.driverId) continue;
+      if ((r.events.find((e) => e.type === 'completed')?.at ?? r.createdAt) < depuis) continue;
       const driver = this.c.drivers.get(r.driverId);
       if (!driver || driver.availability !== 'on_trip') continue;
 

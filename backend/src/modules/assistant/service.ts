@@ -261,7 +261,7 @@ const SUJETS: Sujet[] = [
     sauf: [/location/, /[ée]lectri/, /thermi/, /hybrid/, /co2|carbone/, /batterie/],
     exemple: 'Combien de courses hier, et combien annulées ?',
     repondre(c, p, question) {
-      const toutes = c.rides.listAll().filter((r) => Date.parse(r.createdAt) >= p.depuis);
+      const toutes = c.rides.createdSince(p.depuis);
       const parStatut = new Map<string, number>();
       for (const r of toutes) parStatut.set(r.status, (parStatut.get(r.status) ?? 0) + 1);
       const annulees = parStatut.get('cancelled') ?? 0;

@@ -102,14 +102,13 @@ export async function preparerCharge(c: Container, demande: { conducteurs: numbe
   return { conducteurs: demande.conducteurs, parGamme, clients, dureeMs: Date.now() - debut };
 }
 
-const ACTIVES = new Set(['searching', 'accepted', 'driver_en_route', 'arrived', 'in_progress']);
 const ALERTE_OUVERTE = new Set(['raised', 'dispatched', 'acknowledged']);
 
 /** Mesures de la plateforme : serveur, calcul d'itinéraire, et volume métier en cours. */
 export function mesuresPlateforme(c: Container) {
-  let actives = 0;
-  let total = 0;
-  for (const r of c.rides.listAll()) { total += 1; if (ACTIVES.has(r.status)) actives += 1; }
+  // Compteurs tenus par le magasin des courses : aucun parcours de l'historique.
+  const actives = c.rides.nombreActives;
+  const total = c.rides.nombre;
   const conducteurs = c.drivers.list();
   const alertes = c.safety.list();
   return {

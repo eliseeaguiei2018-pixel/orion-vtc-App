@@ -1,3 +1,4 @@
+import { haversineMeters } from '../../core/geo.js';
 import { config } from '../../config/index.js';
 import type { LatLng } from '../../core/geo.js';
 import { rideRoom, type RealtimeHub } from '../realtime/hub.js';
@@ -36,6 +37,8 @@ export function ajouterPoint(ride: Ride, point: LatLng & { t: number }): NonNull
     // Le début du trajet (après l'approche) suit l'éclaircissement.
     if (ride.traceDepart) ride.traceDepart = Math.ceil(ride.traceDepart / 2);
   }
+  const precedent = trace[trace.length - 1];
+  if (precedent) ride.sautMaxMetres = Math.max(ride.sautMaxMetres ?? 0, haversineMeters(precedent, point));
   trace.push(point);
   return trace;
 }

@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Container } from '../../container.js';
@@ -24,6 +25,27 @@ import { TYPE_LABEL as CREW_TYPE_LABEL, STATUT_LABEL as CREW_STATUT_LABEL, TYPES
 import { consoleForced, consoleReassigned } from '../driver-app/offers.js';
 import { categorieDeFlotte } from '../rides/matching.js';
 import { ROLES_HABILITABLES, STATUT_HABILITATION_LABEL, type ErreurHabilitation, type Habilitation } from '../dashboard/habilitations.js';
+
+/**
+ * VOLUME : un export s'écrit par tranches de 2 000 lignes, en rendant la main au serveur
+ * entre deux tranches. Un export d'un an ne bloque ni la console ni les applications, et
+ * le fichier n'est jamais tenu en entier en mémoire.
+ */
+async function* parTranches(lignes: Iterable<string>, taille = 2000): AsyncGenerator<string> {
+  let tampon: string[] = [];
+  let premiere = true;
+  for (const l of lignes) {
+    tampon.push(l);
+    if (tampon.length >= taille) {
+      yield `${premiere ? '' : '\n'}${tampon.join('\n')}`;
+      premiere = false;
+      tampon = [];
+      await new Promise((ok) => setImmediate(ok));
+    }
+  }
+  if (tampon.length) yield `${premiere ? '' : '\n'}${tampon.join('\n')}`;
+}
+
 
 /** Rôles de direction : accès complet, 2FA exigible via ADMIN_REQUIRE_2FA. */
 const EXEC_ROLES = new Set(['ceo', 'dg', 'daa', 'coo', 'super_admin']);
@@ -645,7 +667,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       const month = q.month ?? new Date().toISOString().slice(0, 7);
       const acc = container.corporate.get(id);
       if (!acc) throw notFound('Compte entreprise introuvable');
-      const rides = container.rides.listAll().filter((r) => r.corporateId === id && r.createdAt.startsWith(month));
+      const rides = container.rides.listByCorporate(id).filter((r) => r.createdAt.startsWith(month));
       const total = rides.reduce((s, r) => s + r.quote.amount, 0);
       const esc = (v: unknown) => { let s = String(v ?? ''); if (/^[=+\-@]/.test(s)) s = `'${s}`; return `"${s.replace(/"/g, '""')}"`; };
       const head = ['course', 'date', 'client', 'statut', 'montant_fcfa'].join(',');
@@ -783,7 +805,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
 
     scoped.get('/admin/alerts', async (req) => {
       require(req, 'alerts:read');
-      return { alerts: container.safety.list().map((a) => ({ ...a, ...usagerDeAlerte(a.userId) })) };
+      // Toutes les alertes ouvertes + les 300 dernières closes : l'historique se lit dossier par dossier.
+      return { alerts: container.safety.list(300).map((a) => ({ ...a, ...usagerDeAlerte(a.userId) })) };
     });
 
     /** Dossier scellé : lecture réservée à la direction après clôture. */
@@ -798,7 +821,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     // automatique des déviations majeures / courses figées sur le réseau actif.
     scoped.get('/admin/sos', async (req) => {
       require(req, 'alerts:read');
-      for (const r of container.rides.listAll()) {
+      // Déviations et immobilisations ne concernent que les courses en cours.
+      for (const r of container.rides.listActives()) {
         const anomaly = admin.rideAnomaly(r);
         if (anomaly === 'detour') {
           container.safety.raiseSystem({
@@ -815,7 +839,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         }
       }
       const now = Date.now();
-      const alerts = container.safety.triage().map((a) => ({
+      const alerts = container.safety.triage(300).map((a) => ({
         ...a,
         ...usagerDeAlerte(a.userId),
         slaSeconds: Math.max(0, Math.round((now - Date.parse(a.createdAt)) / 1000)),
@@ -2307,7 +2331,9 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       require(req, 'rides:read');
       reply.header('content-type', 'text/csv; charset=utf-8');
       reply.header('content-disposition', 'attachment; filename="orion-courses.csv"');
-      return admin.ridesCsv();
+      // Période exportée (31 jours par défaut, 366 au plus) : un export illimité bloquerait le serveur.
+      const q = parse(z.object({ jours: z.coerce.number().int().min(1).max(366).optional() }), req.query ?? {});
+      return reply.send(Readable.from(parTranches(admin.ridesCsvLignes(q.jours))));
     });
 
     // --- Notifications / diffusion ---
@@ -2378,7 +2404,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         texte: z.string().trim().min(3).max(500),
       }), req.body);
       const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
-      const enCours = container.rides.listAll().filter((r) => ['accepted', 'driver_en_route', 'arrived', 'in_progress'].includes(r.status));
+      const enCours = container.rides.listActives().filter((r) => ['accepted', 'driver_en_route', 'arrived', 'in_progress'].includes(r.status));
       let destinataires: Array<{ clientId: string; rideId?: string }> = [];
       if (body.cible === 'client') {
         const tel = body.telephone?.replace(/\s/g, '');
@@ -2590,39 +2616,38 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         }),
         req.query,
       );
-      const tout = container.executive.grandLivre({
+      // VOLUME : seule la page demandée est fabriquée ; les totaux couvrent tout le
+      // filtre (une page de tableau ne doit jamais donner une fausse idée du total).
+      return container.executive.pageLivre({
         depuisJours: q.days ?? 30,
         sens: q.sens,
         categorie: q.categorie as never,
+        page: Math.max(1, q.page ?? 1),
+        limit: q.limit ?? 50,
       });
-      const limit = q.limit ?? 50;
-      const page = Math.max(1, q.page ?? 1);
-      return {
-        mouvements: tout.slice((page - 1) * limit, page * limit),
-        total: tout.length,
-        page,
-        pages: Math.max(1, Math.ceil(tout.length / limit)),
-        // Totaux sur l'ENSEMBLE du filtre, pas sur la page affichée : une page de
-        // tableau ne doit jamais donner une fausse idée du total.
-        entrees: tout.filter((x) => x.sens === 'entree' && x.enCaisse).reduce((n, x) => n + x.montant, 0),
-        sorties: tout.filter((x) => x.sens === 'sortie').reduce((n, x) => n + x.montant, 0),
-      };
     });
 
     /** Export comptable du grand livre (tableur / expert-comptable). */
     scoped.get('/admin/executive/livre.csv', async (req, reply) => {
       require(req, 'executive:read');
       const q = parse(z.object({ days: z.coerce.number().int().min(1).max(365).optional() }), req.query);
-      const lignes = container.executive.grandLivre({ depuisJours: q.days ?? 90 });
+      const flux = container.executive.fluxLivre(q.days ?? 90);
       const entete = 'date;sens;categorie;libelle;montant_fcfa;en_caisse;contrepartie;reference;statut';
-      const corps = lignes.map((m) => [
-        m.at, m.sens, m.categorie, csvCell(m.libelle), String(m.montant),
-        m.enCaisse ? 'oui' : 'non', csvCell(m.contrepartie ?? ''), csvCell(m.reference ?? ''), csvCell(m.statut ?? ''),
-      ].join(';'));
-      audit(req, 'executive.export', undefined, { lignes: lignes.length });
+      let lignes = 0;
+      function* texte() {
+        yield entete;
+        for (const m of flux) {
+          lignes += 1;
+          yield [
+            m.at, m.sens, m.categorie, csvCell(m.libelle), String(m.montant),
+            m.enCaisse ? 'oui' : 'non', csvCell(m.contrepartie ?? ''), csvCell(m.reference ?? ''), csvCell(m.statut ?? ''),
+          ].join(';');
+        }
+        audit(req, 'executive.export', undefined, { lignes });
+      }
       reply.header('content-type', 'text/csv; charset=utf-8');
       reply.header('content-disposition', 'attachment; filename="orion-grand-livre.csv"');
-      return [entete, ...corps].join('\n');
+      return reply.send(Readable.from(parTranches(texte())));
     });
 
     /** Rapport exécutif PDF — ce que le PDG emporte en conseil d'administration. */
@@ -3554,25 +3579,24 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       // Un chauffeur n'obtient jamais la liste de ses collègues : seulement lui.
       if (account.role === 'chauffeur') {
         const moi = monDriverId(req);
-        const lignes = moi ? container.crew.liste({ jours: q.jours }).filter((l) => l.driverId === moi) : [];
+        const lignes = moi ? container.crew.page({ jours: q.jours, perimetre: new Set([moi]) }).lignes : [];
         return { equipages: lignes, tableau: null, moi };
       }
 
-      let equipages = container.crew.liste(q);
       // Chef d'équipe et agent : strictement leur flotte accréditée.
+      let perimetre: Set<string> | undefined;
       if (account.role === 'manager' || account.role === 'agent') {
         const fiche = account.username ? container.accounts.get(account.username) : undefined;
         const equipes = account.role === 'manager'
           ? container.teams.listByManager(account.username ?? '')
           : container.teams.list().filter((t) => t.id === fiche?.teamId);
-        const flotte = new Set(equipes.flatMap((t) => t.driverIds));
-        equipages = equipages.filter((l) => flotte.has(l.driverId));
+        perimetre = new Set(equipes.flatMap((t) => t.driverIds));
       }
       // Liste bornée : avec des milliers de chauffeurs, la console n'affiche pas 5 000 lignes
       // toutes les 6 secondes. La recherche (matricule, nom, téléphone) trouve les autres.
-      const total = equipages.length;
+      const { lignes, total } = container.crew.page({ ...q, perimetre, limite: LIMITE_EQUIPAGES });
       return {
-        equipages: equipages.slice(0, LIMITE_EQUIPAGES),
+        equipages: lignes,
         total,
         tableau: container.crew.tableau(q.jours),
         types: Object.entries(CREW_TYPE_LABEL).map(([id, label]) => ({ id, label, financier: TYPES_FINANCIERS.includes(id as TypeRequete) })),

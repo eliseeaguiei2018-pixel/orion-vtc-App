@@ -1,3 +1,4 @@
+import type { PaiementsJour, Ride } from '../rides/store.js';
 import type { Container } from '../../container.js';
 import { adminUsers } from '../admin/auth.js';
 
@@ -125,39 +126,35 @@ const debutDe = (jours: number) => Date.now() - jours * 86_400_000;
 export class ExecutiveService {
   constructor(private readonly c: Container) {}
 
+  /** Le mouvement de caisse d'une course payée (null si rien n'est entré en caisse). */
+  private mouvementCourse(r: Ride): Mouvement | null {
+    if (r.status !== 'paid' && r.status !== 'rated') return null;
+    const at = r.events.find((e) => e.type === 'paid')?.at ?? r.createdAt;
+    // Montant réellement encaissé : la part prise en charge par un abonnement ORION
+    // n'entre pas en caisse, c'est un effort commercial.
+    const prisEnCharge = (r.subscription?.montantCouvert ?? 0) + (r.subscription?.remise ?? 0);
+    const encaisse = Math.max(0, r.quote.amount - prisEnCharge);
+    if (encaisse <= 0) return null;
+    const especes = r.paymentMethod === 'cash';
+    return {
+      id: `ride-${r.id}`, at, sens: 'entree',
+      categorie: r.serviceType === 'delivery' ? 'livraison' : 'course',
+      libelle: especes
+        ? (r.serviceType === 'delivery' ? 'Livraison payée en espèces (au coursier)' : 'Course payée en espèces (au chauffeur)')
+        : (r.serviceType === 'delivery' ? 'Livraison payée' : 'Course payée'),
+      montant: encaisse, reference: r.id, contrepartie: r.clientId,
+      statut: r.paymentMethod ?? 'payée',
+      enCaisse: !especes,
+    };
+  }
+
   /**
-   * GRAND LIVRE : tous les mouvements d'argent de la plateforme, toutes sources
-   * confondues, du plus récent au plus ancien.
+   * Tous les mouvements HORS courses (abonnements, locations, retraits, virements, notes
+   * de frais, litiges) : quelques centaines par mois, lus en entier sans difficulté.
+   * Les courses, elles, se comptent en millions : elles passent par leurs index.
    */
-  grandLivre(options: { depuisJours?: number; sens?: Sens; categorie?: CategorieMouvement } = {}): Mouvement[] {
-    const seuil = options.depuisJours ? debutDe(options.depuisJours) : 0;
+  private mouvementsHorsCourses(seuil: number): Mouvement[] {
     const m: Mouvement[] = [];
-
-    /* --- ENTRÉES : ce que les clients paient --- */
-    for (const r of this.c.rides.listAll()) {
-      if (r.status !== 'paid' && r.status !== 'rated') continue;
-      const paiement = r.events.find((e) => e.type === 'paid');
-      const at = paiement?.at ?? r.createdAt;
-      if (Date.parse(at) < seuil) continue;
-      // Montant réellement encaissé : la part prise en charge par un abonnement ORION
-      // n'entre pas en caisse, c'est un effort commercial.
-      const prisEnCharge = (r.subscription?.montantCouvert ?? 0) + (r.subscription?.remise ?? 0);
-      const encaisse = Math.max(0, r.quote.amount - prisEnCharge);
-      if (encaisse > 0) {
-        const especes = r.paymentMethod === 'cash';
-        m.push({
-          id: `ride-${r.id}`, at, sens: 'entree',
-          categorie: r.serviceType === 'delivery' ? 'livraison' : 'course',
-          libelle: especes
-            ? (r.serviceType === 'delivery' ? 'Livraison payée en espèces (au coursier)' : 'Course payée en espèces (au chauffeur)')
-            : (r.serviceType === 'delivery' ? 'Livraison payée' : 'Course payée'),
-          montant: encaisse, reference: r.id, contrepartie: r.clientId,
-          statut: r.paymentMethod ?? 'payée',
-          enCaisse: !especes,
-        });
-      }
-    }
-
     for (const f of this.c.subscriptions.factures('payee')) {
       if (Date.parse(f.payeeLe ?? f.emiseLe) < seuil) continue;
       m.push({
@@ -179,16 +176,13 @@ export class ExecutiveService {
     }
 
     /* --- SORTIES : ce qui quitte la caisse --- */
-    for (const e of this.c.wallet.allEntries()) {
-      if (Date.parse(e.at) < seuil) continue;
+    for (const e of this.c.wallet.payoutsSince(seuil)) {
       const nom = this.c.drivers.get(e.driverId)?.name ?? e.driverId;
-      if (e.type === 'payout') {
-        m.push({
-          id: `pay-${e.id}`, at: e.at, sens: 'sortie', categorie: 'reversement_chauffeur',
-          libelle: 'Retrait chauffeur', montant: Math.abs(e.amount),
-          reference: e.rideId, contrepartie: nom, statut: 'versé', enCaisse: true,
-        });
-      }
+      m.push({
+        id: `pay-${e.id}`, at: e.at, sens: 'sortie', categorie: 'reversement_chauffeur',
+        libelle: 'Retrait chauffeur', montant: Math.abs(e.amount),
+        reference: e.rideId, contrepartie: nom, statut: 'versé', enCaisse: true,
+      });
     }
 
     for (const t of this.c.treasury.list()) {
@@ -230,25 +224,156 @@ export class ExecutiveService {
         reference: d.rideId, contrepartie: d.clientId, statut: `décidé par ${d.decidedBy ?? '—'}`, enCaisse: true,
       });
     }
-
-    return m
-      .filter((x) => (!options.sens || x.sens === options.sens) && (!options.categorie || x.categorie === options.categorie))
-      .sort((a, b) => b.at.localeCompare(a.at));
+    return m;
   }
 
-  /** Agrégats financiers consolidés sur la période demandée. */
+  /**
+   * GRAND LIVRE : tous les mouvements d'argent de la plateforme, toutes sources
+   * confondues, du plus récent au plus ancien. Matérialise toute la période : réservé
+   * aux exports (le CSV l'écrit par tranches). La console lit `pageLivre`.
+   */
+  grandLivre(options: { depuisJours?: number; sens?: Sens; categorie?: CategorieMouvement } = {}): Mouvement[] {
+    const seuil = options.depuisJours ? debutDe(options.depuisJours) : 0;
+    const m = this.mouvementsHorsCourses(seuil);
+    // VOLUME : l'index des paiements ne lit que la période demandée (une course payée a
+    // toujours son événement « paid » : c'est lui qui la date dans le grand livre).
+    for (const r of this.c.rides.withEventSince('paid', seuil)) {
+      const x = this.mouvementCourse(r);
+      if (x && Date.parse(x.at) >= seuil) m.push(x);
+    }
+    // Dates ISO : la comparaison directe suffit (localeCompare est cent fois plus lent).
+    return m
+      .filter((x) => (!options.sens || x.sens === options.sens) && (!options.categorie || x.categorie === options.categorie))
+      .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+  }
+
+  /**
+   * Paiements de courses depuis `seuil`, additionnés jour par jour : les jours entiers
+   * viennent des cumuls quotidiens du magasin des courses, la journée de départ (entamée)
+   * d'une lecture exacte de ses seuls paiements. Le coût dépend du nombre de jours, plus
+   * du nombre de courses.
+   */
+  private totauxCourses(seuil: number): PaiementsJour {
+    const jourSuivant = Date.parse(`${new Date(seuil).toISOString().slice(0, 10)}T00:00:00Z`) + 86_400_000;
+    const premierJourEntier = new Date(jourSuivant).toISOString().slice(0, 10);
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const t = premierJourEntier <= aujourdhui
+      ? this.c.rides.cumuls.paiementsEntre(premierJourEntier, aujourdhui)
+      : { jour: '', course: { encaisse: 0, especes: 0, nombre: 0 }, livraison: { encaisse: 0, especes: 0, nombre: 0 }, gmv: 0, tva: 0, commission: 0, commissionEspeces: 0 };
+    for (const r of this.c.rides.withEventBetween('paid', seuil, jourSuivant)) {
+      if (r.status !== 'paid' && r.status !== 'rated') continue;
+      const fee = r.quote.breakdown.fee ?? 0;
+      t.gmv += r.quote.amount;
+      t.tva += r.quote.breakdown.tva ?? 0;
+      t.commission += fee;
+      if (r.paymentMethod === 'cash') t.commissionEspeces += fee;
+      const x = this.mouvementCourse(r);
+      if (!x) continue;
+      const k = x.categorie as 'course' | 'livraison';
+      t[k].nombre += 1;
+      if (x.enCaisse) t[k].encaisse += x.montant; else t[k].especes += x.montant;
+    }
+    return t;
+  }
+
+  /**
+   * UNE PAGE du grand livre, avec les totaux de tout le filtre — sans fabriquer les
+   * dizaines de milliers de mouvements de la période : les paiements de courses sont lus
+   * du plus récent au plus ancien dans leur index et fusionnés avec les autres sources.
+   */
+  pageLivre(options: { depuisJours: number; sens?: Sens; categorie?: CategorieMouvement; page: number; limit: number }): {
+    mouvements: Mouvement[]; total: number; page: number; pages: number; entrees: number; sorties: number;
+  } {
+    const seuil = debutDe(options.depuisJours);
+    const garde = (x: Mouvement) => (!options.sens || x.sens === options.sens) && (!options.categorie || x.categorie === options.categorie);
+    const autres = this.mouvementsHorsCourses(seuil).filter(garde).sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+    const avecCourses = (!options.sens || options.sens === 'entree') && (!options.categorie || options.categorie === 'course' || options.categorie === 'livraison');
+    // Totaux du filtre : les mouvements hors courses (quelques centaines) sont comptés un
+    // par un, les paiements de courses viennent des cumuls quotidiens.
+    let total = autres.length;
+    let entrees = autres.filter((x) => x.sens === 'entree' && x.enCaisse).reduce((n, x) => n + x.montant, 0);
+    const sorties = autres.filter((x) => x.sens === 'sortie').reduce((n, x) => n + x.montant, 0);
+    let retenus: Iterable<Ride> = [];
+    // La catégorie (course ou livraison) est filtrée pendant la fusion, au fil de la lecture.
+    const garderCourse = options.categorie
+      ? (x: Mouvement) => x.categorie === options.categorie
+      : undefined;
+    if (avecCourses) {
+      const t = this.totauxCourses(seuil);
+      for (const k of ['course', 'livraison'] as const) {
+        if (options.categorie && options.categorie !== k) continue;
+        total += t[k].nombre;
+        entrees += t[k].encaisse;
+      }
+      retenus = this.c.rides.withEventSinceDesc('paid', seuil);
+    }
+    // Fusion des deux flux triés jusqu'à la page voulue : seuls les mouvements de la page
+    // sont fabriqués.
+    const debut = (options.page - 1) * options.limit;
+    const mouvements: Mouvement[] = [];
+    let k = 0;
+    for (const x of this.fusionner(autres, retenus, garderCourse)) {
+      if (k >= debut) mouvements.push(x);
+      k += 1;
+      if (k >= debut + options.limit) break;
+    }
+    return { mouvements, total, page: options.page, pages: Math.max(1, Math.ceil(total / options.limit)), entrees, sorties };
+  }
+
+  /**
+   * Fusionne les mouvements hors courses avec les courses payées, les deux lus du plus
+   * récent au plus ancien : un mouvement n'est fabriqué qu'au moment où il est lu.
+   */
+  private *fusionner(autres: Mouvement[], courses: Iterable<Ride>, garder?: (x: Mouvement) => boolean): Generator<Mouvement> {
+    let i = 0;
+    const lecteur = courses[Symbol.iterator]();
+    let course: Mouvement | null = null;
+    const suivante = () => {
+      for (let n = lecteur.next(); !n.done; n = lecteur.next()) {
+        const x = this.mouvementCourse(n.value);
+        if (x && (!garder || garder(x))) return x;
+      }
+      return null;
+    };
+    course = suivante();
+    while (i < autres.length || course) {
+      if (i < autres.length && (!course || autres[i]!.at >= course.at)) {
+        yield autres[i++]!;
+      } else {
+        yield course!;
+        course = suivante();
+      }
+    }
+  }
+
+  /**
+   * Tout le grand livre de la période, mouvement par mouvement, du plus récent au plus
+   * ancien : l'export CSV l'écrit par tranches, sans jamais tenir la période en mémoire.
+   */
+  fluxLivre(depuisJours: number): Generator<Mouvement> {
+    const seuil = debutDe(depuisJours);
+    const autres = this.mouvementsHorsCourses(seuil).sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+    return this.fusionner(autres, this.c.rides.withEventSinceDesc('paid', seuil));
+  }
+
+  /**
+   * Agrégats financiers consolidés sur la période demandée.
+   *
+   * VOLUME : les paiements de courses viennent des cumuls quotidiens du magasin des
+   * courses (jours entiers) et d'une lecture exacte de la seule journée de départ, entamée.
+   * Le coût ne dépend plus du nombre de courses, seulement du nombre de jours.
+   */
   consolidation(depuisJours = 30): ConsolidationFinanciere {
-    const mouvements = this.grandLivre({ depuisJours });
+    const seuil = debutDe(depuisJours);
     const parCategorie: ConsolidationFinanciere['parCategorie'] = {};
     let entrees = 0;
     let sorties = 0;
     let especesChauffeurs = 0;
-    for (const x of mouvements) {
+    for (const x of this.mouvementsHorsCourses(seuil)) {
       const c = (parCategorie[x.categorie] ??= { entrees: 0, sorties: 0, nombre: 0 });
       c.nombre += 1;
       if (x.sens === 'entree') {
         c.entrees += x.montant;
-        // Les espèces encaissées par le chauffeur ne sont jamais entrées en caisse.
         if (x.enCaisse) entrees += x.montant; else especesChauffeurs += x.montant;
       } else {
         sorties += x.montant; c.sorties += x.montant;
@@ -256,22 +381,22 @@ export class ExecutiveService {
     }
 
     // GMV et revenu plateforme : repris du module Finances pour qu'aucune session ne
-    // montre un chiffre différent d'une autre.
-    const seuil = debutDe(depuisJours);
-    let gmvMobilite = 0;
-    let tvaCollectee = 0;
-    let commission = 0;
-    // Commission due à ORION sur les courses encaissées EN ESPÈCES par les chauffeurs :
-    // l'argent est dans leur poche, ORION doit le récupérer. Se calculer à partir des
-    // soldes de portefeuille serait faux — un gain électronique masquerait la dette.
-    let dettesEspeces = 0;
-    for (const r of this.c.rides.listAll()) {
-      if (r.status !== 'paid' && r.status !== 'rated') continue;
-      if (Date.parse(r.createdAt) < seuil) continue;
-      gmvMobilite += r.quote.amount;
-      tvaCollectee += r.quote.breakdown.tva ?? 0;
-      commission += r.quote.breakdown.fee ?? 0;
-      if (r.paymentMethod === 'cash') dettesEspeces += r.quote.breakdown.fee ?? 0;
+    // montre un chiffre différent d'une autre. Commission due à ORION sur les courses
+    // encaissées EN ESPÈCES : l'argent est dans la poche du chauffeur, ORION doit le
+    // récupérer (se calculer à partir des soldes serait faux : un gain électronique
+    // masquerait la dette).
+    const cumul = this.totauxCourses(seuil);
+    const gmvMobilite = cumul.gmv;
+    const tvaCollectee = cumul.tva;
+    const commission = cumul.commission;
+    const dettesEspeces = cumul.commissionEspeces;
+    for (const k of ['course', 'livraison'] as const) {
+      if (!cumul[k].nombre) continue;
+      const c = (parCategorie[k] ??= { entrees: 0, sorties: 0, nombre: 0 });
+      c.nombre += cumul[k].nombre;
+      c.entrees += cumul[k].encaisse + cumul[k].especes;
+      entrees += cumul[k].encaisse;
+      especesChauffeurs += cumul[k].especes;
     }
 
     const caLocation = parCategorie['location']?.entrees ?? 0;
@@ -282,11 +407,8 @@ export class ExecutiveService {
     const gmvTotal = gmvMobilite + caLocation + caAbonnement;
 
     // Dû aux chauffeurs : somme des soldes positifs non encore retirés.
-    let dusChauffeurs = 0;
-    for (const d of this.c.drivers.list()) {
-      const solde = this.c.wallet.balance(d.id);
-      if (solde > 0) dusChauffeurs += solde;
-    }
+    // Soldes tenus à jour par le portefeuille : plus de relecture des écritures.
+    const dusChauffeurs = this.c.wallet.totalPositiveBalances(this.c.drivers.list().map((d) => d.id));
 
     const encoursEntreprises = this.c.corporate.list().reduce((n, a) => n + a.balanceUsed, 0);
     const caisses = this.c.caisses.consolidation(depuisJours);
@@ -324,7 +446,13 @@ export class ExecutiveService {
     for (let i = jours - 1; i >= 0; i -= 1) {
       parJour.set(new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10), { entrees: 0, sorties: 0 });
     }
-    for (const m of this.grandLivre({ depuisJours: jours })) {
+    // Courses : cumuls quotidiens des paiements (encaissé hors espèces).
+    for (const [date, d] of parJour) {
+      const p = this.c.rides.cumuls.paiementsParJour.get(date);
+      if (p) d.entrees += p.course.encaisse + p.livraison.encaisse;
+    }
+    const premier = [...parJour.keys()][0]!;
+    for (const m of this.mouvementsHorsCourses(Date.parse(`${premier}T00:00:00Z`))) {
       const d = parJour.get(jour(m.at));
       if (!d) continue;
       if (m.sens === 'entree') { if (m.enCaisse) d.entrees += m.montant; } else d.sorties += m.montant;
@@ -390,9 +518,9 @@ export class ExecutiveService {
   }
 
   /** Signaux à surveiller — formulés en clair, avec la section où agir. */
-  alertes(constatsCritiques: Array<{ titre: string; constat: string; section: string }> = []): AlerteDirection[] {
+  alertes(constatsCritiques: Array<{ titre: string; constat: string; section: string }> = [], consolidation30?: ConsolidationFinanciere): AlerteDirection[] {
     const out: AlerteDirection[] = [];
-    const cons = this.consolidation(30);
+    const cons = consolidation30 ?? this.consolidation(30);
 
     if (cons.solde < 0) {
       out.push({
@@ -486,17 +614,19 @@ export class ExecutiveService {
     // Effectif interne : les comptes de la console (employés ORION), pas les chauffeurs.
     const employes = adminUsers().length;
     const sante = await this.c.vigilance.sante();
+    const consolidation = this.consolidation(jours);
+    const consolidation30 = jours === 30 ? consolidation : this.consolidation(30);
     return {
-      consolidation: this.consolidation(jours),
+      consolidation,
       serie: this.serie(Math.min(jours, 90)),
       decisions: this.decisions(),
-      alertes: this.alertes(sante.constats.filter((c) => c.severite === 'critique')),
+      alertes: this.alertes(sante.constats.filter((c) => c.severite === 'critique'), consolidation30),
       recentes: this.decisionsRecentes(),
       effectif: {
         employes,
         chauffeurs: drivers.length,
         chauffeursEnLigne: drivers.filter((d) => d.availability === 'online' || d.availability === 'on_trip').length,
-        clients: this.c.clients.list().length,
+        clients: this.c.clients.nombre,
         abonnes: this.c.subscriptions.stats().actifs,
       },
       vigilance: {

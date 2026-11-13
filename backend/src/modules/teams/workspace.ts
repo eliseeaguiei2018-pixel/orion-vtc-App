@@ -120,7 +120,6 @@ export class TeamWorkspaceService {
     });
 
     /* --------------------------------- Flotte --------------------------------- */
-    const toutesCourses = this.c.rides.listAll();
     let coursesEquipe = 0;
     let revenusChauffeurs = 0;
     let commissionOrion = 0;
@@ -135,8 +134,9 @@ export class TeamWorkspaceService {
           coursesPeriode: 0, revenusPeriode: 0, requetesOuvertes: 0, alertes: 0,
         };
       }
-      const sesCourses = toutesCourses.filter(
-        (r) => r.driverId === id && REVENUS.has(r.status) && Date.parse(r.createdAt) >= depuis,
+      // Index par chauffeur : seules ses courses sont lues, pas celles de toute la plateforme.
+      const sesCourses = this.c.rides.listByDriver(id).filter(
+        (r) => REVENUS.has(r.status) && Date.parse(r.createdAt) >= depuis,
       );
       const ecritures = this.c.wallet.history(id).filter((e) => Date.parse(e.at) >= depuis);
       const revenus = ecritures.filter((e) => e.type === 'ride_earning').reduce((n, e) => n + e.amount, 0);

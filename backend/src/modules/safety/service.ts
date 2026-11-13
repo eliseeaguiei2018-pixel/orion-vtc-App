@@ -173,6 +173,14 @@ export function isLikelyCrash(s: CrashSensorSample): boolean {
 
 export class SafetyService {
   private readonly alerts = new Map<string, EmergencyAlert>();
+  /**
+   * VOLUME : alerte système OUVERTE par (course, type), pour la déduplication en temps
+   * constant. Sans cet index, chaque contrôle d'anomalie parcourait toutes les alertes
+   * de l'histoire de la plateforme.
+   */
+  private readonly ouvertesParCourse = new Map<string, string>();
+  /** Alertes de chaque usager (son espace « Mes alertes ») : lecture sans parcours global. */
+  private readonly parUsagerIndex = new Map<string, EmergencyAlert[]>();
 
   constructor(private readonly realtime: RealtimeHub) {}
 
@@ -187,10 +195,12 @@ export class SafetyService {
    */
   raiseSystem(input: { kind: 'deviation' | 'immobilisation' | 'mot_sensible'; userId: string; location: LatLng; rideId?: string; note?: string }): EmergencyAlert {
     if (input.rideId) {
-      const existing = [...this.alerts.values()].find(
-        (a) => a.rideId === input.rideId && a.kind === input.kind && a.status !== 'resolved' && a.status !== 'cancelled',
-      );
-      if (existing) return existing;
+      const cle = `${input.rideId}:${input.kind}`;
+      const existing = this.alerts.get(this.ouvertesParCourse.get(cle) ?? '');
+      if (existing && existing.status !== 'resolved' && existing.status !== 'cancelled') return existing;
+      const alerte = this.raise({ source: 'systeme', ...input });
+      this.ouvertesParCourse.set(cle, alerte.id);
+      return alerte;
     }
     return this.raise({ source: 'systeme', ...input });
   }
@@ -249,6 +259,8 @@ export class SafetyService {
       chat: [],
     };
     this.alerts.set(alert.id, alert);
+    const lesSiennes = this.parUsagerIndex.get(alert.userId);
+    if (lesSiennes) lesSiennes.push(alert); else this.parUsagerIndex.set(alert.userId, [alert]);
 
     // Diffusion temps réel : poste de supervision (relais SAMU) + suivi de la course.
     this.realtime.publish(EMERGENCY_ROOM, 'emergency.alert', alert);
@@ -370,24 +382,48 @@ export class SafetyService {
     return a;
   }
 
-  list(): EmergencyAlert[] {
-    return [...this.alerts.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  /**
+   * Toutes les alertes OUVERTES, puis les `fermees` alertes closes les plus récentes.
+   * VOLUME : l'historique clos grandit sans fin (des milliers par mois) ; la console n'en
+   * montre que la fin, le reste se consulte dossier par dossier.
+   */
+  list(fermees = Number.POSITIVE_INFINITY): EmergencyAlert[] {
+    const ouvertes: EmergencyAlert[] = [];
+    const closes: EmergencyAlert[] = [];
+    // La Map garde l'ordre de création : on la lit à rebours, du plus récent au plus ancien.
+    const toutes = [...this.alerts.values()];
+    for (let i = toutes.length - 1; i >= 0; i -= 1) {
+      const a = toutes[i]!;
+      if (a.status !== 'resolved' && a.status !== 'cancelled') ouvertes.push(a);
+      else if (closes.length < fermees) closes.push(a);
+    }
+    return [...ouvertes, ...closes].sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+  }
+
+  /** Les alertes d'un usager, de la plus récente à la plus ancienne. */
+  parUsager(userId: string): EmergencyAlert[] {
+    return [...(this.parUsagerIndex.get(userId) ?? [])].reverse();
+  }
+
+  /** Nombre d'alertes, ouvertes et closes. */
+  get nombre(): number {
+    return this.alerts.size;
   }
 
   /**
    * File de TRIAGE (console SAMU) : alertes ouvertes d'abord, triées par gravité
    * (rouge > orange > jaune) puis par ancienneté (SLA le plus long en premier).
    */
-  triage(): EmergencyAlert[] {
+  triage(fermees = Number.POSITIVE_INFINITY): EmergencyAlert[] {
     const open = (a: EmergencyAlert) => a.status !== 'resolved' && a.status !== 'cancelled';
-    return [...this.alerts.values()].sort((a, b) => {
+    return this.list(fermees).sort((a, b) => {
       if (open(a) !== open(b)) return open(a) ? -1 : 1;
       if (open(a)) {
         const lr = LEVEL_RANK[a.level ?? 'rouge'] - LEVEL_RANK[b.level ?? 'rouge'];
         if (lr !== 0) return lr;
-        return a.createdAt.localeCompare(b.createdAt); // le plus ancien d'abord (SLA)
+        return a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0; // le plus ancien d'abord (SLA)
       }
-      return b.createdAt.localeCompare(a.createdAt);
+      return a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0;
     });
   }
 }

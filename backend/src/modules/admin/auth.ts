@@ -88,9 +88,18 @@ function comptesDeConfiguration(): AdminUser[] {
       // ADMIN_USERS mal formé → on retombe sur le compte par défaut.
     }
   }
-  const { salt, hash } = hashPassword(config.ADMIN_PASSWORD);
-  return [{ username: config.ADMIN_USERNAME, name: 'Super Admin', role: 'super_admin', salt, hash }];
+  // Le hachage scrypt coûte environ 30 ms de calcul bloquant, à dessein (c'est ce qui
+  // freine une attaque par force brute). On ne le refait donc pas à chaque lecture de la
+  // liste des comptes : il est gardé tant que l'identifiant et le mot de passe configurés
+  // ne changent pas. Avant, chaque ouverture du poste de direction le recalculait.
+  const cle = `${config.ADMIN_USERNAME}\u0000${config.ADMIN_PASSWORD}`;
+  if (!compteParDefaut || compteParDefaut.cle !== cle) {
+    const { salt, hash } = hashPassword(config.ADMIN_PASSWORD);
+    compteParDefaut = { cle, compte: { username: config.ADMIN_USERNAME, name: 'Super Admin', role: 'super_admin', salt, hash } };
+  }
+  return [{ ...compteParDefaut.compte }];
 }
+let compteParDefaut: { cle: string; compte: AdminUser } | undefined;
 
 /** Tous les comptes : configuration d'abord, puis l'annuaire du personnel. */
 export function adminUsers(): AdminUser[] {

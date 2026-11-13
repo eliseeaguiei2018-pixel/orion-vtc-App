@@ -1,6 +1,8 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import rateLimit from '@fastify/rate-limit';
 import cors from '@fastify/cors';
+import compress from '@fastify/compress';
+import { constants as zlib } from 'node:zlib';
 import { randomUUID } from 'node:crypto';
 import { config } from './config/index.js';
 import { loggerOptions } from './core/logger.js';
@@ -60,6 +62,18 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
   await app.register(cors, {
     origin: originsExplicites ? config.CORS_ORIGIN.split(',').map((s) => s.trim()) : true,
     credentials: originsExplicites,
+  });
+
+  // VOLUME : réponses compressées (Brotli, sinon gzip) dès 1 Ko. Une carte de flotte ou une
+  // file SOS de plusieurs centaines de kilo-octets pèse cinq à dix fois moins sur le
+  // réseau : c'est ce qui garde la console fluide en 4G et en télétravail. Brotli en
+  // qualité 4 : presque aussi compact que le maximum, vingt fois plus rapide à produire.
+  await app.register(compress, {
+    global: true,
+    threshold: 1024,
+    encodings: ['br', 'gzip', 'deflate'],
+    brotliOptions: { params: { [zlib.BROTLI_PARAM_QUALITY]: 4 } },
+    zlibOptions: { level: 5 },
   });
 
   // Back-pressure : protège contre la surcharge (renvoie 429 plutôt que de s'effondrer).

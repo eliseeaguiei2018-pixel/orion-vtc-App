@@ -56,6 +56,19 @@ export function evenementsDe(rides: Ride[]): Sources {
   return { revenus, commandes };
 }
 
+/**
+ * Mêmes sources, lues dans les séries horaires du magasin des courses : une case par heure
+ * (commandes à l'heure de création, revenus à l'heure de fin de course). Les périodes du
+ * tableau de bord se découpent en heures, jours et mois : aucune précision n'est perdue.
+ */
+export function evenementsDesCumuls(cumuls: { commandesParHeure: Map<number, number>; revenusParHeure: Map<number, number> }): Sources {
+  const revenus: Evenement[] = [];
+  const commandes: Evenement[] = [];
+  for (const [t, v] of cumuls.commandesParHeure) if (v) commandes.push({ t, v });
+  for (const [t, v] of cumuls.revenusParHeure) if (v) revenus.push({ t, v });
+  return { revenus, commandes };
+}
+
 interface Tranche { libelle: string; debut: number; fin: number; precDebut: number; precFin: number }
 interface Fenetre { debut: number; fin: number; precDebut: number; precFin: number; tranches: Tranche[] }
 

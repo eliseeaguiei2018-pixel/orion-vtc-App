@@ -188,6 +188,8 @@ export interface SearchResults {
   drivers: { id: string; name: string; matricule: string; category: string; availability: string }[];
   clients: { id: string; name: string | null; phone: string | null; status: string; rides: number }[];
   rides: { id: string; clientId: string; status: string; amount: number; createdAt: string }[];
+  /** La recherche libre a atteint son budget de temps : d'autres fiches peuvent correspondre. */
+  partiel?: boolean;
 }
 export interface ActiveSession {
   id: string; username: string; name: string; role: string; ip?: string; userAgent?: string;

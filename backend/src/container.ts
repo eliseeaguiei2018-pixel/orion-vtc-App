@@ -164,6 +164,8 @@ export function createContainer(): Container {
   // Repositories durables (mémoire par défaut, SQLite si PERSISTENCE=sqlite).
   const drivers = new DriverStore(geo, createRepository<Driver>('drivers'));
   const rides = new RideStore(createRepository<Ride>('rides'));
+  // Cumuls financiers et bilan vert : gamme et motorisation du conducteur de chaque course.
+  rides.brancherConducteurs((id) => { const d = drivers.get(id); return d ? { categorie: d.category, moteur: d.engine } : undefined; });
   const codesPriseEnCharge = new CodesPriseEnCharge(createRepository<CodeCourse>('codes_prise_en_charge'));
   // Dispatch : la règle d'attribution (console) est relue à chaque course.
   const matching = new MatchingEngine(geo, drivers, undefined, (origin) => {
@@ -483,7 +485,7 @@ export async function seedDemoDrivers(c: Container): Promise<void> {
 /** Envoie le contrôle de sécurité aux courses en cours depuis plus de `apresSecondes`. */
 export function controlerCoursesEnCours(c: Container, apresSecondes: number, maintenant = Date.now()): number {
   let envoyes = 0;
-  for (const r of c.rides.listAll()) {
+  for (const r of c.rides.listActives()) {
     if (r.status !== 'in_progress' || c.messages.aDejaUnControle(r.id)) continue;
     const debut = r.events.find((e) => e.type === 'in_progress')?.at;
     if (!debut || maintenant - Date.parse(debut) < apresSecondes * 1000) continue;

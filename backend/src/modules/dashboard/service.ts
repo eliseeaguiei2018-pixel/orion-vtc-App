@@ -5,7 +5,7 @@ import { nearestZone } from '../geo-ci/zones.js';
 import { DASHBOARD_ROOM, type RealtimeMessage } from '../realtime/hub.js';
 import type { Ride } from '../rides/store.js';
 import { config } from '../../config/index.js';
-import { analyser, evenementsDe, historiqueDemo, type Sources } from './analyse.js';
+import { analyser, evenementsDesCumuls, historiqueDemo, type Sources } from './analyse.js';
 
 /**
  * TABLEAU DE BORD ORION : la vue d'ensemble de tout l'écosystème, en direct.
@@ -200,7 +200,9 @@ export class TableauDeBord {
    * historique synthétique s'y ajoute, signalé à l'écran.
    */
   analyse(maintenant = new Date()) {
-    const reelles = evenementsDe(this.c.rides.listAll());
+    // Courbes : séries horaires tenues par le magasin des courses (deux ans d'historique
+    // tiennent en quelques milliers de cases, même avec des millions de courses).
+    const reelles = evenementsDesCumuls(this.c.rides.cumuls);
     const jours = joursDeDemo();
     if (jours === 0) return analyser(reelles, this.c.objectifs.get(), maintenant, false);
     const jour = new Date(debutDuJour(maintenant)).toISOString();
@@ -224,12 +226,14 @@ export class TableauDeBord {
   async etat(maintenant = new Date()) {
     const c = this.c;
     const jour = debutDuJour(maintenant);
-    const rides = c.rides.listAll();
-    const duJour = rides.filter((r) => Date.parse(r.createdAt) >= jour);
-    const terminees = rides.filter((r) => TERMINEES.has(r.status) && Date.parse(momentDe(r, 'completed') ?? r.createdAt) >= jour);
-    const actives = rides.filter((r) => ACTIVES.has(r.status));
+    // VOLUME : chaque chiffre lit son index (créées aujourd'hui, terminées aujourd'hui,
+    // notées aujourd'hui, en cours), jamais l'historique complet.
+    const duJour = c.rides.createdSince(jour);
+    const terminees = c.rides.withEventSince('completed', jour).filter((r) => TERMINEES.has(r.status));
+    const actives = c.rides.listActives();
     const ca = terminees.reduce((s, r) => s + r.quote.amount, 0);
-    const notes = rides.flatMap((r) => r.events.filter((e) => e.type === 'rated' && Date.parse(e.at) >= jour).map((e) => Number(e.payload?.stars)))
+    const notes = c.rides.withEventSince('rated', jour)
+      .map((r) => Number(r.events.find((e) => e.type === 'rated')?.payload?.stars))
       .filter((n) => n >= 1 && n <= 5);
 
     // Flotte : position connue de chaque conducteur en service.
@@ -298,7 +302,7 @@ export class TableauDeBord {
         panierMoyen: terminees.length ? Math.round(ca / terminees.length) : 0,
         noteMoyenne: notes.length ? Math.round((notes.reduce((s, n) => s + n, 0) / notes.length) * 10) / 10 : null,
         notes: notes.length,
-        nouveauxClients: c.clients.list().filter((x) => Date.parse(x.createdAt) >= jour).length,
+        nouveauxClients: c.clients.creesDepuis(jour),
       },
       securite: {
         alertesOuvertes: alertes.filter((a) => ALERTE_OUVERTE.has(a.status)).length,

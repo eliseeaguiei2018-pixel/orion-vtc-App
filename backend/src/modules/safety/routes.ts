@@ -72,7 +72,7 @@ export async function safetyRoutes(app: FastifyInstance, container: Container): 
   app.get('/safety/alerts', async (req, reply) => {
     const acces = accesPersonnel(req, 'alerts:read');
     if (!acces.ok) { reply.code(acces.code); return { error: acces.message }; }
-    return { alerts: container.safety.list() };
+    return { alerts: container.safety.list(300) };
   });
 
   // Changement de statut : supervision uniquement — publique, cette route permettait

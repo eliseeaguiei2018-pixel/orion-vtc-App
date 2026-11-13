@@ -5,6 +5,7 @@ import type { EmergencyAlert } from '../safety/service.js';
 import { haversineMeters } from '../../core/geo.js';
 import { simplePdf } from '../../core/pdf.js';
 import { config } from '../../config/index.js';
+import { CacheCourt } from '../../core/cache-court.js';
 
 /**
  * Service d'agrégation pour le dashboard Admin / supervision SAMU.
@@ -46,37 +47,55 @@ export function paginate<T>(list: T[], pageOpt?: number, limitOpt?: number): { i
   return { items: list.slice((page - 1) * limit, page * limit), meta: { total, page, pages, limit } };
 }
 
+/** Les `n` meilleurs selon `score` (> 0), sans trier toute la liste. */
+function meilleurs<T>(liste: Iterable<T>, score: (x: T) => number, n: number): T[] {
+  const top: Array<{ x: T; v: number }> = [];
+  for (const x of liste) {
+    const v = score(x);
+    if (v <= 0 || (top.length >= n && v <= top[top.length - 1]!.v)) continue;
+    top.push({ x, v });
+    top.sort((a, b) => b.v - a.v);
+    if (top.length > n) top.pop();
+  }
+  return top.map((t) => t.x);
+}
+
 export class AdminService {
+  /**
+   * Analyses d'un mois d'activité, partagées par tous les postes ouverts : la prévision
+   * vaut pour l'heure qui vient, les signaux de fraude pour le mois écoulé. Les recalculer
+   * à chaque rafraîchissement de chaque employé ne changerait rien au résultat.
+   */
+  private readonly cachePrevision = new CacheCourt<Awaited<ReturnType<AdminService['calculerPrevision']>>>(30_000);
+  private readonly cacheFraude = new CacheCourt<ReturnType<AdminService['calculerFraude']>>(60_000);
+
   constructor(private readonly c: Container) {}
 
   overview() {
-    const rides = this.c.rides.listAll();
+    // VOLUME : cumuls tenus par le magasin des courses (aucun parcours de l'historique).
+    const cumuls = this.c.rides.cumuls;
     const byStatus: Record<string, number> = {};
-    let revenue = 0, gmv = 0;
-    for (const r of rides) {
-      byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
-      gmv += r.quote.amount;
-      if (REVENUE.has(r.status)) revenue += r.quote.amount;
-    }
+    for (const [k, v] of Object.entries(cumuls.parStatut)) if (v) byStatus[k] = v;
+    const gmv = cumuls.gmv;
+    const revenue = cumuls.revenu;
     const drivers = this.c.drivers.list();
     const online = drivers.filter((d) => d.availability !== 'offline').length;
     const onTrip = drivers.filter((d) => d.availability === 'on_trip').length;
-    const alerts = this.c.safety.list();
-    const openAlerts = alerts.filter((a) => ALERT_OPEN.has(a.status)).length;
+    const openAlerts = this.c.safety.list(0).filter((a) => ALERT_OPEN.has(a.status)).length;
     const wallet = this.c.wallet.totals();
 
     return {
       currency: 'XOF',
       rides: {
-        total: rides.length,
-        active: rides.filter((r) => ACTIVE.has(r.status)).length,
+        total: this.c.rides.nombre,
+        active: this.c.rides.nombreActives,
         completed: (byStatus.completed ?? 0) + (byStatus.paid ?? 0) + (byStatus.rated ?? 0),
         cancelled: (byStatus.cancelled ?? 0) + (byStatus.no_driver ?? 0),
         byStatus,
       },
       drivers: { total: drivers.length, online, onTrip },
       finance: { gmv: Math.round(gmv), revenue: Math.round(revenue), commission: wallet.commission, payouts: wallet.payouts },
-      safety: { total: alerts.length, open: openAlerts },
+      safety: { total: this.c.safety.nombre, open: openAlerts },
       generatedAt: new Date().toISOString(),
     };
   }
@@ -108,9 +127,30 @@ export class AdminService {
   }
 
   rides(opts: { status?: string; page?: number; limit?: number } = {}) {
-    let list = this.c.rides.listAll();
-    if (opts.status) list = list.filter((r) => r.status === opts.status);
-    const { items, meta } = paginate(list, opts.page, opts.limit);
+    // VOLUME : une page se lit depuis l'index chronologique, sans trier l'historique.
+    // Le total vient des cumuls ; un filtre par statut lit les courses actives (petites)
+    // ou parcourt depuis les plus récentes jusqu'à remplir la page.
+    const limit = Math.min(200, Math.max(1, Math.round(opts.limit ?? 25)));
+    const total = opts.status ? (this.c.rides.cumuls.parStatut[opts.status] ?? 0) : this.c.rides.nombre;
+    const pages = Math.max(1, Math.ceil(total / limit));
+    const page = Math.min(pages, Math.max(1, Math.round(opts.page ?? 1)));
+    const meta: PageMeta = { total, page, pages, limit };
+    let items: Ride[];
+    if (!opts.status) {
+      items = this.c.rides.recent(limit, (page - 1) * limit);
+    } else if (ACTIVE.has(opts.status as RideStatus) || opts.status === 'searching') {
+      items = this.c.rides.listActives().filter((r) => r.status === opts.status)
+        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).slice((page - 1) * limit, page * limit);
+    } else {
+      items = [];
+      let aSauter = (page - 1) * limit;
+      this.c.rides.scanRecent((r) => {
+        if (r.status !== opts.status) return true;
+        if (aSauter > 0) { aSauter -= 1; return true; }
+        items.push(r);
+        return items.length < limit;
+      });
+    }
     const rides = items.map((r) => {
       const driver = r.driverId ? this.c.drivers.get(r.driverId) : undefined;
       const client = this.c.clients.get(r.clientId);
@@ -143,19 +183,15 @@ export class AdminService {
 
   /** Agrégats financiers (reporting) : GMV, revenu, commission, payouts + par niveau. */
   finance() {
-    const rides = this.c.rides.listAll();
+    // VOLUME : GMV, revenu, TVA et répartition par gamme sont des cumuls tenus à jour.
+    // La gamme d'une course est celle de son conducteur au moment de la course.
+    const cumuls = this.c.rides.cumuls;
     const byTier: Record<string, { count: number; revenue: number }> = {};
-    let gmv = 0, revenue = 0;
-    for (const r of rides) {
-      gmv += r.quote.amount;
-      const tier = r.quote.serviceType === 'delivery' ? 'livraison' : (r.driverId ? this.c.drivers.get(r.driverId)?.category ?? r.serviceType : r.serviceType);
-      byTier[tier] ??= { count: 0, revenue: 0 };
-      byTier[tier].count += 1;
-      if (REVENUE.has(r.status)) { revenue += r.quote.amount; byTier[tier].revenue += r.quote.amount; }
-    }
+    for (const [k, v] of Object.entries(cumuls.parGamme)) if (v.count) byTier[k] = { count: v.count, revenue: Math.round(v.revenue) };
+    const gmv = cumuls.gmv;
+    const revenue = cumuls.revenu;
     // Split payment : la TVA collectée pour l'État est isolée du revenu plateforme.
-    let taxes = 0;
-    for (const r of rides) if (REVENUE.has(r.status)) taxes += r.quote.breakdown.tva;
+    const taxes = cumuls.tva;
     const wallet = this.c.wallet.totals();
     return {
       currency: 'XOF',
@@ -180,12 +216,13 @@ export class AdminService {
       d.setUTCDate(today.getUTCDate() - i);
       buckets.set(dayKey(d), { date: dayKey(d), rides: 0, revenue: 0, cancelled: 0 });
     }
-    for (const r of this.c.rides.listAll()) {
-      const b = buckets.get(r.createdAt.slice(0, 10));
-      if (!b) continue;
-      b.rides += 1;
-      if (REVENUE.has(r.status)) b.revenue += r.quote.amount;
-      if (r.status === 'cancelled' || r.status === 'no_driver') b.cancelled += 1;
+    // VOLUME : cumuls quotidiens tenus par le magasin des courses.
+    for (const [jour, b] of buckets) {
+      const c = this.c.rides.cumuls.parJour.get(jour);
+      if (!c) continue;
+      b.rides = c.courses;
+      b.revenue = c.revenu;
+      b.cancelled = c.annulees;
     }
     const series = [...buckets.values()].map((b) => ({ ...b, revenue: Math.round(b.revenue) }));
     return {
@@ -206,14 +243,10 @@ export class AdminService {
    */
   green() {
     const G_THERMAL = 150, G_ELECTRIC = 20, G_HYBRID = 90; // g CO2 / km
-    let kmElectric = 0, kmHybrid = 0, ridesElectric = 0, ridesHybrid = 0;
-    for (const r of this.c.rides.listAll()) {
-      if (!REVENUE.has(r.status)) continue;
-      const km = (r.quote.distanceMeters ?? 0) / 1000;
-      const engine = r.driverId ? this.c.drivers.get(r.driverId)?.engine ?? 'electric' : 'electric';
-      if (engine === 'hybrid') { kmHybrid += km; ridesHybrid += 1; }
-      else { kmElectric += km; ridesElectric += 1; } // flotte ORION : électrique par défaut
-    }
+    // VOLUME : kilomètres par motorisation cumulés à chaque course terminée.
+    const cumuls = this.c.rides.cumuls;
+    const kmElectric = cumuls.km.electric, kmHybrid = cumuls.km.hybrid;
+    const ridesElectric = cumuls.coursesParMoteur.electric, ridesHybrid = cumuls.coursesParMoteur.hybrid;
     const savedKg = (kmElectric * (G_THERMAL - G_ELECTRIC) + kmHybrid * (G_THERMAL - G_HYBRID)) / 1000;
     const totalRides = ridesElectric + ridesHybrid;
     const fleet = this.c.drivers.list();
@@ -236,10 +269,7 @@ export class AdminService {
         })(),
       },
       /** Top Points Carbone : passagers les plus engagés (fidélisation verte). */
-      topGreenClients: this.c.clients.list()
-        .filter((cl) => (cl.greenPoints ?? 0) > 0)
-        .sort((a, b) => (b.greenPoints ?? 0) - (a.greenPoints ?? 0))
-        .slice(0, 5)
+      topGreenClients: meilleurs(this.c.clients.list(), (cl) => cl.greenPoints ?? 0, 5)
         .map((cl) => ({ id: cl.id, name: cl.name ?? null, greenPoints: cl.greenPoints ?? 0 })),
       chargingStations: CHARGING_STATIONS,
     };
@@ -291,29 +321,46 @@ export class AdminService {
    * pour l'heure à venir (même heure les jours précédents). Comparée à l'offre
    * actuelle → recommandation d'affectation de chauffeurs EN AVANCE.
    */
-  async predict() {
+  predict() {
+    return this.cachePrevision.obtenir(() => this.calculerPrevision());
+  }
+
+  private async calculerPrevision() {
     const nextHour = (new Date().getUTCHours() + 1) % 24;
+    const heure = String(nextHour).padStart(2, '0');
     const byCellDays = new Map<string, Map<string, number>>(); // cell → jour → courses à cette heure
-    for (const r of this.c.rides.listAll()) {
-      const d = new Date(r.createdAt);
-      if (d.getUTCHours() !== nextHour) continue;
+    // Les quatre dernières semaines : assez pour la régularité, sans relire des années.
+    for (const r of this.c.rides.createdSince(Date.now() - 28 * 86_400_000)) {
+      // Heure lue dans la date ISO (« 2026-11-13T14:… ») : pas d'objet Date par course.
+      if (r.createdAt.slice(11, 13) !== heure) continue;
       const cell = this.c.demand.keyFor(r.origin);
       const day = r.createdAt.slice(0, 10);
       const days = byCellDays.get(cell) ?? new Map<string, number>();
       days.set(day, (days.get(day) ?? 0) + 1);
       byCellDays.set(cell, days);
     }
-    const cells = [] as { cell: string; lat: number; lng: number; expected: number; supply: number; gap: number }[];
+    const candidates: Array<{ cell: string; expected: number }> = [];
     for (const [cell, days] of byCellDays) {
       const expected = Math.round([...days.values()].reduce((a, b) => a + b, 0) / days.size);
-      if (expected === 0) continue;
+      if (expected > 0) candidates.push({ cell, expected });
+    }
+    // L'écart (demande attendue − chauffeurs proches) ne dépasse jamais la demande : on
+    // interroge la carte des chauffeurs par demande décroissante, et on s'arrête dès que
+    // la demande restante ne peut plus entrer dans les 12 plus gros écarts. Même résultat
+    // qu'avant, sans une recherche de proximité pour chaque cellule de la ville.
+    candidates.sort((a, b) => b.expected - a.expected);
+    const cells = [] as { cell: string; lat: number; lng: number; expected: number; supply: number; gap: number }[];
+    const rang = (a: (typeof cells)[number], b: (typeof cells)[number]) => b.gap - a.gap || b.expected - a.expected;
+    for (const { cell, expected } of candidates) {
+      if (cells.length >= 12 && expected < cells[11]!.gap) break;
       const [la, ln] = cell.split(':').map(Number);
       const lat = (la ?? 0) * 0.0072, lng = (ln ?? 0) * 0.0072;
       const supply = (await this.c.geo.nearby({ lat, lng }, 1200, 50)).length;
       cells.push({ cell, lat, lng, expected, supply, gap: Math.max(0, expected - supply) });
+      cells.sort(rang);
+      if (cells.length > 12) cells.length = 12;
     }
-    cells.sort((a, b) => b.gap - a.gap || b.expected - a.expected);
-    return { hour: nextHour, cells: cells.slice(0, 12) };
+    return { hour: nextHour, cells };
   }
 
   /**
@@ -323,10 +370,13 @@ export class AdminService {
   churn() {
     const now = Date.now();
     const DAY = 86_400_000;
-    const clients = this.c.clients.list()
-      .filter((cl) => cl.rides >= 3 && now - Date.parse(cl.lastSeenAt) > 14 * DAY)
-      .map((cl) => ({ id: cl.id, name: cl.name ?? null, rides: cl.rides, lastSeenAt: cl.lastSeenAt }))
-      .slice(0, 50);
+    // Comparaison de dates ISO (sans Date.parse sur chaque client), arrêt dès 50 trouvés.
+    const seuilSilence = new Date(now - 14 * DAY).toISOString();
+    const clients: Array<{ id: string; name: string | null; rides: number; lastSeenAt: string }> = [];
+    for (const cl of this.c.clients.list()) {
+      if (cl.rides >= 3 && cl.lastSeenAt < seuilSilence) clients.push({ id: cl.id, name: cl.name ?? null, rides: cl.rides, lastSeenAt: cl.lastSeenAt });
+      if (clients.length >= 50) break;
+    }
     const drivers = this.c.drivers.list()
       .filter((d) => d.availability === 'offline' && d.idleSince && now - Date.parse(d.idleSince) > 7 * DAY)
       .map((d) => ({ id: d.id, name: d.name, matricule: d.matricule, idleSince: d.idleSince }))
@@ -335,19 +385,27 @@ export class AdminService {
   }
 
   /** Export CSV des courses (comptabilité) — anti-injection de formule tableur. */
-  ridesCsv(): string {
+  /** Export borné à une période (31 jours par défaut) : un export d'un million de lignes bloquerait le serveur. */
+  ridesCsv(jours = 31): string {
+    return [...this.ridesCsvLignes(jours)].join('\n');
+  }
+
+  /**
+   * L'export des courses, ligne par ligne, du plus récent au plus ancien : la route
+   * l'écrit par tranches sans jamais tenir tout le fichier en mémoire.
+   */
+  *ridesCsvLignes(jours = 31): Generator<string> {
     const clean = (v: unknown) => {
       let s = String(v ?? '').replace(/[",\n]/g, ' ');
       if (/^[=+\-@]/.test(s)) s = `'${s}`;
       return s;
     };
-    const head = 'id,clientId,driverName,matricule,status,amount,currency,trafficLevel,createdAt';
-    const rows = this.c.rides.listAll().map((r) => {
+    yield 'id,clientId,driverName,matricule,status,amount,currency,trafficLevel,createdAt';
+    for (const r of this.c.rides.createdSince(Date.now() - jours * 86_400_000)) {
       const d = r.driverId ? this.c.drivers.get(r.driverId) : undefined;
-      return [r.id, r.clientId, d?.name ?? '', d?.matricule ?? '', r.status, r.quote.amount, r.quote.currency, r.quote.trafficLevel, r.createdAt]
+      yield [r.id, r.clientId, d?.name ?? '', d?.matricule ?? '', r.status, r.quote.amount, r.quote.currency, r.quote.trafficLevel, r.createdAt]
         .map(clean).join(',');
-    });
-    return [head, ...rows].join('\n');
+    }
   }
 
   drivers(opts: { page?: number; limit?: number } = {}) {
@@ -381,7 +439,7 @@ export class AdminService {
     const d = this.c.drivers.get(id);
     if (!d) return null;
     const history = this.c.wallet.history(id);
-    const rides = this.c.rides.listAll().filter((r) => r.driverId === id).slice(0, 20).map((r) => ({
+    const rides = this.c.rides.listByDriver(id).slice(0, 20).map((r) => ({
       id: r.id, status: r.status, amount: r.quote.amount, createdAt: r.createdAt,
     }));
     const earnings = history.filter((e) => e.type === 'ride_earning').reduce((s, e) => s + e.amount, 0);
@@ -437,26 +495,51 @@ export class AdminService {
       drivers: { id: string; name: string; matricule: string; category: string; availability: string }[];
       clients: { id: string; name: string | null; phone: string | null; status: string; rides: number }[];
       rides: { id: string; clientId: string; status: string; amount: number; createdAt: string }[];
+      /** Vrai si la recherche libre a atteint son budget de temps avant la fin du parcours. */
+      partiel?: boolean;
     } = { drivers: [], clients: [], rides: [] };
     if (needle.length < 2) return out;
+    // VOLUME : la recherche libre (un morceau de nom) parcourt les fiches ; elle dispose de
+    // 30 ms au plus, pour ne jamais retenir le serveur. Un identifiant, un numéro de
+    // téléphone ou un matricule exact sont retrouvés par index, sans limite. Au-delà du
+    // budget, la réponse le dit (« partiel ») et la console invite à préciser.
+    const limiteTemps = performance.now() + 30;
+    let tours = 0;
+    const horsBudget = () => (++tours & 1023) === 0 && performance.now() > limiteTemps && (out.partiel = true);
 
+    // VOLUME : chaque recherche s'arrête dès qu'elle a ses résultats ; un identifiant ou
+    // un numéro exact est retrouvé par index, sans parcourir la base.
     if (scope.drivers) {
-      out.drivers = this.c.drivers.list()
-        .filter((d) => d.name.toLowerCase().includes(needle) || d.matricule.toLowerCase().includes(needle) || d.id.toLowerCase().includes(needle))
-        .slice(0, LIMIT)
-        .map((d) => ({ id: d.id, name: d.name, matricule: d.matricule, category: d.category, availability: d.availability }));
+      for (const d of this.c.drivers.list()) {
+        if (!(d.name.toLowerCase().includes(needle) || d.matricule.toLowerCase().includes(needle) || d.id.toLowerCase().includes(needle))) continue;
+        out.drivers.push({ id: d.id, name: d.name, matricule: d.matricule, category: d.category, availability: d.availability });
+        if (out.drivers.length >= LIMIT) break;
+      }
     }
     if (scope.clients) {
-      out.clients = this.c.clients.list()
-        .filter((cl) => cl.id.toLowerCase().includes(needle) || (cl.name ?? '').toLowerCase().includes(needle) || (cl.phone ?? '').toLowerCase().includes(needle))
-        .slice(0, LIMIT)
-        .map((cl) => ({ id: cl.id, name: cl.name ?? null, phone: cl.phone ?? null, status: cl.status, rides: cl.rides }));
+      const exact = this.c.clients.get(q.trim()) ?? this.c.clients.findByVerifiedPhone(q.trim().replace(/\s+/g, ''));
+      if (exact) out.clients.push({ id: exact.id, name: exact.name ?? null, phone: exact.phone ?? null, status: exact.status, rides: exact.rides });
+      for (const cl of this.c.clients.rechercher(needle, LIMIT + 1, () => performance.now() > limiteTemps && (out.partiel = true))) {
+        if (out.clients.length >= LIMIT) break;
+        if (cl === exact) continue;
+        out.clients.push({ id: cl.id, name: cl.name ?? null, phone: cl.phone ?? null, status: cl.status, rides: cl.rides });
+      }
     }
     if (scope.rides) {
-      out.rides = this.c.rides.listAll()
-        .filter((r) => r.id.toLowerCase().includes(needle) || r.clientId.toLowerCase().includes(needle))
-        .slice(0, LIMIT)
-        .map((r) => ({ id: r.id, clientId: r.clientId, status: r.status, amount: r.quote.amount, createdAt: r.createdAt }));
+      const ligne = (r: Ride) => ({ id: r.id, clientId: r.clientId, status: r.status, amount: r.quote.amount, createdAt: r.createdAt });
+      const exacte = this.c.rides.get(q.trim());
+      if (exacte) out.rides.push(ligne(exacte));
+      for (const r of this.c.rides.listByClient(q.trim()).slice(0, LIMIT)) if (out.rides.length < LIMIT && r !== exacte) out.rides.push(ligne(r));
+      // Recherche libre : les 30 derniers jours (au-delà, l'identifiant exact suffit). Un
+      // identifiant ne contient jamais d'espace : inutile de parcourir pour « Client 42 ».
+      if (out.rides.length < LIMIT && !/\s/.test(needle) && !out.partiel) {
+        const limite = new Date(Date.now() - 30 * 86_400_000).toISOString();
+        this.c.rides.scanRecent((r) => {
+          if (r.createdAt < limite || horsBudget()) return false;
+          if (r !== exacte && (r.id.toLowerCase().includes(needle) || r.clientId.toLowerCase().includes(needle))) out.rides.push(ligne(r));
+          return out.rides.length < LIMIT;
+        });
+      }
     }
     return out;
   }
@@ -528,7 +611,7 @@ export class AdminService {
     const APPROACH_KMH = 28;
     const ops = this.c.settings.getOps();
     const run = async (maxEta: number, radiusKm: number) => {
-      const sample = this.c.rides.listAll().slice(0, 60);
+      const sample = this.c.rides.recent(60);
       let matched = 0, etaSum = 0;
       for (const r of sample) {
         const nearby = await this.c.geo.nearby(r.origin, radiusKm * 1000, 20);
@@ -603,11 +686,12 @@ export class AdminService {
       d.setUTCDate(today.getUTCDate() - i);
       days.set(d.toISOString().slice(0, 10), { sum: 0, count: 0 });
     }
-    let total = 0, accepted = 0, cancelled = 0;
-    for (const r of this.c.rides.listAll()) {
-      total += 1;
-      if (r.status !== 'no_driver' && r.status !== 'searching') accepted += 1;
-      if (r.status === 'cancelled') cancelled += 1;
+    // VOLUME : taux réseau depuis les cumuls par statut ; notes des 7 jours depuis l'index des notes.
+    const parStatut = this.c.rides.cumuls.parStatut;
+    const total = this.c.rides.nombre;
+    const accepted = total - (parStatut.no_driver ?? 0) - (parStatut.searching ?? 0);
+    const cancelled = parStatut.cancelled ?? 0;
+    for (const r of this.c.rides.withEventSince('rated', Date.now() - 8 * 86_400_000)) {
       const rated = r.events.find((e) => e.type === 'rated');
       if (rated && typeof rated.payload?.['stars'] === 'number') {
         const b = days.get(rated.at.slice(0, 10));
@@ -648,7 +732,7 @@ export class AdminService {
   driverQualityPdf(id: string): Buffer | null {
     const d = this.c.drivers.get(id);
     if (!d) return null;
-    const rides = this.c.rides.listAll().filter((r) => r.driverId === id);
+    const rides = this.c.rides.listByDriver(id);
     const revenue = rides.filter((r) => REVENUE.has(r.status)).reduce((s, r) => s + r.quote.amount, 0);
     const stars = rides.map((r) => r.events.find((e) => e.type === 'rated')?.payload?.['stars']).filter((s): s is number => typeof s === 'number');
     const fiveStars = stars.filter((s) => s === 5).length;
@@ -698,7 +782,7 @@ export class AdminService {
   esgPdf(corporateId: string): Buffer | null {
     const acc = this.c.corporate.get(corporateId);
     if (!acc) return null;
-    const rides = this.c.rides.listAll().filter((r) => r.corporateId === corporateId);
+    const rides = this.c.rides.listByCorporate(corporateId);
     const km = rides.reduce((s, r) => s + (r.quote.distanceMeters ?? 0) / 1000, 0);
     const savedKg = Math.round(km * 0.13 * 10) / 10; // 150 g/km thermique − 20 g/km électrique
     return simplePdf([
@@ -774,8 +858,9 @@ export class AdminService {
   squadPnl(driverIds: string[]) {
     const drivers = driverIds.map((id) => this.c.drivers.get(id)).filter((d): d is NonNullable<typeof d> => Boolean(d));
     let revenue = 0, rides = 0;
-    for (const r of this.c.rides.listAll()) {
-      if (r.driverId && driverIds.includes(r.driverId) && REVENUE.has(r.status)) { revenue += r.quote.amount; rides += 1; }
+    // Index par chauffeur : seules les courses de l'escouade sont lues.
+    for (const id of driverIds) {
+      for (const r of this.c.rides.listByDriver(id)) if (REVENUE.has(r.status)) { revenue += r.quote.amount; rides += 1; }
     }
     const active = drivers.filter((d) => d.availability !== 'offline').length;
     const grounded = drivers.filter((d) => d.kycStatus === 'suspended').length; // immobilisés
@@ -815,7 +900,12 @@ export class AdminService {
    * le spoofing GPS (téléportation dans le tracé) et un risque transactionnel simple.
    */
   fraudSignals() {
-    const rides = this.c.rides.listAll();
+    return this.cacheFraude.obtenir(() => this.calculerFraude());
+  }
+
+  private calculerFraude() {
+    // La fraude se lit sur l'activité récente : les 30 derniers jours (et non des années).
+    const rides = this.c.rides.createdSince(Date.now() - 30 * 86_400_000);
     // Collusion / ghost rides : mêmes paires (client, chauffeur) répétées.
     const pairCount = new Map<string, { clientId: string; driverId: string; count: number }>();
     for (const r of rides) {
@@ -833,17 +923,22 @@ export class AdminService {
     const gpsSpoof: { rideId: string; driverId: string | null; jumpMeters: number }[] = [];
     for (const r of rides) {
       if (!r.trace || r.trace.length < 2) continue;
-      let maxJump = 0;
-      for (let i = 1; i < r.trace.length; i++) maxJump = Math.max(maxJump, haversineMeters(r.trace[i - 1]!, r.trace[i]!));
+      // Saut maximal tenu à la réception de chaque point ; recalculé seulement pour les
+      // courses plus anciennes que ce suivi.
+      let maxJump = r.sautMaxMetres ?? 0;
+      if (r.sautMaxMetres === undefined) {
+        for (let i = 1; i < r.trace.length; i++) maxJump = Math.max(maxJump, haversineMeters(r.trace[i - 1]!, r.trace[i]!));
+      }
       if (maxJump > 2000) gpsSpoof.push({ rideId: r.id, driverId: r.driverId ?? null, jumpMeters: Math.round(maxJump) });
     }
     gpsSpoof.sort((a, b) => b.jumpMeters - a.jumpMeters);
 
     // Risque transactionnel : clients avec un fort taux d'annulation (card testing / abus).
-    const txRisk = this.c.clients.list()
-      .filter((c) => (c.cancellations ?? 0) >= 3)
-      .map((c) => ({ id: c.id, name: c.name ?? null, cancellations: c.cancellations ?? 0, warnings: c.warnings ?? 0 }))
-      .slice(0, 10);
+    const txRisk: Array<{ id: string; name: string | null; cancellations: number; warnings: number }> = [];
+    for (const c of this.c.clients.list()) {
+      if ((c.cancellations ?? 0) >= 3) txRisk.push({ id: c.id, name: c.name ?? null, cancellations: c.cancellations ?? 0, warnings: c.warnings ?? 0 });
+      if (txRisk.length >= 10) break;
+    }
 
     return { ghostRides, gpsSpoof: gpsSpoof.slice(0, 10), txRisk };
   }
@@ -912,7 +1007,7 @@ export class AdminService {
 
   /** Perte d'exploitation journalière moyenne d'un véhicule (indemnisation sinistre). */
   lossOfUse(driverId: string): { dailyAvg: number; days: number } {
-    const rides = this.c.rides.listAll().filter((r) => r.driverId === driverId && REVENUE.has(r.status));
+    const rides = this.c.rides.listByDriver(driverId).filter((r) => REVENUE.has(r.status));
     if (rides.length === 0) return { dailyAvg: 0, days: 0 };
     const days = new Set(rides.map((r) => r.createdAt.slice(0, 10)));
     const total = rides.reduce((s, r) => s + r.quote.amount, 0);
@@ -995,7 +1090,7 @@ export class AdminService {
   consolidatedInvoicePdf(corporateId: string, month: string): Buffer | null {
     const acc = this.c.corporate.get(corporateId);
     if (!acc) return null;
-    const rides = this.c.rides.listAll().filter((r) => r.corporateId === corporateId && r.createdAt.startsWith(month));
+    const rides = this.c.rides.listByCorporate(corporateId).filter((r) => r.createdAt.startsWith(month));
     const total = rides.reduce((s, r) => s + r.quote.amount, 0);
     const tva = rides.reduce((s, r) => s + (r.quote.breakdown?.tva ?? 0), 0);
     const kickback = this.c.corporate.kickback(corporateId, total);
@@ -1092,8 +1187,10 @@ export class AdminService {
   /** Rapport comportement consommateur (PDF) — annexe business plan. */
   clientBehaviorPdf(): Buffer {
     const clients = this.c.clients.list();
-    const rides = this.c.rides.listAll().filter((r) => REVENUE.has(r.status));
-    const revenue = rides.reduce((s, r) => s + r.quote.amount, 0);
+    // Cumuls : volume et chiffre d'affaires des courses payées, sans relire l'historique.
+    const parStatut = this.c.rides.cumuls.parStatut;
+    const rides = { length: (parStatut.completed ?? 0) + (parStatut.paid ?? 0) + (parStatut.rated ?? 0) };
+    const revenue = this.c.rides.cumuls.revenu;
     const basket = rides.length ? Math.round(revenue / rides.length) : 0;
     const vip = clients.filter((c) => c.vipTier && c.vipTier !== 'standard').length;
     const green = clients.filter((c) => (c.greenPoints ?? 0) > 0).length;
@@ -1157,7 +1254,7 @@ export class AdminService {
     // Burn = OPEX − revenu net mensuel estimé (commission des 30 derniers jours).
     const since = Date.now() - 30 * 86_400_000;
     let revenue30 = 0;
-    for (const r of this.c.rides.listAll()) if (REVENUE.has(r.status) && Date.parse(r.createdAt) >= since) revenue30 += r.quote.amount;
+    for (const r of this.c.rides.createdSince(since)) if (REVENUE.has(r.status)) revenue30 += r.quote.amount;
     const netMonthly = Math.round(revenue30 * this.c.settings.getOps().commissionStandard);
     const burn = monthlyOpex - netMonthly; // positif = on consomme du capital
     const runway = burn > 0 ? Math.round((cash / burn) * 10) / 10 : Infinity;
@@ -1175,7 +1272,7 @@ export class AdminService {
     // Hypothèse : véhicules VIP/dédiés = propriété ORION. Amortissement linéaire 5 ans.
     const owned = this.c.drivers.list().filter((d) => d.vip || d.zoneLockId);
     const rows = owned.map((d) => {
-      const km = this.c.rides.listAll().filter((r) => r.driverId === d.id && REVENUE.has(r.status))
+      const km = this.c.rides.listByDriver(d.id).filter((r) => REVENUE.has(r.status))
         .reduce((s, r) => s + (r.quote.distanceMeters ?? 0) / 1000, 0);
       const purchase = 18_000_000; // valeur d'acquisition présumée d'un VE
       const deprec = Math.min(purchase, Math.round(km * 120)); // ~120 F/km de dépréciation
@@ -1221,7 +1318,8 @@ export class AdminService {
   shadowPricing(patch: { baseFactor?: number; perKmFactor?: number }) {
     const bf = patch.baseFactor ?? 1;
     const kf = patch.perKmFactor ?? 1;
-    const sample = this.c.rides.listAll().filter((r) => REVENUE.has(r.status)).slice(0, 200);
+    const sample: Ride[] = [];
+    this.c.rides.scanRecent((r) => { if (REVENUE.has(r.status)) sample.push(r); return sample.length < 200; });
     let real = 0, simulated = 0;
     for (const r of sample) {
       real += r.quote.amount;
