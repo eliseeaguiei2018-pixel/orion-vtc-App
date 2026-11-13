@@ -17,7 +17,7 @@ async function main(): Promise<void> {
     logger.info('Chauffeurs de démonstration en ligne (SIMULATE_RIDES=true)');
   }
 
-  await app.listen({ host: config.HOST, port: config.PORT });
+  await app.listen({ host: config.HOST, port: config.PORT, backlog: config.LISTEN_BACKLOG });
   logger.info(`ORION VTC API à l'écoute sur http://${config.HOST}:${config.PORT}`);
   // Opérateur SMS : sans lui, aucun client ni chauffeur ne peut recevoir son code.
   if (container.sms.reel) {

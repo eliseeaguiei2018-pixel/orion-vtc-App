@@ -127,6 +127,14 @@ const schema = z.object({
   // Mode STRICT : si "true", le jeton chauffeur devient OBLIGATOIRE sur toutes les routes
   // /drivers/:id/* (à activer en production). Désactivé par défaut (compatibilité).
   DRIVER_AUTH_STRICT: z.string().default('false').transform((v) => v.toLowerCase() === 'true'),
+  // TEST DE CHARGE : autorise la préparation d'une flotte de test (/admin/charge/preparer).
+  // Toujours refusé en production, quelle que soit cette valeur.
+  // File d'attente des connexions entrantes. Node la limite à 511 par défaut : une rafale
+  // de connexions simultanées (des milliers de téléphones qui commandent en même temps)
+  // peut la remplir, et le système d'exploitation fait alors réessayer les téléphones
+  // 1, 3 puis 7 secondes plus tard. Précaution : elle reste bornée par somaxconn.
+  LISTEN_BACKLOG: z.coerce.number().int().min(128).max(65_535).default(4096),
+  TEST_CHARGE: z.string().default('false').transform((v) => v.toLowerCase() === 'true'),
 
   // --- Trésorerie (macro-économie) ---
   // Solde du compte séquestre (Escrow) couvrant les portefeuilles virtuels.

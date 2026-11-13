@@ -80,12 +80,17 @@ export async function seConnecter(username: string, password: string, code?: str
 
 export function oublierSession() { clearSession(); }
 
-/** Le direct : chaque ligne du journal arrive dès que le serveur la publie. */
-export function ecouter(onEntree: (e: EntreeJournal) => void, onEtat: (connecte: boolean) => void, onObjectifs?: () => void): () => void {
+/**
+ * Le direct. Le serveur envoie le journal par LOTS (toutes les 250 ms au plus) : les
+ * lignes les plus récentes, et le nombre exact d'événements depuis le lot précédent.
+ * Sous forte charge, c'est ce qui permet à l'écran de suivre des milliers d'événements
+ * par seconde sans décrocher. `recus` sert à afficher le débit.
+ */
+export function ecouter(onLot: (entrees: EntreeJournal[], recus: number) => void, onEtat: (connecte: boolean) => void, onObjectifs?: () => void): () => void {
   if (!LIVE) {
     // Démonstration sans serveur : un journal qui vit quand même.
     onEtat(true);
-    const t = window.setInterval(() => onEntree(entreeDemo()), 6500);
+    const t = window.setInterval(() => onLot([entreeDemo()], 1), 6500);
     return () => window.clearInterval(t);
   }
   let ws: WebSocket | null = null;
@@ -99,8 +104,11 @@ export function ecouter(onEntree: (e: EntreeJournal) => void, onEtat: (connecte:
     ws.onopen = () => onEtat(true);
     ws.onmessage = (ev) => {
       try {
-        const m = JSON.parse(ev.data as string) as { type: string; data?: EntreeJournal };
-        if (m.type === 'journal' && m.data) onEntree(m.data);
+        const m = JSON.parse(ev.data as string) as { type: string; data?: unknown };
+        if (m.type === 'journal.lot' && m.data) {
+          const lot = m.data as { entrees: EntreeJournal[]; recus: number };
+          onLot(lot.entrees, lot.recus);
+        } else if (m.type === 'journal' && m.data) onLot([m.data as EntreeJournal], 1);
         // Objectifs changés dans la console : les courbes se recalculent tout de suite.
         else if (m.type === 'objectifs') onObjectifs?.();
       } catch { /* message illisible : ignoré */ }

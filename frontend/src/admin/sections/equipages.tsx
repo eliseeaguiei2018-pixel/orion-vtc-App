@@ -36,11 +36,13 @@ const TYPES = [
 ];
 
 export function EquipagesSection({
-  lignes, tableau, dossier, onOuvrir, onFermer, onRechercher, onContact,
+  lignes, total, tableau, dossier, onOuvrir, onFermer, onRechercher, onContact,
   onDeposer, onInstruire, onDecider, onVerser, onRembourser, onCreerAcces,
   droits,
 }: {
   lignes: EquipageRow[];
+  /** Nombre total de chauffeurs trouvés ; la liste affichée peut en être une partie. */
+  total?: number;
   tableau: CrewTableau | null;
   dossier: DossierEquipage | null;
   onOuvrir: (driverId: string) => void;
@@ -91,7 +93,9 @@ export function EquipagesSection({
               value={q}
               onChange={(e) => { setQ(e.target.value); onRechercher(e.target.value); }}
             />
-            <span className="adm-muted">{lignes.length} chauffeur(s)</span>
+            <span className="adm-muted">{total && total > lignes.length
+              ? `${lignes.length} premiers sur ${total.toLocaleString('fr-FR')} chauffeurs : affinez la recherche`
+              : `${lignes.length} chauffeur(s)`}</span>
           </div>
         </div>
         {lignes.length === 0 ? (

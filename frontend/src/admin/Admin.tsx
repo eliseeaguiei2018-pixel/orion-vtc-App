@@ -68,7 +68,13 @@ const ALARME_LIBELLE: Record<string, string> = {
 };
 
 /** Deux bips courts à l'arrivée d'une détresse. Sans effet si l'audio est bloqué. */
+let derniereAlarme = 0;
 function sonnerAlarme(): void {
+  // Une rafale de 300 SOS ne doit pas donner 300 alarmes superposées : une toutes les
+  // 2,5 s suffit à alerter la salle, le bandeau dit combien d'alertes sont arrivées.
+  const t = Date.now();
+  if (t - derniereAlarme < 2500) return;
+  derniereAlarme = t;
   try {
     const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctx) return;
@@ -252,12 +258,13 @@ function Console({ onLogout }: { onLogout: () => void }) {
    * flux d'urgence du serveur n'était branché nulle part : une détresse pouvait
    * attendre plusieurs secondes avant d'apparaître, sans aucun signal.
    */
-  const [alarmeSos, setAlarmeSos] = useState<{ id: string; kind: string; level: string; zone?: string; at: string } | null>(null);
+  const [alarmeSos, setAlarmeSos] = useState<{ id: string; kind: string; level: string; zone?: string; at: string; nouvelles: number } | null>(null);
   const sosSelId = useRef<string | null>(null);
   useEffect(() => { sosSelId.current = sosSel?.alert.id ?? null; }, [sosSel]);
   const [security, setSecurity] = useState<SecurityAttempt[]>([]);
   /* --- Équipages, caisses, poste d'équipe, télématique, annuaire --- */
   const [equipages, setEquipages] = useState<EquipageRow[]>([]);
+  const [equipagesTotal, setEquipagesTotal] = useState(0);
   const [crewTableau, setCrewTableau] = useState<CrewTableau | null>(null);
   const [crewQ, setCrewQ] = useState('');
   const [dossierCrew, setDossierCrew] = useState<DossierEquipage | null>(null);
@@ -358,8 +365,16 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setLive(false);
   }, [statsDays, ridesPage, driversPage, clientsPage]);
 
+  // UN SEUL rafraîchissement à la fois. Sous forte charge, un tour complet peut durer
+  // plus que les 6 s de l'intervalle : les tours s'empilaient, chacun relançant toutes
+  // les lectures, et la console ralentissait le serveur qu'elle surveille. Un tour
+  // demandé pendant qu'un autre tourne est rejoué une fois, à la fin.
+  const tourEnCours = useRef<{ encore: boolean } | null>(null);
+  const dernierRefresh = useRef<() => Promise<void>>(async () => {});
   const refresh = useCallback(async () => {
     if (!LIVE) { loadDemo(); return; }
+    if (tourEnCours.current) { tourEnCours.current.encore = true; return; }
+    tourEnCours.current = { encore: false };
     try {
       const meRes = await adminGet<Me>('/admin/me');
       setMe(meRes); setLive(true);
@@ -376,8 +391,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
       // « Mon poste » n'exige aucun droit particulier : chacun y voit ce qui porte son nom.
       setMonPoste(await adminGet<MonPoste>('/admin/mon-poste'));
       if (has('crew:read') || has('crew:self')) {
-        const c = await adminGet<{ equipages: EquipageRow[]; tableau: CrewTableau | null }>(`/admin/crew${crewQ ? `?q=${encodeURIComponent(crewQ)}` : ''}`);
-        setEquipages(c.equipages); setCrewTableau(c.tableau);
+        const c = await adminGet<{ equipages: EquipageRow[]; total?: number; tableau: CrewTableau | null }>(`/admin/crew${crewQ ? `?q=${encodeURIComponent(crewQ)}` : ''}`);
+        setEquipages(c.equipages); setEquipagesTotal(c.total ?? c.equipages.length); setCrewTableau(c.tableau);
       }
       if (has('caisse:read')) {
         const c = await adminGet<{ caisses: CaisseEtat[]; maCaisse: CaisseEtat | null; consolidation: CaisseConsolidation | null; referentiel: CaisseReferentiel }>('/admin/caisses');
@@ -473,7 +488,13 @@ function Console({ onLogout }: { onLogout: () => void }) {
       }
       if (has('audit:read')) setAudit((await adminGet<{ entries: AuditEntry[] }>('/admin/audit')).entries);
     } catch { loadDemo(); }
+    finally {
+      const rejouer = tourEnCours.current?.encore;
+      tourEnCours.current = null;
+      if (rejouer) void dernierRefresh.current();
+    }
   }, [loadDemo, statsDays, ridesPage, driversPage, clientsPage, execJours, livrePage, livreFiltre]);
+  dernierRefresh.current = refresh;
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -486,11 +507,24 @@ function Console({ onLogout }: { onLogout: () => void }) {
     let ferme = false;
     let ws: WebSocket | null = null;
     let relance: number | undefined;
+    // Une rafale d'alertes donnait une relecture de la file par alerte, toutes en même
+    // temps. Une seule relecture à la fois ; celles demandées entre-temps n'en font qu'une.
+    let enVol = false;
+    let encore = false;
+    let dossiers = new Set<string>();
     const rafraichir = async (alertId?: string) => {
+      if (alertId) dossiers.add(alertId);
+      if (enVol) { encore = true; return; }
+      enVol = true;
+      const aRelire = dossiers;
+      dossiers = new Set();
       try {
         setAlerts((await adminGet<{ alerts: Alert[] }>('/admin/sos')).alerts);
-        if (alertId && sosSelId.current === alertId) setSosSel(await adminGet<SosDossier>(`/admin/sos/${alertId}`));
+        const ouvert = sosSelId.current;
+        if (ouvert && aRelire.has(ouvert)) setSosSel(await adminGet<SosDossier>(`/admin/sos/${ouvert}`));
       } catch { /* refus déjà signalé par la couche réseau */ }
+      enVol = false;
+      if (encore || dossiers.size) { encore = false; void rafraichir(); }
     };
     const connecter = () => {
       let hote = window.location.host;
@@ -502,7 +536,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
           const m = JSON.parse(ev.data as string) as { type: string; data?: { id?: string; alertId?: string; kind?: string; level?: string; zoneName?: string; createdAt?: string } };
           if (m.type === 'emergency.alert' && m.data?.id) {
             const level = m.data.level ?? 'rouge';
-            setAlarmeSos({ id: m.data.id, kind: m.data.kind ?? 'sos', level, zone: m.data.zoneName, at: m.data.createdAt ?? new Date().toISOString() });
+            const alerte = { id: m.data.id, kind: m.data.kind ?? 'sos', level, zone: m.data.zoneName, at: m.data.createdAt ?? new Date().toISOString() };
+            setAlarmeSos((a) => ({ ...alerte, nouvelles: (a?.nouvelles ?? 0) + 1 }));
             // Le signal sonore est réservé au niveau rouge (SOS, choc) : une déviation
             // d'itinéraire s'affiche, mais ne fait pas sursauter toute la salle.
             if (level === 'rouge') sonnerAlarme();
@@ -890,8 +925,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setCrewQ(q);
     if (!LIVE) return;
     try {
-      const c = await adminGet<{ equipages: EquipageRow[]; tableau: CrewTableau | null }>(`/admin/crew?q=${encodeURIComponent(q)}`);
-      setEquipages(c.equipages); setCrewTableau(c.tableau);
+      const c = await adminGet<{ equipages: EquipageRow[]; total?: number; tableau: CrewTableau | null }>(`/admin/crew?q=${encodeURIComponent(q)}`);
+      setEquipages(c.equipages); setEquipagesTotal(c.total ?? c.equipages.length); setCrewTableau(c.tableau);
     } catch { /* l'erreur est déjà remontée par adminGet */ }
   };
   /** Recharge le dossier ouvert après une action, pour que l'écran dise le vrai. */
@@ -1384,6 +1419,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
           <div className={`adm-alarme lvl-${alarmeSos.level}`} role="alert">
             <span className="adm-alarme-dot" />
             <strong>{ALARME_LIBELLE[alarmeSos.kind] ?? 'NOUVELLE ALERTE'}</strong>
+            {alarmeSos.nouvelles > 1 && <span className="adm-alarme-nb">{alarmeSos.nouvelles} alertes reçues</span>}
             <span>{alarmeSos.zone ?? 'Zone inconnue'} · reçue il y a {Math.max(0, Math.round((now.getTime() - Date.parse(alarmeSos.at)) / 1000))} s</span>
             <span className="grow" />
             <button className="adm-btn xs solid" onClick={() => { setSection('alerts'); void openSos(alarmeSos.id); setAlarmeSos(null); }}>Ouvrir le dossier</button>
@@ -1445,6 +1481,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'crew' && (
           <EquipagesSection
             lignes={equipages}
+            total={equipagesTotal}
             tableau={crewTableau}
             dossier={dossierCrew}
             onOuvrir={ouvrirChauffeur}

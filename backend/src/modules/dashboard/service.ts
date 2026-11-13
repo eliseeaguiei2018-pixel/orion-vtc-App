@@ -34,6 +34,9 @@ const ACTIVES = new Set(['searching', 'accepted', 'driver_en_route', 'arrived', 
 const TERMINEES = new Set(['completed', 'paid', 'rated']);
 const ALERTE_OUVERTE = new Set(['raised', 'dispatched', 'acknowledged']);
 const MAX_JOURNAL = 60;
+/** Au-delà, la carte du tableau de bord passe en mode masse (points compacts). */
+const LIMITE_DETAIL_FLOTTE = 400;
+const LIMITE_TRAJETS = 150;
 
 const PAIEMENT: Record<string, string> = {
   orange_money: 'Orange Money', wave: 'Wave', mtn_momo: 'MTN MoMo', moov_money: 'Moov Money', cash: 'Espèces', card: 'Carte',
@@ -162,9 +165,16 @@ export class TableauDeBord {
         return { ...base, genre: 'paiement', niveau: 'succes', service: service(ride),
           titre: `Paiement reçu · ${fcfa(Number(d.amount ?? ride.quote.amount))}`,
           detail: `${PAIEMENT[String(d.method)] ?? String(d.method ?? '')} · ${quoi.toLowerCase()} de ${this.client(ride.clientId)}` };
-      case 'emergency.alert':
+      case 'emergency.alert': {
+        // Publiée deux fois (supervision, puis suivi de la course) : une seule ligne.
+        if (msg.room.startsWith('ride:')) return null;
+        // Où : la commune de l'alerte (jamais l'adresse exacte sur un écran mural).
+        const lieu = typeof d.zoneName === 'string' && d.zoneName ? d.zoneName : null;
+        const titres: Record<string, string> = { sos: 'Alerte SOS', crash: 'Accident détecté', deviation: 'Déviation d’itinéraire', immobilisation: 'Véhicule immobilisé', mot_sensible: 'Mot sensible signalé' };
         return { ...base, genre: 'alerte', niveau: 'alerte', rideId: typeof d.rideId === 'string' ? d.rideId : undefined,
-          titre: 'Alerte SOS', detail: `Niveau ${String(d.level ?? 'rouge')} · prise en charge par la supervision SAMU` };
+          titre: `${titres[String(d.kind ?? 'sos')] ?? 'Alerte SOS'}${lieu ? ` · ${lieu}` : ''}`,
+          detail: `Niveau ${String(d.level ?? 'rouge')} · prise en charge par la supervision SAMU` };
+      }
       case 'sos.contact':
         return { ...base, genre: 'secours', niveau: 'alerte', titre: `Secours contactés : ${String(d.label ?? '')}`, detail: `par ${String(d.agent ?? 'la supervision')}` };
       case 'message': {
@@ -224,10 +234,29 @@ export class TableauDeBord {
 
     // Flotte : position connue de chaque conducteur en service.
     const positions = new Map((await c.geo.snapshot()).map((e) => [e.id, e]));
-    const flotte = c.drivers.list().filter((d) => d.availability !== 'offline').map((d) => {
-      const p = positions.get(d.id);
-      return p ? { id: d.id, nom: d.name, categorie: d.category, moto: d.category === 'moto', enCourse: d.availability === 'on_trip', lat: p.lat, lng: p.lng } : null;
-    }).filter((x): x is NonNullable<typeof x> => x !== null);
+    const enService = c.drivers.list().filter((d) => d.availability !== 'offline' && positions.has(d.id));
+    // MODE MASSE : au-delà de quelques centaines de véhicules, des objets détaillés par
+    // conducteur (nom, gamme…) ne servent plus à l'écran et pèsent des mégaoctets toutes
+    // les 4 secondes. La carte reçoit alors des points compacts [lng, lat] : véhicules
+    // libres d'un côté, courses en cours (position réelle) de l'autre.
+    const masse = enService.length > LIMITE_DETAIL_FLOTTE || actives.length > LIMITE_TRAJETS;
+    const flotte = masse ? [] : enService.map((d) => {
+      const p = positions.get(d.id)!;
+      return { id: d.id, nom: d.name, categorie: d.category, moto: d.category === 'moto', enCourse: d.availability === 'on_trip', lat: p.lat, lng: p.lng };
+    });
+    const r5 = (x: number) => Math.round(x * 1e5) / 1e5;
+    const carte = masse
+      ? {
+        mode: 'masse' as const,
+        libres: enService.filter((d) => d.availability !== 'on_trip').map((d) => { const p = positions.get(d.id)!; return [r5(p.lng), r5(p.lat)] as [number, number]; }),
+        enCourse: actives.map((r) => {
+          const p = r.trace?.length ? r.trace[r.trace.length - 1]! : r.origin;
+          return [r5(p.lng), r5(p.lat), service(r) === 'livraison' ? 1 : 0] as [number, number, number];
+        }),
+      }
+      : { mode: 'detail' as const, libres: [], enCourse: [] };
+    // Trajets tracés : les plus récents seulement (un tracé routier pèse des centaines de points).
+    const trajets = [...actives].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, LIMITE_TRAJETS);
 
     // Par heure (aujourd'hui) : commandes de courses et de livraisons.
     const parHeure = Array.from({ length: 24 }, (_, h) => ({ heure: h, courses: 0, livraisons: 0 }));
@@ -285,7 +314,8 @@ export class TableauDeBord {
       parHeure,
       paiements,
       flotte,
-      coursesActives: actives.map((r) => {
+      carte,
+      coursesActives: trajets.map((r) => {
         const pos = r.trace?.length ? r.trace[r.trace.length - 1]! : undefined;
         return {
           id: r.id, service: service(r), statut: r.status, client: this.client(r.clientId),

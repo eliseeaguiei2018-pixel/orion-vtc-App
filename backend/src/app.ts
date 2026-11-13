@@ -92,6 +92,11 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
     reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Route introuvable', requestId: req.id } });
   });
 
+  // Mesures continues (posées avant toute route) : chaque réponse alimente la fenêtre glissante (route type, pas l'URL).
+  app.addHook('onResponse', async (req, reply) => {
+    container.mesures.noterRequete(`${req.method} ${req.routeOptions?.url ?? 'inconnue'}`, reply.elapsedTime, reply.statusCode);
+  });
+
   // Garde d'accès app chauffeur (jeton) sur les routes chauffeur existantes.
   registerDriverGuard(app, container);
 

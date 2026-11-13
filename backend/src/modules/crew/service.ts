@@ -78,6 +78,9 @@ export interface DossierEquipage {
   genereA: string;
 }
 
+/** Un seul classement à la française, réutilisé (localeCompare en recrée un à chaque appel). */
+const ORDRE = new Intl.Collator('fr');
+
 export class CrewService {
   constructor(private readonly c: Container) {}
 
@@ -107,10 +110,27 @@ export class CrewService {
     const depuis = Date.now() - jours * JOUR;
     const q = filtre.q?.toLowerCase().trim();
 
+    // UNE passe sur chaque source, puis des lectures directes par chauffeur. Avant, chaque
+    // ligne reparcourait toutes les courses : 5 600 chauffeurs × 5 000 courses, 8,6 s de
+    // boucle d'événements bloquée à chaque rafraîchissement de la console (commandes, SOS
+    // et temps réel figés pendant ce temps). Mesuré au test de charge.
+    const equipeDe = new Map<string, { id: string; name: string }>();
+    for (const t of this.c.teams.list()) for (const id of t.driverIds) if (!equipeDe.has(id)) equipeDe.set(id, t);
+    const coursesDe = new Map<string, number>();
+    for (const r of this.c.rides.listAll()) {
+      if (!r.driverId || !REVENUS.has(r.status) || Date.parse(r.createdAt) < depuis) continue;
+      coursesDe.set(r.driverId, (coursesDe.get(r.driverId) ?? 0) + 1);
+    }
+    const ouvertesDe = new Map<string, number>();
+    for (const r of this.c.crewRequests.list()) {
+      if (r.statut === 'cloturee' || r.statut === 'refusee') continue;
+      ouvertesDe.set(r.driverId, (ouvertesDe.get(r.driverId) ?? 0) + 1);
+    }
+
     return this.c.drivers.list()
       .filter((d) => {
         if (filtre.kycStatus && d.kycStatus !== filtre.kycStatus) return false;
-        if (filtre.teamId && this.equipeDe(d.id)?.id !== filtre.teamId) return false;
+        if (filtre.teamId && equipeDe.get(d.id)?.id !== filtre.teamId) return false;
         if (!q) return true;
         // Le matricule est la clé d'entrée naturelle : c'est ce qui est écrit sur
         // le véhicule et ce que tout le monde cite au téléphone.
@@ -120,13 +140,9 @@ export class CrewService {
           || d.id.startsWith(q);
       })
       .map((d) => {
-        const equipe = this.equipeDe(d.id);
-        const courses = this.c.rides.listAll()
-          .filter((r) => r.driverId === d.id && REVENUS.has(r.status) && Date.parse(r.createdAt) >= depuis);
-        const revenus = this.c.wallet.history(d.id)
-          .filter((e) => e.type === 'ride_earning' && Date.parse(e.at) >= depuis)
-          .reduce((n, e) => n + e.amount, 0);
-        const acces = this.c.accounts.parChauffeur(d.id);
+        const equipe = equipeDe.get(d.id);
+        let revenus = 0;
+        for (const e of this.c.wallet.history(d.id)) if (e.type === 'ride_earning' && Date.parse(e.at) >= depuis) revenus += e.amount;
         return {
           driverId: d.id,
           matricule: d.matricule,
@@ -138,16 +154,15 @@ export class CrewService {
           rating: d.ratingAvg,
           teamId: equipe?.id,
           teamName: equipe?.name,
-          courses: courses.length,
+          courses: coursesDe.get(d.id) ?? 0,
           revenus: Math.round(revenus),
           solde: this.c.wallet.balance(d.id),
           resteDu: this.c.crewRequests.resteDu(d.id),
-          requetesOuvertes: this.c.crewRequests.list({ driverId: d.id })
-            .filter((r) => r.statut !== 'cloturee' && r.statut !== 'refusee').length,
-          aUnAcces: Boolean(acces),
+          requetesOuvertes: ouvertesDe.get(d.id) ?? 0,
+          aUnAcces: Boolean(this.c.accounts.parChauffeur(d.id)),
         };
       })
-      .sort((a, b) => a.matricule.localeCompare(b.matricule, 'fr'));
+      .sort((a, b) => ORDRE.compare(a.matricule, b.matricule));
   }
 
   /** Le dossier complet d'un chauffeur, agrégé depuis tous les modules. */

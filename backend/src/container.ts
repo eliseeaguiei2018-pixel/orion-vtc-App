@@ -66,6 +66,7 @@ import type { LedgerEntry } from './modules/wallet/service.js';
 import type { Subscription, SubscriptionInvoice } from './modules/subscriptions/service.js';
 import type { WeddingReservation } from './modules/wedding/service.js';
 import type { RentalReservation } from './modules/rental/service.js';
+import { Mesures } from './core/mesures.js';
 
 /**
  * Conteneur d'injection de dépendances. Centralise le câblage et facilite les tests
@@ -89,6 +90,8 @@ export interface Container {
   routage: Routage;
   /** Tableau de bord ORION : journal d'activité de tout l'écosystème, en direct. */
   tableau: TableauDeBord;
+  /** Mesures du serveur en continu (débit, temps de réponse, boucle d'événements, temps réel). */
+  mesures: Mesures;
   /** Objectifs financiers (jour, semaine, mois, année) fixés par la direction. */
   objectifs: ServiceObjectifs;
   /** Habilitations des managers au tableau de bord (informatique → direction). */
@@ -291,6 +294,7 @@ export function createContainer(): Container {
 
   const container: Container = {
     geo,
+    mesures: new Mesures(),
     idempotency: new IdempotencyStore(),
     registry,
     drivers,

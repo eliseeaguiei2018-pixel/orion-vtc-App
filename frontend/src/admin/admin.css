@@ -447,6 +447,7 @@ html[data-adm-theme='dark'] .samu-room .adm-card { background: #0a0d0b; }
   background: linear-gradient(90deg, #b91c1c, #dc2626); box-shadow: 0 10px 30px rgba(185,28,28,0.35);
   animation: admAlarme 1.2s ease-in-out infinite alternate; }
 .adm-alarme strong { letter-spacing: 0.04em; }
+.adm-alarme-nb { font-weight: 700; padding: 2px 9px; border-radius: 999px; background: rgba(255, 255, 255, 0.18); font-variant-numeric: tabular-nums; }
 .adm-alarme .grow { flex: 1; }
 .adm-alarme .adm-btn.solid { background: #fff; color: #b91c1c; border-color: #fff; }
 .adm-alarme .adm-btn.ghost { color: #fff; border-color: rgba(255,255,255,0.5); }
@@ -457,6 +458,12 @@ html[data-adm-theme='dark'] .samu-room .adm-card { background: #0a0d0b; }
 .adm-alarme.lvl-orange { background: linear-gradient(90deg, #c2410c, #ea580c); animation: none; }
 .adm-alarme.lvl-jaune { background: linear-gradient(90deg, #a16207, #ca8a04); animation: none; }
 .adm-alarme.lvl-orange .adm-btn.solid { color: #c2410c; } .adm-alarme.lvl-jaune .adm-btn.solid { color: #a16207; }
+/* Mode clair : la règle générale des boutons pleins (texte blanc) l'emportait, et les
+   boutons du bandeau devenaient blancs sur blanc. Le bandeau garde ses couleurs. */
+html[data-adm-theme='light'] .adm-alarme .adm-btn.solid { background: #fff; color: #b91c1c; border-color: #fff; }
+html[data-adm-theme='light'] .adm-alarme.lvl-orange .adm-btn.solid { color: #c2410c; }
+html[data-adm-theme='light'] .adm-alarme.lvl-jaune .adm-btn.solid { color: #a16207; }
+html[data-adm-theme='light'] .adm-alarme .adm-btn.ghost { background: transparent; color: #fff; border-color: rgba(255, 255, 255, 0.55); }
 
 /* ---- Fiche client : photo de profil ; dossier SOS : photo du passager ---- */
 .adm-client-tete { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }

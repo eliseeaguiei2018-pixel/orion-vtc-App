@@ -95,7 +95,7 @@ export function Tableau() {
       {vue === 'objectifs'
         // Les courbes attendent que l'accès soit vérifié : une seule lecture refusée, pas deux.
         ? (flux.pret ? <Objectifs signal={signal} onRefus={surRefus} /> : <div className="tb-chargement">Vérification de l’accès…</div>)
-        : <VueDirect etat={flux.etat} journal={flux.journal} nouveaux={flux.nouveaux} maintenant={flux.maintenant} theme={apparence.theme} />}
+        : <VueDirect etat={flux.etat} journal={flux.journal} nouveaux={flux.nouveaux} debit={flux.debit} maintenant={flux.maintenant} theme={apparence.theme} />}
     </div>
   );
 }
@@ -112,7 +112,6 @@ function useTableauDirect(onAnalyse: (f: (n: number) => number) => void) {
   const [pret, setPret] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [maintenant, setMaintenant] = useState(() => new Date());
-  const relecture = useRef<number | undefined>(undefined);
 
   const charger = useCallback(async () => {
     try {
@@ -139,17 +138,53 @@ function useTableauDirect(onAnalyse: (f: (n: number) => number) => void) {
     return () => window.clearInterval(t);
   }, [charger, connexion, refus]);
 
+  // LE DIRECT, PAR LOTS. Chaque lot reçu va dans un tampon ; l'écran se met à jour au
+  // plus toutes les 300 ms, une seule fois pour tout ce qui est arrivé entre-temps.
+  // Avant, chaque ligne déclenchait son propre rendu et sa propre minuterie : sous un
+  // test de 5 000 courses, des milliers par seconde, et l'onglet ne répondait plus.
+  const tampon = useRef<{ entrees: EntreeJournal[]; recus: number }>({ entrees: [], recus: 0 });
+  const masseRef = useRef(false);
+  masseRef.current = etat?.carte?.mode === 'masse';
+  const historique = useRef<Array<{ t: number; n: number }>>([]);
+  const [debit, setDebit] = useState(0);
   useEffect(() => {
     if (!pret || connexion || refus) return;
-    const fin = ecouter((e) => {
-      setJournal((j) => (j.some((x) => x.id === e.id) ? j : [e, ...j].slice(0, 30)));
-      setNouveaux((n) => new Set(n).add(e.id));
-      window.setTimeout(() => setNouveaux((n) => { const m = new Set(n); m.delete(e.id); return m; }), 2600);
-      window.clearTimeout(relecture.current);
-      relecture.current = window.setTimeout(() => void charger(), 500);
-      if (GENRES_ANALYSE.has(e.genre)) onAnalyse((n) => n + 1);
+    let vidage: number | undefined;
+    let effacement: number | undefined;
+    let relectureDifferee: number | undefined;
+    let derniereRelecture = 0;
+    const relire = () => {
+      const t = Date.now();
+      if (t - derniereRelecture >= 1500) { derniereRelecture = t; void charger(); return; }
+      relectureDifferee ??= window.setTimeout(() => { relectureDifferee = undefined; derniereRelecture = Date.now(); void charger(); }, 1500 - (t - derniereRelecture));
+    };
+    const vider = () => {
+      vidage = undefined;
+      const { entrees, recus } = tampon.current;
+      tampon.current = { entrees: [], recus: 0 };
+      if (!entrees.length && !recus) return;
+      const t = Date.now();
+      setJournal((j) => {
+        const vus = new Set(j.map((x) => x.id));
+        return [...entrees.filter((e) => !vus.has(e.id)), ...j].slice(0, 30);
+      });
+      setNouveaux(new Set(entrees.map((e) => e.id)));
+      window.clearTimeout(effacement);
+      effacement = window.setTimeout(() => setNouveaux(new Set()), 2600);
+      historique.current.push({ t, n: recus });
+      historique.current = historique.current.filter((x) => t - x.t <= 60_000);
+      setDebit(historique.current.reduce((n, x) => n + x.n, 0));
+      if (entrees.some((e) => GENRES_ANALYSE.has(e.genre))) onAnalyse((n) => n + 1);
+      // Sous forte charge (carte en mode masse), la relecture toutes les 4 s suffit : le
+      // journal montre le direct, et chaque relecture redessine des milliers de points.
+      if (!masseRef.current) relire();
+    };
+    const fin = ecouter((entrees, recus) => {
+      // Lots du plus récent au plus ancien : le dernier arrivé passe devant.
+      tampon.current = { entrees: [...entrees, ...tampon.current.entrees].slice(0, 30), recus: tampon.current.recus + recus };
+      vidage ??= window.setTimeout(vider, 300);
     }, setDirect, () => onAnalyse((n) => n + 1));
-    return fin;
+    return () => { fin(); window.clearTimeout(vidage); window.clearTimeout(effacement); window.clearTimeout(relectureDifferee); };
   }, [charger, connexion, refus, pret, onAnalyse]);
 
   useEffect(() => {
@@ -157,10 +192,10 @@ function useTableauDirect(onAnalyse: (f: (n: number) => number) => void) {
     return () => window.clearInterval(t);
   }, []);
 
-  return { etat, journal, nouveaux, direct, connexion, setConnexion, refus, setRefus, pret, erreur, maintenant };
+  return { etat, journal, nouveaux, debit, direct, connexion, setConnexion, refus, setRefus, pret, erreur, maintenant };
 }
 
-function VueDirect({ etat, journal, nouveaux, maintenant, theme }: { etat: EtatTableau | null; journal: EntreeJournal[]; nouveaux: Set<string>; maintenant: Date; theme: Theme }) {
+function VueDirect({ etat, journal, nouveaux, debit, maintenant, theme }: { etat: EtatTableau | null; journal: EntreeJournal[]; nouveaux: Set<string>; debit: number; maintenant: Date; theme: Theme }) {
   if (!etat) return <div className="tb-chargement">Chargement du tableau de bord…</div>;
   return (
         <main className="tb-grille">
@@ -170,12 +205,15 @@ function VueDirect({ etat, journal, nouveaux, maintenant, theme }: { etat: EtatT
               <h2>Flotte en direct · Abidjan</h2>
               <Legende />
             </div>
-            <CarteFlotte key={theme} theme={theme} flotte={etat.flotte} courses={etat.coursesActives} />
+            <CarteFlotte key={theme} theme={theme} flotte={etat.flotte} courses={etat.coursesActives} masse={etat.carte?.mode === 'masse' ? etat.carte : null}
+              enService={etat.conducteurs.enLigne} enCoursTotal={etat.enDirect.courses + etat.enDirect.livraisons} />
           </section>
           <section className="tb-panneau tb-journal" aria-label="Journal d'activité">
             <div className="tb-panneau-h">
               <h2>Activité en direct</h2>
-              <span className="tb-muet">app client · app chauffeur · console</span>
+              {debit >= 60
+                ? <span className="tb-debit" title="Événements reçus sur la dernière minute"><strong>{debit.toLocaleString('fr-FR')}</strong> événements/min</span>
+                : <span className="tb-muet">app client · app chauffeur · console</span>}
             </div>
             <Journal entrees={journal} nouveaux={nouveaux} maintenant={maintenant.getTime()} />
           </section>
@@ -311,15 +349,27 @@ function arriveesGeoJSON(courses: CourseActive[]) {
 }
 
 /** Couleurs des tracés sur la carte, par thème (mêmes séries que les graphiques). */
-const TRACES: Record<Theme, { course: string; livraison: string; halo: string; bord: string }> = {
-  dark: { course: '#18a571', livraison: '#3987e5', halo: '#04110b', bord: '#0b1a14' },
-  light: { course: '#13976a', livraison: '#2a78d6', halo: '#ffffff', bord: '#ffffff' },
+const TRACES: Record<Theme, { course: string; livraison: string; halo: string; bord: string; libre: string; enCourse: string }> = {
+  dark: { course: '#18a571', livraison: '#3987e5', halo: '#04110b', bord: '#0b1a14', libre: '#2bffa6', enCourse: '#f5c451' },
+  light: { course: '#13976a', livraison: '#2a78d6', halo: '#ffffff', bord: '#ffffff', libre: '#0f9d63', enCourse: '#c27c0e' },
 };
 
-function CarteFlotte({ flotte, courses, theme }: { flotte: VehiculeFlotte[]; courses: CourseActive[]; theme: Theme }) {
+type Masse = { libres: Array<[number, number]>; enCourse: Array<[number, number, number]> };
+const VIDE = { type: 'FeatureCollection' as const, features: [] };
+function pointsGeoJSON(points: Array<[number, number] | [number, number, number]>) {
+  return {
+    type: 'FeatureCollection' as const,
+    features: points.map((p) => ({ type: 'Feature' as const, properties: { livraison: p[2] ?? 0 }, geometry: { type: 'Point' as const, coordinates: [p[0], p[1]] } })),
+  };
+}
+
+function CarteFlotte({ flotte, courses, theme, masse, enService, enCoursTotal }: {
+  flotte: VehiculeFlotte[]; courses: CourseActive[]; theme: Theme; masse: Masse | null; enService: number; enCoursTotal: number;
+}) {
   const boite = useRef<HTMLDivElement>(null);
   const carte = useRef<CarteML | null>(null);
   const marqueurs = useRef(new Map<string, Marker>());
+  const vueElargie = useRef(false);
   const [prete, setPrete] = useState(false);
   const [indispo, setIndispo] = useState(false);
   const config = useMemo(() => getVectorConfig(), []);
@@ -343,21 +393,56 @@ function CarteFlotte({ flotte, courses, theme }: { flotte: VehiculeFlotte[]; cou
         m.addLayer({ id: 'trajets-halo', type: 'line', source: 'trajets', paint: { 'line-color': T.halo, 'line-width': 7, 'line-opacity': 0.55 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
         m.addLayer({ id: 'trajets', type: 'line', source: 'trajets', paint: { 'line-color': couleur, 'line-width': 3.5 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
         m.addLayer({ id: 'arrivees', type: 'circle', source: 'arrivees', paint: { 'circle-radius': 6, 'circle-color': couleur, 'circle-stroke-color': T.bord, 'circle-stroke-width': 2.5 } });
+        // MODE MASSE : densité des courses en cours, puis un point par véhicule (couche
+        // GPU : des milliers de points sans un seul élément HTML).
+        m.addSource('libres', { type: 'geojson', data: VIDE });
+        m.addSource('encourse', { type: 'geojson', data: VIDE });
+        m.addLayer({ id: 'densite', type: 'heatmap', source: 'encourse', paint: {
+          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 10, 12, 13, 26, 15, 40],
+          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 14, 1.2],
+          'heatmap-opacity': theme === 'light' ? 0.5 : 0.6,
+          'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'],
+            0, 'rgba(0,0,0,0)', 0.2, theme === 'light' ? 'rgba(16,168,104,0.35)' : 'rgba(43,255,166,0.3)',
+            0.5, theme === 'light' ? '#e8b021' : '#f5c451', 0.85, theme === 'light' ? '#e36a3a' : '#ff8a4c', 1, theme === 'light' ? '#d23a4a' : '#ff5468'],
+        } } as never, 'trajets-halo');
+        m.addLayer({ id: 'libres', type: 'circle', source: 'libres', paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.4, 14, 3.5], 'circle-color': T.libre, 'circle-opacity': 0.7,
+        } });
+        m.addLayer({ id: 'encourse', type: 'circle', source: 'encourse', paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.8, 14, 4.2],
+          'circle-color': ['match', ['get', 'livraison'], 1, T.livraison, T.enCourse] as unknown as string, 'circle-opacity': 0.9,
+        } });
         carte.current = m;
         setPrete(true);
       });
-      m.on('error', (e) => { if (!m.loaded() && /Failed to fetch|NetworkError|AJAXError/i.test(String((e as unknown as { error?: { message?: string } }).error?.message ?? ''))) setIndispo(true); });
+      // Une tuile qui échoue (réseau passager, serveur de tuiles chargé) ne condamne pas
+      // la carte : elle n'est déclarée indisponible que si elle ne s'est pas chargée au
+      // bout de 12 s, et le message disparaît dès qu'elle se charge. Avant, une seule
+      // tuile en échec au démarrage masquait la carte pour toute la séance.
+      let chargee = false;
+      const delai = window.setTimeout(() => { if (!chargee) setIndispo(true); }, 12_000);
+      m.once('load', () => { chargee = true; window.clearTimeout(delai); setIndispo(false); });
+      m.once('remove', () => window.clearTimeout(delai));
     }).catch(() => setIndispo(true));
     return () => { annule = true; carte.current?.remove(); carte.current = null; marqueurs.current.clear(); };
   }, [config, theme]);
 
-  // Trajets en cours.
+  // Trajets en cours (en mode masse, des centaines de tracés superposés ne se lisent plus :
+  // la densité et les points prennent le relais).
   useEffect(() => {
     const m = carte.current;
     if (!m || !prete) return;
-    (m.getSource('trajets') as GeoJSONSource | undefined)?.setData(trajetsGeoJSON(courses));
-    (m.getSource('arrivees') as GeoJSONSource | undefined)?.setData(arriveesGeoJSON(courses));
-  }, [courses, prete]);
+    (m.getSource('trajets') as GeoJSONSource | undefined)?.setData(masse ? VIDE : trajetsGeoJSON(courses));
+    (m.getSource('arrivees') as GeoJSONSource | undefined)?.setData(masse ? VIDE : arriveesGeoJSON(courses));
+    (m.getSource('libres') as GeoJSONSource | undefined)?.setData(masse ? pointsGeoJSON(masse.libres) : VIDE);
+    (m.getSource('encourse') as GeoJSONSource | undefined)?.setData(masse ? pointsGeoJSON(masse.enCourse) : VIDE);
+    // Passage en mode masse : la vue s'élargit une fois à tout Abidjan (de Yopougon à la
+    // Riviera), pour voir la densité de chaque commune d'un coup d'œil.
+    if (masse && !vueElargie.current) {
+      vueElargie.current = true;
+      m.easeTo({ center: [-4.0, 5.345], zoom: 11.3, duration: 1600 });
+    }
+  }, [courses, masse, prete]);
 
   // Véhicules : un marqueur par conducteur en service, déplacé en douceur.
   useEffect(() => {
@@ -390,7 +475,7 @@ function CarteFlotte({ flotte, courses, theme }: { flotte: VehiculeFlotte[]; cou
       <div ref={boite} className="tb-carte-ml" />
       {indispo && <div className="tb-carte-indispo">Carte indisponible : vérifiez la connexion au serveur de tuiles.</div>}
       <div className="tb-carte-compte" aria-live="polite">
-        <strong>{flotte.length}</strong> en service · <strong>{courses.length}</strong> {courses.length > 1 ? 'trajets' : 'trajet'} en cours
+        <strong>{enService.toLocaleString('fr-FR')}</strong> en service · <strong>{enCoursTotal.toLocaleString('fr-FR')}</strong> {enCoursTotal > 1 ? 'trajets' : 'trajet'} en cours
       </div>
     </div>
   );

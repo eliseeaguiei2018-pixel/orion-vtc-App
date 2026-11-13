@@ -16,6 +16,25 @@ const grid = () => {
   return p;
 };
 
+const SEUIL_DETAIL = 300;
+const ALERTES_ANIMEES = 12;
+
+/** Points groupés : un tracé par couleur, chaque véhicule est un trait de longueur nulle à bout rond. */
+function FlotteGroupee({ fleet }: { fleet: FleetUnit[] }) {
+  let libres = '';
+  let enCourse = '';
+  for (const u of fleet) {
+    const d = `M${px(u.lng).toFixed(1)} ${py(u.lat).toFixed(1)}h0`;
+    if (u.availability === 'on_trip') enCourse += d; else libres += d;
+  }
+  return (
+    <g fill="none" strokeLinecap="round">
+      <path d={libres} stroke="#2bffa6" strokeWidth="3.2" opacity="0.75" />
+      <path d={enCourse} stroke="#f5c451" strokeWidth="3.6" opacity="0.9" />
+    </g>
+  );
+}
+
 export function SupervisionMap({ fleet, alerts }: { fleet: FleetUnit[]; alerts: Alert[] }) {
   return (
     <div className="adm-map">
@@ -31,8 +50,10 @@ export function SupervisionMap({ fleet, alerts }: { fleet: FleetUnit[]; alerts: 
           <path d="M 520 0 C 560 160 590 300 560 420" />
         </g>
 
-        {/* Flotte */}
-        {fleet.map((u) => {
+        {/* Flotte : détaillée jusqu'à quelques centaines de véhicules ; au-delà, deux tracés
+            groupés (libres, en course). 5 000 véhicules en nœuds SVG individuels, c'était
+            10 000 cercles redessinés à chaque rafraîchissement : la console décrochait. */}
+        {fleet.length <= SEUIL_DETAIL ? fleet.map((u) => {
           const on = u.availability === 'on_trip';
           return (
             <g key={u.id} transform={`translate(${px(u.lng)} ${py(u.lat)})`}>
@@ -40,13 +61,15 @@ export function SupervisionMap({ fleet, alerts }: { fleet: FleetUnit[]; alerts: 
               <circle r="4.5" fill={on ? '#f5c451' : '#2bffa6'} stroke="#04140d" strokeWidth="1" />
             </g>
           );
-        })}
+        }) : <FlotteGroupee fleet={fleet} />}
 
-        {/* Alertes SAMU */}
-        {alerts.map((a) => (
+        {/* Alertes SAMU : les plus récentes pulsent, les autres restent fixes (lisible et léger). */}
+        {alerts.map((a, i) => (
           <g key={a.id} transform={`translate(${px(a.location.lng)} ${py(a.location.lat)})`}>
-            <circle r="16" fill="#ff5468" opacity="0.22"><animate attributeName="r" values="10;20;10" dur="1.6s" repeatCount="indefinite" /></circle>
-            <circle r="6" fill="#ff5468" stroke="#fff" strokeWidth="1.5" />
+            {i < ALERTES_ANIMEES
+              ? <circle r="16" fill="#ff5468" opacity="0.22"><animate attributeName="r" values="10;20;10" dur="1.6s" repeatCount="indefinite" /></circle>
+              : <circle r="9" fill="#ff5468" opacity="0.18" />}
+            <circle r={i < ALERTES_ANIMEES ? 6 : 4} fill="#ff5468" stroke="#fff" strokeWidth={i < ALERTES_ANIMEES ? 1.5 : 1} />
           </g>
         ))}
       </svg>

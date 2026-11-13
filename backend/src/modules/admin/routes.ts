@@ -12,6 +12,7 @@ import {
   verifyTotp, registerSession, touchSession, revokeSession, listSessions, isSessionInactive, adminUsers,
 } from './auth.js';
 import { config } from '../../config/index.js';
+import { mesuresPlateforme, preparerCharge } from '../charge/service.js';
 import {
   CSRF_COOKIE, CSRF_HEADER, SESSION_COOKIE, cookiesDeConnexion, cookiesDeDeconnexion,
   estEcriture, newCsrfToken, parseCookies,
@@ -3535,6 +3536,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       require(req, 'crew:read');
     };
 
+    const LIMITE_EQUIPAGES = 300;
     scoped.get('/admin/crew', async (req) => {
       requireCrewRead(req);
       const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
@@ -3562,8 +3564,12 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         const flotte = new Set(equipes.flatMap((t) => t.driverIds));
         equipages = equipages.filter((l) => flotte.has(l.driverId));
       }
+      // Liste bornée : avec des milliers de chauffeurs, la console n'affiche pas 5 000 lignes
+      // toutes les 6 secondes. La recherche (matricule, nom, téléphone) trouve les autres.
+      const total = equipages.length;
       return {
-        equipages,
+        equipages: equipages.slice(0, LIMITE_EQUIPAGES),
+        total,
         tableau: container.crew.tableau(q.jours),
         types: Object.entries(CREW_TYPE_LABEL).map(([id, label]) => ({ id, label, financier: TYPES_FINANCIERS.includes(id as TypeRequete) })),
         statuts: CREW_STATUT_LABEL,
@@ -3860,6 +3866,29 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         inconnu: 'Compte de configuration : le mot de passe se change côté serveur.',
       };
       return { error: messages[res] };
+    });
+
+    // --- Mesures du serveur (service informatique, direction) ---
+    // Débit, temps de réponse, retard de la boucle d'événements, temps réel, itinéraires,
+    // et le volume en cours : ce qu'on regarde quand la plateforme est sous pression.
+    scoped.get('/admin/systeme/mesures', async (req, reply) => {
+      require(req, 'sessions:read');
+      reply.header('cache-control', 'no-store');
+      return mesuresPlateforme(container);
+    });
+
+    // --- Test de charge : flotte et clientèle de test (jamais en production) ---
+    scoped.post('/admin/charge/preparer', async (req) => {
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      if (config.NODE_ENV === 'production' || !config.TEST_CHARGE) throw forbidden('Le test de charge est désactivé sur ce serveur.');
+      if (account.role !== 'super_admin') throw forbidden('Le test de charge est réservé au super administrateur technique.');
+      const body = parse(z.object({
+        conducteurs: z.number().int().min(0).max(20_000),
+        clients: z.number().int().min(0).max(20_000),
+      }), req.body);
+      const res = await preparerCharge(container, body);
+      audit(req, 'charge.preparation', 'test-de-charge', { conducteurs: res.conducteurs, clients: res.clients.length });
+      return res;
     });
 
     // --- Journal d'audit ---

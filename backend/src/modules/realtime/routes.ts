@@ -57,7 +57,8 @@ export async function realtimeRoutes(app: FastifyInstance, container: Container)
         }
       },
     }, (socket) => {
-      attach(socket, container, DASHBOARD_ROOM, {});
+      // Sous forte charge, des milliers de lignes par seconde : on les envoie par lots.
+      attach(socket, container, DASHBOARD_ROOM, {}, { lot: 'journal', intervalleMs: 250, garder: 40 });
     });
 
     // Suivi usager : l'état courant à la connexion, puis chaque évolution.
@@ -84,20 +85,58 @@ export async function realtimeRoutes(app: FastifyInstance, container: Container)
   });
 }
 
+interface Regroupement {
+  /** Type de message regroupé (les autres passent tels quels). */
+  lot: string;
+  intervalleMs: number;
+  /** Nombre de messages les plus récents gardés dans un lot (les autres sont comptés). */
+  garder: number;
+}
+
 function attach(
   socket: { send: (data: string) => void; on: (ev: string, cb: (...a: unknown[]) => void) => void; ping?: () => void; close: () => void },
   container: Container,
   room: string,
   hello: Record<string, unknown>,
+  regroupement?: Regroupement,
 ): void {
-  socket.send(JSON.stringify({ type: 'connected', room, ...hello, at: new Date().toISOString() }));
-
-  const unsubscribe = container.realtime.subscribe(room, (msg) => {
+  const mesures = container.mesures;
+  const envoyer = (texte: string) => {
     try {
-      socket.send(JSON.stringify(msg));
+      socket.send(texte);
+      mesures.noterEnvois(1);
     } catch {
       /* socket en cours de fermeture */
     }
+  };
+  mesures.connexionOuverte();
+  envoyer(JSON.stringify({ type: 'connected', room, ...hello, at: new Date().toISOString() }));
+
+  // REGROUPEMENT : un écran ne lit pas 3 000 lignes par seconde, et un navigateur qui
+  // reçoit 3 000 messages par seconde ne fait plus que ça. Les messages du type regroupé
+  // partent toutes les `intervalleMs` en un seul « lot » : les plus récents, et le compte
+  // exact de tous ceux reçus depuis le lot précédent.
+  let enAttente: unknown[] = [];
+  let recus = 0;
+  let minuterie: ReturnType<typeof setTimeout> | undefined;
+  const vider = () => {
+    minuterie = undefined;
+    if (!recus) return;
+    const lot = enAttente.slice(-(regroupement?.garder ?? 40)).reverse();
+    envoyer(JSON.stringify({ type: `${regroupement!.lot}.lot`, room, at: new Date().toISOString(), data: { entrees: lot, recus } }));
+    enAttente = [];
+    recus = 0;
+  };
+
+  const unsubscribe = container.realtime.subscribe(room, (msg) => {
+    if (regroupement && msg.type === regroupement.lot) {
+      enAttente.push(msg.data);
+      if (enAttente.length > regroupement.garder * 4) enAttente.splice(0, enAttente.length - regroupement.garder);
+      recus += 1;
+      minuterie ??= setTimeout(vider, regroupement.intervalleMs);
+      return;
+    }
+    envoyer(JSON.stringify(msg));
   });
 
   // Heartbeat : ferme les connexions silencieuses (back-pressure / ressources).
@@ -112,6 +151,8 @@ function attach(
 
   socket.on('close', () => {
     clearInterval(heartbeat);
+    if (minuterie) clearTimeout(minuterie);
     unsubscribe();
+    mesures.connexionFermee();
   });
 }

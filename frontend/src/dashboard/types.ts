@@ -35,7 +35,14 @@ export interface EtatTableau {
   parHeure: Array<{ heure: number; courses: number; livraisons: number }>;
   paiements: Record<string, number>;
   flotte: VehiculeFlotte[];
+  /** Trajets tracés : les plus récents seulement (le total est dans `enDirect`). */
   coursesActives: CourseActive[];
+  /**
+   * Carte : en mode « masse » (des centaines de véhicules et plus), des points compacts
+   * [lng, lat] pour les véhicules libres et [lng, lat, livraison 0/1] pour les courses
+   * en cours ; `flotte` est alors vide.
+   */
+  carte?: { mode: 'detail' | 'masse'; libres: Array<[number, number]>; enCourse: Array<[number, number, number]> };
   journal: EntreeJournal[];
 }
 

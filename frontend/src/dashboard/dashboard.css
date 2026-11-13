@@ -160,6 +160,8 @@ body { min-height: 100vh; }
 .tb-panneau-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 .tb-panneau-h h2 { font: 700 16px var(--police-titre); letter-spacing: -0.01em; }
 .tb-muet { color: var(--muet); font-size: 12.5px; }
+.tb-debit { font-size: 12.5px; color: var(--texte-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tb-debit strong { color: var(--vert); font-weight: 800; }
 
 /* Tuiles */
 .tb-tuile { position: relative; overflow: hidden; display: grid; grid-template-rows: auto auto auto; row-gap: 2px; align-content: start;
@@ -200,6 +202,9 @@ body { min-height: 100vh; }
 
 /* Journal */
 .tb-journal { overflow: hidden; }
+/* Le journal défile dans sa case : sous forte charge, ses 30 lignes ne doivent pas
+   agrandir la grille et pousser la carte et les graphiques hors de l'écran. */
+@media (min-width: 1281px) { .tb-journal { contain: size; } }
 .tb-fil { list-style: none; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 0; flex: 1; padding-right: 2px; }
 .tb-ligne { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 13px;
   background: var(--voile); border: 1px solid var(--trait); }

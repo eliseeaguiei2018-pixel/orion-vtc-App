@@ -39,31 +39,80 @@ export const dansLEmprise = (p: LatLng) =>
 
 type Fetch = typeof fetch;
 
+/** Compteurs du calcul d'itinéraire (supervision informatique, test de charge). */
+export interface EtatRoutage {
+  actifs: number;
+  enFile: number;
+  osrm: number;
+  cache: number;
+  /** Rafale trop forte : tracé de repli rendu tout de suite, sans attendre OSRM. */
+  repliSaturation: number;
+  repliErreur: number;
+}
+
 export class Routage {
   private readonly cache = new Map<string, Itineraire>();
+  /** Demandes identiques en cours : un seul appel OSRM, partagé. */
+  private readonly enCours = new Map<string, Promise<Itineraire>>();
+  private actifs = 0;
+  private readonly file: Array<() => void> = [];
+  private readonly compteurs = { osrm: 0, cache: 0, repliSaturation: 0, repliErreur: 0 };
 
   constructor(
     private readonly baseUrl: string | undefined,
     private readonly fetchFn: Fetch = fetch,
     private readonly delaiMs = 6_000,
     private readonly capacite = 400,
+    /**
+     * RAFALES : 5 000 commandes d'un coup, c'est 10 000 itinéraires à calculer. Sans
+     * borne, autant de requêtes partent en même temps vers OSRM : sockets épuisées,
+     * serveur externe saturé (ou qui nous bannit), et des courses qui attendent leur
+     * tracé. On limite les appels simultanés ; au-delà d'une file raisonnable, le tracé
+     * de repli est rendu tout de suite. La course n'attend jamais la carte.
+     */
+    private readonly parallele = 8,
+    private readonly fileMax = 64,
   ) {}
 
   get actif(): boolean {
     return Boolean(this.baseUrl);
   }
 
+  etat(): EtatRoutage {
+    return { actifs: this.actifs, enFile: this.file.length, ...this.compteurs };
+  }
+
   /** Itinéraire passant par les points donnés (départ, arrêts éventuels, arrivée). */
   async itineraire(points: LatLng[]): Promise<Itineraire> {
     const cle = points.map((p) => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`).join(';');
     const enCache = this.cache.get(cle);
-    if (enCache) return enCache;
-    const resultat = (this.baseUrl ? await this.osrm(points).catch(() => null) : null) ?? repli(points);
-    if (resultat.provider === 'osrm') {
+    if (enCache) { this.compteurs.cache += 1; return enCache; }
+    if (!this.baseUrl) return repli(points);
+    const partage = this.enCours.get(cle);
+    if (partage) return partage;
+    if (this.actifs >= this.parallele && this.file.length >= this.fileMax) {
+      this.compteurs.repliSaturation += 1;
+      return repli(points);
+    }
+    const promesse = this.calculer(cle, points).finally(() => this.enCours.delete(cle));
+    this.enCours.set(cle, promesse);
+    return promesse;
+  }
+
+  private async calculer(cle: string, points: LatLng[]): Promise<Itineraire> {
+    if (this.actifs >= this.parallele) await new Promise<void>((ok) => this.file.push(ok));
+    this.actifs += 1;
+    try {
+      const resultat = await this.osrm(points).catch(() => null);
+      if (!resultat) { this.compteurs.repliErreur += 1; return repli(points); }
+      this.compteurs.osrm += 1;
       if (this.cache.size >= this.capacite) this.cache.delete(this.cache.keys().next().value!);
       this.cache.set(cle, resultat);
+      return resultat;
+    } finally {
+      this.actifs -= 1;
+      this.file.shift()?.();
     }
-    return resultat;
   }
 
   private async osrm(points: LatLng[]): Promise<Itineraire | null> {
