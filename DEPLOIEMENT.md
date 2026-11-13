@@ -152,6 +152,50 @@ Le dashboard d'administration est une **page séparée** de l'app cliente :
     **Tarification** (augmenter/réduire les prix, effet immédiat), Rôles & accès.
 - Sans backend joignable, la console bascule en **mode démo** (données simulées) pour la présentation.
 
+### Code de synchronisation ORION : appareils de confiance
+
+La console et le tableau de bord s'ouvrent sur ordinateur (Windows, macOS), tablette,
+téléphone et navigateur. Le **code de synchronisation** dit au serveur « cet appareil
+appartient à ORION ». Il se saisit **une fois par appareil**, au premier lancement.
+Ensuite, chaque employé se connecte avec ses identifiants personnels, comme avant.
+
+**Mise en place, une seule fois :**
+
+```bash
+cd backend
+npm run code-synchro        # taper le code : il ne s'affiche pas et n'est écrit nulle part
+# → ORION_CODE_SYNCHRO_EMPREINTE=scrypt$32768$8$1$…$…
+```
+
+Copier cette ligne dans les variables d'environnement du serveur (Render, Docker…), puis
+ajouter `APPAREILS_EXIGES=true` : la console et le tableau de bord ne s'ouvrent plus que
+sur un appareil enrôlé.
+
+**Ce que le serveur garde :** l'empreinte scrypt du code, jamais le code. Une fuite du
+dépôt, d'une sauvegarde ou des variables ne le révèle pas. Le dépôt contient un test qui
+échoue si le code y est écrit par erreur.
+
+**Sécurité de l'enrôlement :**
+- 5 essais manqués par adresse sur un quart d'heure, 50 pour tout le réseau, puis attente ;
+- chaque essai, réussi ou non, figure au journal d'audit ;
+- l'appareil reçoit une clé qui lui est propre (256 bits), posée dans un cookie HttpOnly :
+  aucun script de la page ne peut la lire, et le serveur n'en garde que l'empreinte.
+
+**Au quotidien, dans la console, section « Sessions actives » :** la liste des appareils
+de confiance, avec la plateforme, l'application, la dernière activité et le dernier
+compte utilisé. Le bouton **Révoquer** coupe l'accès d'un appareil perdu, volé, ou de
+celui d'un employé parti, dès sa requête suivante. Les autres appareils ne sont pas
+touchés, et il n'y a pas besoin de changer le code.
+
+**Changer de code :** relancer `npm run code-synchro` et remplacer la variable. Les
+appareils déjà enrôlés gardent leur accès ; seuls les nouveaux enrôlements demandent le
+nouveau code.
+
+> Le code de synchronisation ne remplace pas les mots de passe. Un code connu de tous les
+> employés finit toujours par circuler : c'est pourquoi il ne donne accès à rien tout
+> seul, et que chaque appareil reste révocable un par un. Pour la direction, gardez la
+> double authentification (`ADMIN_REQUIRE_2FA=true`).
+
 ### Mettre l'admin sur un sous-domaine dédié (recommandé)
 1. Dans Vercel → **Domains**, ajoute `admin.tondomaine.ci` au projet frontend.
 2. Dans `frontend/vercel.json`, remplace `admin.orion.ci` par ce domaine (règles `rewrites`

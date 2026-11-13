@@ -42,6 +42,7 @@ import { PromoService, type Promo } from './modules/promos/service.js';
 import { SupportService } from './modules/support/service.js';
 import { NotificationService } from './modules/notifications/service.js';
 import { AuditService } from './modules/admin/audit.js';
+import { AppareilsService, type Appareil } from './modules/appareils/service.js';
 import { TreasuryService, type Transfer } from './modules/treasury/service.js';
 import { CaisseService, type Caisse, type MouvementCaisse } from './modules/treasury/caisse.js';
 import { DisputeService, type Dispute } from './modules/disputes/service.js';
@@ -120,6 +121,8 @@ export interface Container {
   support: SupportService;
   notifications: NotificationService;
   audit: AuditService;
+  /** Appareils enrôlés avec le code de synchronisation ORION (console, tableau de bord). */
+  appareils: AppareilsService;
   treasury: TreasuryService;
   disputes: DisputeService;
   demand: DemandService;
@@ -358,6 +361,7 @@ export function createContainer(): Container {
     support: new SupportService(realtime),
     notifications: new NotificationService(realtime),
     audit: new AuditService(),
+    appareils: new AppareilsService(() => config.ORION_CODE_SYNCHRO_EMPREINTE, createRepository<Appareil>('appareils')),
     security: new SecurityAlertsService(),
     reservations: new ReservationService(createRepository<Reservation>('reservations')),
     staff: new StaffService(createRepository('staff_shifts'), createRepository('staff_tickets')),

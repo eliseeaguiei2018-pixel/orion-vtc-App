@@ -10,8 +10,22 @@ export class NonConnecte extends Error {}
 /** Connecté, mais sans droit sur le tableau de bord (ni de droit, ni par habilitation). */
 export class AccesRefuse extends Error {}
 
-const verifier = (r: Response) => {
-  if (r.status === 401) throw new NonConnecte();
+/**
+ * Un 403 a deux causes très différentes : le rôle n'a pas droit au tableau de bord, ou
+ * l'APPAREIL n'est plus de confiance (jamais enrôlé, ou révoqué). Dans le second cas,
+ * afficher « accès réservé à la direction » à un directeur serait faux : on le ramène à
+ * la connexion, qui lui propose d'enrôler l'appareil.
+ */
+async function appareilRefuse(r: Response): Promise<boolean> {
+  if (r.status !== 403) return false;
+  const corps = await r.clone().json().catch(() => null) as { error?: { code?: string } } | null;
+  if (corps?.error?.code !== 'APPAREIL_NON_ENROLE') return false;
+  clearSession();
+  return true;
+}
+
+const verifier = async (r: Response) => {
+  if (r.status === 401 || await appareilRefuse(r)) throw new NonConnecte();
   if (r.status === 403) throw new AccesRefuse();
   if (!r.ok) throw new Error(`Serveur ORION : ${r.status}`);
 };
@@ -32,7 +46,7 @@ export async function lireMonAcces(): Promise<MonAcces> {
     fetch(`${API}/admin/me`, { credentials: 'include' }),
     fetch(`${API}/admin/habilitations/moi`, { credentials: 'include' }),
   ]);
-  if (me.status === 401 || moi.status === 401) throw new NonConnecte();
+  if (me.status === 401 || moi.status === 401 || await appareilRefuse(me) || await appareilRefuse(moi)) throw new NonConnecte();
   if (!me.ok || !moi.ok) throw new Error('Serveur ORION injoignable');
   const m = await me.json() as { name: string; roleLabel: string };
   const h = await moi.json() as Omit<MonAcces, 'nom'>;
@@ -52,7 +66,7 @@ export async function changerDeCompte(): Promise<void> { await logout(); }
 export async function lireEtat(): Promise<EtatTableau> {
   if (!LIVE) return etatDemo();
   const r = await fetch(`${API}/admin/dashboard`, { credentials: 'include' });
-  verifier(r);
+  await verifier(r);
   return r.json() as Promise<EtatTableau>;
 }
 
@@ -60,7 +74,7 @@ export async function lireEtat(): Promise<EtatTableau> {
 export async function lireAnalyse(): Promise<AnalyseTableau> {
   if (!LIVE) return analyseDemo();
   const r = await fetch(`${API}/admin/dashboard/analyse`, { credentials: 'include' });
-  verifier(r);
+  await verifier(r);
   return r.json() as Promise<AnalyseTableau>;
 }
 
@@ -70,6 +84,12 @@ export async function seConnecter(username: string, password: string, code?: str
     body: JSON.stringify({ username, password, ...(code ? { code } : {}) }),
   });
   if (r.status === 429) return 'Compte temporairement verrouillé : réessayez plus tard.';
+  if (r.status === 403) {
+    const corps = await r.json().catch(() => ({})) as { error?: { code?: string; message?: string } };
+    // Appareil non enrôlé (ou révoqué) : l'écran passe à l'enrôlement.
+    if (corps.error?.code === 'APPAREIL_NON_ENROLE') return 'appareil';
+    return corps.error?.message ?? 'Accès refusé.';
+  }
   if (!r.ok) return code ? 'Code invalide.' : 'Identifiants refusés. Accès réservé au personnel ORION.';
   const d = await r.json() as { mfaRequired?: boolean; csrfToken?: string; expiresAt?: string };
   if (d.mfaRequired) return 'code';

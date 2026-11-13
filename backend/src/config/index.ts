@@ -86,6 +86,13 @@ const schema = z.object({
   // Si "true" : la 2FA (TOTP) devient OBLIGATOIRE pour les comptes de direction
   // (ceo, dg, daa, coo, super_admin) — connexion refusée si le compte n'a pas de secret.
   ADMIN_REQUIRE_2FA: z.string().default('false').transform((v) => v.toLowerCase() === 'true'),
+  // CODE DE SYNCHRONISATION ORION : seule son EMPREINTE scrypt est connue du serveur
+  // (npm run code-synchro). Le code lui-même n'est écrit nulle part. Vide : l'enrôlement
+  // des appareils est indisponible.
+  ORION_CODE_SYNCHRO_EMPREINTE: z.preprocess((v) => (v === '' ? undefined : v), z.string().regex(/^scrypt\$\d+\$\d+\$\d+\$[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+$/, 'empreinte scrypt attendue (npm run code-synchro)').optional()),
+  // true : la console et le tableau de bord ne s'ouvrent que sur un appareil enrôlé avec
+  // le code de synchronisation (recommandé en production).
+  APPAREILS_EXIGES: z.string().default('false').transform((v) => v.toLowerCase() === 'true'),
   // Verrouillage auto d'une session après N minutes d'inactivité (écran laissé allumé).
   ADMIN_INACTIVITY_MINUTES: z.coerce.number().int().positive().default(15),
 

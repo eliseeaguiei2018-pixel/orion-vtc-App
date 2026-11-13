@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { fcfa } from '../api';
 import type { ActiveSession, ContactHandler, DriverRow, MaintenanceTicket, Me, Shift, SquadPnl, StaffKpi, Team } from '../types';
 import { ContactRapide } from '../ui';
+import { NOM_PLATEFORME, type AppareilPublic } from '../../appareil';
 
 export const SLOT_LABEL: Record<string, string> = { matin: '🌅 Matin', soir: '🌇 Soir', nuit: '🌙 Nuit' };
 export const MAINT_LABEL: Record<string, string> = { controle_technique: 'Contrôle technique', batterie_soh: 'Batterie (SoH)', reparation: 'Réparation', nettoyage: 'Nettoyage', assurance: 'Assurance' };
@@ -291,3 +292,48 @@ export function RolesSection({ me }: { me: Me }) {
 }
 
 /** Barre de pagination serveur (page X / Y · N éléments). */
+
+/**
+ * APPAREILS DE CONFIANCE : ordinateurs, tablettes et téléphones enrôlés avec le code de
+ * synchronisation ORION. Un appareil perdu, volé, ou celui d'un employé parti se révoque
+ * ici : il perd l'accès à sa requête suivante, sans changer le code pour tous les autres.
+ */
+export function AppareilsPanneau({ etat, canWrite, onRevoquer }: {
+  etat: { appareils: AppareilPublic[]; exige: boolean; configure: boolean };
+  canWrite: boolean;
+  onRevoquer: (id: string) => void;
+}) {
+  const actifs = etat.appareils.filter((a) => a.actif);
+  return (
+    <div className="adm-card" data-testid="panneau-appareils">
+      <div className="adm-card-h">
+        <h3>Appareils de confiance</h3>
+        <span className="adm-muted">{actifs.length} actif(s) · {etat.exige ? 'enrôlement exigé' : 'enrôlement facultatif'}</span>
+      </div>
+      {!etat.configure && <p className="adm-empty">Code de synchronisation non configuré sur ce serveur (variable ORION_CODE_SYNCHRO_EMPREINTE).</p>}
+      {etat.configure && etat.appareils.length === 0 && <p className="adm-empty">Aucun appareil enrôlé pour l’instant.</p>}
+      {etat.appareils.length > 0 && (
+        <table className="adm-table">
+          <thead><tr><th>Appareil</th><th>Plateforme</th><th>Application</th><th>Enrôlé</th><th>Dernière activité</th><th>Dernier compte</th><th>Statut</th>{canWrite && <th>Actions</th>}</tr></thead>
+          <tbody>
+            {etat.appareils.map((a) => (
+              <tr key={a.id}>
+                <td><strong>{a.nom}</strong><div className="mono adm-muted" style={{ fontSize: 11 }}>{a.derniereIp ?? '—'}</div></td>
+                <td>{NOM_PLATEFORME[a.plateforme]}</td>
+                <td>{a.application === 'console' ? 'Console' : a.application === 'tableau' ? 'Tableau de bord' : 'App chauffeur'}</td>
+                <td>{ago(a.enroleLe)}</td>
+                <td>{a.derniereActivite ? ago(a.derniereActivite) : '—'}</td>
+                <td className="mono" style={{ fontSize: 12 }}>{a.dernierCompte ?? '—'}</td>
+                <td>
+                  <span className={`adm-pill ${a.actif ? 'av-online' : 'tr-rejected'}`}>{a.actif ? 'Actif' : 'Révoqué'}</span>
+                  {!a.actif && a.revoquePar && <div className="adm-muted" style={{ fontSize: 11 }}>par {a.revoquePar}</div>}
+                </td>
+                {canWrite && <td>{a.actif && <button className="adm-btn xs" onClick={() => onRevoquer(a.id)}>Révoquer</button>}</td>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}

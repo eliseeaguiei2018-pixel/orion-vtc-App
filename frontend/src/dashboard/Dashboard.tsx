@@ -9,6 +9,7 @@ import { AccesRefuse, NonConnecte, ecouter, lireEtat, seConnecter } from './donn
 import { AccesReserve } from './AccesReserve';
 import { Objectifs } from './Objectifs';
 import type { CourseActive, EntreeJournal, EtatTableau, VehiculeFlotte } from './types';
+import { EnrolementAppareil, LigneAppareil, estAppEmballee, useEtatAppareil, type ClassesFormulaire } from '../appareil';
 
 /**
  * TABLEAU DE BORD ORION : une interface à part, pensée pour l'écran de la salle de
@@ -590,7 +591,17 @@ function Paiements({ paiements }: { paiements: Record<string, number> }) {
 
 /* --------------------------------- Connexion --------------------------------- */
 
+const CLASSES_TABLEAU: ClassesFormulaire = {
+  carte: 'tb-connexion-carte', sous: 'tb-enrol-sous', label: 'tb-enrol-label', champ: 'tb-enrol-champ',
+  bouton: 'tb-enrol-bouton', erreur: 'tb-connexion-err', lien: 'tb-enrol-lien',
+};
+
 function Connexion({ onOk }: { onOk: () => void }) {
+  // Code de synchronisation ORION : même enrôlement que la console (un appareil enrôlé
+  // pour l'une sert aussi pour l'autre, c'est le même appareil de confiance).
+  const [etatAppareil, relireAppareil] = useEtatAppareil();
+  const [enrolement, setEnrolement] = useState(false);
+  const enrolementRequis = Boolean(etatAppareil?.configure && !etatAppareil.appareil && (etatAppareil.exige || estAppEmballee()));
   const [id, setId] = useState('');
   const [mdp, setMdp] = useState('');
   const [code, setCode] = useState('');
@@ -604,10 +615,20 @@ function Connexion({ onOk }: { onOk: () => void }) {
       const r = await seConnecter(id.trim(), mdp, deuxFacteurs ? code.trim() : undefined);
       if (r === 'ok') onOk();
       else if (r === 'code') setDeuxFacteurs(true);
+      else if (r === 'appareil') { setEnrolement(true); relireAppareil(); }
       else setErreur(r);
     } catch { setErreur('Serveur injoignable. Réessayez dans un instant.'); }
     setEnvoi(false);
   };
+  if (enrolement || enrolementRequis) {
+    return (
+      <div className="tb-connexion">
+        <EnrolementAppareil application="tableau" classes={CLASSES_TABLEAU}
+          onEnrole={() => { setEnrolement(false); relireAppareil(); }}
+          onRetour={enrolementRequis ? undefined : () => setEnrolement(false)} />
+      </div>
+    );
+  }
   return (
     <div className="tb-connexion">
       <form onSubmit={valider} className="tb-connexion-carte">
@@ -626,6 +647,7 @@ function Connexion({ onOk }: { onOk: () => void }) {
         )}
         {erreur && <p className="tb-connexion-err" role="alert">{erreur}</p>}
         <button type="submit" disabled={envoi || !id || !mdp}>{envoi ? 'Connexion…' : 'Ouvrir le tableau de bord'}</button>
+        <LigneAppareil etat={etatAppareil} classe="tb-enrol-sous" onEnroler={() => setEnrolement(true)} />
       </form>
     </div>
   );

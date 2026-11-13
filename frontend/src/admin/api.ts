@@ -130,8 +130,11 @@ export function setAdminErrorSink(fn: (e: AdminError) => void): void { errorSink
 export async function toAdminError(r: Response): Promise<AdminError> {
   let message = '';
   try {
-    const body = await r.json() as { error?: { message?: string } };
+    const body = await r.json() as { error?: { message?: string; code?: string } };
     message = body?.error?.message ?? '';
+    // Appareil révoqué (ou plus enrôlé) en cours de session : retour à l'écran d'accueil,
+    // qui propose l'enrôlement. Rester sur une console qui refuse tout n'aide personne.
+    if (body?.error?.code === 'APPAREIL_NON_ENROLE') { clearSession(); setTimeout(() => window.location.reload(), 1500); }
   } catch { /* corps non JSON */ }
   if (!message) {
     message = r.status === 403

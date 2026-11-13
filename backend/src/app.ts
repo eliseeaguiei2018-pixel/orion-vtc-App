@@ -9,6 +9,7 @@ import { loggerOptions } from './core/logger.js';
 import { AppError } from './core/errors.js';
 import { createContainer, type Container } from './container.js';
 import { healthRoutes } from './modules/health/routes.js';
+import { appareilsRoutes } from './modules/appareils/routes.js';
 import { pricingRoutes } from './modules/pricing/routes.js';
 import { driverRoutes, greenTelemetryRoutes } from './modules/drivers/routes.js';
 import { rideRoutes } from './modules/rides/routes.js';
@@ -150,6 +151,7 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
   await insuranceRoutes(app, container);
   await assuranceRoutes(app, container);
   await messagesRoutes(app, container);
+  await appareilsRoutes(app, container);
   await adminRoutes(app, container);
   await supportClientRoutes(app, container);
   await clientAccountRoutes(app, container);

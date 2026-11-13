@@ -2,6 +2,7 @@ import { Readable } from 'node:stream';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Container } from '../../container.js';
+import { exigerAppareil } from '../appareils/routes.js';
 import { parse } from '../../core/validate.js';
 import { AppError, notFound, unauthorized, forbidden } from '../../core/errors.js';
 import { driverRoom, CONFIG_ROOM, DASHBOARD_ROOM } from '../realtime/hub.js';
@@ -64,6 +65,10 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       password: z.string().min(1).max(200),
       code: z.string().max(12).optional(), // code TOTP (2FA)
     }), req.body);
+    // Appareil enrôlé avec le code de synchronisation ORION (si la politique l'exige) :
+    // vérifié AVANT le mot de passe, pour qu'un appareil inconnu ne puisse même pas
+    // tester des identifiants.
+    const appareil = exigerAppareil(container, req, body.username);
     const lock = lockedFor(body.username);
     if (lock > 0) {
       container.audit.log({ actor: body.username, role: 'viewer', action: 'login.locked' });
@@ -106,7 +111,10 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       ip: req.ip, userAgent: (req.headers['user-agent'] as string | undefined)?.slice(0, 120),
       createdAt: new Date().toISOString(), expiresAt,
     });
-    container.audit.log({ actor: account.name, role: account.role, action: needs2fa ? 'login.success_2fa' : 'login.success' });
+    container.audit.log({
+      actor: account.name, role: account.role, action: needs2fa ? 'login.success_2fa' : 'login.success',
+      details: appareil ? { appareil: appareil.nom, appareilId: appareil.id } : undefined,
+    });
     // Session posée en cookie HttpOnly : la console n'a plus à stocker le jeton,
     // donc une faille XSS ne peut plus l'exfiltrer. Le second cookie, lisible,
     // porte la preuve anti-CSRF à recopier dans l'en-tête sur chaque écriture.
@@ -180,6 +188,11 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         throw unauthorized('Session verrouillée pour inactivité — reconnecte-toi');
       }
       if (verified?.jti) touchSession(verified.jti, req.ip); // trace d'activité (sessions actives)
+      // Session d'une personne (cookie ou Bearer) : l'appareil doit être enrôlé et non
+      // révoqué si la politique l'exige. Un appareil révoqué perd l'accès à la requête
+      // suivante, même avec une session encore valide. Le jeton statique d'automatisation
+      // (secret serveur) n'est pas concerné.
+      if (verified) exigerAppareil(container, req, account.username ?? account.name);
       (req as FastifyRequest & { admin: AdminAccount }).admin = account;
     });
 
@@ -1691,6 +1704,23 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       if (!revokeSession(id)) throw notFound('Session introuvable ou expirée');
       audit(req, 'session.revoke', id);
       return { ok: true };
+    });
+
+    // --- Appareils enrôlés avec le code de synchronisation ORION ---
+    scoped.get('/admin/appareils', async (req) => {
+      require(req, 'sessions:read');
+      return { appareils: container.appareils.liste(), exige: config.APPAREILS_EXIGES, configure: container.appareils.configure };
+    });
+
+    /** Appareil perdu, volé, ou employé parti : l'accès est coupé dès la requête suivante. */
+    scoped.post('/admin/appareils/:id/revoquer', async (req) => {
+      require(req, 'sessions:write');
+      const { id } = req.params as { id: string };
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const appareil = container.appareils.revoquer(id, account.name);
+      if (!appareil) throw notFound('Appareil introuvable');
+      audit(req, 'appareil.revoque', id, { nom: appareil.nom, plateforme: appareil.plateforme });
+      return { appareil };
     });
 
     // Portée chef d'équipe : un manager n'agit QUE sur les chauffeurs de sa flotte.

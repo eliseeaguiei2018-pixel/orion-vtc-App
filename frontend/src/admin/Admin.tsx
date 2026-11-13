@@ -3,7 +3,7 @@ import { DEMO } from './demo';
 import { API, LIVE, AdminError, H, PAGE_SIZE, adminDel, adminGet, adminPost, adminPut, clearSession, expKey, fcfa, logout, onUnauthorized, setCsrf, setDemoSession, pageSlice, reportResponse, safePost, safePostData, safePut, sessionValid, setAdminErrorSink } from './api';
 import { AuditSection, CorporateSection, FinanceSection, GlobalSearch, GreenSection, IntelSection, NotifySection, PricingEditor, PromosSection, ServicesSection, SupportSection, TreasurySection, ZonesSection } from './sections/business';
 import { ClientsSection, DispatchSection, DisputesSection, DriversSection, ForensicDrawer, QualitySection, ReservationsCard, RidesSection } from './sections/operations';
-import { RolesSection, SessionsSection, TeamsSection } from './sections/organisation';
+import { AppareilsPanneau, RolesSection, SessionsSection, TeamsSection } from './sections/organisation';
 import { OverviewSection, SamuSection, SecuritySection, SosDrawer } from './sections/supervision';
 import { RentalSection, RentalTarifsSection, SubscriptionsSection } from './sections/location';
 import { DirectionSection } from './sections/direction';
@@ -20,6 +20,7 @@ import { AnnuaireSection, ChangerMotDePasse } from './sections/annuaire';
 import type { AccountsStats, ActiveSession, Alert, Amortization, Announcement, AssistantSujet, CaisseConsolidation, CaisseEtat, CaisseReferentiel, CrewTableau, DossierEquipage, EquipageRow, PosteEquipe, RoleOption, StaffAccountRow, SuiviFlotte, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, ContactJournal, ContactUrgence, CopilotAnswer, ExecutiveBoard, MonPoste, MouvementPage, SanteVigilance, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, RentalTarifEtat, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
 import { ClientDrawer, DriverDrawer } from './ui';
 import { lienTel, numeroComposable, ouvrirClavier } from '../telephone';
+import { EnrolementAppareil, LigneAppareil, estAppEmballee, useEtatAppareil, type AppareilPublic, type ClassesFormulaire } from '../appareil';
 
 
 
@@ -107,7 +108,17 @@ export function Admin() {
 }
 
 /* --------------------------- Écran de connexion --------------------- */
+const CLASSES_CONSOLE: ClassesFormulaire = {
+  carte: 'adm-login-card', sous: 'adm-login-sub', label: 'adm-login-label', champ: 'adm-login-input',
+  bouton: 'adm-btn solid big', erreur: 'adm-login-err', lien: 'adm-btn ghost',
+};
+
 function Login({ onDone }: { onDone: () => void }) {
+  // Code de synchronisation ORION : un appareil non enrôlé passe d'abord par l'enrôlement
+  // quand la politique l'exige (ou dans les applications Windows, macOS et mobiles).
+  const [etatAppareil, relireAppareil] = useEtatAppareil();
+  const [enrolement, setEnrolement] = useState(false);
+  const enrolementRequis = Boolean(etatAppareil?.configure && !etatAppareil.appareil && (etatAppareil.exige || estAppEmballee()));
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -129,6 +140,12 @@ function Login({ onDone }: { onDone: () => void }) {
         body: JSON.stringify({ username: username.trim(), password, ...(mfa && code.trim() ? { code: code.trim() } : {}) }),
       });
       if (res.status === 429) { setErr('Compte temporairement verrouillé (trop de tentatives). Réessaie plus tard.'); setBusy(false); return; }
+      if (res.status === 403) {
+        // Appareil non enrôlé ou révoqué : retour à l'enrôlement.
+        const corps = await res.json().catch(() => ({})) as { error?: { code?: string; message?: string } };
+        if (corps.error?.code === 'APPAREIL_NON_ENROLE') { setBusy(false); setEnrolement(true); relireAppareil(); return; }
+        setErr(corps.error?.message ?? 'Accès refusé.'); setBusy(false); return;
+      }
       if (!res.ok) { setErr(mfa ? 'Code 2FA invalide.' : 'Identifiants refusés. Accès réservé au personnel ORION.'); setBusy(false); return; }
       const data = (await res.json()) as LoginResponse & { mfaRequired?: boolean };
       if (data.mfaRequired) { setMfa(true); setBusy(false); return; } // mot de passe OK → code demandé
@@ -141,6 +158,15 @@ function Login({ onDone }: { onDone: () => void }) {
       setErr('Serveur injoignable. Réessaie dans un instant.'); setBusy(false);
     }
   };
+  if (enrolement || enrolementRequis) {
+    return (
+      <div className="adm-login">
+        <EnrolementAppareil application="console" classes={CLASSES_CONSOLE}
+          onEnrole={() => { setEnrolement(false); relireAppareil(); }}
+          onRetour={enrolementRequis ? undefined : () => setEnrolement(false)} />
+      </div>
+    );
+  }
   return (
     <div className="adm-login">
       <form className="adm-login-card" onSubmit={submit}>
@@ -168,6 +194,7 @@ function Login({ onDone }: { onDone: () => void }) {
         <button className="adm-btn solid big" type="submit" disabled={busy}>{busy ? 'Connexion…' : mfa ? 'Vérifier le code' : 'Se connecter'}</button>
         {mfa && <button className="adm-btn ghost" type="button" style={{ marginTop: 8 }} onClick={() => { setMfa(false); setCode(''); setErr(''); }}>← Retour</button>}
         {!API && <p className="adm-login-demo">Mode démo — n'importe quels identifiants ouvrent la console (données simulées).</p>}
+        <LigneAppareil etat={etatAppareil} classe="adm-login-sub" onEnroler={() => setEnrolement(true)} />
       </form>
     </div>
   );
@@ -242,6 +269,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [clientSel, setClientSel] = useState<ClientDetail | null>(null);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
+  const [appareils, setAppareils] = useState<{ appareils: AppareilPublic[]; exige: boolean; configure: boolean } | null>(null);
   const [selfSession, setSelfSession] = useState<string | null>(null);
   const [ops, setOps] = useState<OpsConfig | null>(null);
   const [quality, setQuality] = useState<{ threshold: number; autoWarn: boolean; drivers: QualityRow[] } | null>(null);
@@ -444,7 +472,10 @@ function Console({ onLogout }: { onLogout: () => void }) {
         setLiquidity(await adminGet<Liquidity>('/admin/liquidity'));
         setAmortization(await adminGet<Amortization>('/admin/treasury/amortization'));
       }
-      if (has('sessions:read')) { const s = await adminGet<{ sessions: ActiveSession[]; self: string | null }>('/admin/sessions'); setSessions(s.sessions); setSelfSession(s.self); }
+      if (has('sessions:read')) {
+        const s = await adminGet<{ sessions: ActiveSession[]; self: string | null }>('/admin/sessions'); setSessions(s.sessions); setSelfSession(s.self);
+        setAppareils(await adminGet<{ appareils: AppareilPublic[]; exige: boolean; configure: boolean }>('/admin/appareils').catch(() => null));
+      }
       if (has('rides:read')) setOps((await adminGet<{ ops: OpsConfig }>('/admin/dispatch')).ops);
       if (has('overview:read')) setGreen(await adminGet<GreenReport>('/admin/green'));
       if (has('teams:read')) {
@@ -1382,6 +1413,12 @@ function Console({ onLogout }: { onLogout: () => void }) {
     if (id === selfSession) { void logout().then(() => window.location.reload()); } // on s'est déconnecté soi-même
   };
 
+  // Révoque un appareil enrôlé : il perd l'accès dès sa requête suivante.
+  const revoquerAppareil = async (id: string) => {
+    if (LIVE && !(await safePost(`/admin/appareils/${id}/revoquer`))) return;
+    setAppareils((a) => (a ? { ...a, appareils: a.appareils.map((x) => (x.id === id ? { ...x, actif: false, revoqueLe: new Date().toISOString() } : x)) } : a));
+  };
+
   // On n'attend la vue d'ensemble que si l'on a le droit de la lire : un chauffeur
   // restait sinon indéfiniment sur cet écran.
   if (!me || (!ov && me.permissions.includes('overview:read'))) return <div className="adm-loading">Chargement de la console…</div>;
@@ -1632,6 +1669,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
         )}
         {section === 'audit' && <AuditSection entries={audit} />}
         {section === 'sessions' && <SessionsSection sessions={sessions} self={selfSession} canWrite={can('sessions:write')} onRevoke={revokeSess} />}
+        {section === 'sessions' && appareils && <AppareilsPanneau etat={appareils} canWrite={can('sessions:write')} onRevoquer={(id) => void revoquerAppareil(id)} />}
         {section === 'security' && <SecuritySection attempts={security} />}
         {section === 'roles' && <RolesSection me={me} />}
         {section === 'habilitations' && <HabilitationsSection can={can} />}

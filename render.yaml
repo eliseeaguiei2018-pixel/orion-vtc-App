@@ -30,6 +30,13 @@ services:
       # App cliente : secret de signature des sessions client (distinct, généré par Render).
       - key: CLIENT_JWT_SECRET
         generateValue: true
+      # Code de synchronisation ORION : EMPREINTE produite par `npm run code-synchro`
+      # (jamais le code lui-même). Sans elle, l'enrôlement des appareils est indisponible.
+      - key: ORION_CODE_SYNCHRO_EMPREINTE
+        sync: false
+      # true : console et tableau de bord réservés aux appareils enrôlés (recommandé).
+      - key: APPAREILS_EXIGES
+        value: "false"
       # ORION Assurance : clé de chiffrement des dossiers de premiers secours (AES-256).
       # 32 octets en base64, générés UNE fois : openssl rand -base64 32
       # Ne jamais la changer ni la perdre : les dossiers chiffrés deviendraient illisibles.
