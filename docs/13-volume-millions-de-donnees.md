@@ -153,6 +153,48 @@ Temps médian de traitement serveur :
 Les exports sont plus longs, mais écrits par tranches : 9 Mo de courses (31 jours) en
 0,2 à 2,4 s, et 21 Mo de grand livre (90 jours) en 0,5 à 2,4 s, sans bloquer le serveur.
 
+## Plusieurs instances : le temps réel est prêt
+
+Un seul serveur ne suffira pas à des millions d'utilisateurs. Le temps réel d'ORION peut
+désormais relier plusieurs instances par Redis (`backend/src/modules/realtime/bus.ts`) :
+
+```bash
+REDIS_URL=redis://redis:6379   # vide : une seule instance, rien ne sort du processus
+```
+
+Chaque message publié sur une instance (SOS, course, configuration, tableau de bord) est
+aussi livré aux clients connectés aux autres instances. Son propre écho est ignoré : un
+message n'est jamais livré deux fois. Le test
+`backend/tests/temps-reel-multi-instances.test.ts` démarre un vrai Redis et deux serveurs
+côte à côte. Il vérifie trois choses :
+- un SOS levé sur l'instance A arrive une seule fois au poste branché sur l'instance B ;
+- le suivi d'une course passe de B à A ;
+- si Redis tombe, chaque instance continue de servir ses propres clients, sans bloquer.
+
+L'état du bus figure dans `/health/ready` et `/admin/systeme/mesures` : mode, connexion,
+messages reçus, envoyés et perdus.
+
+### Ce qui reste à faire pour plusieurs instances en production
+
+Le temps réel est partagé. **Les données, elles, ne le sont pas encore** : chaque
+instance tient ses courses en mémoire, avec une copie SQLite locale. Deux instances
+côte à côte ne verraient donc pas les mêmes courses. Le passage effectif à plusieurs
+instances demande quatre chantiers :
+
+1. **PostgreSQL comme base de référence commune** (documents 05 et 08). L'interface
+   `Repository` est prête, mais l'adaptateur PostgreSQL n'est pas écrit. La mémoire ne
+   garde alors que la fenêtre chaude.
+2. **Sessions de la console et limiteur de débit partagés**, dans Redis. Aujourd'hui,
+   chaque instance a les siens.
+3. **Index géographique des chauffeurs dans Redis**, avec les commandes GEO. Il faut
+   que le dispatch de n'importe quelle instance voie toute la flotte.
+4. **Un répartiteur de charge** qui vérifie `/health/ready` de chaque instance.
+
+D'ici là, le bon déploiement est **une instance par ville ou par grande zone** :
+- chaque instance a ses propres données ;
+- un client d'Abidjan est toujours servi par l'instance d'Abidjan ;
+- le bus Redis relie les postes de supervision et le tableau de bord de la direction.
+
 ## Limites, dites franchement
 
 - **Un seul processus tient tout en mémoire** : 3,3 Go de tas à un million de courses.

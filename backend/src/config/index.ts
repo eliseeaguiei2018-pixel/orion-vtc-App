@@ -165,6 +165,9 @@ const schema = z.object({
   // Persistance : 'memory' (volatile, défaut/tests) ou 'sqlite' (durable, fichier local).
   // En production : 'postgres' via la même interface Repository (cf. docs).
   PERSISTENCE: z.enum(['memory', 'sqlite']).default('memory'),
+  // Bus temps réel entre instances (plusieurs serveurs derrière un répartiteur) :
+  // redis://hote:6379. Vide : une seule instance, le temps réel reste dans le processus.
+  REDIS_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
   DB_PATH: z.string().default('./data/orion.db'),
 }).superRefine((c, ctx) => {
   // Un opérateur choisi sans ses identifiants : le serveur refuse de démarrer, plutôt que

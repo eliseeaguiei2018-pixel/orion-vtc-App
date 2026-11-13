@@ -1,12 +1,14 @@
 import { EventEmitter } from 'node:events';
+import { BusLocal, type BusTempsReel } from './bus.js';
 
 /**
  * Hub temps réel en mémoire (pub/sub par "room").
  *
  * Les clients s'abonnent à des rooms : `ride:{id}` (suivi d'une course), `driver:{id}`,
- * ou `emergency` (poste de supervision / SAMU). En production multi-instances, on remplace
- * ce hub par Redis Pub/Sub afin que les nœuds WebSocket se propagent les messages entre
- * eux (cf. docs/05 §4) — l'interface reste identique.
+ * ou `emergency` (poste de supervision / SAMU). En production multi-instances, le hub est
+ * relié aux autres instances par un bus Redis (`bus.ts`, variable REDIS_URL) : chaque
+ * message publié ici est aussi livré aux clients connectés aux autres instances. Le reste
+ * du code ne voit aucune différence.
  */
 export interface RealtimeMessage {
   type: string;
@@ -22,6 +24,7 @@ const TOUTES_LES_ROOMS = '*';
 
 export class RealtimeHub {
   private readonly emitter = new EventEmitter();
+  private bus: BusTempsReel = new BusLocal();
 
   constructor() {
     // Beaucoup d'abonnés possibles (une course = client + chauffeur + superviseurs).
@@ -35,10 +38,33 @@ export class RealtimeHub {
 
   publish(room: string, type: string, data: unknown): RealtimeMessage {
     const msg: RealtimeMessage = { type, room, at: new Date().toISOString(), data };
-    this.emitter.emit(room, msg);
+    this.livrer(msg);
+    this.bus.diffuser(msg);
+    return msg;
+  }
+
+  /** Livraison aux abonnés de CETTE instance. */
+  private livrer(msg: RealtimeMessage): void {
+    this.emitter.emit(msg.room, msg);
     // Copie sur le canal global : le tableau de bord voit tout l'écosystème en direct.
     this.emitter.emit(TOUTES_LES_ROOMS, msg);
-    return msg;
+  }
+
+  /**
+   * Relie ce hub aux autres instances. Les messages venus d'ailleurs sont livrés ici
+   * sans être renvoyés sur le bus (pas de boucle).
+   */
+  brancherBus(bus: BusTempsReel): void {
+    this.bus = bus;
+    bus.ecouter((msg) => this.livrer(msg));
+  }
+
+  etatBus() {
+    return this.bus.etat();
+  }
+
+  fermerBus(): Promise<void> {
+    return this.bus.fermer();
   }
 
   /** Tous les messages, toutes rooms confondues (tableau de bord, journal serveur). */

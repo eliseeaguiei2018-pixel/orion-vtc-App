@@ -115,6 +115,8 @@ export function mesuresPlateforme(c: Container) {
     genereLe: new Date().toISOString(),
     serveur: c.mesures.instantane(),
     routage: c.routage.etat(),
+    // Bus entre instances : mode (local ou Redis), connexion, messages reçus, envoyés, perdus.
+    tempsReel: c.realtime.etatBus(),
     plateforme: {
       coursesActives: actives,
       coursesTotal: total,

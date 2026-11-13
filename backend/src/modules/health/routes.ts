@@ -14,6 +14,12 @@ export async function healthRoutes(app: FastifyInstance, container: Container): 
     // En prod : ping PostgreSQL/Redis ici. L'index géo doit répondre.
     await container.geo.size();
     // L'opérateur SMS est indiqué (sans aucun secret) : utile pour vérifier un déploiement.
-    return { status: 'ready', services: container.registry.list(), sms: { fournisseur: container.sms.fournisseur, actif: container.sms.reel } };
+    // Bus temps réel : sans lui, une instance parmi plusieurs ne verrait que ses propres
+    // clients. Le répartiteur de charge peut écarter une instance dont le bus est coupé.
+    const bus = container.realtime.etatBus();
+    return {
+      status: 'ready', services: container.registry.list(), sms: { fournisseur: container.sms.fournisseur, actif: container.sms.reel },
+      tempsReel: { mode: bus.mode, connecte: bus.connecte },
+    };
   });
 }

@@ -41,7 +41,19 @@ export interface BuiltApp {
  * Construit l'application sans la démarrer (utilisé par le serveur ET par les tests via
  * app.inject() — aucun port réseau requis pour tester).
  */
+/**
+ * Relie le temps réel de cette instance aux autres instances par Redis. Attend que
+ * l'abonnement soit actif : une instance qui servirait avant raterait des messages.
+ */
+export async function brancherBusRedis(container: Container, url: string): Promise<void> {
+  const { BusRedis } = await import('./modules/realtime/bus.js');
+  const bus = new BusRedis(url);
+  await bus.pret();
+  container.realtime.brancherBus(bus);
+}
+
 export async function buildApp(container = createContainer()): Promise<BuiltApp> {
+  if (config.REDIS_URL) await brancherBusRedis(container, config.REDIS_URL);
   const app = Fastify({
     logger: loggerOptions,
     // Corrélation des logs/traces : chaque requête a un id propagé (observabilité).
@@ -146,6 +158,7 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
 
   // Arrêt en douceur : couper les timers de simulation.
   app.addHook('onClose', async () => container.simulator.stopAll());
+  app.addHook('onClose', async () => container.realtime.fermerBus());
 
   app.get('/', async () => ({
     name: 'ORION VTC API',
