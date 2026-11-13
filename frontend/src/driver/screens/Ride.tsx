@@ -84,7 +84,9 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
 
         {ride.status === 'accepted' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('driver_en_route')}>{livraison ? 'Je pars chercher le colis' : 'Je pars vers le client'}</button>}
         {ride.status === 'driver_en_route' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('arrived')}>{livraison ? 'Je suis au point de retrait' : 'Je suis arrivé'}</button>}
-        {ride.status === 'arrived' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('in_progress')}>{livraison ? 'Colis récupéré, je livre' : 'Client à bord — démarrer'}</button>}
+        {ride.status === 'arrived' && !livraison && ride.codeRequis
+          ? <SaisieCode app={app} rideId={ride.id} />
+          : ride.status === 'arrived' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('in_progress')}>{livraison ? 'Colis récupéré, je livre' : 'Client à bord — démarrer'}</button>}
         {ride.status === 'in_progress' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('completed')}>{livraison ? 'Colis livré' : 'Terminer la course'}</button>}
 
         {ride.status === 'completed' && (
@@ -132,6 +134,35 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
           </div>
         </Modal>
       )}
+    </div>
+  );
+}
+
+/**
+ * CODE DE PRISE EN CHARGE : le passager lit son code à 4 chiffres dans son app, le
+ * chauffeur le saisit ici. Bon code : la course démarre et l'identité est confirmée.
+ * Mauvais code : le serveur dit combien d'essais il reste ; au cinquième, c'est bloqué.
+ */
+function SaisieCode({ app, rideId }: { app: DriverApp; rideId: string }) {
+  const [code, setCode] = useState('');
+  const [erreur, setErreur] = useState<string | null>(null);
+  const valider = async () => {
+    setErreur(null);
+    const e = await app.actions.start(rideId, code);
+    if (e) { setErreur(e); setCode(''); }
+  };
+  return (
+    <div className="dv-code">
+      <label className="dv-code-titre" htmlFor="dv-code-champ">Code du passager</label>
+      <p className="dv-code-aide">Demandez au passager le code à 4 chiffres affiché dans son application.</p>
+      <div className="dv-code-saisie">
+        <input id="dv-code-champ" className="dv-code-champ" inputMode="numeric" autoComplete="one-time-code" maxLength={4}
+          value={code} placeholder="••••" aria-invalid={erreur ? true : undefined}
+          onChange={(e) => { setCode(e.target.value.replace(/\D/g, '').slice(0, 4)); setErreur(null); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && code.length === 4) void valider(); }} />
+      </div>
+      {erreur && <p className="dv-code-erreur" role="alert">{erreur}</p>}
+      <button className="btn btn-primary" disabled={app.busy || code.length !== 4} onClick={() => void valider()}>Vérifier le code et démarrer</button>
     </div>
   );
 }

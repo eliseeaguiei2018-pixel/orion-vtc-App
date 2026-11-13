@@ -12,6 +12,7 @@ import { DriverStore } from './modules/drivers/store.js';
 import { RideStore } from './modules/rides/store.js';
 import { MatchingEngine } from './modules/rides/matching.js';
 import { RideSimulator } from './modules/rides/simulator.js';
+import { CodesPriseEnCharge, type CodeCourse } from './modules/rides/code-prise-en-charge.js';
 import { RideReleaseService } from './modules/rides/release.js';
 import { trafficInfo } from './modules/geo-ci/zones.js';
 import { WalletService } from './modules/wallet/service.js';
@@ -28,7 +29,7 @@ import { PaymentRegistry } from './modules/payments/providers.js';
 import { SafetyService } from './modules/safety/service.js';
 import { EmergencyContactsService, type ContactJournalEntry } from './modules/safety/contacts.js';
 import { SettingsService, type PricingRecord } from './modules/settings/service.js';
-import { RealtimeHub, CONFIG_ROOM, DRIVER_CONFIG_ROOM, driverRoom } from './modules/realtime/hub.js';
+import { RealtimeHub, CONFIG_ROOM, DRIVER_CONFIG_ROOM, driverRoom, rideRoom } from './modules/realtime/hub.js';
 import { driverAppConfig } from './modules/driver-app/config.js';
 import { config } from './config/index.js';
 import { createMapsProvider, type MapsProvider } from './modules/maps/service.js';
@@ -93,6 +94,8 @@ export interface Container {
   /** Habilitations des managers au tableau de bord (informatique → direction). */
   habilitations: ServiceHabilitations;
   simulator: RideSimulator;
+  /** Code à 4 chiffres que le passager donne au chauffeur pour démarrer la course. */
+  codesPriseEnCharge: CodesPriseEnCharge;
   wallet: WalletService;
   clientWallet: WalletService;
   insurance: InsuranceService;
@@ -158,6 +161,7 @@ export function createContainer(): Container {
   // Repositories durables (mémoire par défaut, SQLite si PERSISTENCE=sqlite).
   const drivers = new DriverStore(geo, createRepository<Driver>('drivers'));
   const rides = new RideStore(createRepository<Ride>('rides'));
+  const codesPriseEnCharge = new CodesPriseEnCharge(createRepository<CodeCourse>('codes_prise_en_charge'));
   // Dispatch : la règle d'attribution (console) est relue à chaque course.
   const matching = new MatchingEngine(geo, drivers, undefined, (origin) => {
     const z = settings.zoneForPoint(origin);
@@ -305,8 +309,16 @@ export function createContainer(): Container {
       const sim = new RideSimulator(rides, realtime, {}, routage);
       // Les chauffeurs équipés de l'app pilotent eux-mêmes leurs courses.
       sim.skipWhen((driverId) => Boolean(drivers.get(driverId)?.appLinkedAt));
+      // Développement : le chauffeur simulé « saisit » le code du passager, comme le
+      // ferait un vrai chauffeur dans l'app, avant de démarrer.
+      sim.avantDemarrage((rideId) => {
+        if (!codesPriseEnCharge.requis(rideId)) return;
+        codesPriseEnCharge.marquerSimule(rideId);
+        realtime.publish(rideRoom(rideId), 'ride.code', { rideId, resultat: 'verifie', par: 'simulation' });
+      });
       return sim;
     })(),
+    codesPriseEnCharge,
     wallet: new WalletService(createRepository<LedgerEntry>('wallet_ledger')),
     clientWallet,
     insurance: new InsuranceService(createRepository<InsuranceContribution>('insurance'), clientWallet),

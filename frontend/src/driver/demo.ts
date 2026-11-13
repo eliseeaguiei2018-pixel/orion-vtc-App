@@ -372,6 +372,11 @@ export function createDemoBackend(): DriverBackend {
       emit('ride.withdrawn', { rideId, reason: 'declined' });
       scheduleOffer(8000);
     },
+    async start(rideId, code) {
+      // Démonstration : le passager fictif donne toujours un code valide à 4 chiffres.
+      if (!/^\d{4}$/.test(code)) throw new ApiError(400, 'Le code compte 4 chiffres');
+      await this.transition(rideId, 'in_progress');
+    },
     async transition(rideId, to) {
       const r = ride(rideId);
       const allowed: Record<string, RideStatus[]> = {

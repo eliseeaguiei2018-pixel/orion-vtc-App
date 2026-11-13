@@ -47,6 +47,8 @@ export interface DriverBackend {
   acceptOffer(rideId: string): Promise<ActiveRide | null>;
   declineOffer(rideId: string, reason?: string): Promise<void>;
   transition(rideId: string, to: RideStatus): Promise<void>;
+  /** Démarre la course avec le code à 4 chiffres donné par le passager. */
+  start(rideId: string, code: string): Promise<void>;
   wait(rideId: string, minutes: number): Promise<WaitResult>;
   collectCash(rideId: string): Promise<void>;
   sos(rideId: string | null, position: LatLng, note?: string): Promise<void>;
@@ -197,6 +199,7 @@ function createLiveBackend(): DriverBackend {
     async acceptOffer(rideId) { return (await post<{ ride: ActiveRide | null }>(`/drivers/${id()}/offers/${rideId}/accept`)).ride; },
     async declineOffer(rideId, reason) { await post(`/drivers/${id()}/offers/${rideId}/decline`, { reason }); },
     async transition(rideId, to) { await post(`/rides/${rideId}/transition`, { to }); },
+    async start(rideId, code) { await post(`/rides/${rideId}/start`, { code }); },
     wait: (rideId, minutes) => post(`/rides/${rideId}/wait`, { minutes }),
     async collectCash(rideId) {
       await call(`/rides/${rideId}/pay`, {

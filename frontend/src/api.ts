@@ -469,6 +469,8 @@ export interface SafeDriver {
 export interface RideCreateResult {
   ride: RideCreated;
   driver: SafeDriver | null;
+  /** Code de prise en charge à donner au chauffeur (course de passager uniquement). */
+  code: string | null;
 }
 
 export interface TrustedContact {
@@ -496,12 +498,28 @@ export function clientId(): string {
  * les chauffeurs au-delà du plafond de dette espèces fixé en console.
  */
 export async function createRide(lockId: string, cid: string, trustedContact?: TrustedContact, paymentMethod?: string): Promise<RideCreateResult | null> {
-  const res = await tryFetch<{ ride: RideCreated; driver: SafeDriver | null }>('/rides', {
+  const res = await tryFetch<{ ride: RideCreated; driver: SafeDriver | null; codePriseEnCharge?: string | null }>('/rides', {
     method: 'POST',
     headers: { 'idempotency-key': `${cid}-${lockId}` },
     body: JSON.stringify({ clientId: cid, lockId, trustedContact, paymentMethod }),
   });
-  return res ? { ride: res.ride, driver: res.driver ?? null } : null;
+  if (res?.ride?.id && res.codePriseEnCharge) {
+    try { localStorage.setItem(`orion.code.${res.ride.id}`, res.codePriseEnCharge); } catch { /* stockage indisponible */ }
+  }
+  return res ? { ride: res.ride, driver: res.driver ?? null, code: res.codePriseEnCharge ?? null } : null;
+}
+
+/**
+ * Code de prise en charge d'une course en cours : mémorisé à la commande, sinon relu
+ * auprès du serveur (session du passager). Null si la course n'en a pas.
+ */
+export async function lireCodePriseEnCharge(rideId: string): Promise<{ code: string; verifie: boolean } | null> {
+  const r = await tryFetch<{ code: string; verifie: boolean }>(`/rides/${rideId}/code`);
+  if (r) return r;
+  try {
+    const local = localStorage.getItem(`orion.code.${rideId}`);
+    return local ? { code: local, verifie: false } : null;
+  } catch { return null; }
 }
 
 /** Annule une course côté serveur (libère le chauffeur). No-op en mode démo. */

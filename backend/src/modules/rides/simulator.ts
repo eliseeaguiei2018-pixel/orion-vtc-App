@@ -47,6 +47,12 @@ export class RideSimulator {
     };
   }
 
+  private avant?: (rideId: string) => void;
+  /** Appelé juste avant le démarrage de la course (le code du passager, en simulation). */
+  avantDemarrage(fn: (rideId: string) => void): void {
+    this.avant = fn;
+  }
+
   /** Exclut de la simulation les chauffeurs équipés de l'app (appelé au démarrage). */
   skipWhen(predicate: (driverId: string) => boolean): void {
     this.skip = predicate;
@@ -69,6 +75,7 @@ export class RideSimulator {
           // Le tracé de la course proprement dite commence ici (l'approche est avant).
           const current = this.rides.get(ride.id);
           if (current) current.traceDepart = current.trace?.length ?? 0;
+          this.avant?.(ride.id);
           this.transition(ride, 'in_progress');
           this.animate(ride, trajet, this.opts.tripMs, () => {
             this.transition(ride, 'completed');

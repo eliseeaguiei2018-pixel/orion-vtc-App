@@ -109,6 +109,9 @@ export interface ActiveRide extends RideView {
   client: { id: string; name: string | null; phone: string | null; rides: number };
   pickupZone: { id: string; name: string; driverBonus: number } | null;
   offer: Offer | null;
+  /** Le passager doit donner son code à 4 chiffres pour démarrer (jamais sa valeur). */
+  codeRequis?: boolean;
+  codeVerifie?: boolean;
 }
 
 export interface Totals { rides: number; gross: number; net: number; commission: number; cashCollected: number }

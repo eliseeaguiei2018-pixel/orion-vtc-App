@@ -69,6 +69,9 @@ export function activeRideFor(container: Container, driverId: string, offer?: { 
     // Coordonnées du passager : visibles UNIQUEMENT pendant la mission.
     client: { id: ride.clientId, name: client?.name ?? null, phone: client?.phone ?? null, rides: client?.rides ?? 0 },
     pickupZone: zone ? { id: zone.id, name: zone.name, driverBonus: zone.driverBonus ?? 0 } : null,
+    // Code de prise en charge : le chauffeur sait s'il doit le demander, jamais sa valeur.
+    codeRequis: container.codesPriseEnCharge.requis(ride.id),
+    codeVerifie: Boolean(container.codesPriseEnCharge.lire(ride.id)?.verifieLe),
     // Offre à confirmer (compte à rebours console) — null si déjà confirmée / chauffeur démo.
     offer: offer && offer.status === 'pending' ? { expiresAt: offer.expiresAt, timeoutSec: offer.timeoutSec } : null,
   };

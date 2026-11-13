@@ -302,6 +302,21 @@ export function useDriver() {
       const cur = activeRef.current;
       if (to === 'cancelled') { setActiveRide(null); await refresh(); } else if (cur && cur.id === rideId) setActiveRide({ ...cur, status: to });
     }),
+    /** Code du passager : renvoie le message d'erreur (mauvais code, essais restants) ou null. */
+    async start(rideId: string, code: string): Promise<string | null> {
+      setBusy(true);
+      try {
+        await backend.start(rideId, code);
+        const cur = activeRef.current;
+        if (cur && cur.id === rideId) setActiveRide({ ...cur, status: 'in_progress', codeRequis: false, codeVerifie: true });
+        showToast('Code vérifié : identité du passager confirmée', 'success');
+        return null;
+      } catch (e) {
+        return errMsg(e);
+      } finally {
+        setBusy(false);
+      }
+    },
     wait: (rideId: string, minutes: number) => run(async () => {
       const r = await backend.wait(rideId, minutes);
       const cur = activeRef.current;

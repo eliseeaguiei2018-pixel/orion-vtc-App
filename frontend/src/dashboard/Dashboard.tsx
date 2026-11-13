@@ -356,7 +356,7 @@ function CarteFlotte({ flotte, courses }: { flotte: VehiculeFlotte[]; courses: C
 /* --------------------------------- Journal --------------------------------- */
 
 const ICONE_GENRE: Record<EntreeJournal['genre'], () => React.ReactNode> = {
-  commande: () => <IcoPlus />, attribution: () => <IcoVolant />, approche: () => <IcoFleche />, arrivee: () => <IcoEpingle />,
+  commande: () => <IcoPlus />, attribution: () => <IcoVolant />, approche: () => <IcoFleche />, arrivee: () => <IcoEpingle />, identite: () => <IcoCle />,
   depart: () => <IcoFleche />, terminee: () => <IcoDrapeau />, paiement: () => <IcoCaisse />, annulation: () => <IcoCroix />,
   alerte: () => <IcoBouclier />, secours: () => <IcoTel />, message: () => <IcoBulle />, location: () => <IcoVoiture />,
 };
@@ -519,4 +519,5 @@ const IcoFleche = () => <Svg><path d="M5 12h14M13 6l6 6-6 6" /></Svg>;
 const IcoEpingle = () => <Svg><path d="M12 21s-6.5-6.2-6.5-11a6.5 6.5 0 0 1 13 0c0 4.8-6.5 11-6.5 11z" /><circle cx="12" cy="10" r="2.3" /></Svg>;
 const IcoCroix = () => <Svg><path d="M6 6l12 12M18 6 6 18" /></Svg>;
 const IcoTel = () => <Svg><path d="M5 4h4l1.5 4.5-2.5 1.5a11 11 0 0 0 6 6l1.5-2.5L20 15v4a1.5 1.5 0 0 1-1.6 1.5C10.6 20 4 13.4 3.5 5.6A1.5 1.5 0 0 1 5 4z" /></Svg>;
+const IcoCle = () => <Svg><rect x="4" y="10" width="16" height="10" rx="2.5" /><path d="M8 10V7.5a4 4 0 0 1 8 0V10M12 14v2.5" /></Svg>;
 const IcoBulle = () => <Svg><path d="M4 5h16v11H9l-5 4z" /></Svg>;

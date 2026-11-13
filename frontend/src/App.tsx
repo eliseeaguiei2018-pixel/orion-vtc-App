@@ -21,7 +21,7 @@ import {
   ABIDJAN_PLACES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type PkgSize, type SafeDriver, type SosSuivi, type SupportMessage } from './api';
+import { lireCodePriseEnCharge, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type PkgSize, type SafeDriver, type SosSuivi, type SupportMessage } from './api';
 import { useI18n } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
@@ -1478,6 +1478,16 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
   const del = mode === 'delivery';
   const [calling, setCalling] = useState(false);
   const progressRef = useRef(0);
+  // CODE DE PRISE EN CHARGE : affiché au passager pendant l'approche ; le chauffeur le
+  // saisit pour démarrer. Démonstration sans serveur : un code local, validé au départ.
+  const [code, setCode] = useState<string | null>(null);
+  const [codeEtat, setCodeEtat] = useState<'attente' | 'ok' | 'bloque'>('attente');
+  useEffect(() => {
+    if (del) return;
+    if (!live || !rideId) { setCode(String(1000 + Math.floor(Math.random() * 9000))); return; }
+    void lireCodePriseEnCharge(rideId).then((c) => { if (c) { setCode(c.code); if (c.verifie) setCodeEtat('ok'); } });
+  }, [del, live, rideId]);
+  useEffect(() => { if (!live && phase === 'inprogress') setCodeEtat('ok'); }, [live, phase]);
   const driverStart = useMemo<LatLng>(() => ({ lat: origin.location.lat - 0.018, lng: origin.location.lng - 0.012 }), [origin.location]);
 
   useEffect(() => {
@@ -1491,6 +1501,11 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
         if (m.type === 'driver.location' && m.data.position) setCarPos(m.data.position);
         if (m.type === 'ride.reassigned' && m.data.driver) onReassigned?.(m.data.driver);
         if (m.type === 'message') onMessage?.(m.data as unknown as MessageOrion);
+        if (m.type === 'ride.code') {
+          const d = m.data as unknown as { resultat?: string; bloque?: boolean };
+          if (d.resultat === 'verifie') setCodeEtat('ok');
+          else if (d.bloque) setCodeEtat('bloque');
+        }
         if (m.type === 'ride.status') {
           const s = m.data.status;
           if (s === 'cancelled') onServerCancel?.();
@@ -1546,6 +1561,23 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
           <span className="badge green"><IconShield size={13} /> {banner}</span>
           <span className="faint" style={{ fontSize: 12 }}>{eta}</span>
         </div>
+        {!del && code && codeEtat === 'attente' && (phase === 'enroute' || phase === 'arrived') && (
+          <div className={`code-prise${phase === 'arrived' ? ' maintenant' : ''}`} role="status" aria-live="polite">
+            <div className="code-prise-texte">
+              <span className="code-prise-titre"><IconShieldCheck size={15} /> {t('code_titre')}</span>
+              <span className="code-prise-aide">{t('code_aide')}</span>
+            </div>
+            <div className="code-prise-chiffres" aria-label={`${t('code_titre')} : ${code.split('').join(' ')}`}>
+              {code.split('').map((c, i) => <span key={i}>{c}</span>)}
+            </div>
+          </div>
+        )}
+        {!del && codeEtat === 'ok' && (phase === 'arrived' || phase === 'inprogress') && (
+          <div className="code-prise-ok" role="status"><IconShieldCheck size={16} /> {t('code_ok')}</div>
+        )}
+        {!del && codeEtat === 'bloque' && (
+          <div className="code-prise-bloque" role="alert">{t('code_bloque')}</div>
+        )}
         {/* Fiche chauffeur : photo, nom & prénom, note, matricule ORION */}
         <div className="card" style={{ padding: 14, marginBottom: 12 }}>
           <div className="row">

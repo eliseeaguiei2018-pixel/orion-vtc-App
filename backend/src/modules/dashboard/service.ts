@@ -22,7 +22,7 @@ export interface EntreeJournal {
   id: string;
   at: string;
   /** Ce qui s'est passé : sert à l'icône et à la couleur de la ligne. */
-  genre: 'commande' | 'attribution' | 'approche' | 'arrivee' | 'depart' | 'terminee' | 'paiement' | 'annulation' | 'alerte' | 'secours' | 'message' | 'location';
+  genre: 'commande' | 'attribution' | 'approche' | 'arrivee' | 'identite' | 'depart' | 'terminee' | 'paiement' | 'annulation' | 'alerte' | 'secours' | 'message' | 'location';
   niveau: 'info' | 'succes' | 'alerte';
   service?: Service;
   titre: string;
@@ -44,6 +44,8 @@ const debutDuJour = (maintenant = new Date()) => { const d = new Date(maintenant
 const service = (r: Ride): Service => (r.serviceType === 'delivery' ? 'livraison' : 'course');
 /** Moment où la course a atteint un statut (horodatage de l'événement). */
 const momentDe = (r: Ride, type: string) => r.events.find((e) => e.type === type)?.at;
+/** Accord en français : 0 et 1 au singulier. */
+const pl = (n: number, un: string, plusieurs: string) => `${n} ${n > 1 ? plusieurs : un}`;
 const commune = (p: LatLng) => nearestZone(p)?.zone.name ?? 'Abidjan';
 
 /** Jours d'historique de démonstration : jamais en production, 730 par défaut en développement simulé. */
@@ -135,6 +137,24 @@ export class TableauDeBord {
           return { ...base, genre: 'terminee', niveau: 'succes', service: svc, titre: `${quoi} notée${typeof note === 'number' ? ` ${note} ★` : ''}`, detail: `par ${this.client(ride.clientId)}` };
         }
         if (s === 'cancelled') return { ...base, genre: 'annulation', niveau: 'alerte', service: svc, titre: `${quoi} annulée`, detail: d.reason === 'no_driver' ? 'Aucun conducteur disponible' : this.trajet(ride) };
+        return null;
+      }
+      case 'ride.code': {
+        // Code de prise en charge : identité du passager confirmée, ou saisie refusée.
+        if (!ride) return null;
+        if (d.resultat === 'verifie') {
+          return { ...base, genre: 'identite', niveau: 'succes', service: service(ride),
+            titre: `Identité confirmée par code · ${this.client(ride.clientId)}`,
+            detail: `${this.conducteur(ride)} · ${d.par === 'simulation' ? 'saisie simulée' : 'code saisi dans l’app chauffeur'}` };
+        }
+        if (d.resultat === 'faux' && d.bloque) {
+          return { ...base, genre: 'identite', niveau: 'alerte', service: service(ride),
+            titre: 'Code de prise en charge bloqué', detail: `${this.conducteur(ride)} · 5 erreurs, passager prévenu : à rappeler` };
+        }
+        if (d.resultat === 'faux') {
+          return { ...base, genre: 'identite', niveau: 'info', service: service(ride),
+            titre: 'Code de prise en charge erroné', detail: `${this.conducteur(ride)} · ${pl(Number(d.essaisRestants ?? 0), 'essai restant', 'essais restants')}` };
+        }
         return null;
       }
       case 'payment.received':

@@ -6,7 +6,7 @@ export type Service = 'course' | 'livraison';
 export interface EntreeJournal {
   id: string;
   at: string;
-  genre: 'commande' | 'attribution' | 'approche' | 'arrivee' | 'depart' | 'terminee' | 'paiement' | 'annulation' | 'alerte' | 'secours' | 'message' | 'location';
+  genre: 'commande' | 'attribution' | 'approche' | 'arrivee' | 'identite' | 'depart' | 'terminee' | 'paiement' | 'annulation' | 'alerte' | 'secours' | 'message' | 'location';
   niveau: 'info' | 'succes' | 'alerte';
   service?: Service;
   titre: string;

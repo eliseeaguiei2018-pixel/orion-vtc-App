@@ -2,10 +2,12 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Container } from '../../container.js';
-import { exigerTitulaire } from '../clients/auth.js';
+import { exigerTitulaire, requireClient } from '../clients/auth.js';
+import { driverTokenOf, verifyDriverToken } from '../driver-app/auth.js';
+import { MAX_ESSAIS } from './code-prise-en-charge.js';
 import { exigerDossierAssurance } from '../assurance/routes.js';
 import { parse } from '../../core/validate.js';
-import { badRequest, conflict, notFound } from '../../core/errors.js';
+import { AppError, badRequest, conflict, forbidden, notFound, unauthorized } from '../../core/errors.js';
 import { rideStateMachine, type RideStatus } from '../services/ride/stateMachine.js';
 import { rideRoom } from '../realtime/hub.js';
 import type { Ride } from './store.js';
@@ -177,6 +179,9 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       }
 
       container.rides.save(created);
+      // CODE DE PRISE EN CHARGE : pour une course de passager (pas pour un colis), un code
+      // à 4 chiffres que seul le passager voit ; le chauffeur le saisit pour démarrer.
+      if (created.serviceType !== 'delivery') container.codesPriseEnCharge.creer(created.id);
       // Nouvelle commande : le tableau de bord l'affiche aussitôt.
       container.realtime.publish(rideRoom(created.id), 'ride.created', { rideId: created.id, status: created.status });
       // App chauffeur : affectation poussée en direct sur son canal personnel.
@@ -198,8 +203,11 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     // matché — cohérent avec la page de partage (contact de confiance).
     const drv = ride.driverId ? container.drivers.get(ride.driverId) : undefined;
     reply.code(201);
+    const code = container.codesPriseEnCharge.lire(ride.id);
     return {
       ride,
+      // Le code ne part QU'À celui qui commande ; il n'est dans aucune autre réponse.
+      codePriseEnCharge: code && !code.verifieLe ? code.code : null,
       driver: drv ? { name: drv.name, matricule: drv.matricule, ratingAvg: drv.ratingAvg, ratingCount: drv.ratingCount, vehicleModel: drv.vehicleModel ?? null } : null,
       shareUrl: ride.shareToken ? `/share/${ride.shareToken}` : null,
     };
@@ -228,6 +236,67 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     return { ride };
   });
 
+  /**
+   * Le code de prise en charge, pour le PASSAGER connecté seulement (session client du
+   * titulaire de la course). Un chauffeur n'y a jamais accès : c'est tout le principe.
+   */
+  app.get('/rides/:id/code', async (req) => {
+    const { id } = req.params as { id: string };
+    const ride = container.rides.get(id);
+    if (!ride) throw notFound('Course introuvable');
+    if (verifyDriverToken(driverTokenOf(req))) throw forbidden('Le code est réservé au passager');
+    requireClient(req, ride.clientId);
+    const c = container.codesPriseEnCharge.lire(id);
+    if (!c) throw notFound('Pas de code pour cette course');
+    return { code: c.code, verifie: Boolean(c.verifieLe), bloque: Boolean(c.bloqueLe), essais: c.essais };
+  });
+
+  /**
+   * DÉMARRAGE DE LA COURSE PAR LE CHAUFFEUR : il saisit le code que le passager lui donne.
+   * Bon code : la course démarre et l'identité du passager est confirmée. Mauvais code :
+   * refus, avec le nombre d'essais restants ; au cinquième, la saisie est bloquée, le
+   * passager est prévenu et la supervision le voit dans le journal.
+   */
+  app.post('/rides/:id/start', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = parse(z.object({ code: z.string().regex(/^\d{4}$/, 'Le code compte 4 chiffres') }), req.body);
+    const ride = container.rides.get(id);
+    if (!ride) throw notFound('Course introuvable');
+    const chauffeur = verifyDriverToken(driverTokenOf(req));
+    if (!chauffeur) throw unauthorized('Connexion chauffeur requise');
+    if (ride.driverId !== chauffeur) throw forbidden('Cette course ne vous est pas attribuée');
+    if (ride.status !== 'arrived') throw conflict('Signalez d’abord votre arrivée au point de prise en charge');
+
+    const r = container.codesPriseEnCharge.verifier(id, body.code);
+    if (!r.ok && r.raison === 'faux') {
+      container.realtime.publish(rideRoom(id), 'ride.code', { rideId: id, resultat: 'faux', essaisRestants: r.essaisRestants, bloque: r.bloque });
+      if (r.bloque) {
+        container.messages.envoyerSysteme(ride.clientId, {
+          titre: 'Code de prise en charge bloqué',
+          texte: `Le chauffeur a saisi un mauvais code ${MAX_ESSAIS} fois. Ne montez pas tant que la supervision ORION ne vous a pas rappelé.`,
+          type: 'consigne',
+        });
+        container.audit.log({ actor: 'Système ORION', role: 'super_admin', action: 'ride.code_bloque', target: id, details: { driverId: chauffeur } });
+        reply.code(423);
+        return { error: 'Trop d’erreurs : la saisie est bloquée. Appelez la supervision ORION.', essaisRestants: 0, bloque: true };
+      }
+      reply.code(400);
+      return { error: `Code incorrect. ${r.essaisRestants} essai${r.essaisRestants > 1 ? 's' : ''} restant${r.essaisRestants > 1 ? 's' : ''}.`, essaisRestants: r.essaisRestants, bloque: false };
+    }
+    if (!r.ok && r.raison === 'bloque') {
+      reply.code(423);
+      return { error: 'La saisie est bloquée. Appelez la supervision ORION.', essaisRestants: 0, bloque: true };
+    }
+
+    rideStateMachine.assertTransition(ride.status, 'in_progress');
+    ride.status = 'in_progress';
+    appendEvent(ride, 'in_progress', { codeVerifie: r.ok || r.raison === 'deja_verifie' });
+    container.rides.persist(ride);
+    container.realtime.publish(rideRoom(ride.id), 'ride.status', { rideId: ride.id, status: ride.status });
+    if (r.ok) container.realtime.publish(rideRoom(id), 'ride.code', { rideId: id, resultat: 'verifie', par: 'chauffeur' });
+    return { ride };
+  });
+
   app.get('/clients/:clientId/rides', async (req) => {
     const { clientId } = req.params as { clientId: string };
     exigerTitulaire(req, clientId, (c) => Boolean(container.clients.get(c)));
@@ -242,6 +311,11 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     if (!ride) throw notFound('Course introuvable');
 
     rideStateMachine.assertTransition(ride.status, body.to);
+    // Un chauffeur ne démarre pas une course de passager sans le code de prise en charge
+    // (route /rides/:id/start). Les outils de supervision gardent la main.
+    if (body.to === 'in_progress' && container.codesPriseEnCharge.requis(ride.id) && (verifyDriverToken(driverTokenOf(req)) || config.DRIVER_AUTH_STRICT)) {
+      throw new AppError(409, 'CODE_REQUIS', 'Saisissez le code de prise en charge donné par le passager.');
+    }
     ride.status = body.to;
     appendEvent(ride, body.to);
     container.rides.persist(ride);

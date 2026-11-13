@@ -33,7 +33,7 @@ async function order(app: FastifyInstance, key: string, paymentMethod?: string) 
   const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: ORIGIN, destination: DEST, category: 'bronze' } });
   const r = await app.inject({ method: 'POST', url: '/rides', headers: { 'idempotency-key': key }, payload: { clientId: `client-${key}`, lockId: est.json().quote.lockId, paymentMethod } });
   assert.equal(r.statusCode, 201, r.body);
-  return r.json().ride as { id: string; status: string; driverId?: string; paymentMethod?: string };
+  return { ...r.json().ride, code: r.json().codePriseEnCharge } as { id: string; status: string; driverId?: string; paymentMethod?: string; code: string };
 }
 
 test('Connexion : inscription par code SMS, reconnexion, code faux, anti-spam', async (t) => {
@@ -233,9 +233,12 @@ test('Course, espèces et gains : dette espèces, plafond console, historique', 
   assert.equal(active.json().ride.paymentMethod, 'cash');
 
   // Le chauffeur fait avancer la course avec SON jeton (routes existantes).
+  // Le démarrage passe par le code que le passager donne au chauffeur.
   for (const to of ['driver_en_route', 'arrived', 'in_progress', 'completed']) {
-    const r = await app.inject({ method: 'POST', url: `/rides/${ride.id}/transition`, headers: s.headers, payload: { to } });
-    assert.equal(r.statusCode, 200, `transition ${to}`);
+    const r = to === 'in_progress'
+      ? await app.inject({ method: 'POST', url: `/rides/${ride.id}/start`, headers: s.headers, payload: { code: ride.code } })
+      : await app.inject({ method: 'POST', url: `/rides/${ride.id}/transition`, headers: s.headers, payload: { to } });
+    assert.equal(r.statusCode, 200, `transition ${to} : ${r.body}`);
   }
   const pay = await app.inject({ method: 'POST', url: `/rides/${ride.id}/pay`, headers: { 'idempotency-key': 'pay-cash-1' }, payload: { method: 'cash' } });
   assert.equal(pay.statusCode, 200);
