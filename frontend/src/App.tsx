@@ -1240,11 +1240,28 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
 }) {
   const { t } = useI18n();
   const stopLocs = stops.map((s) => s.location);
-  const prices = useMemo(
-    () => Object.fromEntries(TIERS.map((v) => [v.id, previewQuote(origin.location, destination.location, v, { bodyType, stops: stopLocs }).amount])),
+  const apercus = useMemo(
+    () => Object.fromEntries(TIERS.map((v) => [v.id, previewQuote(origin.location, destination.location, v, { bodyType, stops: stopLocs }).amount])) as Record<string, number>,
     [origin.location, destination.location, bodyType, stops],
   );
-  const traffic = previewQuote(origin.location, destination.location, tier).trafficLevel;
+  // PRIX FIXE : l'aperçu local s'affiche sans attendre, puis le prix du serveur le
+  // remplace (zone, majoration, frais de prise en charge). Sans cela, la liste annonçait
+  // un montant et l'écran de confirmation un autre.
+  const [serveur, setServeur] = useState<{ prix: Record<string, number>; trafic?: 'fluid' | 'dense' | 'jam' } | null>(null);
+  useEffect(() => {
+    let annule = false;
+    setServeur(null);
+    void Promise.all(TIERS.map((v) => estimateWithCoverage(origin.location, destination.location, v, { bodyType, stops: stopLocs })))
+      .then((devis) => {
+        if (annule) return;
+        setServeur({ prix: Object.fromEntries(TIERS.map((v, i) => [v.id, devis[i]!.quote.amount])), trafic: devis[0]?.quote.trafficLevel });
+      })
+      .catch(() => { /* hors ligne : l'aperçu local reste affiché */ });
+    return () => { annule = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [origin.location, destination.location, bodyType, stops]);
+  const prices = serveur?.prix ?? apercus;
+  const traffic = serveur?.trafic ?? previewQuote(origin.location, destination.location, tier).trafficLevel;
   return (
     <div className="screen">
       <OrionMap origin={origin.location} destination={destination.location} stops={stopLocs} />
