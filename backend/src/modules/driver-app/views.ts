@@ -2,6 +2,7 @@ import type { Container } from '../../container.js';
 import { effectiveCommissionRate } from '../wallet/service.js';
 import type { Driver } from '../drivers/store.js';
 import type { Ride } from '../rides/store.js';
+import type { RentalReservation } from '../rental/service.js';
 
 /** Statuts de course « actifs » côté chauffeur (mission en cours). */
 export const ACTIVE = new Set(['accepted', 'driver_en_route', 'arrived', 'in_progress', 'completed']);
@@ -13,8 +14,10 @@ export const startOfDay = (d = new Date()) => Date.UTC(d.getUTCFullYear(), d.get
  * Vue d'une course POUR LE CHAUFFEUR : trajet, montant, moyen de paiement, et surtout
  * ce que la course lui a rapporté (ledger) — gain net, bonus, commission, espèces.
  */
-export function driverRideView(ride: Ride, container: Container, driverId: string) {
-  const entries = container.wallet.history(driverId).filter((e) => e.rideId === ride.id);
+export function driverRideView(ride: Ride, container: Container, driverId: string, ecritures?: readonly LedgerLike[]) {
+  // VOLUME : les écritures du chauffeur se lisent sans copie ni tri (ecritures), et
+  // l'historique les passe déjà regroupées par course.
+  const entries = (ecritures ?? container.wallet.ecritures(driverId)).filter((e) => e.rideId === ride.id);
   const sum = (types: string[]) => entries.filter((e) => types.includes(e.type)).reduce((s, e) => s + e.amount, 0);
   const paid = ride.events.find((e) => e.type === 'paid')?.payload as { method?: string; amount?: number } | undefined;
   const rated = ride.events.find((e) => e.type === 'rated')?.payload as { stars?: number; comment?: string } | undefined;
@@ -40,8 +43,72 @@ export function driverRideView(ride: Ride, container: Container, driverId: strin
       cashCollected: Math.round(-sum(['cash_collected'])),
     },
     rating: rated?.stars ?? null,
+    // Abonnement du client : ce qu'il paie réellement (le chauffeur est payé sur le brut).
+    encaissement: montantsAEncaisser(container, ride),
+    // Course terminée sans paiement après le délai console : chauffeur libéré, à régulariser.
+    liberee: ride.events.some((e) => e.type === 'driver_released_unpaid'),
     createdAt: ride.createdAt,
     updatedAt: last?.at ?? ride.createdAt,
+  };
+}
+
+interface LedgerLike { rideId?: string; type: string; amount: number }
+
+/**
+ * Ce que le client doit RÉELLEMENT payer à la fin de la course — même calcul que la route
+ * de paiement : prix fixe + attente facturée, moins la part prise en charge par son
+ * abonnement ORION. Le chauffeur est rémunéré sur le BRUT dans tous les cas ; en espèces,
+ * il n'encaisse que `aEncaisser` (0 F si la course est entièrement couverte).
+ */
+export function montantsAEncaisser(container: Container, ride: Ride) {
+  const freeWait = container.settings.getPricing().freeWaitMinutes;
+  const attente = Math.max(0, (ride.waitMinutes ?? 0) - freeWait) * container.settings.getOps().waitFeePerMin;
+  const brut = ride.quote.amount + attente;
+  const prisEnCharge = (ride.subscription?.montantCouvert ?? 0) + (ride.subscription?.remise ?? 0);
+  return {
+    brut,
+    attente,
+    prisEnCharge: Math.min(brut, prisEnCharge),
+    aEncaisser: Math.max(0, brut - prisEnCharge),
+    abonnement: ride.subscription ? { plan: ride.subscription.plan, raison: ride.subscription.raison } : null,
+  };
+}
+
+/** Courses terminées que le chauffeur n'a pas encore vu payer (libération après délai console). */
+export function coursesARegulariser(container: Container, driverId: string) {
+  return container.rides.listByDriver(driverId)
+    .filter((r) => r.status === 'completed')
+    .slice(0, 20)
+    .map((r) => driverRideView(r, container, driverId));
+}
+
+/**
+ * Location Signature vue par le chauffeur : la prestation à assurer, jamais la facture
+ * (le prix reste à la console et au client).
+ */
+export function vueLocationChauffeur(r: RentalReservation) {
+  const etapes = r.events
+    .filter((e) => e.type.startsWith('chauffeur:'))
+    .map((e) => ({ etape: e.type.slice('chauffeur:'.length), at: e.at, note: e.note ?? null }));
+  return {
+    id: r.id,
+    formula: r.formula,
+    duree: r.duree,
+    heures: r.heures,
+    heuresService: r.heuresService,
+    vehicle: r.vehicle,
+    debut: r.debut,
+    fin: r.fin,
+    lieu: r.lieu ?? null,
+    contact: r.contact ?? null,
+    societe: r.societe ?? null,
+    status: r.status,
+    options: r.options,
+    jourJ: r.jourJ,
+    kmInclus: r.kmInclus,
+    secondChauffeurRequis: r.secondChauffeurRequis,
+    /** Avancement déclaré par le chauffeur (véhicule préparé, en route, sur place…). */
+    etapes,
   };
 }
 
@@ -59,15 +126,21 @@ export function totals(views: ReturnType<typeof driverRideView>[], sinceMs: numb
 
 /** Course en cours du chauffeur, enrichie (client, secteur de prise en charge). */
 export function activeRideFor(container: Container, driverId: string, offer?: { expiresAt: string; timeoutSec: number; status: string } | null) {
-  const ride = container.rides.listByDriver(driverId).find((r) => ACTIVE.has(r.status));
+  // Une course terminée dont le chauffeur a été LIBÉRÉ faute de paiement n'est plus sa
+  // mission : elle passe dans « à régulariser » (sinon l'app restait bloquée dessus).
+  const ride = container.rides.listByDriver(driverId)
+    .find((r) => ACTIVE.has(r.status) && !(r.status === 'completed' && r.events.some((e) => e.type === 'driver_released_unpaid')));
   if (!ride) return null;
   const client = container.clients.get(ride.clientId);
+  // Confidentialité (politique publiée) : le chauffeur voit le PRÉNOM et la photo du
+  // passager, le temps de la course — pas son nom complet.
+  const prenom = client?.name?.trim().split(/\s+/)[0] ?? null;
   const zone = container.settings.zoneForPoint(ride.origin);
   return {
     ...driverRideView(ride, container, driverId),
     events: ride.events.map((e) => ({ type: e.type, at: e.at })),
     // Coordonnées du passager : visibles UNIQUEMENT pendant la mission.
-    client: { id: ride.clientId, name: client?.name ?? null, phone: client?.phone ?? null, rides: client?.rides ?? 0 },
+    client: { id: ride.clientId, name: prenom, phone: client?.phone ?? null, rides: client?.rides ?? 0, photo: client?.photo ?? null },
     pickupZone: zone ? { id: zone.id, name: zone.name, driverBonus: zone.driverBonus ?? 0 } : null,
     // Code de prise en charge : le chauffeur sait s'il doit le demander, jamais sa valeur.
     codeRequis: container.codesPriseEnCharge.requis(ride.id),

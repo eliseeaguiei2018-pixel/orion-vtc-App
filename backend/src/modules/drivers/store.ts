@@ -68,6 +68,8 @@ export interface Driver {
   offersAccepted?: number;
   offersDeclined?: number;
   offersExpired?: number;
+  /** Courses annulées par le chauffeur lui-même (qualité de service, hors motif de sécurité). */
+  cancellations?: number;
 }
 
 /** Génère un matricule ORION lisible, ex. ORION-CI-4821. */

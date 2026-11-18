@@ -67,6 +67,7 @@ import type { LedgerEntry } from './modules/wallet/service.js';
 import type { Subscription, SubscriptionInvoice } from './modules/subscriptions/service.js';
 import type { WeddingReservation } from './modules/wedding/service.js';
 import type { RentalReservation } from './modules/rental/service.js';
+import { vueLocationChauffeur } from './modules/driver-app/views.js';
 import { Mesures } from './core/mesures.js';
 
 /**
@@ -421,6 +422,22 @@ export function createContainer(): Container {
     const controle = setInterval(() => controlerCoursesEnCours(container, config.SAFETY_CHECKIN_SECONDS), 5_000);
     controle.unref?.();
   }
+
+  // APP CHAUFFEUR : une location Signature qui bouge (statut console, annulation,
+  // réaffectation, étape déclarée) est poussée en direct au chauffeur concerné.
+  container.rental.onChange((r, evenement, precedent) => {
+    if (precedent) {
+      realtime.publish(driverRoom(precedent), 'rental.withdrawn', { id: r.id });
+      container.notifications.notify({ driverId: precedent }, 'Location retirée', `${r.vehicle.name} — ${new Date(r.debut).toLocaleString('fr-FR')} : cette location a été confiée à un autre chauffeur.`);
+    }
+    if (!r.driverId) return;
+    realtime.publish(driverRoom(r.driverId), 'rental.update', { rental: vueLocationChauffeur(r), evenement });
+    if (evenement === 'annulation') {
+      container.notifications.notify({ driverId: r.driverId }, 'Location annulée', `${r.vehicle.name} — ${new Date(r.debut).toLocaleString('fr-FR')} : la location est annulée.`);
+    } else if (evenement === 'statut:confirmee') {
+      container.notifications.notify({ driverId: r.driverId }, 'Location confirmée 💎', `${r.vehicle.name} — ${new Date(r.debut).toLocaleString('fr-FR')}${r.lieu ? ` · ${r.lieu}` : ''}`);
+    }
+  });
 
   // INTERCONNEXION : une requête chauffeur qui bouge réveille les sessions qui en
   // dépendent. Sans cela, le chauffeur dépose, et personne ne le sait avant la

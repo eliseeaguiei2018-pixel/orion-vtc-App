@@ -10,11 +10,19 @@ import { CONFIG_ROOM, DRIVER_CONFIG_ROOM, driverRoom, rideRoom, type RealtimeMes
 import { ANNOUNCE_ROOM } from '../notifications/service.js';
 import { genMatricule } from '../drivers/store.js';
 import { driverAppConfig } from './config.js';
-import { activeRideFor, driverRideView, financeFor, startOfDay, totals } from './views.js';
+import { activeRideFor, coursesARegulariser, driverRideView, financeFor, startOfDay, totals, vueLocationChauffeur } from './views.js';
+import { ETAPES_CHAUFFEUR } from '../rental/service.js';
+import { rideStateMachine } from '../services/ride/stateMachine.js';
+import type { Ride } from '../rides/store.js';
 import { offersOf } from './offers.js';
 import {
   OtpStore, driverTokenOf, issueDriverToken, normalizePhone, requireDriver, verifyDriverToken,
 } from './auth.js';
+
+/** Ajoute un événement daté à une course (même forme que le module courses). */
+function appendEvent(ride: Ride, type: string, payload?: Record<string, unknown>): void {
+  ride.events.push({ type, at: new Date().toISOString(), payload });
+}
 
 /** Masque un numéro pour les journaux (jamais de numéro complet dans les logs). */
 const maskPhone = (p: string) => p.replace(/\d(?=\d{2})/g, '•');
@@ -157,7 +165,15 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
     const driver = container.drivers.get(id);
     if (!driver) throw notFound('Chauffeur introuvable');
     const q = parse(z.object({ limit: z.coerce.number().int().min(1).max(200).default(50) }), req.query ?? {});
-    const views = container.rides.listByDriver(id).map((r) => driverRideView(r, container, id));
+    // VOLUME : les écritures du chauffeur sont regroupées par course une seule fois.
+    const parCourse = new Map<string, Array<{ rideId?: string; type: string; amount: number }>>();
+    for (const e of container.wallet.ecritures(id)) {
+      if (!e.rideId) continue;
+      const l = parCourse.get(e.rideId) ?? [];
+      l.push(e);
+      parCourse.set(e.rideId, l);
+    }
+    const views = container.rides.listByDriver(id).map((r) => driverRideView(r, container, id, parCourse.get(r.id) ?? []));
     const today = startOfDay();
     return {
       rides: views.slice(0, q.limit),
@@ -165,6 +181,8 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
       today: totals(views, today),
       week: totals(views, today - 6 * 86_400_000),
       finance: financeFor(container, driver),
+      // Courses terminées sans paiement après le délai console : à encaisser ou régulariser.
+      aRegulariser: views.filter((v) => v.status === 'completed' && v.liberee),
     };
   });
 
@@ -188,26 +206,87 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
     const { id } = req.params as { id: string };
     requireDriver(req, id);
     if (!container.drivers.get(id)) throw notFound('Chauffeur introuvable');
-    const rentals = container.rental.listByDriver(id).map((r) => ({
-      id: r.id,
-      formula: r.formula,
-      duree: r.duree,
-      heures: r.heures,
-      heuresService: r.heuresService,
-      vehicle: r.vehicle,
-      debut: r.debut,
-      fin: r.fin,
-      lieu: r.lieu ?? null,
-      contact: r.contact ?? null,
-      societe: r.societe ?? null,
-      status: r.status,
-      options: r.options,
-      jourJ: r.jourJ,
-      // Le chauffeur n'a pas à connaître le montant facturé au client ; il a besoin
-      // de la prestation à assurer. Le prix reste à la console et au client.
-      kmInclus: r.kmInclus,
-    }));
+    // Le chauffeur n'a pas à connaître le montant facturé au client ; il a besoin
+    // de la prestation à assurer. Le prix reste à la console et au client.
+    const rentals = container.rental.listByDriver(id).map(vueLocationChauffeur);
     return { rentals, total: rentals.length };
+  });
+
+  /**
+   * Étape déclarée par le chauffeur sur SA location : véhicule préparé (décoration,
+   * tapis rouge, rafraîchissements…), en route, sur place, début puis fin de service.
+   * La console (session Location) voit l'avancement ; le dossier passe en cours puis terminé.
+   */
+  app.post('/drivers/:id/rentals/:rentalId/etape', async (req) => {
+    const { id, rentalId } = req.params as { id: string; rentalId: string };
+    requireDriver(req, id);
+    const body = parse(z.object({ etape: z.enum(ETAPES_CHAUFFEUR), note: z.string().trim().max(200).optional() }), req.body);
+    const r = container.rental.etapeChauffeur(rentalId, id, body.etape, body.note);
+    const d = container.drivers.get(id);
+    container.audit.log({ actor: d?.name ?? id, role: 'chauffeur', action: 'rental.etape_chauffeur', target: rentalId, details: { etape: body.etape } });
+    return { rental: vueLocationChauffeur(r) };
+  });
+
+  /* --------------------------- Annulation chauffeur --------------------------- */
+
+  /**
+   * ANNULATION PAR LE CHAUFFEUR — motif obligatoire, tracé, et jamais à la charge du
+   * passager (il annulait par la transition générique : frais facturés au client et
+   * « annulation abusive » comptée contre lui, sans motif ni auteur).
+   *  - Avant la prise en charge : la course repart vers un autre chauffeur, le passager
+   *    garde son suivi et ne paie rien.
+   *  - Client absent : seulement une fois arrivé ET après les minutes d'attente offertes ;
+   *    la course est annulée et les frais console s'appliquent (no-show).
+   *  - Course en cours : pas d'annulation (terminer la course ou SOS).
+   */
+  const MOTIFS_CHAUFFEUR = ['client_absent', 'client_injoignable', 'adresse_introuvable', 'vehicule_panne', 'securite', 'autre'] as const;
+  app.post('/drivers/:id/rides/:rideId/cancel', async (req) => {
+    const { id, rideId } = req.params as { id: string; rideId: string };
+    requireDriver(req, id);
+    const body = parse(z.object({ motif: z.enum(MOTIFS_CHAUFFEUR), details: z.string().trim().max(300).optional() }), req.body);
+    const ride = container.rides.get(rideId);
+    if (!ride || ride.driverId !== id) throw notFound('Course introuvable');
+    if (!rideStateMachine.canTransition(ride.status, 'cancelled')) {
+      throw badRequest(ride.status === 'in_progress'
+        ? 'La course est en cours : terminez-la, ou utilisez le SOS en cas de danger.'
+        : 'Cette course ne peut plus être annulée.');
+    }
+    const d = container.drivers.get(id)!;
+    container.audit.log({
+      actor: d.name, role: 'chauffeur', action: body.motif === 'securite' ? 'ride.cancel_chauffeur_securite' : 'ride.cancel_chauffeur',
+      target: rideId, details: { motif: body.motif, details: body.details, status: ride.status },
+    });
+    // Qualité de service : les annulations du chauffeur sont comptées (sauf insécurité).
+    if (body.motif !== 'securite') { d.cancellations = (d.cancellations ?? 0) + 1; container.drivers.persist(id); }
+
+    if (body.motif === 'client_absent') {
+      const arrivee = [...ride.events].reverse().find((e) => e.type === 'arrived');
+      const attenteMin = arrivee ? (Date.now() - Date.parse(arrivee.at)) / 60_000 : 0;
+      const offertes = container.settings.getPricing().freeWaitMinutes;
+      if (ride.status !== 'arrived' || attenteMin < offertes) {
+        throw badRequest(`« Client absent » : possible après ${offertes} min d’attente au point de prise en charge.`);
+      }
+      const frais = container.settings.getPricing().cancelFee;
+      ride.status = 'cancelled';
+      appendEvent(ride, 'cancelled', { by: 'chauffeur', motif: 'client_absent', details: body.details, frais, attenteMin: Math.round(attenteMin) });
+      if (frais > 0) {
+        appendEvent(ride, 'cancel_fee', { amount: frais, noShow: true, afterMinutes: Math.round(attenteMin) });
+        const client = container.clients.get(ride.clientId);
+        if (client) { client.noShowFees = (client.noShowFees ?? 0) + frais; container.clients.persist(ride.clientId); }
+      }
+      container.rides.persist(ride);
+      container.matching.releaseLock(id);
+      container.drivers.setAvailability(id, 'online');
+      container.realtime.publish(rideRoom(ride.id), 'ride.status', { rideId: ride.id, status: 'cancelled', reason: 'client_absent' });
+      container.notifications.notify({ clientId: ride.clientId }, 'Course annulée — passager absent',
+        `Votre chauffeur vous a attendu ${Math.round(attenteMin)} min au point de prise en charge.${frais > 0 ? ` Frais d’absence : ${frais.toLocaleString('fr-FR')} F.` : ''}`);
+      return { ok: true, reattribuee: false, frais };
+    }
+
+    // Autres motifs : le passager garde sa course, elle part vers un autre chauffeur.
+    // (Motif de sécurité : tracé au journal comme côté client ; en danger, c'est le SOS.)
+    const res = await offers.retirerChauffeur(ride, id, body.motif, body.details, body.motif === 'vehicule_panne');
+    return { ok: true, reattribuee: res.reassignedTo !== null, frais: 0 };
   });
 
   /* ------------------------------ Offres ------------------------------ */

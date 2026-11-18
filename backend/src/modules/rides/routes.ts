@@ -9,7 +9,7 @@ import { exigerDossierAssurance } from '../assurance/routes.js';
 import { parse } from '../../core/validate.js';
 import { AppError, badRequest, conflict, forbidden, notFound, unauthorized } from '../../core/errors.js';
 import { rideStateMachine, type RideStatus } from '../services/ride/stateMachine.js';
-import { rideRoom } from '../realtime/hub.js';
+import { driverRoom, rideRoom } from '../realtime/hub.js';
 import type { Ride } from './store.js';
 import { publishAssignment } from '../driver-app/offers.js';
 import { categorieDeFlotte } from './matching.js';
@@ -534,6 +534,14 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
         });
       }
       container.rides.persist(ride);
+    }
+    // App chauffeur : la note arrive en direct (étoiles et thèmes, jamais le texte brut
+    // du passager — un commentaire sensible part à la supervision, pas au chauffeur).
+    if (ride.driverId) {
+      const tags = (ride.events.find((e) => e.type === 'comment_tags')?.payload as { tags?: string[] } | undefined)?.tags ?? [];
+      container.realtime.publish(driverRoom(ride.driverId), 'ride.rated', {
+        rideId: ride.id, stars: body.stars, tags, ratingAvg: driver?.ratingAvg ?? null,
+      });
     }
     return { ride };
   });

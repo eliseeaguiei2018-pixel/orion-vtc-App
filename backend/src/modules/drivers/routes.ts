@@ -9,6 +9,7 @@ import { fromDriverApp } from '../driver-app/auth.js';
 import { driverRoom, rideRoom } from '../realtime/hub.js';
 import { genMatricule } from './store.js';
 import { normalizePhone } from '../driver-app/auth.js';
+import { ajouterPoint } from '../rides/simulator.js';
 
 const registerSchema = z.object({
   name: z.string().min(1),
@@ -90,6 +91,15 @@ export async function driverRoutes(app: FastifyInstance, container: Container): 
     container.realtime.publish(driverRoom(id), 'driver.location', { driverId: id, position: body.position });
     const activeRide = container.rides.findActiveByDriver(id);
     if (activeRide) {
+      // TRACÉ GPS des vrais chauffeurs (app) : même enregistrement que le simulateur.
+      // Son dernier point est LA position de la course (dossier SOS, tableau de bord),
+      // et il nourrit la détection de déviation, de vitesse et de position falsifiée.
+      if (activeRide.status === 'in_progress' && activeRide.traceDepart === undefined) {
+        activeRide.traceDepart = activeRide.trace?.length ?? 0; // la course commence ici
+      }
+      activeRide.trace = ajouterPoint(activeRide, { lat: body.position.lat, lng: body.position.lng, t: Date.now() });
+      // Persistance espacée (un point sur cinq) : le tracé survit à un redémarrage.
+      if (activeRide.trace.length % 5 === 0) container.rides.persist(activeRide);
       container.realtime.publish(rideRoom(activeRide.id), 'driver.location', {
         driverId: id,
         position: body.position,

@@ -130,8 +130,30 @@ export class OfferService {
     if (offer) this.c.realtime.publish(driverRoom(offer.driverId), 'ride.withdrawn', { rideId, reason });
   }
 
+  /**
+   * Le chauffeur ANNULE avant la prise en charge (client injoignable, adresse introuvable,
+   * panne, insécurité…) : le passager garde sa course, elle repart vers le chauffeur
+   * suivant (jamais vers celui qui a annulé), sans frais pour lui. Personne d'autre →
+   * annulation sans frais, comme pour un refus.
+   */
+  async retirerChauffeur(ride: Ride, driverId: string, motif: string, details?: string, horsLigne = false): Promise<{ reassignedTo: string | null }> {
+    this.clearTimer(ride.id);
+    const offer = this.offers.get(ride.id);
+    if (offer && offer.status === 'pending') offer.status = 'withdrawn';
+    this.c.matching.releaseLock(driverId);
+    // Panne : le chauffeur sort du dispatch ; sinon il redevient disponible.
+    if (horsLigne) await this.c.drivers.goOffline(driverId);
+    else this.c.drivers.setAvailability(driverId, 'online');
+    ride.events.push({ type: 'driver_cancelled', at: new Date().toISOString(), payload: { driverId, motif, details } });
+    // Re-dispatch : la course repart du statut « attribuée » pour le chauffeur suivant
+    // (comme la réassignation console), le passager reste dans son suivi.
+    ride.status = 'accepted';
+    this.c.rides.persist(ride);
+    return this.reassign(ride, driverId, 'chauffeur_annule', motif);
+  }
+
   /** Cherche le chauffeur suivant (cascade) en excluant ceux qui ont déjà décliné. */
-  private async reassign(ride: Ride, previous: string, why: 'declined' | 'expired', reason?: string): Promise<{ reassignedTo: string | null }> {
+  private async reassign(ride: Ride, previous: string, why: 'declined' | 'expired' | 'chauffeur_annule', reason?: string): Promise<{ reassignedTo: string | null }> {
     const excluded = this.declined.get(ride.id) ?? new Set<string>();
     excluded.add(previous);
     this.declined.set(ride.id, excluded);

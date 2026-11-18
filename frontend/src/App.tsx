@@ -572,7 +572,12 @@ export function App() {
             carPos={carPos} setCarPos={setCarPos} setPhase={setTripPhase} live={live} rideId={rideId} stops={stops}
             onSos={triggerSos} onShare={() => showToast(t('toast_share'))} onArrived={() => setScreen('payment')}
             onCancel={cancelCurrentRide}
-            onReassigned={(d) => { setDriver(driverFromSafe(d)); showToast(t('toast_reassigned', { name: d.name })); }}
+            onReassigned={(d) => {
+              // Nouveau chauffeur (refus, délai, annulation du chauffeur, console) : il part
+              // de sa propre position, le suivi repart donc de l'étape « en route ».
+              setDriver(driverFromSafe(d)); setTripPhase('enroute'); setCarPos(null);
+              showToast(t('toast_reassigned', { name: d.name }));
+            }}
             onServerCancel={() => { showToast(t('toast_no_driver'), true); reset(); }} />
         )}
 

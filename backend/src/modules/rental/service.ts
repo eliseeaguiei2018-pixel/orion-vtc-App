@@ -241,8 +241,55 @@ export function quoteRental(input: RentalQuoteInput, ctx: RentalQuoteContext): R
   };
 }
 
+/** Étapes que le chauffeur déclare lui-même sur une location qui lui est confiée. */
+export const ETAPES_CHAUFFEUR = ['vehicule_prepare', 'en_route', 'sur_place', 'debut_service', 'fin_service'] as const;
+export type EtapeChauffeur = (typeof ETAPES_CHAUFFEUR)[number];
+
 export class RentalService {
   private readonly items = new Map<string, RentalReservation>();
+  /**
+   * Écouteurs de changement (app chauffeur synchronisée) : affectation, statut console,
+   * annulation, étape déclarée. `precedent` = chauffeur retiré lors d'une réaffectation.
+   */
+  private readonly ecouteurs: Array<(r: RentalReservation, evenement: string, precedent?: string) => void> = [];
+
+  onChange(fn: (r: RentalReservation, evenement: string, precedent?: string) => void): void {
+    this.ecouteurs.push(fn);
+  }
+
+  private signaler(r: RentalReservation, evenement: string, precedent?: string): void {
+    for (const fn of this.ecouteurs) {
+      try { fn(r, evenement, precedent); } catch { /* la diffusion ne bloque jamais une écriture */ }
+    }
+  }
+
+  /**
+   * Le CHAUFFEUR affecté déclare une étape (véhicule préparé, en route, sur place, début
+   * puis fin de service). Le début et la fin de service font avancer le dossier
+   * (en cours → terminée) : c'est le chauffeur qui est sur place, la console le voit.
+   */
+  etapeChauffeur(id: string, driverId: string, etape: EtapeChauffeur, note?: string): RentalReservation {
+    const r = this.items.get(id);
+    if (!r || r.driverId !== driverId) throw notFound('Location introuvable');
+    if (r.status === 'annulee' || r.status === 'terminee') throw conflict('Cette location est close');
+    if (r.events.some((e) => e.type === `chauffeur:${etape}`)) throw conflict('Étape déjà déclarée');
+    if (etape === 'fin_service' && !r.events.some((e) => e.type === 'chauffeur:debut_service')) {
+      throw badRequest('Déclarez d’abord le début de service');
+    }
+    r.updatedAt = new Date().toISOString();
+    r.events.push({ type: `chauffeur:${etape}`, at: r.updatedAt, note });
+    if (etape === 'debut_service' && r.status !== 'en_cours') {
+      r.status = 'en_cours';
+      r.events.push({ type: 'en_cours', at: r.updatedAt, note: 'Début de service déclaré par le chauffeur' });
+    }
+    if (etape === 'fin_service') {
+      r.status = 'terminee';
+      r.events.push({ type: 'terminee', at: r.updatedAt, note: 'Fin de service déclarée par le chauffeur' });
+    }
+    this.repo?.put(r);
+    this.signaler(r, `etape:${etape}`);
+    return r;
+  }
 
   /**
    * `settings` porte les prix et les stocks RÉGLÉS DEPUIS LA CONSOLE. La disponibilité
@@ -351,6 +398,7 @@ export class RentalService {
     r.updatedAt = new Date().toISOString();
     r.events.push({ type: status, at: r.updatedAt, note });
     this.repo?.put(r);
+    this.signaler(r, `statut:${status}`);
     return r;
   }
 
@@ -358,10 +406,12 @@ export class RentalService {
   assign(id: string, driverId: string): RentalReservation {
     const r = this.items.get(id);
     if (!r) throw notFound('Location introuvable');
+    const precedent = r.driverId && r.driverId !== driverId ? r.driverId : undefined;
     r.driverId = driverId;
     r.updatedAt = new Date().toISOString();
     r.events.push({ type: 'chauffeur_affecte', at: r.updatedAt, note: driverId });
     this.repo?.put(r);
+    this.signaler(r, 'affectation', precedent);
     return r;
   }
 
@@ -381,6 +431,7 @@ export class RentalService {
     r.updatedAt = new Date().toISOString();
     r.events.push({ type: 'annulee', at: r.updatedAt, note: `${raison ?? 'sans motif'} — frais ${frais} F (${Math.round(taux * 100)} %)` });
     this.repo?.put(r);
+    this.signaler(r, 'annulation');
     return { reservation: r, frais, taux };
   }
 
