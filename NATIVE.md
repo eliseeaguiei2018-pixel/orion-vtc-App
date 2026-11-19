@@ -93,8 +93,9 @@ cd chauffeur/android && ./gradlew assembleDebug    # APK de test
 ```
 
 Déjà câblé :
-- **Position** : demandée à la mise en ligne (offres autour du chauffeur, navigation vers le
-  client, tracé de la course, SOS localisé). Pas de localisation en arrière-plan : Google Play
+- **Position** : demandée à la mise en ligne (offres autour du chauffeur, **navigation guidée
+  dans l'app** sur la vraie carte, tracé de la course, SOS localisé). Le guidage vocal utilise la
+  synthèse vocale du téléphone (sans autorisation supplémentaire). Pas de localisation en arrière-plan : Google Play
   et l'App Store exigent une justification dédiée — à ajouter (§2) le jour où le suivi écran
   éteint sera branché.
 - **Bouton retour Android** : ferme les notifications, revient à l'accueil, puis met l'app en

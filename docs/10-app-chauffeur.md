@@ -205,3 +205,62 @@ passager d'annuler lui-même reste interdit (signalé à la console comme détou
   espèces avec code passager → tracé GPS enregistré → note reçue en direct → annulation motivée sans frais
   pour le passager → SOS suivi jusqu'à la prise en charge. Mode démo et couleur au choix vérifiés. Aucune
   erreur console.
+
+## 10. Mise à niveau : écosystème complet, 8 langues, apps natives, navigation guidée
+
+### 10.1 Corrections demandées
+
+| Avant | Maintenant |
+|---|---|
+| Les messages du chef n'arrivaient qu'aux chauffeurs ayant un identifiant console créé à la main (« Personnel & accès »). | **Chaque chauffeur reçoit automatiquement son identifiant console** à l'inscription (code SMS) et dès qu'il entre dans la flotte d'une équipe ; le chef écrit et demande des rapports à **toute sa flotte**. Le chauffeur choisit lui-même son mot de passe console dans l'onglet **Poste** (`POST /drivers/:id/console/mot-de-passe`, journalisé). |
+| La photo d'un chauffeur s'affichait pour quiconque connaissait son identifiant interne. | **Adresse signée et expirante** (HMAC, 24 h) remise uniquement aux personnes concernées : passager de la course, lien de partage, console, dossier SOS, le chauffeur lui-même. Sans signature : session du chauffeur ou accès personnel `drivers:read`, sinon refus. |
+| La console n'affichait ni la photo du chauffeur ni son compteur d'annulations. | Photo (avatar) et **annulations** visibles dans Opérations (liste et fiche), Équipages, Supervision et Poste équipe. |
+| App en français seulement. | **8 langues** (français, anglais, espagnol, italien, arabe de droite à gauche, chinois, allemand, russe), même choix que l'app cliente (`orion.lang`). Les messages envoyés à la console restent en français. Contrôle `npm run check:langues` en CI. |
+| Installation depuis le navigateur uniquement. | **Apps natives « ORION Chauffeur »** Android et iOS (`ci.orion.chauffeur`), voir [`NATIVE.md`](../NATIVE.md) §1 bis ; APK compilé à chaque modification. |
+| Graphisme en retrait de l'app cliente. | Refonte au même niveau : en-têtes en dégradé, véhicule de la gamme sur scène lumineuse, interrupteur En ligne, tuiles de raccourcis, portrait, solde lumineux, barre d'onglets flottante, clair / sombre, vert / orange / bleu. |
+
+### 10.2 Vraie carte et navigation guidée
+
+L'app chauffeur utilise **la même carte réelle que l'app cliente** : carte vectorielle de la
+Côte d'Ivoire dessinée à partir d'OpenStreetMap (routes, ponts, **échangeurs**, **voies en
+construction**, quartiers, lagune), servie par OpenFreeMap et **mise à jour chaque semaine**
+avec les nouveautés cartographiées (nouvel échangeur, voie ouverte, chantier). Les
+itinéraires sont calculés par le serveur ORION (OSRM sur ces mêmes données).
+
+Pendant une mission, le chauffeur est **guidé dans l'app** :
+
+- la carte **suit le véhicule**, orientée dans le sens de la marche, en vue inclinée ;
+  « Vue d'ensemble » montre tout le trajet, « Recentrer » reprend le suivi ;
+- **bandeau de guidage** : prochaine manœuvre (bretelle d'échangeur, sortie, rond-point avec
+  numéro de sortie, embranchement, demi-tour…), distance, voie à prendre, manœuvre suivante,
+  distance restante, durée et **heure d'arrivée** recalculées à chaque position ;
+- **recalcul automatique** quand le chauffeur s'écarte de l'itinéraire (déviation, route barrée,
+  chantier) : au-delà de 60 m pendant trois positions, au plus une fois toutes les 20 s ;
+- **guidage vocal** dans la langue choisie (à l'approche : ≈ 400 m, 120 m, puis au moment de
+  tourner), désactivable d'un toucher ;
+- vers le client (ou le colis), puis vers la destination ; Google Maps et Waze restent proposés.
+
+| Élément | Où |
+|---|---|
+| Manœuvres de l'itinéraire (position, type, sortie de rond-point) | `backend/src/modules/maps/routage.ts` (`manoeuvres`, ajout aux champs existants) |
+| Moteur de guidage (situer le véhicule, prochaine manœuvre, recalcul) | `frontend/src/driver/navigation.ts` |
+| Bandeau et guidage vocal | `frontend/src/driver/screens/Guidage.tsx` |
+| Carte qui suit le véhicule, tracé fourni | `frontend/src/components/CarteReelle.tsx` (`suivi`, `trace`, `ponts`, optionnels : l'app cliente est inchangée) |
+
+Sans réseau, ou si le serveur de tuiles ne répond pas, la carte bascule d'elle-même sur la
+**carte de secours** (qui trace aussi l'itinéraire guidé) : la course n'est jamais bloquée.
+En démonstration, le GPS simulé fait rouler le véhicule **le long des routes** de l'itinéraire.
+
+Production : `OSRM_URL` peut pointer vers un serveur OSRM ORION alimenté chaque jour par
+l'extrait Côte d'Ivoire d'OpenStreetMap, et `VITE_MAP_TILES_URL` vers un serveur de tuiles
+ORION, pour des mises à jour plus fréquentes que la semaine.
+
+### 10.3 Vérifications
+
+- Serveur : suite complète au vert (dont identifiant automatique, photo signée, manœuvres).
+- Moteur de guidage : contrôles sur un itinéraire réel (progression, manœuvres successives,
+  écart d'itinéraire, textes en français, anglais et arabe, repli hors connexion).
+- Parcours navigateur avec le serveur ORION : course acceptée → guidage vers le client
+  (bretelle, rond-point sortie 2, arrivée) → déviation et nouvel itinéraire → vue d'ensemble ;
+  en français et en arabe. Parcours complet (inscription, photo, poste, location, course
+  espèces, annulation, SOS suivi) et mot de passe console vérifié par une vraie connexion.
