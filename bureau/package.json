@@ -1,0 +1,19 @@
+{
+  "name": "orion-bureau",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Applications de bureau ORION (Windows, macOS) : Console et Tableau de bord, deux applications séparées.",
+  "author": "ORION",
+  "main": "src/principal.cjs",
+  "scripts": {
+    "console": "ORION_APP=console electron .",
+    "tableau": "ORION_APP=tableau electron .",
+    "test": "node --test tests/*.test.cjs",
+    "dist:console": "node scripts/construire.cjs console",
+    "dist:tableau": "node scripts/construire.cjs tableau"
+  },
+  "devDependencies": {
+    "electron": "^39.0.0",
+    "electron-builder": "^26.0.0"
+  }
+}

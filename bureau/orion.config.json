@@ -1,0 +1,11 @@
+{
+  "_lisezmoi": "Adresses ouvertes par les applications de bureau ORION. Remplacer par les vrais domaines avant de construire. « secours » : essayées dans l'ordre si l'adresse principale ne répond pas.",
+  "console": {
+    "url": "https://console.orion.ci/admin.html",
+    "secours": []
+  },
+  "tableau": {
+    "url": "https://tableau.orion.ci/dashboard.html",
+    "secours": []
+  }
+}
