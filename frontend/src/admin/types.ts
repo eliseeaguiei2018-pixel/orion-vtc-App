@@ -60,7 +60,7 @@ export interface SosDossier {
   alert: Alert; presets: string[];
   ride: { id: string; status: string; origin: { lat: number; lng: number }; destination: { lat: number; lng: number }; trace: { lat: number; lng: number }[]; createdAt: string } | null;
   vehicle: { plate: string; model: string; color: string; engine: string } | null;
-  driver: { id: string; name: string; matricule: string; phone: string | null; licenseNo: string | null; birthDate: string | null; phoneBatteryPct: number; batteryPct: number | null } | null;
+  driver: { id: string; name: string; matricule: string; phone: string | null; photoUrl?: string | null; licenseNo: string | null; birthDate: string | null; phoneBatteryPct: number; batteryPct: number | null } | null;
   passenger: { id: string; name: string | null; phone: string | null; photo?: string | null; phoneBatteryPct: number; lastRides: { id: string; status: string; createdAt: string }[] };
   telemetry: { speedEstimateKmh: number | null; points: number; refreshSeconds: number };
   emergencyNumbers: Record<string, string>;
@@ -143,7 +143,7 @@ export interface RideRow {
   trustedContact?: { name: string; phone: string } | null;
   createdAt: string;
 }
-export interface DriverRow { id: string; name: string; matricule: string; category: string; kycStatus: string; availability: string; rating: number; trips: number; balance: number; vip?: boolean; loyaltyTier?: string | null; electricRides?: number; suspensionReason?: string | null; phone?: string | null; }
+export interface DriverRow { id: string; name: string; matricule: string; category: string; kycStatus: string; availability: string; rating: number; trips: number; balance: number; vip?: boolean; loyaltyTier?: string | null; electricRides?: number; suspensionReason?: string | null; phone?: string | null; photoUrl?: string | null; cancellations?: number; }
 export interface Pricing {
   baseFare: number; perKm: number; perMinute: number; minFare: number; avgSpeedKmh: number;
   tvaRate: number; feeRate: number; insuranceRate: number; trafficWeight: number; stopFee: number;
@@ -252,6 +252,9 @@ export interface DetailRide { id: string; status: string; amount: number; create
 export interface DriverDetail {
   id: string; name: string; matricule: string; category: string; kycStatus: string; availability: string;
   rating: number; trips: number; balance: number; earnings: number; ledger: LedgerEntry[]; rides: DetailRide[];
+  /** Photo (adresse signée), annulations faites par le chauffeur et statistiques d'offres. */
+  photoUrl?: string | null; cancellations?: number;
+  offres?: { recues: number; acceptees: number; refusees: number; expirees: number };
 }
 export interface ClientDetail {
   id: string; name: string | null; phone: string | null; status: string; rides: number; createdAt: string | null;
@@ -477,6 +480,7 @@ export interface DossierEquipage {
     driverId: string; matricule: string; name: string; phone: string | null;
     category: string; kycStatus: string; availability: string; rating: number; trips: number;
     licenseNo?: string; birthDate?: string; insuranceExpiry?: string; appLinkedAt?: string;
+    photoUrl?: string | null; annulationsChauffeur?: number;
   };
   vehicule: { model?: string; plate?: string; color?: string; engine: string; batteryPct?: number; batteryHealthPct?: number };
   equipe: { id: string; name: string; mission?: string; managerName?: string; managerUsername: string } | null;
@@ -559,6 +563,8 @@ export interface PosteEquipe {
     driverId: string; matricule: string; name: string; phone: string | null;
     category: string; kycStatus: string; availability: string;
     coursesPeriode: number; revenusPeriode: number; requetesOuvertes: number; alertes: number;
+    /** Photo (adresse signée), annulations, identifiant console (pour lui écrire). */
+    photoUrl?: string | null; annulations?: number; identifiant?: string | null;
   }>;
   bilan: {
     periodeJours: number; courses: number; revenusChauffeurs: number; commissionOrion: number;

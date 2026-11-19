@@ -5,7 +5,7 @@
  * mélangeait types, couche réseau, orchestration et 37 composants.
  */
 import { type ReactNode } from 'react';
-import { fcfa } from './api';
+import { API, fcfa } from './api';
 import type { ClientDetail, DriverDetail, PageMeta } from './types';
 
 export function Pager({ meta, onPage }: { meta: PageMeta; onPage: (p: number) => void }) {
@@ -76,9 +76,22 @@ export function Drawer({ title, sub, onClose, children }: { title: string; sub?:
 
 export const ledgerLabel = (t: string) => ({ ride_earning: 'Gain course', commission: 'Commission', payout: 'Retrait', topup: 'Recharge', adjustment: 'Ajustement' }[t] ?? t);
 
+/**
+ * Photo du chauffeur (adresse signée remise par le serveur), sinon ses initiales :
+ * reconnaître la personne au premier coup d'œil, dans toutes les sessions.
+ */
+export function AvatarChauffeur({ photoUrl, name, taille = 32 }: { photoUrl?: string | null; name: string; taille?: number }) {
+  const initiales = name.trim().split(/\s+/).map((x) => x[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+  const style = { width: taille, height: taille, borderRadius: '50%', flexShrink: 0, objectFit: 'cover' as const, border: '1px solid var(--a-line, rgba(127,127,127,.25))' };
+  return photoUrl
+    ? <img src={`${API}${photoUrl}`} alt={`Photo de ${name}`} style={style} />
+    : <span aria-hidden="true" style={{ ...style, display: 'inline-grid', placeItems: 'center', fontSize: taille * 0.38, fontWeight: 700, background: 'var(--a-soft, rgba(0,168,101,.12))', color: 'var(--a-accent, #00a865)' }}>{initiales}</span>;
+}
+
 export function DriverDrawer({ d, onClose }: { d: DriverDetail; onClose: () => void }) {
   return (
     <Drawer title={d.name} sub={d.matricule} onClose={onClose}>
+      <div style={{ display: 'flex', justifyContent: 'center', margin: '4px 0 10px' }}><AvatarChauffeur photoUrl={d.photoUrl} name={d.name} taille={88} /></div>
       <div className="adm-drawer-tags">
         <span className="adm-pill cap">{d.category}</span>
         <span className={`adm-pill kyc-${d.kycStatus}`}>{kycLabel(d.kycStatus)}</span>
@@ -89,6 +102,8 @@ export function DriverDrawer({ d, onClose }: { d: DriverDetail; onClose: () => v
         <div className="adm-mini-kpi"><span>Gains cumulés</span><strong>{fcfa(d.earnings)}</strong></div>
         <div className="adm-mini-kpi"><span>Note</span><strong>★ {d.rating.toFixed(2)}</strong></div>
         <div className="adm-mini-kpi"><span>Courses notées</span><strong>{d.trips}</strong></div>
+        <div className="adm-mini-kpi"><span>Annulations (chauffeur)</span><strong>{d.cancellations ?? 0}</strong></div>
+        {d.offres && <div className="adm-mini-kpi"><span>Offres acceptées</span><strong>{d.offres.acceptees}/{d.offres.recues}{d.offres.expirees ? ` · ${d.offres.expirees} manquée(s)` : ''}</strong></div>}
       </div>
       <h4 className="adm-drawer-sec">Dernières courses</h4>
       {d.rides.length === 0 ? <p className="adm-muted">Aucune course.</p> : (

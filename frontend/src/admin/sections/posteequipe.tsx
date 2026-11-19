@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ContactRapide, Kpi, availLabel } from '../ui';
+import { AvatarChauffeur, ContactRapide, Kpi, availLabel } from '../ui';
 import { actionLisible } from './monposte';
 import type { ContactHandler, PosteEquipe } from '../types';
 
@@ -124,7 +124,8 @@ export function PosteEquipeSection({ poste, equipes, equipeId, onChoisir, onCont
                     <span>Destinataire</span>
                     <select className="adm-select" value={cible} onChange={(e) => setCible(e.target.value)}>
                       <option value="">Choisir…</option>
-                      {poste.membres.map((m) => <option key={m.username} value={m.username}>{m.name}</option>)}
+                      {poste.membres.length > 0 && <optgroup label="Membres de l’équipe">{poste.membres.map((m) => <option key={m.username} value={m.username}>{m.name}</option>)}</optgroup>}
+                      {poste.flotte.some((f) => f.identifiant) && <optgroup label="Chauffeurs de la flotte">{poste.flotte.filter((f) => f.identifiant).map((f) => <option key={f.identifiant!} value={f.identifiant!}>{f.name} · {f.matricule}</option>)}</optgroup>}
                     </select>
                   </label>
                   <label className="field"><span>Sujet</span><input className="adm-input" value={sujet} onChange={(e) => setSujet(e.target.value)} /></label>
@@ -153,7 +154,8 @@ export function PosteEquipeSection({ poste, equipes, equipeId, onChoisir, onCont
                     <span>À qui</span>
                     <select className="adm-select" value={cible} onChange={(e) => setCible(e.target.value)}>
                       <option value="">Choisir…</option>
-                      {poste.membres.map((m) => <option key={m.username} value={m.username}>{m.name}</option>)}
+                      {poste.membres.length > 0 && <optgroup label="Membres de l’équipe">{poste.membres.map((m) => <option key={m.username} value={m.username}>{m.name}</option>)}</optgroup>}
+                      {poste.flotte.some((f) => f.identifiant) && <optgroup label="Chauffeurs de la flotte">{poste.flotte.filter((f) => f.identifiant).map((f) => <option key={f.identifiant!} value={f.identifiant!}>{f.name} · {f.matricule}</option>)}</optgroup>}
                     </select>
                   </label>
                   <label className="field"><span>Titre</span><input className="adm-input" value={rTitre} onChange={(e) => setRTitre(e.target.value)} placeholder="Bilan hebdomadaire flotte Nord" /></label>
@@ -225,15 +227,16 @@ export function PosteEquipeSection({ poste, equipes, equipeId, onChoisir, onCont
               <p className="adm-empty">Aucun chauffeur rattaché à cette équipe.</p>
             ) : (
               <table className="adm-table">
-                <thead><tr><th>Matricule</th><th>Chauffeur</th><th>État</th><th className="r">Courses</th><th className="r">Revenus</th><th>À traiter</th><th>Dossier</th></tr></thead>
+                <thead><tr><th>Matricule</th><th>Chauffeur</th><th>État</th><th className="r">Courses</th><th className="r">Revenus</th><th className="r" title="Courses annulées par le chauffeur">Annul.</th><th>À traiter</th><th>Dossier</th></tr></thead>
                 <tbody>
                   {poste.flotte.map((f) => (
                     <tr key={f.driverId}>
                       <td className="mono"><strong>{f.matricule}</strong></td>
-                      <td>{f.name}<br /><ContactRapide type="chauffeur" id={f.driverId} numero={f.phone} nom={f.name} onContact={onContact} /></td>
+                      <td><span className="row" style={{ gap: 8, alignItems: 'center' }}><AvatarChauffeur photoUrl={f.photoUrl} name={f.name} />{f.name}</span><ContactRapide type="chauffeur" id={f.driverId} numero={f.phone} nom={f.name} onContact={onContact} /></td>
                       <td><span className={`adm-status ${f.availability}`}>{availLabel(f.availability)}</span></td>
                       <td className="r">{f.coursesPeriode}</td>
                       <td className="r">{fcfa(f.revenusPeriode)}</td>
+                      <td className="r">{f.annulations ?? 0}</td>
                       <td>
                         {f.alertes > 0 && <span className="adm-pill lvl-orange">{f.alertes} alerte(s)</span>}
                         {f.requetesOuvertes > 0 && <> <span className="adm-pill tr-pending">{f.requetesOuvertes} requête(s)</span></>}

@@ -8,7 +8,7 @@ import { useState, type CSSProperties } from 'react';
 import { SupervisionMap } from '../SupervisionMap';
 import { LIVE, adminGet, fcfa } from '../api';
 import type { Alert, ContactLigne, ContactUrgence, FleetUnit, Overview, SecurityAttempt, SosDossier, Stats } from '../types';
-import { Drawer, Kpi, statusLabel } from '../ui';
+import { AvatarChauffeur, Drawer, Kpi, statusLabel } from '../ui';
 import { lienTel } from '../../telephone';
 
 export function OverviewSection({ ov, fleet, openAlerts, stats, statsDays, onStatsDays }: { ov: Overview; fleet: FleetUnit[]; openAlerts: Alert[]; stats: Stats | null; statsDays: number; onStatsDays: (d: number) => void }) {
@@ -278,6 +278,13 @@ export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf
         <div className="adm-mini-kpi"><span>📱 Batterie chauffeur</span><strong>{d.driver ? `${d.driver.phoneBatteryPct} %` : '—'}</strong></div>
         <div className="adm-mini-kpi"><span>📱 Batterie passager</span><strong>{d.passenger.phoneBatteryPct} %</strong></div>
       </div>
+      {/* Photo du chauffeur : la personne à décrire aux secours et à la police. */}
+      {d.driver?.photoUrl && (
+        <div className="adm-passager">
+          <AvatarChauffeur photoUrl={d.driver.photoUrl} name={d.driver.name} taille={56} />
+          <span><strong>{d.driver.name}</strong> · <span className="mono">{d.driver.matricule}</span><br /><span className="adm-muted">Photo du chauffeur, à transmettre aux secours</span></span>
+        </div>
+      )}
       {/* Photo du passager : la personne à retrouver, à décrire à la police ou au SAMU. */}
       {d.passenger.photo && (
         <div className="adm-passager">

@@ -7,7 +7,7 @@
 import { useState, type CSSProperties } from 'react';
 import { fcfa } from '../api';
 import type { Client, ContactHandler, CsatReport, Dispute, DriverRow, ExpiringDoc, OpsConfig, PageMeta, QualityRow, QualityTop, Reservation, RideForensic, RideRow, SimResult } from '../types';
-import { ContactRapide, Drawer, Kpi, Pager, kycLabel, rideStatusLabel, trafficLabel } from '../ui';
+import { AvatarChauffeur, ContactRapide, Drawer, Kpi, Pager, kycLabel, rideStatusLabel, trafficLabel } from '../ui';
 
 export const REASSIGNABLE = new Set(['searching', 'no_driver', 'accepted', 'driver_en_route', 'arrived']);
 export const ACTIVE_RIDE = new Set(['accepted', 'driver_en_route', 'arrived', 'in_progress']);
@@ -609,14 +609,15 @@ export function DriversSection({ drivers, expiring, canWrite, onAction, onSuspen
           </div>
         ) : (
           <table className="adm-table">
-            <thead><tr><th>Nom</th><th>Matricule</th><th>Niveau</th><th>KYC</th><th>Fidélité</th><th className="r">Solde</th><th className="r">Note</th><th>Joindre</th>{canWrite && <th>Actions</th>}</tr></thead>
+            <thead><tr><th>Nom</th><th>Matricule</th><th>Niveau</th><th>KYC</th><th>Fidélité</th><th className="r">Solde</th><th className="r">Note</th><th className="r" title="Courses annulées par le chauffeur lui-même">Annul.</th><th>Joindre</th>{canWrite && <th>Actions</th>}</tr></thead>
             <tbody>
               {drivers.map((d) => (
                 <tr key={d.id} className="adm-row-click" onClick={() => onOpen(d.id)}>
-                  <td>{d.name}{d.vip && <span className="adm-pill av-online" style={{ marginLeft: 6 }}>VIP</span>}</td><td className="mono">{d.matricule}</td><td className="cap">{d.category}</td>
+                  <td><span className="row" style={{ gap: 8, alignItems: 'center' }}><AvatarChauffeur photoUrl={d.photoUrl} name={d.name} />{d.name}{d.vip && <span className="adm-pill av-online">VIP</span>}</span></td><td className="mono">{d.matricule}</td><td className="cap">{d.category}</td>
                   <td><span className={`adm-pill kyc-${d.kycStatus}`}>{kycLabel(d.kycStatus)}</span></td>
                   <td>{d.loyaltyTier ? <span className="adm-pill">{LOYALTY_LABEL[d.loyaltyTier] ?? d.loyaltyTier}</span> : <span className="adm-muted">—</span>}{(d.electricRides ?? 0) > 0 && <span className="adm-muted" style={{ fontSize: 11, display: 'block' }}>{d.electricRides} élec.</span>}</td>
                   <td className="r">{fcfa(d.balance)}</td><td className="r">★ {d.rating.toFixed(2)}</td>
+                  <td className="r">{(d.cancellations ?? 0) > 0 ? <span className={`adm-pill ${(d.cancellations ?? 0) >= 5 ? 'tr-rejected' : 'tr-pending'}`}>{d.cancellations}</span> : <span className="adm-muted">0</span>}</td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <ContactRapide type="chauffeur" id={d.id} numero={d.phone} nom={d.name} onContact={onContact} />
                   </td>

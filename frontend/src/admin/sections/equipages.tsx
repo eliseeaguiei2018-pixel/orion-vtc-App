@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ContactRapide, Kpi, availLabel, kycLabel } from '../ui';
+import { AvatarChauffeur, ContactRapide, Kpi, availLabel, kycLabel } from '../ui';
 import type { ContactHandler, CrewTableau, DossierEquipage, EquipageRow, RequeteChauffeur } from '../types';
 
 /**
@@ -295,7 +295,7 @@ function DossierChauffeur({ d, droits, onFermer, onContact, onDeposer, onInstrui
   return (
     <div className="adm-card">
       <div className="adm-card-h">
-        <h3>{d.identite.name} <span className="mono adm-muted">{d.identite.matricule}</span></h3>
+        <h3 className="row" style={{ gap: 10, alignItems: 'center' }}><AvatarChauffeur photoUrl={d.identite.photoUrl} name={d.identite.name} taille={44} />{d.identite.name} <span className="mono adm-muted">{d.identite.matricule}</span></h3>
         <div className="row" style={{ gap: 8 }}>
           <ContactRapide type="chauffeur" id={d.identite.driverId} numero={d.identite.phone} nom={d.identite.name} onContact={onContact} />
           <button className="adm-btn xs" onClick={onFermer}>Fermer</button>
@@ -319,6 +319,7 @@ function DossierChauffeur({ d, droits, onFermer, onContact, onDeposer, onInstrui
           <dl className="adm-constat-corps">
             <dt>Gamme</dt><dd>{d.identite.category} · note {d.identite.rating.toFixed(1)} ({d.identite.trips} courses)</dd>
             <dt>Dossier</dt><dd>{kycLabel(d.identite.kycStatus)} · {availLabel(d.identite.availability)}</dd>
+            <dt>Annulations</dt><dd>{d.identite.annulationsChauffeur ?? 0} course(s) annulée(s) par le chauffeur</dd>
             <dt>Véhicule</dt><dd>{d.vehicule.model ?? 'non renseigné'} {d.vehicule.plate ? `· ${d.vehicule.plate}` : ''} {d.vehicule.color ? `· ${d.vehicule.color}` : ''}</dd>
             <dt>Batterie</dt><dd>{d.vehicule.batteryPct !== undefined ? `${d.vehicule.batteryPct} %` : '—'}{d.vehicule.batteryHealthPct !== undefined ? ` · santé ${d.vehicule.batteryHealthPct} %` : ''}</dd>
             <dt>Assurance</dt><dd>{d.identite.insuranceExpiry ?? 'non renseignée'}</dd>
