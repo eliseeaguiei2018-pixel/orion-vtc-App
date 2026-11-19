@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { App as AppNative } from '@capacitor/app';
 import { LogoIcon } from '../components/Logo';
 import { useDriver, type DriverApp } from './useDriver';
 import { BottomNav, Modal, type Tab } from './ui';
@@ -37,6 +39,21 @@ function Shell({ app }: { app: DriverApp }) {
   const [tab, setTab] = useState<Tab>('home');
   const [noticesOpen, setNoticesOpen] = useState(false);
   const [seen, setSeen] = useState(0);
+
+  // App native Android (ORION Chauffeur) : le bouton retour ferme les notifications, revient
+  // à l'accueil, puis met l'app en arrière-plan — jamais de sortie en pleine course.
+  const etatRetour = useRef({ tab, noticesOpen });
+  etatRetour.current = { tab, noticesOpen };
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== 'android') return;
+    const ecoute = AppNative.addListener('backButton', () => {
+      const e = etatRetour.current;
+      if (e.noticesOpen) { setNoticesOpen(false); return; }
+      if (e.tab !== 'home') { setTab('home'); return; }
+      void AppNative.minimizeApp();
+    });
+    return () => { void ecoute.then((l) => l.remove()); };
+  }, []);
 
   if (app.booting) {
     return (

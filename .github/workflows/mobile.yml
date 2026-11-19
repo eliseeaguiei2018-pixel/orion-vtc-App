@@ -2,7 +2,8 @@ name: Applications mobiles
 
 # Compile les applications natives ORION et, sur demande, FILME leur installation puis une
 # inscription complète sur un émulateur Android et un simulateur iPhone.
-# - À chaque modification du front : compilation de l'APK Android (runner Linux).
+# - À chaque modification du front : compilation des APK Android ORION et ORION Chauffeur
+#   (runner Linux).
 # - Démonstration filmée : lancement manuel (onglet Actions) ou « [demo-mobile] » dans le
 #   message de commit. L'iPhone utilise un runner macOS : sur un dépôt privé, ses minutes
 #   comptent dix fois, d'où son déclenchement uniquement sur demande.
@@ -58,6 +59,38 @@ jobs:
         with:
           name: orion-android-apk
           path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
+  android-chauffeur:
+    name: Android · APK ORION Chauffeur
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: App web chauffeur (serveur de démonstration local)
+        working-directory: frontend
+        env:
+          VITE_API_URL: http://localhost:3000
+        run: |
+          npm ci
+          npm run cap:chauffeur:android
+      - name: Compilation de l'APK ORION Chauffeur
+        working-directory: frontend/chauffeur/android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orion-chauffeur-android-apk
+          path: frontend/chauffeur/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
 
   android-demo:
@@ -174,4 +207,38 @@ jobs:
         with:
           name: orion-demo-ios
           path: demo-ios
+          retention-days: 14
+
+  ios-chauffeur:
+    name: iPhone · ORION Chauffeur (simulateur)
+    if: (github.event_name == 'workflow_dispatch' && inputs.ios) || contains(github.event.head_commit.message, '[demo-mobile]')
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Xcode
+        run: xcodebuild -version
+      - name: App web chauffeur (serveur de démonstration local)
+        working-directory: frontend
+        env:
+          VITE_API_URL: http://localhost:3000
+        run: |
+          npm ci
+          npm run cap:chauffeur:ios
+      - name: Compilation iOS ORION Chauffeur (simulateur)
+        working-directory: frontend/chauffeur/ios/App
+        run: |
+          set -o pipefail
+          xcodebuild -project App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/derived" CODE_SIGNING_ALLOWED=NO -quiet build
+          mkdir -p "$GITHUB_WORKSPACE/chauffeur-ios"
+          (cd "$RUNNER_TEMP/derived/Build/Products/Debug-iphonesimulator" && zip -qry "$GITHUB_WORKSPACE/chauffeur-ios/ORION-Chauffeur-simulateur.app.zip" App.app)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orion-chauffeur-ios-simulateur
+          path: chauffeur-ios
           retention-days: 14

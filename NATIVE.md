@@ -63,6 +63,53 @@ téléchargeables dans l'onglet *Actions* du dépôt (rubrique *Artifacts*).
 
 Publication sur les stores : voir [`store/README.md`](store/README.md).
 
+## 1 bis. ORION Chauffeur : l'app native des chauffeurs
+
+Les chauffeurs ont **leur propre application**, distincte de l'app cliente sur les stores
+(fiche, icône et identifiant à part), construite à partir de la même app web (`driver.html`).
+
+| | Android | iOS |
+|---|---|---|
+| Projet | `frontend/chauffeur/android` | `frontend/chauffeur/ios/App` |
+| Identifiant | `ci.orion.chauffeur` | `ci.orion.chauffeur` |
+| Nom affiché | ORION Chauffeur | ORION Chauffeur |
+| Version | 1.0.0 (code 1) | 1.0.0 (build 1) |
+| Orientation | portrait | portrait, iPhone uniquement |
+| Autorisations | Internet, **position (pendant l'utilisation)**, caméra (facultative) | **position pendant l'utilisation**, caméra, photothèque (phrases en français) |
+| Langues | les 8 de l'app (même choix que l'app cliente) | 8 langues déclarées (`CFBundleLocalizations`) |
+
+Une seule configuration Capacitor (`frontend/capacitor.config.ts`) sert les deux apps :
+avec `ORION_APP=chauffeur`, l'identifiant, le nom, l'app web (`dist-chauffeur`, où
+`driver.html` devient `index.html`) et les dossiers natifs (`chauffeur/android`,
+`chauffeur/ios`) basculent sur l'app chauffeur. Le script
+`frontend/scripts/construire-app-chauffeur.mjs` fait tout d'un coup :
+
+```bash
+cd frontend
+VITE_API_URL=https://orion-backend.onrender.com npm run cap:chauffeur:android   # ou :ios
+cd chauffeur/android && ./gradlew assembleDebug    # APK de test
+./gradlew bundleRelease                            # bundle signé pour le Play Store
+# iOS : ORION_APP=chauffeur npx cap open ios, puis Product → Archive dans Xcode
+```
+
+Déjà câblé :
+- **Position** : demandée à la mise en ligne (offres autour du chauffeur, navigation vers le
+  client, tracé de la course, SOS localisé). Pas de localisation en arrière-plan : Google Play
+  et l'App Store exigent une justification dédiée — à ajouter (§2) le jour où le suivi écran
+  éteint sera branché.
+- **Bouton retour Android** : ferme les notifications, revient à l'accueil, puis met l'app en
+  arrière-plan ; il ne fait jamais quitter une course en cours (`driver/Driver.tsx`).
+- **Appels et navigation** : clavier du téléphone pour appeler le passager ou le chef
+  d'équipe (pas de permission `CALL_PHONE`), ouverture de Google Maps et Waze.
+- **Icônes et écran de démarrage** dédiés (feuille ORION et volant), sources dans
+  `frontend/chauffeur/assets/`.
+- **CI** : l'APK *ORION Chauffeur* est compilé à chaque modification du front (artefact
+  `orion-chauffeur-android-apk`) ; l'app iOS pour simulateur est compilée sur demande
+  (`[demo-mobile]` ou lancement manuel, artefact `orion-chauffeur-ios-simulateur`).
+
+Le serveur accepte déjà ces origines (`capacitor://localhost`, `https://localhost`) : elles
+sont communes aux deux apps.
+
 ## 2. Permissions à ajouter avec les fonctionnalités à venir
 Modèles prêts à fusionner, **ligne par ligne, seulement pour ce qui est utilisé** :
 [`mobile/ios/Info.plist.snippet.xml`](mobile/ios/Info.plist.snippet.xml) et
