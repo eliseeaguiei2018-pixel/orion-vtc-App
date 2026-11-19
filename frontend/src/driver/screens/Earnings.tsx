@@ -50,10 +50,11 @@ export function Earnings({ app, unread, openNotices }: ScreenProps) {
     <div className="dv-page">
       <PageHeader title="Mes gains" sub="Portefeuille ORION en F CFA" right={<BellButton count={unread} onClick={openNotices} />} />
 
-      <div className="card dv-stat accent" style={{ padding: 18 }}>
-        <span className="dv-stat-label">Solde disponible</span>
-        <span className="dv-stat-value" style={{ fontSize: 30, color: balance < 0 ? 'var(--danger)' : undefined }}>{fcfa(balance)}</span>
-        <span className="dv-stat-sub">Commission appliquée : <strong>{pct(rate)}</strong>{rate < driverConfig.commission.standard ? ` (au lieu de ${pct(driverConfig.commission.standard)} en thermique)` : ''}</span>
+      {/* Le solde en grande carte lumineuse, posée sur l'en-tête (comme la carte « En service »). */}
+      <div className={`dv-solde dv-solde-pose${balance < 0 ? ' neg' : ''}`}>
+        <span className="dv-stat-label"><IconWallet size={14} /> Solde disponible</span>
+        <span className="dv-solde-montant">{fcfa(balance)}</span>
+        <span className="dv-solde-sub">Commission appliquée : <strong>{pct(rate)}</strong>{rate < driverConfig.commission.standard ? ` (au lieu de ${pct(driverConfig.commission.standard)} en thermique)` : ''}</span>
       </div>
 
       {finance && finance.cashDebt > 0 && (

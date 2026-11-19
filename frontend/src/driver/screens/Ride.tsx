@@ -49,6 +49,12 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
         <div className="dv-steps" aria-label={livraison ? 'Étapes de la livraison' : 'Étapes de la course'}>
           {STEPS.map((s, i) => <span key={s} className={i <= step ? 'done' : ''} />)}
         </div>
+        {/* Étapes nommées sous la jauge : le chauffeur voit où il en est d'un coup d'œil. */}
+        <div className="dv-steps-labels" aria-hidden="true">
+          {(livraison ? ['Retrait', 'Sur place', 'Livraison', 'Paiement'] : ['En route', 'Arrivé', 'En course', 'Paiement']).map((l, i) => (
+            <span key={l} className={i === Math.max(0, step) ? 'on' : ''}>{l}</span>
+          ))}
+        </div>
 
         <div className="row between">
           {!livraison && <PhotoPassager photo={ride.client.photo ?? null} prenom={ride.client.name} />}
@@ -153,7 +159,7 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
 function PhotoPassager({ photo, prenom }: { photo: string | null; prenom: string | null }) {
   const initiale = (prenom ?? '?').charAt(0).toUpperCase();
   return (
-    <span className="driver-photo" style={{ width: 48, height: 48, fontSize: 18, overflow: 'hidden', marginInlineEnd: 12, flexShrink: 0 }}>
+    <span className="driver-photo dv-passager-photo" style={{ width: 48, height: 48, fontSize: 18, overflow: 'hidden', marginInlineEnd: 12, flexShrink: 0 }}>
       {photo ? <img src={photo} alt={prenom ?? 'Passager'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initiale}
     </span>
   );

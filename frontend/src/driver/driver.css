@@ -173,3 +173,169 @@ a.dv-pill { text-decoration: none; }
 .dv-code-champ:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(0, 190, 115, 0.2); }
 .dv-code-champ[aria-invalid='true'] { border-color: var(--danger); }
 .dv-code-erreur { margin: 0; font-size: 13px; font-weight: 600; color: var(--danger); text-align: center; }
+
+/* ============================================================
+   REFONTE GRAPHIQUE — app chauffeur (même signature que l'app cliente)
+   En-têtes en dégradé, véhicules dessinés sur scène lumineuse, relief doux,
+   réactions au toucher. Tout passe par les variables : vert, orange, bleu,
+   sombre comme clair.
+   ============================================================ */
+
+/* ---- En-tête d'onglet : la signature ORION ---- */
+.dv-hero {
+  position: relative; overflow: hidden; isolation: isolate; color: #fff; flex-shrink: 0;
+  margin: calc(-1 * (env(safe-area-inset-top) + 14px)) -16px 0;
+  padding: calc(env(safe-area-inset-top) + 16px) 18px 22px;
+  background:
+    radial-gradient(90% 120% at 100% 0%, rgba(255, 255, 255, 0.22), transparent 55%),
+    radial-gradient(120% 140% at 0% 0%, var(--green-bright) 0%, var(--green) 45%, var(--green-deep) 100%);
+  border-bottom-left-radius: 30px; border-bottom-right-radius: 30px;
+  box-shadow: 0 22px 44px -26px rgba(var(--accent-rgb), 0.75);
+}
+.dv-hero::after {
+  content: ''; position: absolute; z-index: -1; right: -30px; top: -40px; width: 220px; height: 220px; border-radius: 50%;
+  background:
+    radial-gradient(circle at 60% 30%, rgba(255,255,255,0.9) 0 2px, transparent 3px),
+    radial-gradient(circle at 70% 42%, rgba(255,255,255,0.8) 0 1.6px, transparent 2.6px),
+    radial-gradient(circle at 78% 55%, rgba(255,255,255,0.7) 0 1.3px, transparent 2.3px),
+    radial-gradient(circle, rgba(255,255,255,0.12), transparent 65%);
+  pointer-events: none;
+}
+.dv-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.dv-hero-brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 800; letter-spacing: 0.06em; font-size: 15px; }
+.dv-hero-brand .hub-logo { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; }
+.dv-hero h1 { font-family: var(--font-display); font-size: 25px; font-weight: 800; letter-spacing: -0.02em; margin: 16px 0 2px; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.12); }
+.dv-hero-sub { font-size: 13px; opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dv-hero .avatar, .dv-hero .dv-bell { background: rgba(255, 255, 255, 0.2); color: #fff; border: none; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+.dv-hero .dv-link { background: rgba(255, 255, 255, 0.18); border-color: transparent; color: #fff; }
+.dv-hero-actions { display: flex; align-items: center; gap: 8px; }
+.dv-hero-photo { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.55); font-weight: 800; font-family: var(--font-display); cursor: pointer; color: #fff; padding: 0; }
+.dv-hero-photo img { width: 100%; height: 100%; object-fit: cover; }
+.dv-hero-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
+.dv-hero-kpi { background: rgba(255, 255, 255, 0.16); border-radius: 16px; padding: 10px 10px 9px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28); min-width: 0; }
+.dv-hero-kpi strong { display: block; font-family: var(--font-display); font-size: 17px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dv-hero-kpi span { font-size: 11px; opacity: 0.88; }
+
+/* ---- Carte « En service » : le véhicule du chauffeur sur sa scène ---- */
+.dv-go-card { position: relative; z-index: 2; margin-top: -26px; border-radius: 26px; padding: 12px; border: 1px solid var(--stroke);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface)); box-shadow: var(--elev-2); display: grid; gap: 12px;
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+.dv-stage { position: relative; height: 128px; border-radius: 20px; overflow: hidden; display: grid; place-items: center;
+  background:
+    radial-gradient(70% 55% at 50% 78%, rgba(var(--accent-rgb), 0.32), transparent 70%),
+    linear-gradient(170deg, rgba(var(--accent-rgb), 0.16), rgba(var(--accent-rgb), 0.03)); }
+.dv-stage.moto { background:
+    radial-gradient(70% 55% at 50% 78%, rgba(245, 196, 81, 0.28), transparent 70%),
+    linear-gradient(170deg, rgba(245, 196, 81, 0.14), rgba(245, 196, 81, 0.03)); }
+.dv-stage.off { filter: saturate(0.35); }
+.dv-stage::after { content: ''; position: absolute; left: 10%; right: 10%; bottom: 16px; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent); }
+.dv-stage .vehicule { transform: translateY(12px); }
+.dv-stage.on .vehicule { animation: dv-roule 3.4s var(--ease-out) infinite; }
+@keyframes dv-roule { 0%, 100% { transform: translate(-5px, 12px); } 50% { transform: translate(5px, 12px); } }
+.dv-onde { position: absolute; width: 120px; height: 120px; border-radius: 50%; border: 1.5px solid rgba(var(--accent-rgb), 0.55);
+  animation: radar 2.4s ease-out infinite; pointer-events: none; }
+.dv-onde.b { animation-delay: 0.8s; } .dv-onde.c { animation-delay: 1.6s; }
+.dv-stage-tag { position: absolute; left: 12px; top: 10px; }
+.dv-go-row { display: flex; align-items: center; gap: 12px; padding: 0 4px 2px; }
+.dv-go-row .grow { min-width: 0; }
+.dv-go-titre { font-family: var(--font-display); font-weight: 800; font-size: 20px; letter-spacing: -0.01em; display: block; }
+.dv-go-detail { font-size: 13px; color: var(--text-dim); }
+
+/* Interrupteur En ligne / Hors ligne */
+.dv-switch { position: relative; width: 76px; height: 42px; border-radius: 999px; border: none; cursor: pointer; flex-shrink: 0;
+  background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--stroke-strong); transition: background 0.3s var(--ease-out), box-shadow 0.3s; }
+.dv-switch::after { content: ''; position: absolute; top: 4px; left: 4px; width: 34px; height: 34px; border-radius: 50%; background: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); transition: transform 0.35s var(--ease-out); }
+.dv-switch.on { background: linear-gradient(135deg, var(--green-bright), var(--green-deep)); box-shadow: var(--glow); }
+.dv-switch.on::after { transform: translateX(34px); }
+.dv-switch.paused { background: linear-gradient(135deg, #ffd978, #d39a1c); }
+.dv-switch:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Raccourcis (même tuiles que l'app cliente) */
+.dv-quick { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.dv-quick .feature-card { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 7px; padding: 12px 4px 10px;
+  border-radius: 18px; font-size: 10.5px; line-height: 1.2; color: var(--text-dim); font-weight: 600; cursor: pointer; border: 1px solid var(--stroke);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface)); box-shadow: var(--elev-1); transition: transform 0.18s var(--ease-out); font-family: var(--font-body); }
+.dv-quick .feature-card:active { transform: var(--press); }
+.dv-quick .feature-card i { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; color: var(--green);
+  background: rgba(var(--accent-rgb), 0.12); font-style: normal; }
+.dv-quick .feature-card.danger i { color: var(--danger); background: rgba(255, 77, 94, 0.12); }
+.dv-quick .dv-quick-n { position: absolute; top: 6px; right: 8px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px; background: var(--danger);
+  color: #fff; font-size: 10px; display: grid; place-items: center; }
+
+/* ---- Relief des cartes dans toutes les pages ---- */
+.dv-page .card { background: linear-gradient(180deg, var(--surface-2), var(--surface)); box-shadow: var(--elev-1); border-radius: 20px; }
+.dv-stat { box-shadow: var(--elev-1); }
+.dv-stat.accent { color: #fff; border-color: transparent;
+  background: radial-gradient(90% 120% at 100% 0%, rgba(255,255,255,0.2), transparent 55%), linear-gradient(140deg, var(--green-bright), var(--green-deep));
+  box-shadow: 0 16px 34px -20px rgba(var(--accent-rgb), 0.85); }
+.dv-stat.accent .dv-stat-label, .dv-stat.accent .dv-stat-sub { color: rgba(255, 255, 255, 0.85); }
+.dv-item-ico { background: rgba(var(--accent-rgb), 0.12); }
+.dv-section-title { font-family: var(--font-display); letter-spacing: -0.01em; }
+.dv-seg { box-shadow: var(--elev-1); }
+.dv-seg button { transition: background 0.25s var(--ease-out), color 0.2s; }
+.dv-seg button.on { background: linear-gradient(135deg, var(--green-bright), var(--green-deep)); box-shadow: 0 6px 16px -8px rgba(var(--accent-rgb), 0.9); }
+.dv-page > * { animation: rise 0.45s var(--ease-out) both; flex-shrink: 0; }
+.dv-page > *:nth-child(2) { animation-delay: 0.04s; } .dv-page > *:nth-child(3) { animation-delay: 0.08s; }
+.dv-page > *:nth-child(4) { animation-delay: 0.12s; } .dv-page > *:nth-child(n+5) { animation-delay: 0.16s; }
+.dv-page > .dv-hero { animation: none; }
+
+/* Solde : grande carte en dégradé */
+.dv-solde { position: relative; overflow: hidden; border-radius: 24px; padding: 18px; color: #fff; display: flex; flex-direction: column; align-items: flex-start;
+  background: radial-gradient(90% 120% at 100% 0%, rgba(255,255,255,0.22), transparent 55%), linear-gradient(140deg, var(--green-bright), var(--green-deep));
+  box-shadow: 0 18px 40px -22px rgba(var(--accent-rgb), 0.9); }
+.dv-solde .dv-stat-label { color: rgba(255, 255, 255, 0.85); }
+.dv-solde-montant { display: block; font-family: var(--font-display); font-weight: 800; font-size: 34px; letter-spacing: -0.02em; margin: 4px 0; }
+.dv-solde-sub { font-size: 13px; opacity: 0.9; }
+.dv-solde.neg { background: linear-gradient(140deg, #ff7a85, var(--danger-deep)); }
+
+/* ---- Barre d'onglets flottante ---- */
+.dv-tabs { margin: 0 10px calc(10px + env(safe-area-inset-bottom)); padding: 6px; border-radius: 24px; border: 1px solid var(--stroke);
+  box-shadow: var(--elev-2); background: var(--toast-bg); }
+.dv-tab { border-radius: 16px; padding: 7px 0 6px; transition: color 0.2s, background 0.25s var(--ease-out); }
+.dv-tab.on { background: rgba(var(--accent-rgb), 0.12); }
+.dv-tab.on .dv-tab-ico { transform: translateY(-1px); }
+.dv-tab-ico { transition: transform 0.25s var(--ease-out); }
+
+/* ---- Offre de course : véhicule sur scène, prix lumineux ---- */
+.dv-offer { box-shadow: 0 -20px 50px -20px rgba(0, 0, 0, 0.6); }
+.dv-offer .dv-stage { height: 104px; }
+.dv-price { background: linear-gradient(110deg, var(--text) 30%, var(--green-bright)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* ---- Mission : fiche passager et étapes nommées ---- */
+.dv-ride-sheet::before { content: ''; display: block; width: 44px; height: 5px; border-radius: 999px; background: var(--stroke-strong); margin: -4px auto 2px; }
+.dv-steps-labels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; font-size: 10.5px; color: var(--text-faint); text-align: center; margin-top: -4px; }
+.dv-steps-labels span.on { color: var(--green); font-weight: 700; }
+.dv-passager-photo { border: 2px solid var(--green); box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.15); }
+
+/* ---- Connexion : feuille posée sur la carte, comme l'app cliente ---- */
+.dv-auth { position: relative; flex: 1; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; }
+.dv-auth > .map-wrap, .dv-auth > .dv-auth-carte { position: absolute; inset: 0; }
+.dv-auth-fond { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 0%, transparent 30%, var(--bg-0) 92%); pointer-events: none; }
+.dv-auth .sheet { position: relative; z-index: 2; max-height: 88%; overflow-y: auto; }
+.dv-auth-icone { margin-bottom: 12px; }
+.dv-auth .field { margin-bottom: 10px; }
+.dv-auth .field input, .dv-auth .field select { flex: 1; background: none; border: none; outline: none; color: var(--text); font-size: 15px; font-family: var(--font-body); min-width: 0; }
+.dv-auth .field select option { color: #10221a; }
+.dv-auth-lang { position: absolute; top: calc(env(safe-area-inset-top) + 14px); right: 16px; z-index: 3; }
+
+/* ---- Profil : grand portrait sur scène ---- */
+.dv-portrait { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; padding: 6px 0 2px; }
+.dv-portrait-photo { width: 96px; height: 96px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; font-family: var(--font-display);
+  font-weight: 800; font-size: 32px; color: #fff; background: linear-gradient(140deg, var(--green-bright), var(--green-deep));
+  border: 3px solid rgba(255, 255, 255, 0.85); box-shadow: 0 14px 30px -14px rgba(0, 0, 0, 0.5); margin-top: -58px; position: relative; z-index: 2; }
+.dv-portrait-photo img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Connexion : véhicule d'accueil et formulaire dans la feuille */
+.dv-auth-veh { opacity: 0.95; filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.25)); }
+.dv-auth .dv-form { gap: 10px; }
+.dv-auth .field { margin-bottom: 0; }
+/* Poignée des feuilles chauffeur (offre, mission) */
+.dv-ride-grab { width: 44px; height: 5px; border-radius: 999px; background: var(--stroke-strong); margin: -6px auto 0; }
+.dv-solde-pose { margin-top: -26px; z-index: 2; }
+.dv-solde .dv-stat-label { display: inline-flex; align-items: center; gap: 6px; }
+/* Profil : carte portrait posée sur l'en-tête */
+.dv-portrait-card { margin-top: 34px; padding: 0 14px 14px; overflow: visible; }
+.dv-portrait-stage { width: 100%; height: 112px; margin-top: 4px; }

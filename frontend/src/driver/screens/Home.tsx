@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { OrionMap } from '../../components/OrionMap';
-import { IconBolt, IconCar, IconClock, IconLeaf, IconPin, IconShield, IconStar } from '../../icons';
+import { IconBolt, IconBriefcase, IconCalendar, IconCar, IconClock, IconLeaf, IconPin, IconShield, IconWallet } from '../../icons';
 import type { ScreenProps } from '../Driver';
 import type { DemandCell, QueueInfo, RideHistory } from '../types';
-import { BellButton, Banner, PageHeader, Section, Stat, type Tab } from '../ui';
+import { BellButton, Banner, PageHeader, Section, Stat, VehiculeChauffeur, type Tab } from '../ui';
 import { fcfa, inOffPeak, meetsStandard, pct, TIER_LABEL, zoneAt } from '../format';
 import { Alerts } from './Alerts';
 
@@ -29,6 +29,8 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
   const lockedZone = driver.zoneLockId ? driverConfig.zones.find((z) => z.id === driver.zoneLockId) : null;
   const acceptance = (driver.offersReceived ?? 0) > 0 ? (driver.offersAccepted ?? 0) / (driver.offersReceived ?? 1) : null;
   const offPeak = inOffPeak(driverConfig);
+  const photo = app.backend.photoSrc(driver);
+  const locations = app.rentals.filter((r) => r.status === 'confirmee' || r.status === 'reservee' || r.status === 'en_cours').length;
 
   // Gains du jour (rafraîchis à chaque paiement reçu).
   useEffect(() => { void app.backend.history().then(setHistory).catch(() => undefined); }, [app.backend, app.settled, driver.availability]);
@@ -61,24 +63,56 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
   return (
     <div className="dv-page">
       <PageHeader
-        title={`Bonjour ${driver.name.split(' ')[0]}`}
+        title={`Bonjour ${driver.name.split(' ')[0]} 👋`}
         sub={`${driver.matricule} · Gamme ${TIER_LABEL[driver.category] ?? driver.category}${driver.vip ? ' · ⭐ Top Driver' : ''}`}
-        right={<div className="row gap-sm"><LinkPill app={app} /><BellButton count={unread} onClick={openNotices} /></div>}
-      />
+        right={<>
+          <LinkPill app={app} />
+          <BellButton count={unread} onClick={openNotices} />
+          <button className="dv-hero-photo" onClick={() => onTab('profile')} aria-label="Mon profil">
+            {photo ? <img src={photo} alt="" /> : driver.name.charAt(0).toUpperCase()}
+          </button>
+        </>}
+      >
+        <div className="dv-hero-kpis">
+          <div className="dv-hero-kpi"><strong>{fcfa(history?.today.net ?? 0)}</strong><span>Gains du jour</span></div>
+          <div className="dv-hero-kpi"><strong>★ {driver.ratingCount ? driver.ratingAvg.toFixed(2) : '—'}</strong><span>{driver.ratingCount} avis</span></div>
+          <div className="dv-hero-kpi"><strong>{acceptance === null ? '—' : pct(acceptance)}</strong><span>Acceptation</span></div>
+        </div>
+      </PageHeader>
+
+      {/* Le véhicule du chauffeur sur sa scène, et l'interrupteur de service. */}
+      <div className="dv-go-card">
+        <div className={`dv-stage${driver.category === 'moto' ? ' moto' : ''}${online || onTrip ? ' on' : ' off'}`}>
+          {online && <><span className="dv-onde" /><span className="dv-onde b" /><span className="dv-onde c" /></>}
+          <span className="dv-stage-tag dv-pill">{driver.vehicleModel ?? (driver.category === 'moto' ? 'Scooter électrique' : `Gamme ${TIER_LABEL[driver.category] ?? driver.category}`)}{driver.vehiclePlate ? ` · ${driver.vehiclePlate}` : ''}</span>
+          <VehiculeChauffeur category={driver.category} largeur={180} />
+        </div>
+        <div className="dv-go-row">
+          <span className="grow">
+            <span className="dv-go-titre">{onTrip ? 'En course' : online ? 'En ligne' : paused ? 'En pause' : 'Hors ligne'}</span>
+            <span className="dv-go-detail">
+              {onTrip ? 'Mission en cours'
+                : online ? (queue?.inQueue && queue.position ? `Recherche de courses · ${queue.position}ᵉ sur ${queue.total} en file` : 'Recherche de courses autour de vous…')
+                  : disabledReason ?? (paused ? 'Touchez pour reprendre les courses' : 'Touchez pour recevoir des courses')}
+            </span>
+          </span>
+          <button className={`dv-switch${online ? ' on' : paused ? ' paused' : ''}`} role="switch" aria-checked={online} aria-label="En ligne"
+            onClick={toggle} disabled={onTrip || app.busy || (!online && disabledReason !== null)} />
+        </div>
+      </div>
+
       <Alerts app={app} onFixDossier={() => onTab('profile')} />
 
-      <button className={`dv-go${online ? ' on' : paused ? ' paused' : ''}`} onClick={toggle} disabled={app.busy || (!online && !onTrip && disabledReason !== null)}>
-        <span className="dv-go-knob"><IconCar size={26} /></span>
-        <span className="grow">
-          <span className="dv-go-title">{onTrip ? 'En course' : online ? 'En ligne' : paused ? 'En pause' : 'Hors ligne'}</span>
-          <span className="dv-go-sub">
-            {onTrip ? 'Mission en cours'
-              : online ? (queue?.inQueue && queue.position ? `Recherche de courses · ${queue.position}ᵉ sur ${queue.total} en file` : 'Recherche de courses autour de vous…')
-                : disabledReason ?? (paused ? 'Touchez pour reprendre les courses' : 'Touchez pour recevoir des courses')}
-          </span>
-        </span>
-        {online && <span className="dv-pulse" />}
-      </button>
+      <div className="dv-quick">
+        <button className="feature-card" onClick={() => onTab('rides')}>
+          <i><IconCalendar size={19} /></i><span>Locations</span>
+          {locations > 0 && <span className="dv-quick-n">{locations}</span>}
+        </button>
+        <button className="feature-card" onClick={() => onTab('poste')}><i><IconBriefcase size={19} /></i><span>Mon poste</span></button>
+        <button className="feature-card" onClick={() => onTab('earnings')}><i><IconWallet size={19} /></i><span>Gains</span></button>
+        <button className="feature-card" onClick={() => onTab('green')}><i><IconLeaf size={19} /></i><span>Éco</span></button>
+        <button className="feature-card danger" onClick={() => setConfirmSos(true)}><i><IconShield size={19} /></i><span>SOS</span></button>
+      </div>
 
       <div className="dv-home-map">
         <OrionMap origin={position} car={position} traffic={false} />
@@ -106,10 +140,8 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
       )}
 
       <div className="dv-stats">
-        <Stat accent label="Gains nets du jour" value={fcfa(history?.today.net ?? 0)} sub={`${history?.today.rides ?? 0} course${(history?.today.rides ?? 0) > 1 ? 's' : ''}`} />
         <Stat label="Solde portefeuille" value={fcfa(finance?.balance ?? 0)} sub={finance && finance.cashDebt > 0 ? `Dette espèces ${fcfa(finance.cashDebt)}` : `Commission ${pct(finance?.commissionRate ?? driverConfig.commission.green)}`} />
-        <Stat label="Note" value={<span className="row" style={{ gap: 4 }}><IconStar size={17} color="var(--gold)" />{driver.ratingCount ? driver.ratingAvg.toFixed(2) : '—'}</span>} sub={`${driver.ratingCount} avis · min ${driverConfig.quality.minRating}`} />
-        <Stat label="Acceptation" value={acceptance === null ? '—' : pct(acceptance)} sub={`${driver.offersReceived ?? 0} offre${(driver.offersReceived ?? 0) > 1 ? 's' : ''} reçue${(driver.offersReceived ?? 0) > 1 ? 's' : ''}`} />
+        <Stat label="Courses du jour" value={history?.today.rides ?? 0} sub={`Note minimale ${driverConfig.quality.minRating} ★`} />
       </div>
 
       {offPeak && driverConfig.offPeak.bonus > 0 && (

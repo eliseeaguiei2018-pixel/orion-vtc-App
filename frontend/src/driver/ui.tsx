@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { LogoGlyph } from '../components/Logo';
+import { Scooter, Voiture, vehiculeDeGamme } from '../components/Vehicules';
 import { IconBell, IconBriefcase, IconCar, IconHome, IconLeaf, IconSettings, IconWallet } from '../icons';
 
 export type Tab = 'home' | 'rides' | 'earnings' | 'poste' | 'green' | 'profile';
@@ -25,17 +27,29 @@ export function BottomNav({ tab, onTab, alert }: { tab: Tab; onTab: (t: Tab) => 
   );
 }
 
-/** En-tête de page : titre + action à droite (cloche des notifications…). */
-export function PageHeader({ title, sub, right }: { title: string; sub?: string; right?: ReactNode }) {
+/**
+ * En-tête de page en dégradé — la signature visuelle d'ORION, la même que l'accueil de
+ * l'app cliente : marque, actions, titre, sous-titre, et un contenu libre (indicateurs).
+ */
+export function PageHeader({ title, sub, right, children }: { title: string; sub?: string; right?: ReactNode; children?: ReactNode }) {
   return (
-    <header className="dv-header">
-      <div>
-        <h1 className="h-title">{title}</h1>
-        {sub && <div className="faint" style={{ fontSize: 13, marginTop: 2 }}>{sub}</div>}
+    <header className="dv-hero">
+      <div className="dv-hero-top">
+        <span className="dv-hero-brand"><span className="hub-logo"><LogoGlyph size={17} /></span> ORION</span>
+        <span className="dv-hero-actions">{right}</span>
       </div>
-      {right}
+      <h1>{title}</h1>
+      {sub && <div className="dv-hero-sub">{sub}</div>}
+      {children}
     </header>
   );
+}
+
+/** Le véhicule du chauffeur, dessiné à la couleur de sa gamme (scooter pour un coursier). */
+export function VehiculeChauffeur({ category, largeur = 150 }: { category: string; largeur?: number }) {
+  if (category === 'moto') return <Scooter largeur={largeur} />;
+  const v = vehiculeDeGamme(category);
+  return <Voiture modele={v.modele} peinture={v.peinture} largeur={largeur} />;
 }
 
 export function BellButton({ count, onClick }: { count: number; onClick: () => void }) {

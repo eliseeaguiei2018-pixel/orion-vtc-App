@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { IconCar, IconClock, IconPin, IconWallet } from '../../icons';
 import type { DriverApp } from '../useDriver';
 import type { ActiveRide } from '../types';
+import { VehiculeChauffeur } from '../ui';
 import { fcfa, haversine, km, methodLabel, minutes, pct, TAILLE_COLIS, TIER_LABEL, zoneAt } from '../format';
 
 /** Bip d'alerte (WebAudio, sans fichier) à l'arrivée d'une offre. */
@@ -69,6 +70,13 @@ export function OfferSheet({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
   return (
     <div className="dv-offer-back">
       <div className="dv-offer" role="dialog" aria-label={livraison ? 'Nouvelle offre de livraison' : 'Nouvelle offre de course'}>
+        <div className="dv-ride-grab" aria-hidden="true" />
+        {/* Scène : l'appel arrive (ondes) sur le véhicule de la gamme demandée. */}
+        <div className={`dv-stage on${livraison ? ' moto' : ''}`}>
+          <span className="dv-onde" /><span className="dv-onde b" /><span className="dv-onde c" />
+          <span className={`dv-stage-tag dv-pill ${livraison ? 'gold' : 'green'}`}>{livraison ? 'Livraison' : 'Course'} · {km(toPickup)} de vous</span>
+          <VehiculeChauffeur category={livraison ? 'moto' : ride.category} largeur={150} />
+        </div>
         <div className="row between">
           <div>
             <div className="eyebrow">{livraison ? `Nouvelle livraison moto · ${TAILLE_COLIS[ride.category] ?? ride.category}` : `Nouvelle course · ${TIER_LABEL[ride.category] ?? ride.category}`}</div>

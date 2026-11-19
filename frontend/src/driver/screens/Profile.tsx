@@ -4,7 +4,7 @@ import { useTheme, type Accent, type ThemeMode } from '../../theme';
 import { EMERGENCY_NUMBERS } from '../../api';
 import type { ScreenProps } from '../Driver';
 import type { DriverProfile, KycStatus, ProfilePatch } from '../types';
-import { Banner, BellButton, PageHeader, Progress, Section, Stat } from '../ui';
+import { Banner, BellButton, PageHeader, Progress, Section, Stat, VehiculeChauffeur } from '../ui';
 import { daysUntil, initials, KYC_LABEL, pct, shortDate, TIER_LABEL } from '../format';
 
 const PIPELINE: KycStatus[] = ['draft', 'docs_submitted', 'manual_review', 'active'];
@@ -62,19 +62,28 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
     <div className="dv-page">
       <PageHeader title="Mon profil" sub="Dossier, conformité et qualité" right={<BellButton count={unread} onClick={openNotices} />} />
 
-      <div className="card dv-item" style={{ padding: 16 }}>
-        <div className="driver-photo" style={{ overflow: 'hidden', width: 64, height: 64 }}>
-          {photo ? <img src={photo} alt={driver.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials(driver.name)}
-        </div>
-        <div className="grow">
-          <div className="dv-item-title" style={{ fontSize: 17 }}>{driver.name}</div>
-          <div className="dv-item-sub">{driver.matricule} · {driver.phone}</div>
-          <div className="row" style={{ gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+      {/* Portrait du chauffeur posé sur l'en-tête, véhicule de sa gamme dessous. */}
+      <div className="card dv-portrait-card">
+        <div className="dv-portrait">
+          <div className="dv-portrait-photo">
+            {photo ? <img src={photo} alt={driver.name} /> : initials(driver.name)}
+          </div>
+          <div>
+            <div className="h-title" style={{ fontSize: 21 }}>{driver.name}</div>
+            <div className="dv-item-sub">{driver.matricule} · {driver.phone}</div>
+          </div>
+          <div className="row" style={{ gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
             <span className={`dv-pill ${driver.kycStatus === 'suspended' ? 'danger' : driver.kycStatus === 'active' || driver.kycStatus === 'approved' ? 'green' : 'gold'}`}>{KYC_LABEL[driver.kycStatus]}</span>
             <span className="dv-pill">Gamme {TIER_LABEL[driver.category] ?? driver.category}</span>
             {driver.vip && <span className="dv-pill gold">⭐ Top Driver</span>}
             {driver.loyaltyTier && <span className="dv-pill green">Fidélité {driver.loyaltyTier === 'gold' ? 'Or' : driver.loyaltyTier === 'silver' ? 'Argent' : 'Bronze'}</span>}
           </div>
+          {(driver.vehicleModel || driver.vehiclePlate) && (
+            <div className={`dv-stage dv-portrait-stage${driver.category === 'moto' ? ' moto' : ''}`}>
+              <span className="dv-stage-tag dv-pill">{[driver.vehicleModel, driver.vehiclePlate, driver.vehicleColor].filter(Boolean).join(' · ')}</span>
+              <VehiculeChauffeur category={driver.category} largeur={150} />
+            </div>
+          )}
         </div>
       </div>
 
