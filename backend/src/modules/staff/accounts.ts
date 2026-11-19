@@ -224,6 +224,23 @@ export class StaffAccountService {
   }
 
   /**
+   * Définit le mot de passe SANS l'ancien — réservé aux voies où l'identité est déjà
+   * prouvée autrement (session d'app chauffeur obtenue par code SMS).
+   */
+  definirMotDePasse(username: string, nouveau: string): 'ok' | 'trop_court' | 'inconnu' {
+    const c = this.comptes.get(username);
+    if (!c) return 'inconnu';
+    if (nouveau.length < MDP_MIN) return 'trop_court';
+    const { salt, hash } = hashPassword(nouveau);
+    c.salt = salt;
+    c.hash = hash;
+    c.mustChangePassword = false;
+    c.updatedAt = new Date().toISOString();
+    this.repo?.put(c);
+    return 'ok';
+  }
+
+  /**
    * Désactive un compte avec un motif. On ne supprime pas : le journal d'audit
    * référence ce nom, et un dossier instruit par quelqu'un qui « n'existe plus »
    * n'est pas auditable.

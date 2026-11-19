@@ -12,6 +12,9 @@ import {
 import { STATUT_RAPPORT_LABEL } from '../staff/comms.js';
 import { requireDriver } from './auth.js';
 import type { Driver } from '../drivers/store.js';
+import { photoUrl, signatureValide } from './photo-url.js';
+import { accesPersonnel } from '../admin/acces-hors-console.js';
+import { driverTokenOf, verifyDriverToken } from './auth.js';
 
 /**
  * LE POSTE DU CHAUFFEUR DANS SON APP — le même que celui de la console (session
@@ -60,9 +63,33 @@ export function photosChauffeurs(container: Container): PhotosChauffeurs {
   return p;
 }
 
-/** Adresse de la photo d'un chauffeur (versionnée : un changement invalide les caches). */
-export const photoUrl = (d: Pick<Driver, 'id' | 'photoUpdatedAt'>): string | null =>
-  d.photoUpdatedAt ? `/drivers/${d.id}/photo?v=${encodeURIComponent(d.photoUpdatedAt)}` : null;
+export { photoUrl };
+
+/**
+ * IDENTIFIANT CONSOLE DU CHAUFFEUR — créé automatiquement (un compte par personne,
+ * chauffeurs compris) : à son inscription dans l'app et dès qu'une équipe le compte
+ * parmi ses chauffeurs. Sans cela, son chef d'équipe ne pouvait ni lui écrire ni lui
+ * demander un rapport. Rattaché à son équipe ; le chauffeur choisit son mot de passe
+ * depuis l'app (jamais un mot de passe provisoire perdu).
+ */
+export function assurerIdentifiantChauffeur(container: Container, driverId: string, teamId?: string | null) {
+  const d = container.drivers.get(driverId);
+  if (!d) return undefined;
+  const existant = container.accounts.parChauffeur(driverId);
+  if (existant) {
+    if (teamId !== undefined && (existant.teamId ?? null) !== (teamId ?? null)) {
+      container.accounts.modifier(existant.username, { teamId: teamId ?? null });
+    }
+    return container.accounts.parChauffeur(driverId);
+  }
+  const res = container.accounts.creer({
+    name: d.name, role: 'chauffeur', driverId, matricule: d.matricule, phone: d.phone,
+    teamId: teamId ?? undefined, service: 'Chauffeurs', createdBy: 'Système ORION',
+  });
+  if (!res.ok) return undefined;
+  container.audit.log({ actor: 'Système ORION', role: 'super_admin', action: 'account.chauffeur_auto', target: res.account.username, details: { driverId, teamId: teamId ?? null } });
+  return container.accounts.parChauffeur(driverId);
+}
 
 /**
  * Le chauffeur tel que le PASSAGER le voit : de quoi le reconnaître (photo, véhicule,
@@ -90,8 +117,8 @@ const vueRequete = (r: RequeteChauffeur) => ({
 
 export async function posteChauffeurRoutes(app: FastifyInstance, container: Container): Promise<void> {
   const photos = photosChauffeurs(container);
-  /** Identifiant console du chauffeur (messages du chef, rapports). */
-  const compte = (driverId: string) => container.accounts.parChauffeur(driverId);
+  /** Identifiant console du chauffeur (messages du chef, rapports) — créé au besoin. */
+  const compte = (driverId: string) => container.accounts.parChauffeur(driverId) ?? assurerIdentifiantChauffeur(container, driverId);
 
   app.get('/drivers/:id/poste', async (req) => {
     const { id } = req.params as { id: string };
@@ -205,6 +232,26 @@ export async function posteChauffeurRoutes(app: FastifyInstance, container: Cont
     return { rapport: { ...r, statutLabel: STATUT_RAPPORT_LABEL[r.statut] } };
   });
 
+  /* ------------------------- Identifiant console ------------------------- */
+
+  /**
+   * Le chauffeur choisit le mot de passe de SON identifiant console (session « Mon
+   * poste » d'un compte chauffeur). Sa session d'app (code SMS) prouve qui il est ;
+   * seul un compte de rôle chauffeur lié à SA fiche peut être modifié ainsi.
+   */
+  app.post('/drivers/:id/console/mot-de-passe', { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (req) => {
+    const { id } = req.params as { id: string };
+    requireDriver(req, id);
+    const { motDePasse } = parse(z.object({ motDePasse: z.string().min(10, 'Au moins 10 caractères').max(128) }), req.body);
+    const acces = compte(id);
+    if (!acces || acces.role !== 'chauffeur' || acces.driverId !== id) throw forbidden('Identifiant console indisponible pour ce compte');
+    const r = container.accounts.definirMotDePasse(acces.username, motDePasse);
+    if (r === 'trop_court') throw badRequest('Au moins 10 caractères');
+    if (r !== 'ok') throw notFound('Identifiant introuvable');
+    container.audit.log({ actor: acces.name, role: 'chauffeur', action: 'account.password_from_app', target: acces.username, details: { driverId: id } });
+    return { identifiant: acces.username };
+  });
+
   /* ------------------------------- Photo ------------------------------- */
 
   // Photo prise ou choisie dans l'app (recadrée et compressée), vérifiée octet par octet.
@@ -235,11 +282,17 @@ export async function posteChauffeurRoutes(app: FastifyInstance, container: Cont
   });
 
   /**
-   * Image de la photo : pour le passager (reconnaître son chauffeur), son contact de
-   * confiance, la console et le dossier SOS. Adresse non devinable (identifiant aléatoire).
+   * Image de la photo : seulement pour qui a le droit de la voir — adresse signée et
+   * expirante (remise au passager, à son contact de confiance, à la console), le
+   * chauffeur lui-même (jeton), ou le personnel habilité. Sinon : refus.
    */
   app.get('/drivers/:id/photo', async (req, reply) => {
     const { id } = req.params as { id: string };
+    const q = (req.query ?? {}) as { v?: string; exp?: string; sig?: string };
+    const autorise = signatureValide(id, q.v, q.exp, q.sig)
+      || verifyDriverToken(driverTokenOf(req)) === id
+      || accesPersonnel(req, 'drivers:read').ok;
+    if (!autorise) throw forbidden('Photo réservée aux personnes concernées par la course');
     const p = photos.get(id);
     if (!p) throw notFound('Pas de photo');
     const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(p.photo);

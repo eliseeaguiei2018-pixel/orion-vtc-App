@@ -137,6 +137,8 @@ function resilientSocket(url: string, onMessage: (m: DriverEvent) => void, onLin
 /** Implémentation LIVE : backend ORION réel. */
 function createLiveBackend(): DriverBackend {
   let current = loadSession();
+  /** Adresse signée de la photo du chauffeur (remise par /drivers/me et à l'envoi). */
+  let photoSignee: string | null = null;
 
   async function call<T>(path: string, init: RequestInit = {}, auth = true, accept: number[] = []): Promise<T> {
     const ctrl = new AbortController();
@@ -186,7 +188,12 @@ function createLiveBackend(): DriverBackend {
       saveSession(current);
       return { driver: r.driver, created: r.created };
     },
-    me: () => call('/drivers/me'),
+    async me() {
+      // L'adresse de SA photo est signée par le serveur (l'identifiant seul ne suffit plus).
+      const r = await call<{ driver: DriverProfile; finance: Finance; photoUrl?: string | null }>('/drivers/me');
+      photoSignee = r.photoUrl ?? null;
+      return r;
+    },
 
     // Même source que l'app cliente : GET /config.
     appConfig: () => fetchAppConfig(),
@@ -265,10 +272,11 @@ function createLiveBackend(): DriverBackend {
     async rendreRapport(rid, texte) { await post(`/drivers/${id()}/rapports/${rid}/rendre`, { texte }); },
     async setPhoto(dataUrl) {
       const r = await call<{ photoUrl: string | null }>(`/drivers/${id()}/photo`, { method: 'PUT', body: JSON.stringify({ photo: dataUrl }) });
+      photoSignee = r.photoUrl;
       return r.photoUrl ? `${API}${r.photoUrl}` : null;
     },
     async deletePhoto() { await call(`/drivers/${id()}/photo`, { method: 'DELETE' }); },
-    photoSrc: (d) => (d.photoUpdatedAt ? `${API}/drivers/${d.id}/photo?v=${encodeURIComponent(d.photoUpdatedAt)}` : null),
+    photoSrc: (d) => (d.photoUpdatedAt && photoSignee ? `${API}${photoSignee}` : null),
 
     wallet: () => call(`/drivers/${id()}/wallet`),
     async payout(amount, method) { await post(`/drivers/${id()}/payout`, { amount, method }); },

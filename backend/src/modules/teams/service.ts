@@ -25,6 +25,16 @@ export interface Team {
 
 export class TeamService {
   private readonly teams = new Map<string, Team>();
+  /** Écouteurs : (équipe après, chauffeurs avant) — null quand l'équipe est supprimée. */
+  private readonly ecouteurs: Array<(apres: Team | null, avant: string[], id: string) => void> = [];
+
+  onChange(fn: (apres: Team | null, avant: string[], id: string) => void): void { this.ecouteurs.push(fn); }
+
+  private signaler(apres: Team | null, avant: string[], id: string): void {
+    for (const fn of this.ecouteurs) {
+      try { fn(apres, avant, id); } catch { /* la synchronisation ne bloque jamais l'équipe */ }
+    }
+  }
 
   constructor(private readonly repo?: Repository<Team>) {
     for (const t of repo?.all() ?? []) this.teams.set(t.id, t);
@@ -43,20 +53,25 @@ export class TeamService {
     };
     this.teams.set(team.id, team);
     this.repo?.put(team);
+    this.signaler(team, existing?.driverIds ?? [], team.id);
     return team;
   }
 
   setDrivers(id: string, driverIds: string[]): Team | null {
     const t = this.teams.get(id);
     if (!t) return null;
+    const avant = [...t.driverIds];
     t.driverIds = [...new Set(driverIds)];
     this.repo?.put(t);
+    this.signaler(t, avant, id);
     return t;
   }
 
   remove(id: string): void {
+    const avant = this.teams.get(id)?.driverIds ?? [];
     this.teams.delete(id);
     this.repo?.delete(id);
+    this.signaler(null, avant, id);
   }
 
   get(id: string): Team | undefined {

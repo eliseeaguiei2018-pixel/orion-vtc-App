@@ -1,4 +1,5 @@
 import type { Container } from '../../container.js';
+import { photoUrl } from '../driver-app/photo-url.js';
 import type { AdminAccount } from '../admin/roles.js';
 import { ROLE_LABEL } from '../admin/roles.js';
 
@@ -152,6 +153,9 @@ export class TeamWorkspaceService {
       return {
         driverId: d.id, matricule: d.matricule, name: d.name, phone: d.phone ?? null,
         category: d.category, kycStatus: d.kycStatus, availability: d.availability,
+        // Photo, annulations du chauffeur et son identifiant (pour lui écrire, lui demander un rapport).
+        photoUrl: photoUrl(d), annulations: d.cancellations ?? 0,
+        identifiant: this.c.accounts.parChauffeur(d.id)?.username ?? null,
         coursesPeriode: sesCourses.length,
         revenusPeriode: Math.round(revenus),
         requetesOuvertes: this.c.crewRequests.list({ driverId: id })

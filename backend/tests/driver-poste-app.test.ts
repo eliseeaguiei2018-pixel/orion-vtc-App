@@ -30,7 +30,7 @@ test('Poste : dossier, plafonds, requêtes et circuit de décision en direct', a
   assert.equal(p.activite.periodeJours, 30);
   assert.equal(p.plafonds.avance, 150_000);
   assert.ok(p.typesRequete.some((x: { code: string }) => x.code === 'pret'));
-  assert.equal(p.acces, null, 'pas encore d’identifiant console');
+  assert.ok(p.acces?.identifiant, 'identifiant console créé dès l’inscription');
   // Jamais le poste d'un collègue.
   assert.equal((await app.inject({ method: 'GET', url: `/drivers/${d.id}/poste`, headers: autre.headers })).statusCode, 403);
 
@@ -69,17 +69,17 @@ test('Équipe et messages du chef : lecture, réponse et rapport depuis l’app'
   t.after(() => app.close());
   const d = await appDriver(app, '0190000003', 'Awa Équipe');
 
-  // Sans identifiant console : messages vides, action refusée avec explication.
+  // L'identifiant console du chauffeur existe dès son inscription : personne n'a à le créer.
   const vide = (await app.inject({ method: 'GET', url: `/drivers/${d.id}/messages`, headers: d.headers })).json();
-  assert.equal(vide.identifiant, null);
+  assert.ok(vide.identifiant, 'identifiant automatique');
+  assert.equal(vide.messages.length, 0);
 
   const chef = container.accounts.creer({ name: 'Serge Manager', role: 'manager', phone: '+2250700000001', createdBy: 'test' });
   assert.ok(chef.ok);
   const chefUser = chef.ok ? chef.account.username : '';
   container.teams.upsert({ name: 'Équipe Plateau', managerUsername: chefUser, managerName: 'Serge Manager', mission: 'Secteur Plateau', driverIds: [d.id] });
-  const compte = container.accounts.creer({ name: 'Awa Équipe', role: 'chauffeur', driverId: d.id, createdBy: 'test' });
-  assert.ok(compte.ok);
-  const user = compte.ok ? compte.account.username : '';
+  const user = container.accounts.parChauffeur(d.id)!.username;
+  assert.equal(user, vide.identifiant);
 
   const poste = (await app.inject({ method: 'GET', url: `/drivers/${d.id}/poste`, headers: d.headers })).json();
   assert.equal(poste.equipe.name, 'Équipe Plateau');

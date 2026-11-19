@@ -44,7 +44,10 @@ test('un matricule suffit à retrouver un chauffeur et tout son dossier', async 
   const dossier = (await app.inject({ method: 'GET', url: `/admin/crew/${d.id}`, headers: A })).json().dossier;
   assert.equal(dossier.identite.matricule, 'AB-114-CI');
   assert.equal(dossier.equipe.mission, 'Cocody et Riviera');
-  assert.equal(dossier.acces, null, 'pas encore de compte de connexion');
+  // Un chauffeur ajouté à une équipe reçoit automatiquement son identifiant console
+  // (son chef peut lui écrire) ; il en choisit le mot de passe depuis son app.
+  assert.equal(dossier.acces.username, 'konan.yao', 'identifiant créé automatiquement');
+  assert.equal(dossier.acces.mustChangePassword, true);
 });
 
 test('la chaîne d’un prêt va du dépôt au remboursement, tracée à chaque étape', async (t) => {

@@ -68,6 +68,7 @@ import type { Subscription, SubscriptionInvoice } from './modules/subscriptions/
 import type { WeddingReservation } from './modules/wedding/service.js';
 import type { RentalReservation } from './modules/rental/service.js';
 import { vueLocationChauffeur } from './modules/driver-app/views.js';
+import { assurerIdentifiantChauffeur } from './modules/driver-app/poste.js';
 import { Mesures } from './core/mesures.js';
 
 /**
@@ -422,6 +423,14 @@ export function createContainer(): Container {
     const controle = setInterval(() => controlerCoursesEnCours(container, config.SAFETY_CHECKIN_SECONDS), 5_000);
     controle.unref?.();
   }
+
+  // IDENTIFIANTS CHAUFFEURS : un chauffeur ajouté à la flotte d'une équipe reçoit (s'il
+  // n'en a pas) son identifiant console — son chef peut alors lui écrire et lui demander
+  // un rapport depuis la flotte. Les chauffeurs restent dans la FLOTTE de l'équipe, pas
+  // parmi ses membres (le personnel), d'où l'identifiant créé sans rattachement d'équipe.
+  container.teams.onChange((apres) => {
+    for (const driverId of apres?.driverIds ?? []) assurerIdentifiantChauffeur(container, driverId);
+  });
 
   // APP CHAUFFEUR : un message ou une demande de rapport du chef d'équipe à un
   // chauffeur (compte console lié à son matricule) arrive aussi dans son app.

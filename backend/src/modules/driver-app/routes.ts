@@ -15,7 +15,8 @@ import { ETAPES_CHAUFFEUR } from '../rental/service.js';
 import { rideStateMachine } from '../services/ride/stateMachine.js';
 import type { Ride } from '../rides/store.js';
 import { offersOf } from './offers.js';
-import { posteChauffeurRoutes } from './poste.js';
+import { assurerIdentifiantChauffeur, posteChauffeurRoutes } from './poste.js';
+import { photoUrl } from './photo-url.js';
 import {
   OtpStore, driverTokenOf, issueDriverToken, normalizePhone, requireDriver, verifyDriverToken,
 } from './auth.js';
@@ -97,6 +98,9 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
         phone,
       });
     }
+    // Identifiant console (un compte par personne, chauffeurs compris) : son chef
+    // d'équipe peut lui écrire dès qu'il le rattache à une équipe.
+    assurerIdentifiantChauffeur(container, driver.id);
     // Lien app ↔ chauffeur : désormais, ses courses lui sont proposées comme des offres
     // (compte à rebours console) et ne sont plus simulées.
     if (!driver.appLinkedAt) {
@@ -118,7 +122,8 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
     if (!id) throw unauthorized('Session chauffeur absente ou expirée — reconnectez-vous');
     const driver = container.drivers.get(id);
     if (!driver) throw notFound('Chauffeur introuvable');
-    return { driver, finance: financeFor(container, driver) };
+    // Sa photo : adresse signée (l'identifiant seul ne suffit plus à la voir).
+    return { driver, finance: financeFor(container, driver), photoUrl: photoUrl(driver) };
   });
 
   /* ----------------------- Configuration chauffeur ----------------------- */

@@ -24,6 +24,7 @@ import { MOTIF_LABEL as IMMO_MOTIF_LABEL, VITESSE_COUPURE_MAX } from '../rental/
 import { COUPURES, ECART_TOLERE, ORIGINE_LABEL, SORTIE_LABEL, totalComptage, type Comptage } from '../treasury/caisse.js';
 import { TYPE_LABEL as CREW_TYPE_LABEL, STATUT_LABEL as CREW_STATUT_LABEL, TYPES_FINANCIERS, PLAFOND_AVANCE, PLAFOND_PRET, MAX_ECHEANCES, type TypeRequete } from '../crew/requests.js';
 import { consoleForced, consoleReassigned } from '../driver-app/offers.js';
+import { photoUrl } from '../driver-app/photo-url.js';
 import { categorieDeFlotte } from '../rides/matching.js';
 import { ROLES_HABILITABLES, STATUT_HABILITATION_LABEL, type ErreurHabilitation, type Habilitation } from '../dashboard/habilitations.js';
 
@@ -945,6 +946,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         } : null,
         driver: driver ? {
           id: driver.id, name: driver.name, matricule: driver.matricule, phone: driver.phone ?? null,
+          // Photo du chauffeur (adresse signée) : l'agent SAMU la décrit aux secours.
+          photoUrl: photoUrl(driver),
           licenseNo: driver.licenseNo ?? null, birthDate: driver.birthDate ?? null,
           phoneBatteryPct: pseudoBatt(driver.id), batteryPct: driver.batteryPct ?? null,
         } : null,
@@ -3263,7 +3266,10 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       const destinataire = container.accounts.get(body.a);
       if (!destinataire) throw notFound('Destinataire introuvable');
       // On écrit aux gens de son équipe, pas à toute l'entreprise.
-      if (destinataire.teamId !== id && container.teams.get(id)?.managerUsername !== destinataire.username) {
+      // Un chauffeur de la flotte de l'équipe est un destinataire légitime (son identifiant
+      // console est créé et rattaché automatiquement).
+      const chauffeurDeLEquipe = Boolean(destinataire.driverId && container.teams.get(id)?.driverIds.includes(destinataire.driverId));
+      if (destinataire.teamId !== id && !chauffeurDeLEquipe && container.teams.get(id)?.managerUsername !== destinataire.username) {
         throw forbidden('Ce destinataire n’appartient pas à cette équipe.');
       }
       const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
@@ -3293,7 +3299,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       }), req.body);
       const membre = container.accounts.get(body.destinataire);
       if (!membre) throw notFound('Membre introuvable');
-      if (membre.teamId !== id) throw forbidden('Ce membre n’appartient pas à cette équipe.');
+      const chauffeurDeLEquipe = Boolean(membre.driverId && container.teams.get(id)?.driverIds.includes(membre.driverId));
+      if (membre.teamId !== id && !chauffeurDeLEquipe) throw forbidden('Ce membre n’appartient pas à cette équipe.');
       const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
       if (!account.username) throw forbidden('Jeton statique : impossible de demander en votre nom.');
       const rapport = container.staffComms.demanderRapport({

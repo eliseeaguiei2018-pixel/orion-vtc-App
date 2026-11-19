@@ -1,4 +1,5 @@
 import type { Container } from '../../container.js';
+import { photoUrl } from '../driver-app/photo-url.js';
 import { TYPE_LABEL, STATUT_LABEL, type RequeteChauffeur } from './requests.js';
 
 /**
@@ -51,6 +52,9 @@ export interface DossierEquipage {
     rating: number; trips: number;
     licenseNo?: string; birthDate?: string; insuranceExpiry?: string;
     appLinkedAt?: string;
+    /** Photo du chauffeur (adresse signée) et annulations faites par lui-même. */
+    photoUrl?: string | null;
+    annulationsChauffeur?: number;
   };
   vehicule: { model?: string; plate?: string; color?: string; engine: string; batteryPct?: number; batteryHealthPct?: number };
   equipe: { id: string; name: string; mission?: string; managerName?: string; managerUsername: string } | null;
@@ -252,6 +256,7 @@ export class CrewService {
         rating: d.ratingAvg, trips: d.ratingCount,
         licenseNo: d.licenseNo, birthDate: d.birthDate, insuranceExpiry: d.insuranceExpiry,
         appLinkedAt: d.appLinkedAt,
+        photoUrl: photoUrl(d), annulationsChauffeur: d.cancellations ?? 0,
       },
       vehicule: {
         model: d.vehicleModel, plate: d.vehiclePlate, color: d.vehicleColor,

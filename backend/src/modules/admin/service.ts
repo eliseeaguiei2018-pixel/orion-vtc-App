@@ -1,4 +1,5 @@
 import type { Container } from '../../container.js';
+import { photoUrl } from '../driver-app/photo-url.js';
 import type { RideStatus } from '../services/ride/stateMachine.js';
 import type { Ride } from '../rides/store.js';
 import type { EmergencyAlert } from '../safety/service.js';
@@ -430,6 +431,9 @@ export class AdminService {
       suspensionReason: d.suspensionReason ?? null,
       // Numéro : sans lui, la console affiche un chauffeur qu'on ne peut pas joindre.
       phone: d.phone ?? null,
+      // Photo (adresse signée) et annulations faites par le chauffeur lui-même.
+      photoUrl: photoUrl(d),
+      cancellations: d.cancellations ?? 0,
     }));
     return { drivers, ...meta };
   }
@@ -446,6 +450,8 @@ export class AdminService {
     return {
       id: d.id, name: d.name, matricule: d.matricule, category: d.category,
       kycStatus: d.kycStatus, availability: d.availability, rating: d.ratingAvg, trips: d.ratingCount,
+      photoUrl: photoUrl(d), cancellations: d.cancellations ?? 0,
+      offres: { recues: d.offersReceived ?? 0, acceptees: d.offersAccepted ?? 0, refusees: d.offersDeclined ?? 0, expirees: d.offersExpired ?? 0 },
       balance: this.c.wallet.balance(id), earnings: Math.round(earnings),
       ledger: history.slice(0, 20),
       rides,
