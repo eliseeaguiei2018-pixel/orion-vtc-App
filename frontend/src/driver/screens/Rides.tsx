@@ -3,9 +3,10 @@ import { IconStar } from '../../icons';
 import type { ScreenProps } from '../Driver';
 import type { RideHistory, RideView } from '../types';
 import { BellButton, PageHeader, Stat } from '../ui';
+import { Rentals } from './Rentals';
 import { dateTime, fcfa, km, methodLabel, STATUS_LABEL } from '../format';
 
-type Filter = 'all' | 'paid' | 'cancelled';
+type Filter = 'all' | 'paid' | 'cancelled' | 'locations';
 
 /** HISTORIQUE DES COURSES : statut, montant, gain net, moyen de paiement, note client. */
 export function Rides({ app, unread, openNotices }: ScreenProps) {
@@ -28,14 +29,15 @@ export function Rides({ app, unread, openNotices }: ScreenProps) {
         <Stat label="7 jours" value={history?.week.rides ?? 0} sub={`${fcfa(history?.week.net ?? 0)} nets`} />
       </div>
       <div className="dv-seg" role="group" aria-label="Filtre">
-        {([['all', 'Toutes'], ['paid', 'Payées'], ['cancelled', 'Annulées']] as Array<[Filter, string]>).map(([f, l]) => (
+        {([['all', 'Toutes'], ['paid', 'Payées'], ['cancelled', 'Annulées'], ['locations', `Locations${app.rentals.some((r) => r.status === 'confirmee' || r.status === 'en_cours' || r.status === 'reservee') ? ' •' : ''}`]] as Array<[Filter, string]>).map(([f, l]) => (
           <button key={f} className={filter === f ? 'on' : ''} onClick={() => setFilter(f)}>{l}</button>
         ))}
       </div>
-      {error && <div className="dv-empty">Historique indisponible — vérifiez votre connexion.</div>}
-      {!error && rides.length === 0 && <div className="dv-empty">Aucune course {filter === 'cancelled' ? 'annulée' : filter === 'paid' ? 'payée' : ''} pour l’instant.</div>}
+      {filter === 'locations' && <Rentals app={app} />}
+      {filter !== 'locations' && error && <div className="dv-empty">Historique indisponible — vérifiez votre connexion.</div>}
+      {filter !== 'locations' && !error && rides.length === 0 && <div className="dv-empty">Aucune course {filter === 'cancelled' ? 'annulée' : filter === 'paid' ? 'payée' : ''} pour l’instant.</div>}
       <div className="col" style={{ gap: 8 }}>
-        {rides.map((r) => <RideRow key={r.id} r={r} />)}
+        {filter !== 'locations' && rides.map((r) => <RideRow key={r.id} r={r} />)}
       </div>
     </div>
   );

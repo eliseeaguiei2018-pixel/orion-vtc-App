@@ -11,6 +11,8 @@ import { Green } from './screens/Green';
 import { Profile } from './screens/Profile';
 import { OfferSheet } from './screens/Offer';
 import { RideScreen, SettledModal } from './screens/Ride';
+import { Poste } from './screens/Poste';
+import { SosLive, SosPill } from './screens/SosLive';
 
 /**
  * APP CHAUFFEUR ORION — troisième page du projet (driver.html), à côté de l'app cliente
@@ -63,9 +65,14 @@ function Shell({ app }: { app: DriverApp }) {
       {tab === 'home' && <Home {...common} onTab={setTab} />}
       {tab === 'rides' && <Rides {...common} />}
       {tab === 'earnings' && <Earnings {...common} />}
+      {tab === 'poste' && <Poste {...common} />}
       {tab === 'green' && <Green {...common} />}
       {tab === 'profile' && <Profile {...common} />}
-      <BottomNav tab={tab} onTab={setTab} alert={{ profile: app.driver.kycStatus === 'draft', earnings: Boolean(app.finance?.cashBlocked) }} />
+      <BottomNav tab={tab} onTab={setTab} alert={{
+        profile: app.driver.kycStatus === 'draft',
+        earnings: Boolean(app.finance?.cashBlocked),
+        rides: app.rentals.some((r) => r.status === 'confirmee' && Date.parse(r.debut) - Date.now() < 86_400_000),
+      }} />
 
       {ride && !ride.offer && <RideScreen app={app} ride={ride} />}
       {ride?.offer && <OfferSheet app={app} ride={ride} />}
@@ -94,6 +101,8 @@ function Shell({ app }: { app: DriverApp }) {
           </div>
         </Modal>
       )}
+      {app.sosLive && app.sosOuvert && <SosLive app={app} />}
+      {app.sosLive && !app.sosOuvert && <SosPill app={app} />}
       {app.toast && <Toast app={app} />}
     </div>
   );

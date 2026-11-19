@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { IconBell, IconCar, IconHome, IconLeaf, IconSettings, IconWallet } from '../icons';
+import { IconBell, IconBriefcase, IconCar, IconHome, IconLeaf, IconSettings, IconWallet } from '../icons';
 
-export type Tab = 'home' | 'rides' | 'earnings' | 'green' | 'profile';
+export type Tab = 'home' | 'rides' | 'earnings' | 'poste' | 'green' | 'profile';
 
 /** Barre d'onglets du bas (pouce-friendly). */
 export function BottomNav({ tab, onTab, alert }: { tab: Tab; onTab: (t: Tab) => void; alert?: Partial<Record<Tab, boolean>> }) {
@@ -9,6 +9,7 @@ export function BottomNav({ tab, onTab, alert }: { tab: Tab; onTab: (t: Tab) => 
     { id: 'home', label: 'Accueil', icon: <IconHome size={21} /> },
     { id: 'rides', label: 'Courses', icon: <IconCar size={21} /> },
     { id: 'earnings', label: 'Gains', icon: <IconWallet size={21} /> },
+    { id: 'poste', label: 'Poste', icon: <IconBriefcase size={21} /> },
     { id: 'green', label: 'Éco', icon: <IconLeaf size={21} /> },
     { id: 'profile', label: 'Profil', icon: <IconSettings size={21} /> },
   ];

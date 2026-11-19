@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { OrionMap } from '../../components/OrionMap';
 import { IconClock, IconPhone, IconPin, IconWallet } from '../../icons';
 import type { DriverApp } from '../useDriver';
-import type { ActiveRide, RideStatus, RideView } from '../types';
+import type { ActiveRide, MotifAnnulationChauffeur, RideStatus, RideView } from '../types';
 import { Banner, Modal } from '../ui';
 import { fcfa, haversine, km, methodLabel, navLinks, statutLabel, TAILLE_COLIS } from '../format';
 import { lienTel, numeroLisible } from '../../telephone';
@@ -23,7 +23,11 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
   const links = navLinks(target);
   const { wait } = app.driverConfig;
   const billable = Math.max(0, ride.waitMinutes - wait.freeMinutes);
-  const totalDue = ride.amount + billable * wait.feePerMin;
+  const brut = ride.amount + billable * wait.feePerMin;
+  // Abonnement ORION : ce que le client paie VRAIMENT (le chauffeur est payé sur le brut).
+  const prisEnCharge = Math.min(brut, ride.encaissement?.prisEnCharge ?? 0);
+  const totalDue = Math.max(0, brut - prisEnCharge);
+  const abonnement = ride.encaissement?.abonnement ?? null;
   const gateways = app.appConfig?.gateways ?? {};
   const cashAllowed = gateways['cash'] !== false;
   const electronic = ride.paymentMethod !== null && ride.paymentMethod !== 'cash';
@@ -35,7 +39,7 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
     <div className="dv-ride">
       <div className="dv-ride-map">
         {toPickup
-          ? <OrionMap origin={app.position} destination={ride.origin} car={app.position} vehicle={livraison ? 'moto' : 'car'} traffic />
+          ? <OrionMap origin={app.position} destination={ride.origin} car={app.position} vehicle={livraison ? 'moto' : 'car'} traffic approche />
           : <OrionMap origin={ride.origin} destination={ride.destination} car={app.position} vehicle={livraison ? 'moto' : 'car'} traffic />}
         <div className="dv-map-chip"><span className="dv-link online"><i />{statutLabel(ride.status, livraison)}</span></div>
         <button className="sos" style={{ bottom: 40 }} onClick={() => setSos(true)} aria-label="SOS">SOS</button>
@@ -47,7 +51,8 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
         </div>
 
         <div className="row between">
-          <div>
+          {!livraison && <PhotoPassager photo={ride.client.photo ?? null} prenom={ride.client.name} />}
+          <div className="grow">
             <div className="eyebrow">{livraison
               ? (toPickup ? 'Retrait du colis' : ride.status === 'arrived' ? `Colis à récupérer · ${TAILLE_COLIS[ride.category] ?? ride.category}` : 'Livraison du colis')
               : (toPickup ? 'Prise en charge' : ride.status === 'arrived' ? 'Client attendu' : 'Destination')}</div>
@@ -57,10 +62,15 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
             </div>
           </div>
           <div style={{ textAlign: 'end' }}>
-            <div className="dv-price" style={{ fontSize: 24 }}>{fcfa(totalDue)}</div>
+            <div className="dv-price" style={{ fontSize: 24 }}>{fcfa(brut)}</div>
             <div className="faint" style={{ fontSize: 12 }}>Prix fixe{billable > 0 ? ` + attente ${fcfa(billable * wait.feePerMin)}` : ''}</div>
           </div>
         </div>
+        {abonnement && (
+          <Banner tone="success" icon={<IconWallet size={18} />} title={totalDue === 0 ? 'Course incluse dans l’abonnement du client' : `Abonnement du client : ${fcfa(prisEnCharge)} pris en charge`}>
+            {abonnement.plan} · le client paie {fcfa(totalDue)}. Vous êtes rémunéré sur le prix complet ({fcfa(brut)}).
+          </Banner>
+        )}
 
         <div className="dv-actions">
           <a className="dv-act" href={links.google} target="_blank" rel="noreferrer"><IconPin size={18} />Google Maps</a>
@@ -92,7 +102,15 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
           : ride.status === 'arrived' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('in_progress')}>{livraison ? 'Colis récupéré, je livre' : 'Client à bord — démarrer'}</button>}
         {ride.status === 'in_progress' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('completed')}>{livraison ? 'Colis livré' : 'Terminer la course'}</button>}
 
-        {ride.status === 'completed' && (
+        {ride.status === 'completed' && totalDue === 0 && (
+          <div className="col" style={{ gap: 10 }}>
+            <button className="btn btn-primary" disabled={app.busy}
+              onClick={() => void app.actions.settleCovered(ride.id, [ride.paymentMethod ?? 'card', 'card', 'cash', 'wave', 'orange_money'].find((m) => gateways[m] !== false) ?? 'card')}>
+              Valider la fin de course — rien à encaisser
+            </button>
+          </div>
+        )}
+        {ride.status === 'completed' && totalDue > 0 && (
           <div className="col" style={{ gap: 10 }}>
             {electronic && (
               <Banner tone="info" icon={<IconWallet size={18} />} title={`Paiement ${methodLabel(ride.paymentMethod)} en attente`}>
@@ -117,7 +135,7 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
 
       {sos && (
         <Modal title="Alerte SOS" onClose={() => setSos(false)}>
-          <p className="muted" style={{ marginBottom: 12 }}>Le poste de supervision ORION et le SAMU (185) reçoivent votre position et la course en cours.</p>
+          <p className="muted" style={{ marginBottom: 12 }}>Votre position et la course partent à la supervision ORION. Vous suivrez en direct qui prend votre alerte et quels secours sont appelés.</p>
           <div className="col" style={{ gap: 8 }}>
             {['Agression / menace', 'Accident', 'Malaise passager'].map((note) => (
               <button key={note} className="btn btn-danger" onClick={() => { setSos(false); void app.actions.sos(note); }}>{note}</button>
@@ -126,18 +144,79 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
           </div>
         </Modal>
       )}
-      {cancel && (
-        <Modal title="Annuler la course ?" onClose={() => setCancel(false)}>
-          <p className="muted" style={{ marginBottom: 12 }}>
-            {ride.status === 'arrived' ? 'Client absent ? Vérifiez l’avoir appelé avant d’annuler.' : 'Le client sera prévenu immédiatement. Les annulations répétées dégradent votre taux de service.'}
-          </p>
-          <div className="col" style={{ gap: 8 }}>
-            <button className="btn btn-danger" onClick={() => { setCancel(false); t('cancelled'); }}>Confirmer l’annulation</button>
-            <button className="btn btn-ghost" onClick={() => setCancel(false)}>Continuer la course</button>
-          </div>
-        </Modal>
-      )}
+      {cancel && <AnnulationModal app={app} ride={ride} livraison={livraison} onClose={() => setCancel(false)} onSos={() => { setCancel(false); setSos(true); }} />}
     </div>
+  );
+}
+
+/** Photo du passager (prénom + photo pendant la mission, politique de confidentialité). */
+function PhotoPassager({ photo, prenom }: { photo: string | null; prenom: string | null }) {
+  const initiale = (prenom ?? '?').charAt(0).toUpperCase();
+  return (
+    <span className="driver-photo" style={{ width: 48, height: 48, fontSize: 18, overflow: 'hidden', marginInlineEnd: 12, flexShrink: 0 }}>
+      {photo ? <img src={photo} alt={prenom ?? 'Passager'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initiale}
+    </span>
+  );
+}
+
+const MOTIFS: Array<{ id: MotifAnnulationChauffeur; label: string; aide: string }> = [
+  { id: 'client_injoignable', label: 'Client injoignable', aide: 'Appelé sans réponse' },
+  { id: 'adresse_introuvable', label: 'Adresse introuvable', aide: 'Point de prise en charge inaccessible' },
+  { id: 'vehicule_panne', label: 'Véhicule en panne', aide: 'Vous passez hors ligne' },
+  { id: 'securite', label: 'Je ne me sens pas en sécurité', aide: 'Tracé à la supervision' },
+  { id: 'autre', label: 'Autre raison', aide: 'Précisez-la ci-dessous' },
+];
+
+/**
+ * ANNULATION PAR LE CHAUFFEUR — motif obligatoire. Avant la prise en charge, le passager
+ * garde sa course : elle part vers un autre chauffeur, sans frais pour lui. « Client
+ * absent » n'est possible qu'une fois arrivé, après les minutes d'attente offertes.
+ * Demander au passager d'annuler lui-même est interdit (signalé à la console).
+ */
+function AnnulationModal({ app, ride, livraison, onClose, onSos }: {
+  app: DriverApp; ride: ActiveRide; livraison: boolean; onClose: () => void; onSos: () => void;
+}) {
+  const [motif, setMotif] = useState<MotifAnnulationChauffeur | null>(null);
+  const [details, setDetails] = useState('');
+  const [maintenant, setMaintenant] = useState(Date.now());
+  useEffect(() => { const t = window.setInterval(() => setMaintenant(Date.now()), 5000); return () => window.clearInterval(t); }, []);
+  const offertes = app.driverConfig.wait.freeMinutes;
+  const arrivee = [...ride.events].reverse().find((e) => e.type === 'arrived');
+  const attente = arrivee ? (maintenant - Date.parse(arrivee.at)) / 60_000 : 0;
+  const absentPossible = ride.status === 'arrived' && attente >= offertes;
+  const reste = Math.max(0, Math.ceil(offertes - attente));
+  const confirmer = async () => {
+    if (!motif) return;
+    if (await app.actions.cancelRide(ride.id, motif, details.trim() || undefined)) onClose();
+  };
+  return (
+    <Modal title={livraison ? 'Annuler la livraison ?' : 'Annuler la course ?'} onClose={onClose}>
+      <p className="muted" style={{ marginBottom: 12, fontSize: 13.5 }}>
+        Le {livraison ? 'client' : 'passager'} garde sa {livraison ? 'livraison' : 'course'} : elle est confiée à un autre chauffeur, sans frais pour lui. Vos annulations comptent dans votre taux de service.
+      </p>
+      <div className="col" style={{ gap: 8 }}>
+        {ride.status === 'arrived' && (
+          <button className={`dv-qcm-opt${motif === 'client_absent' ? ' on' : ''}`} disabled={!absentPossible} onClick={() => setMotif('client_absent')}>
+            <strong>{livraison ? 'Expéditeur absent' : 'Passager absent'}</strong>
+            <div className="faint" style={{ fontSize: 12 }}>{absentPossible ? `Annulation, frais d’absence (${fcfa(app.driverConfig.cancel.fee)})` : `Possible dans ${reste} min (attente offerte : ${offertes} min)`}</div>
+          </button>
+        )}
+        {MOTIFS.map((m) => (
+          <button key={m.id} className={`dv-qcm-opt${motif === m.id ? ' on' : ''}`} onClick={() => setMotif(m.id)}>
+            <strong>{m.label}</strong>
+            <div className="faint" style={{ fontSize: 12 }}>{m.aide}</div>
+          </button>
+        ))}
+        {motif === 'securite' && (
+          <Banner tone="danger" title="En danger ?" action={<button className="dv-pill danger" onClick={onSos}>SOS</button>}>Déclenchez le SOS : un agent ORION vous prend en charge.</Banner>
+        )}
+        {motif && (
+          <textarea className="dv-input" rows={2} maxLength={300} placeholder="Précision (facultatif)" value={details} onChange={(e) => setDetails(e.target.value)} />
+        )}
+        <button className="btn btn-danger" disabled={!motif || app.busy} onClick={() => void confirmer()}>Confirmer l’annulation</button>
+        <button className="btn btn-ghost" onClick={onClose}>Continuer la {livraison ? 'livraison' : 'course'}</button>
+      </div>
+    </Modal>
   );
 }
 
@@ -181,7 +260,11 @@ export function SettledModal({ app }: { app: DriverApp }) {
   return (
     <Modal title={view?.serviceType === 'delivery' ? 'Livraison payée ✅' : 'Course payée ✅'} onClose={app.actions.dismissSettled}>
       <div className="col" style={{ gap: 10 }}>
-        <div className="row between"><span className="muted">Montant payé ({methodLabel(settled.method)})</span><strong>{fcfa(settled.amount)}</strong></div>
+        <div className="row between">
+          <span className="muted">{settled.amount === 0 ? 'Payé par le client' : `Montant payé (${methodLabel(settled.method)})`}</span>
+          <strong>{settled.amount === 0 ? 'Inclus dans son abonnement' : fcfa(settled.amount)}</strong>
+        </div>
+        {e && <div className="row between"><span className="muted">Prix de la course (votre base)</span><strong>{fcfa(e.net + e.commission)}</strong></div>}
         {e && (
           <>
             <div className="row between"><span className="muted">Commission ORION</span><span className="dv-amount neg">− {fcfa(e.commission)}</span></div>

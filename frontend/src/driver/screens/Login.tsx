@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { LogoIcon } from '../../components/Logo';
 import type { DriverApp } from '../useDriver';
 import { Banner } from '../ui';
@@ -17,6 +17,8 @@ export function Login({ app }: { app: DriverApp }) {
   const [registered, setRegistered] = useState(true);
   const [devCode, setDevCode] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  const [actif, setActif] = useState(true);
+  const champ = useRef<HTMLInputElement>(null);
   const closed = app.appConfig && !app.appConfig.open;
 
   const sendCode = async () => {
@@ -62,11 +64,18 @@ export function Login({ app }: { app: DriverApp }) {
         </form>
       ) : (
         <form className="dv-form" onSubmit={(e) => { e.preventDefault(); void verify(); }}>
-          <label className="dv-label">Code reçu au {phone}
-            <input className="dv-input code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="••••••"
-              value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />
+          <div className="dv-label">Code reçu par SMS au {phone}</div>
+          {/* Même saisie que l'app cliente : un seul vrai champ affiché en six cases —
+              frappe rapide, collage et remplissage automatique du SMS sans chiffre perdu. */}
+          <label className="otp-row">
+            {Array.from({ length: 6 }, (_, i) => (
+              <span key={i} className={`otp-box${actif && i === Math.min(code.length, 5) ? ' actif' : ''}`} aria-hidden="true">{code[i] ?? ''}</span>
+            ))}
+            <input ref={champ} className="otp-saisie" inputMode="numeric" pattern="[0-9]*" maxLength={6} autoComplete="one-time-code"
+              aria-label="Code à 6 chiffres" value={code} autoFocus onFocus={() => setActif(true)} onBlur={() => setActif(false)}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
           </label>
-          {devCode && <div className="faint" style={{ fontSize: 12, textAlign: 'center' }}>Code de test (hors production) : <strong>{devCode}</strong></div>}
+          {devCode && <p className="otp-dev">Code de test (hors production) : <strong>{devCode}</strong></p>}
           {!registered && (
             <>
               <Banner tone="success" title="Nouveau chauffeur ORION">Créez votre compte : votre dossier sera ensuite à compléter dans l’app.</Banner>
@@ -87,6 +96,8 @@ export function Login({ app }: { app: DriverApp }) {
           <button className="btn btn-primary" disabled={busy || code.length !== 6 || (!registered && name.trim().length < 2)}>
             {registered ? 'Se connecter' : 'Créer mon compte'}
           </button>
+          <button type="button" className="btn btn-ghost" disabled={busy}
+            onClick={() => { setCode(''); champ.current?.focus(); void sendCode(); }}>Renvoyer le code</button>
           <button type="button" className="btn btn-ghost" onClick={() => { setStep('phone'); setCode(''); }}>Changer de numéro</button>
         </form>
       )}

@@ -69,6 +69,28 @@ export function Earnings({ app, unread, openNotices }: ScreenProps) {
         </div>
       )}
 
+      {(history?.aRegulariser?.length ?? 0) > 0 && (
+        <Section title="À régulariser">
+          <Banner tone="warn" icon={<IconWallet size={18} />} title="Courses terminées sans paiement enregistré">
+            ORION vous a remis en service après le délai d’encaissement. Si le client vous a payé en espèces, enregistrez-le ; sinon la supervision régularise.
+          </Banner>
+          {history!.aRegulariser!.map((r) => {
+            const du = r.encaissement?.aEncaisser ?? r.amount;
+            return (
+              <div key={r.id} className="card dv-item">
+                <div className="grow">
+                  <div className="dv-item-title">{fcfa(du)} {r.encaissement?.abonnement ? '· abonnement' : ''}</div>
+                  <div className="dv-item-sub">{dateTime(r.updatedAt)} · {methodLabel(r.paymentMethod)}</div>
+                </div>
+                {du === 0
+                  ? <button className="dv-pill green" disabled={app.busy} onClick={() => void app.actions.settleCovered(r.id, 'card').then(load)}>Valider</button>
+                  : (app.appConfig?.gateways['cash'] !== false) && <button className="dv-pill green" disabled={app.busy} onClick={() => void app.actions.collectCash(r.id).then(load)}>Encaissé en espèces</button>}
+              </div>
+            );
+          })}
+        </Section>
+      )}
+
       <Section title="Aujourd’hui">
         <div className="dv-stats">
           <Stat accent label="Gains nets" value={fcfa(history?.today.net ?? 0)} sub={`${history?.today.rides ?? 0} course(s)`} />

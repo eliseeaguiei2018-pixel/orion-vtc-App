@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { IconCheck, IconShield, IconStar } from '../../icons';
-import { useTheme, type ThemeMode } from '../../theme';
+import { useRef, useState } from 'react';
+import { IconCamera, IconCheck, IconImage, IconPhone, IconShield, IconStar } from '../../icons';
+import { useTheme, type Accent, type ThemeMode } from '../../theme';
+import { EMERGENCY_NUMBERS } from '../../api';
 import type { ScreenProps } from '../Driver';
 import type { DriverProfile, KycStatus, ProfilePatch } from '../types';
 import { Banner, BellButton, PageHeader, Progress, Section, Stat } from '../ui';
@@ -31,7 +32,8 @@ const fromDriver = (d: DriverProfile): Form => ({
  */
 export function Profile({ app, unread, openNotices }: ScreenProps) {
   const driver = app.driver!;
-  const { mode, setMode } = useTheme();
+  const { mode, setMode, accent, setAccent } = useTheme();
+  const photo = app.backend.photoSrc(driver);
   const [form, setForm] = useState<Form>(() => fromDriver(driver));
   const [engine, setEngine] = useState<'electric' | 'hybrid'>(driver.engine ?? 'electric');
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }));
@@ -61,7 +63,9 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
       <PageHeader title="Mon profil" sub="Dossier, conformité et qualité" right={<BellButton count={unread} onClick={openNotices} />} />
 
       <div className="card dv-item" style={{ padding: 16 }}>
-        <div className="driver-photo">{initials(driver.name)}</div>
+        <div className="driver-photo" style={{ overflow: 'hidden', width: 64, height: 64 }}>
+          {photo ? <img src={photo} alt={driver.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials(driver.name)}
+        </div>
         <div className="grow">
           <div className="dv-item-title" style={{ fontSize: 17 }}>{driver.name}</div>
           <div className="dv-item-sub">{driver.matricule} · {driver.phone}</div>
@@ -73,6 +77,8 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
           </div>
         </div>
       </div>
+
+      <PhotoChauffeur app={app} aUnePhoto={Boolean(photo)} />
 
       <Section title="Validation du dossier">
         {driver.kycStatus === 'suspended' ? (
@@ -158,11 +164,85 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
             <button key={m} className={mode === m ? 'on' : ''} onClick={() => setMode(m)}>{l}</button>
           ))}
         </div>
+        {/* Même choix de couleur que l'app cliente (design ORION) : appliqué en temps réel. */}
+        <div className="dv-seg" role="group" aria-label="Couleur">
+          {([['vert', 'Vert ORION'], ['orange', 'Orange'], ['bleu', 'Bleu']] as Array<[Accent, string]>).map(([a, l]) => (
+            <button key={a} className={accent === a ? 'on' : ''} onClick={() => setAccent(a)}>{l}</button>
+          ))}
+        </div>
         <div className="faint" style={{ fontSize: 12 }}>
           {driver.appLinkedAt ? `App liée depuis le ${shortDate(driver.appLinkedAt)} · ` : ''}{app.live ? 'Serveur ORION' : 'Mode démo'}
         </div>
         <button className="btn btn-ghost" onClick={() => void app.actions.logout()} disabled={driver.availability === 'on_trip'}>Se déconnecter</button>
       </Section>
+
+      <Section title="Aide & sécurité">
+        <div className="card" style={{ padding: 14, display: 'grid', gap: 8, fontSize: 13.5 }}>
+          <div>En danger pendant une course ou à l’arrêt : bouton <strong>SOS</strong> (accueil et course). Un agent ORION prend l’alerte et vous suivez sa prise en charge en direct.</div>
+          <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+            {([['SAMU', EMERGENCY_NUMBERS.samu], ['Police', EMERGENCY_NUMBERS.police], ['Pompiers', EMERGENCY_NUMBERS.pompiers]] as Array<[string, string]>).map(([l, n]) => (
+              <a key={n} className="dv-pill danger" href={`tel:${n}`}><IconPhone size={13} /> {l} {n}</a>
+            ))}
+          </div>
+          <div className="faint">Une demande (prêt, avance, congé, réparation, réclamation) se fait dans <strong>Mon poste</strong> ; votre chef d’équipe la reçoit.</div>
+          <a href="./confidentialite.html" target="_blank" rel="noreferrer" style={{ color: 'var(--green)' }}>Politique de confidentialité ORION</a>
+        </div>
+      </Section>
     </div>
+  );
+}
+
+/** Lit une image, la recadre au carré et la réduit (480 px, JPEG) : légère et nette. */
+async function versPhotoCarree(fichier: File): Promise<string> {
+  const url = URL.createObjectURL(fichier);
+  try {
+    const img = new Image();
+    await new Promise<void>((ok, ko) => { img.onload = () => ok(); img.onerror = () => ko(new Error('image')); img.src = url; });
+    const cote = Math.min(img.naturalWidth, img.naturalHeight);
+    const canvas = document.createElement('canvas');
+    canvas.width = 480;
+    canvas.height = 480;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('canvas');
+    ctx.drawImage(img, (img.naturalWidth - cote) / 2, (img.naturalHeight - cote) / 2, cote, cote, 0, 0, 480, 480);
+    return canvas.toDataURL('image/jpeg', 0.82);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * PHOTO DU CHAUFFEUR : le passager la voit à l'attribution (avec le véhicule et la vraie
+ * plaque) pour reconnaître son chauffeur ; la supervision la voit dans le dossier SOS.
+ */
+function PhotoChauffeur({ app, aUnePhoto }: { app: ScreenProps['app']; aUnePhoto: boolean }) {
+  const camera = useRef<HTMLInputElement>(null);
+  const galerie = useRef<HTMLInputElement>(null);
+  const [apercu, setApercu] = useState<string | null>(null);
+  const choisir = async (f: File | undefined) => {
+    if (!f) return;
+    try { setApercu(await versPhotoCarree(f)); } catch { app.showToast('Image illisible — choisissez une photo JPEG ou PNG', 'danger'); }
+  };
+  return (
+    <Section title="Ma photo">
+      <input ref={camera} type="file" accept="image/*" capture="user" hidden onChange={(e) => void choisir(e.target.files?.[0])} />
+      <input ref={galerie} type="file" accept="image/*" hidden onChange={(e) => void choisir(e.target.files?.[0])} />
+      <div className="faint" style={{ fontSize: 12.5 }}>Visage dégagé, sans lunettes de soleil : vos passagers vous reconnaissent à la prise en charge.</div>
+      {apercu ? (
+        <div className="col" style={{ gap: 8, alignItems: 'center' }}>
+          <img src={apercu} alt="Aperçu" style={{ width: 140, height: 140, borderRadius: 24, objectFit: 'cover', border: '1px solid var(--stroke)' }} />
+          <div className="dv-grid2" style={{ width: '100%' }}>
+            <button className="btn btn-ghost" onClick={() => setApercu(null)}>Reprendre</button>
+            <button className="btn btn-primary" disabled={app.busy} onClick={() => void app.actions.setPhoto(apercu).then((ok) => { if (ok) setApercu(null); })}><IconCheck size={16} /> Utiliser</button>
+          </div>
+        </div>
+      ) : (
+        <div className="dv-grid2">
+          <button className="btn btn-ghost" onClick={() => camera.current?.click()}><IconCamera size={16} /> {aUnePhoto ? 'Nouvelle photo' : 'Prendre une photo'}</button>
+          <button className="btn btn-ghost" onClick={() => galerie.current?.click()}><IconImage size={16} /> Galerie</button>
+        </div>
+      )}
+      {aUnePhoto && !apercu && <button className="dv-pill" style={{ justifySelf: 'start' }} onClick={() => void app.actions.deletePhoto()}>Retirer ma photo</button>}
+    </Section>
   );
 }

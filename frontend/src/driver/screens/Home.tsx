@@ -143,7 +143,7 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
             <button className="dv-pill danger" onClick={() => { setConfirmSos(false); void app.actions.sos('Alerte depuis l’accueil chauffeur'); }}>Envoyer</button>
             <button className="dv-pill" onClick={() => setConfirmSos(false)}>Annuler</button>
           </div>
-        }>Votre position est transmise au poste de supervision ORION.</Banner>
+        }>Votre position part à la supervision ORION ; vous suivrez en direct la prise en charge.</Banner>
       )}
     </div>
   );
