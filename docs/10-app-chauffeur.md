@@ -150,3 +150,58 @@ backend/tests/driver-offers.test.ts  offres, cascade, expiration, console, simul
   validation console en direct → en ligne → offre (délai console) → course → espèces →
   dette visible → maintenance et suspension reçues en direct ; le client suit la voiture
   et les étapes sur `/ws/rides/:id`. Mode démo testé aussi. Aucune erreur console.
+
+---
+
+## 9. Alignement avec l'écosystème (app cliente, console, tableau de bord)
+
+L'app Chauffeur a été réalignée sur les avancées de l'app cliente, de la console (sessions
+« Mon poste », Équipages, Location Signature, Supervision SAMU) et du tableau de bord.
+
+### 9.1 Défauts de synchronisation corrigés
+
+| Constat | Correction |
+|---|---|
+| Les positions envoyées par l'app n'alimentaient pas le tracé de la course (seul le simulateur le faisait) : dossier SOS, déviation d'itinéraire, vitesse, position falsifiée et litiges travaillaient sans tracé pour un vrai chauffeur. | `POST /drivers/:id/location` enregistre chaque point sur la course active (même règle que le simulateur, début du trajet client marqué à la prise en charge). |
+| Une course libérée après `RIDE_UNPAID_RELEASE_MINUTES` sans paiement restait la « mission en cours » de l'app. | Elle sort de la mission et apparaît dans **Gains › À régulariser** (`aRegulariser` de `/drivers/:id/rides`). |
+| L'app demandait au client le prix complet en espèces, même quand son **abonnement ORION** en couvrait tout ou partie. | Chaque course porte `encaissement` (brut, part prise en charge, reste à encaisser). Course entièrement couverte : « Valider la fin de course — rien à encaisser ». Le chauffeur reste payé sur le brut. |
+| L'annulation par le chauffeur passait par la transition générique : frais facturés au passager, « annulation abusive » comptée contre lui, aucun motif ni auteur. | `POST /drivers/:id/rides/:rideId/cancel` (voir 9.3). |
+| Les décisions console sur une location (statut, annulation, réaffectation) n'arrivaient pas au chauffeur. | Trames `rental.update` et `rental.withdrawn`. |
+| Le passager voyait une plaque déduite du matricule. | Il reçoit la **vraie plaque**, la couleur, le véhicule et la **photo** du chauffeur (`POST /rides`, `ride.reassigned`, lien de partage). |
+| Le chauffeur voyait le nom complet du passager. | Prénom et photo, le temps de la course, comme l'annonce la politique de confidentialité publiée. |
+
+### 9.2 Ajouts
+
+| Onglet / écran | Contenu | Côté serveur |
+|---|---|---|
+| **Poste** (nouvel onglet) | Activité 30 jours, solde, dette espèces / plafond, reste dû, équipe et chef à appeler, identifiant console, points d'attention ; **demandes** (prêt, avance, congé, matériel, réparation, réclamation, document) avec plafonds et suivi du circuit chef → direction financière → trésorerie ; **messages et rapports du chef d'équipe** (lire, répondre, rendre). | `GET /drivers/:id/poste`, `POST /drivers/:id/requetes`, `GET /drivers/:id/messages`, `POST /drivers/:id/messages/:mid/lu`, `POST /drivers/:id/messages/:mid/reponse`, `POST /drivers/:id/rapports/:rid/rendre` |
+| **Courses › Locations** | Locations Signature confiées : véhicule, période, lieu, contact à appeler, options à préparer (jamais le prix) ; étapes déclarées : véhicule préparé, en route, sur place, début puis fin de service (le dossier passe « en cours » puis « terminée » dans la console). | `GET /drivers/:id/rentals`, `POST /drivers/:id/rentals/:rid/etape` |
+| **SOS** | Suivi en direct de son alerte, identique au passager : alerte reçue, agent ORION nommé, secours réellement sollicités, chat discret, numéros directs. Rien n'est annoncé avant d'avoir eu lieu. | `/safety/sos/:id`, `/safety/sos/:id/message`, `/ws/sos/:id` (existants) |
+| **Course** | Prénom et photo du passager, reste à encaisser (abonnement), annulation motivée, trajet d'approche en pointillés sur la vraie carte. | — |
+| **Profil** | Photo du chauffeur (vue par le passager, la console, le dossier SOS), couleur au choix vert / orange / bleu (comme l'app cliente), aide & sécurité, politique de confidentialité. | `PUT/DELETE /drivers/:id/photo`, `GET /drivers/:id/photo` |
+| **Connexion** | Code SMS en six cases (un seul champ : frappe rapide, collage et remplissage automatique sans chiffre perdu), « Renvoyer le code ». | — |
+| **Note en direct** | Toast « Nouvelle note ★★★★★ · #Courtoisie » (étoiles et thèmes, jamais le texte du passager). | trame `ride.rated` |
+
+Nouvelles trames du canal `/ws/drivers/:id` : `ride.rated`, `rental.update`, `rental.withdrawn`,
+`poste.message` (et `crew.request`, `rental.assigned`, déjà publiées par le serveur, désormais traitées).
+
+### 9.3 Annulation par le chauffeur
+
+| Situation | Effet |
+|---|---|
+| Avant la prise en charge (client injoignable, adresse introuvable, panne, insécurité, autre) | Le passager **garde sa course** : elle repart vers un autre chauffeur (jamais celui qui a annulé), sans frais pour lui. Personne d'autre : annulation sans frais. Panne : le chauffeur passe hors ligne. |
+| Passager absent | Seulement une fois arrivé **et** après les minutes d'attente offertes (console) ; course annulée, frais d'absence console inscrits au client. |
+| Course en cours | Refusé : terminer la course, ou SOS. |
+
+Le motif est obligatoire et tracé au journal (`ride.cancel_chauffeur`, `ride.cancel_chauffeur_securite`) ;
+les annulations du chauffeur sont comptées (`cancellations`), sauf motif de sécurité. Demander au
+passager d'annuler lui-même reste interdit (signalé à la console comme détournement de course).
+
+### 9.4 Vérifications
+
+- `backend` : 9 tests ajoutés (`driver-alignement.test.ts`, `driver-poste-app.test.ts`), suite complète au vert.
+- Parcours navigateur réel avec le serveur et la console pilotée en direct : code en six cases → photo →
+  dossier validé → poste (équipe, chef, demande d'avance) → location Signature (étape déclarée) → course
+  espèces avec code passager → tracé GPS enregistré → note reçue en direct → annulation motivée sans frais
+  pour le passager → SOS suivi jusqu'à la prise en charge. Mode démo et couleur au choix vérifiés. Aucune
+  erreur console.

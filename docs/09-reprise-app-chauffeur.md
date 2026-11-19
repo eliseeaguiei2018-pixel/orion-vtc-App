@@ -176,7 +176,12 @@ Huawei Stelato S9, Zeekr 8X. Trois formules : **événement & mariage**,
 N heures, ou privatisée à la journée / au week-end / à la semaine / au mois).
 
 La console affecte un chauffeur à une location (session « Location Signature »).
-**Côté app Chauffeur, il reste à faire :**
+> ✅ **Fait** (novembre 2026) : écran « Courses › Locations », notifications temps réel
+> (`rental.assigned`, `rental.update`, `rental.withdrawn`) et étapes déclarées par le chauffeur
+> (véhicule préparé, en route, sur place, début / fin de service) — voir
+> [doc 10 §9](./10-app-chauffeur.md). Ce qui était demandé :
+
+**Côté app Chauffeur, il restait à faire :**
 
 1. **Écran « Mes locations »** alimenté par `GET /drivers/:id/rentals` (jeton chauffeur
    obligatoire). La réponse donne le dossier, le véhicule, la période, les heures de
@@ -198,6 +203,10 @@ La console affecte un chauffeur à une location (session « Location Signature �
 ---
 
 ## 5 ter. ABONNEMENT ORION — ce que le chauffeur doit savoir
+
+> ✅ **Fait** (novembre 2026) : l'app affiche ce que le client paie réellement, n'encaisse en
+> espèces que le reste dû, valide une course entièrement couverte sans encaissement, et garde
+> le brut dans les gains — voir [doc 10 §9](./10-app-chauffeur.md).
 
 L'abonnement client a été rendu **effectif** (il était purement décoratif) :
 une course peut être prise en charge, en tout ou partie, par le forfait du client.

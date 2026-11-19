@@ -118,6 +118,7 @@
 .dv-amount.neg { color: var(--danger); }
 
 .dv-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; padding: 4px 9px; border-radius: 999px; background: var(--surface-2); color: var(--text-dim); border: 1px solid var(--stroke); white-space: nowrap; }
+a.dv-pill { text-decoration: none; }
 .dv-pill.green { color: var(--green); border-color: rgba(0, 224, 138, 0.4); background: rgba(0, 224, 138, 0.08); }
 .dv-pill.gold { color: var(--gold); border-color: rgba(245, 196, 81, 0.45); background: rgba(245, 196, 81, 0.08); }
 .dv-pill.danger { color: var(--danger); border-color: rgba(255, 77, 94, 0.45); background: rgba(255, 77, 94, 0.08); }
