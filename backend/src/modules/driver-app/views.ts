@@ -117,7 +117,9 @@ export function totals(views: ReturnType<typeof driverRideView>[], sinceMs: numb
   const rows = views.filter((v) => v.paidAmount !== null && Date.parse(v.updatedAt) >= sinceMs);
   return {
     rides: rows.length,
-    gross: rows.reduce((s, v) => s + (v.paidAmount ?? 0), 0),
+    // Brut = ce qui rémunère le chauffeur (gain net + commission), y compris quand le
+    // client n'a rien payé parce que la course était couverte par son abonnement.
+    gross: rows.reduce((s, v) => s + v.earnings.net + v.earnings.commission, 0),
     net: rows.reduce((s, v) => s + v.earnings.net + v.earnings.bonus, 0),
     commission: rows.reduce((s, v) => s + v.earnings.commission, 0),
     cashCollected: rows.reduce((s, v) => s + v.earnings.cashCollected, 0),

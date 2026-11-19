@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { AppConfig } from '../api';
+import type { AppConfig, SosSuivi } from '../api';
 import { ApiError, createBackend, type DriverBackend } from './backend';
 import { DEMO_DRIVER_CONFIG } from './demo';
 import type {
+  LocationChauffeur, MotifAnnulationChauffeur, NouvelleRequete, EtapeLocation,
   ActiveRide, Announcement, DriverConfig, DriverEvent, DriverProfile, Finance, LatLng, LinkState, RideStatus,
 } from './types';
 
@@ -45,6 +46,15 @@ export function useDriver() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [toast, setToast] = useState<ToastMsg | null>(null);
   const [settled, setSettled] = useState<Settled | null>(null);
+  /** Locations Signature confiées au chauffeur (console → app, en direct). */
+  const [rentals, setRentals] = useState<LocationChauffeur[]>([]);
+  /** Incrémenté quand le poste bouge (requête, message du chef) : les écrans se rechargent. */
+  const [posteVersion, setPosteVersion] = useState(0);
+  /** Alerte SOS en cours de suivi (reprise après fermeture de l'app). */
+  const [sosId, setSosId] = useState<string | null>(() => { try { return localStorage.getItem('orion.driver.sos'); } catch { return null; } });
+  const [sosLive, setSosLive] = useState<SosSuivi | null>(null);
+  const [sosOuvert, setSosOuvert] = useState(true);
+  const [sosHorsLigne, setSosHorsLigne] = useState(false);
   const [position, setPosition] = useState<LatLng>(DEFAULT_POS);
   const [gps, setGps] = useState<'real' | 'simulated'>('simulated');
   const [busy, setBusy] = useState(false);
@@ -137,7 +147,9 @@ export function useDriver() {
         if (rideId && activeRef.current?.id === rideId) {
           setActiveRide(null);
           showToast(reason === 'expired' ? 'Offre expirée — vous êtes en pause'
-            : reason === 'console' ? 'Course retirée par ORION' : 'Offre transmise à un autre chauffeur', reason === 'expired' ? 'danger' : 'info');
+            : reason === 'console' ? 'Course retirée par ORION'
+              : reason === 'chauffeur_annule' ? 'Course annulée — le passager est confié à un autre chauffeur'
+                : 'Offre transmise à un autre chauffeur', reason === 'expired' ? 'danger' : 'info');
         }
         break;
       }
@@ -185,6 +197,29 @@ export function useDriver() {
         }
         break;
       }
+      case 'ride.rated': {
+        // La note du passager arrive en direct (étoiles et thèmes, jamais son texte).
+        const n = data as { stars?: number; tags?: string[] } | undefined;
+        if (n?.stars) {
+          showToast(`Nouvelle note : ${'★'.repeat(n.stars)}${'☆'.repeat(5 - n.stars)}${n.tags?.length ? ` · ${n.tags.join(' ')}` : ''}`, n.stars >= 4 ? 'success' : 'info');
+          void refresh();
+        }
+        break;
+      }
+      case 'rental.assigned':
+      case 'rental.update':
+        try { if (e.type === 'rental.assigned') navigator.vibrate?.([200, 100, 200]); } catch { /* ignore */ }
+        void backend.rentals().then(setRentals).catch(() => undefined);
+        break;
+      case 'rental.withdrawn': {
+        const rid = (data as { id?: string } | undefined)?.id;
+        setRentals((l) => l.filter((r) => r.id !== rid));
+        break;
+      }
+      case 'crew.request':
+      case 'poste.message':
+        setPosteVersion((v) => v + 1);
+        break;
       case 'error':
         if (e['code'] === 'UNAUTHORIZED') { backend.logout(); setSession(null); }
         break;
@@ -200,6 +235,19 @@ export function useDriver() {
   }, [backend, onEvent, session]);
 
   // Retour au premier plan : resynchronisation (réseau mobile instable).
+  // Locations Signature : chargées à la connexion, puis tenues à jour par le canal temps réel.
+  useEffect(() => {
+    if (!session) { setRentals([]); return; }
+    void backend.rentals().then(setRentals).catch(() => undefined);
+  }, [backend, session]);
+
+  // SOS : suivi en direct de SON alerte (comme le client) — prise en charge, agent, secours.
+  useEffect(() => {
+    if (!sosId || !session) return;
+    void backend.sosSuivi(sosId).then((s) => { if (s) setSosLive(s); }).catch(() => undefined);
+    return backend.sosSubscribe(sosId, setSosLive, (ok) => setSosHorsLigne(!ok));
+  }, [backend, sosId, session]);
+
   useEffect(() => {
     const onVis = () => { if (document.visibilityState === 'visible') void refresh(); };
     document.addEventListener('visibilitychange', onVis);
@@ -325,7 +373,49 @@ export function useDriver() {
       return r;
     }),
     collectCash: (rideId: string) => run(async () => { await backend.collectCash(rideId); await refresh(); }),
-    sos: (note?: string) => run(async () => { await backend.sos(activeRef.current?.id ?? null, posRef.current, note); }, 'Alerte SOS envoyée au poste ORION'),
+    // SOS : l'alerte part, puis le chauffeur SUIT sa prise en charge (rien n'est annoncé d'avance).
+    sos: (note?: string) => run(async () => {
+      const id = await backend.sos(activeRef.current?.id ?? null, posRef.current, note);
+      if (id) {
+        try { localStorage.setItem('orion.driver.sos', id); } catch { /* ignore */ }
+        setSosLive(null);
+        setSosId(id);
+        setSosOuvert(true);
+      }
+    }, 'Alerte reçue par la supervision ORION'),
+    sosRepondre: async (text: string) => {
+      if (!sosId) return;
+      const s = await backend.sosRepondre(sosId, text).catch(() => null);
+      if (s) setSosLive(s); else showToast('Message non envoyé — réessayez', 'danger');
+    },
+    sosReduire: () => setSosOuvert(false),
+    sosOuvrir: () => setSosOuvert(true),
+    sosFermer: () => {
+      try { localStorage.removeItem('orion.driver.sos'); } catch { /* ignore */ }
+      setSosId(null); setSosLive(null);
+    },
+    /** Annulation motivée : renvoie true si elle a abouti. */
+    cancelRide: (rideId: string, motif: MotifAnnulationChauffeur, details?: string) => run(async () => {
+      const r = await backend.cancelRide(rideId, motif, details);
+      setActiveRide(null);
+      await refresh();
+      showToast(r.reattribuee ? 'Course annulée : le passager est confié à un autre chauffeur, sans frais pour lui'
+        : motif === 'client_absent' ? `Passager absent : course annulée${r.frais ? ` (frais d’absence ${r.frais.toLocaleString('fr-FR')} F)` : ''}` : 'Course annulée', 'info');
+      return true;
+    }),
+    /** Course couverte par l'abonnement : valider la fin (0 F à encaisser). */
+    settleCovered: (rideId: string, method: string) => run(async () => { await backend.settleCovered(rideId, method); await refresh(); }),
+    rentalStep: (rentalId: string, etape: EtapeLocation, note?: string) => run(async () => {
+      const r = await backend.rentalStep(rentalId, etape, note);
+      setRentals((l) => l.map((x) => (x.id === r.id ? r : x)));
+      return r;
+    }, 'Étape enregistrée — la console ORION la voit'),
+    deposerRequete: (r: NouvelleRequete) => run(async () => { const x = await backend.deposerRequete(r); setPosteVersion((v) => v + 1); return x; }, 'Demande envoyée à votre chef d’équipe'),
+    repondreMessage: (id: string, texte: string) => run(async () => { await backend.repondreMessage(id, texte); setPosteVersion((v) => v + 1); return true; }, 'Réponse envoyée'),
+    rendreRapport: (id: string, texte: string) => run(async () => { await backend.rendreRapport(id, texte); setPosteVersion((v) => v + 1); return true; }, 'Rapport rendu'),
+    lireMessage: async (id: string) => { await backend.lireMessage(id).catch(() => undefined); setPosteVersion((v) => v + 1); },
+    setPhoto: (dataUrl: string) => run(async () => { await backend.setPhoto(dataUrl); await refresh(); return true; }, 'Photo enregistrée — vos passagers vous reconnaîtront'),
+    deletePhoto: () => run(async () => { await backend.deletePhoto(); await refresh(); }, 'Photo retirée'),
     telemetry: (body: { engine?: 'electric' | 'hybrid'; batteryPct?: number; batteryHealthPct?: number }) => run(async () => { await backend.telemetry(body); await refresh(); }, 'Télémétrie transmise'),
     updateProfile: (patch: Parameters<DriverBackend['updateProfile']>[0]) => run(async () => { await backend.updateProfile(patch); await refresh(); }, 'Dossier enregistré'),
     submitKyc: () => run(async () => { setDriver(await backend.submitKyc()); }, 'Dossier envoyé à ORION pour validation'),
@@ -337,6 +427,7 @@ export function useDriver() {
   return {
     backend, live: backend.live, booting, session, driver, finance, appConfig, driverConfig, activeRide, link,
     notices, announcements, toast, settled, position, gps, busy, showToast, actions,
+    rentals, posteVersion, sosLive, sosOuvert, sosHorsLigne,
   };
 }
 

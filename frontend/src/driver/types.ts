@@ -45,6 +45,10 @@ export interface DriverProfile {
   offersAccepted?: number;
   offersDeclined?: number;
   offersExpired?: number;
+  /** Courses annulées par le chauffeur lui-même. */
+  cancellations?: number;
+  /** Date de sa photo (l'image est servie par GET /drivers/:id/photo). */
+  photoUpdatedAt?: string;
 }
 
 /** Réglages console utiles au chauffeur (GET /drivers/config, `driver-config.update`). */
@@ -80,6 +84,15 @@ export interface Finance {
 
 export interface RideEarnings { net: number; bonus: number; commission: number; cashCollected: number }
 
+/** Ce que le client paie réellement (abonnement ORION déduit) ; le chauffeur est payé sur le brut. */
+export interface Encaissement {
+  brut: number;
+  attente: number;
+  prisEnCharge: number;
+  aEncaisser: number;
+  abonnement: { plan: string; raison: string } | null;
+}
+
 /** Course vue par le chauffeur. */
 export interface RideView {
   id: string;
@@ -97,6 +110,9 @@ export interface RideView {
   paidAmount: number | null;
   earnings: RideEarnings;
   rating: number | null;
+  encaissement?: Encaissement;
+  /** Terminée sans paiement après le délai console : chauffeur libéré, à régulariser. */
+  liberee?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -106,7 +122,8 @@ export interface Offer { expiresAt: string; timeoutSec: number }
 /** Course en cours (mission) : client, secteur, offre éventuelle à confirmer. */
 export interface ActiveRide extends RideView {
   events: { type: string; at: string }[];
-  client: { id: string; name: string | null; phone: string | null; rides: number };
+  /** Prénom et photo du passager, le temps de la mission (politique de confidentialité). */
+  client: { id: string; name: string | null; phone: string | null; rides: number; photo?: string | null };
   pickupZone: { id: string; name: string; driverBonus: number } | null;
   offer: Offer | null;
   /** Le passager doit donner son code à 4 chiffres pour démarrer (jamais sa valeur). */
@@ -116,7 +133,67 @@ export interface ActiveRide extends RideView {
 
 export interface Totals { rides: number; gross: number; net: number; commission: number; cashCollected: number }
 
-export interface RideHistory { rides: RideView[]; total: number; today: Totals; week: Totals; finance: Finance }
+export interface RideHistory { rides: RideView[]; total: number; today: Totals; week: Totals; finance: Finance; aRegulariser?: RideView[] }
+
+/** Motifs d'annulation côté chauffeur (le passager n'est jamais pénalisé, sauf absence). */
+export type MotifAnnulationChauffeur = 'client_absent' | 'client_injoignable' | 'adresse_introuvable' | 'vehicule_panne' | 'securite' | 'autre';
+
+/* ------------------------------ Locations Signature ------------------------------ */
+export type EtapeLocation = 'vehicule_prepare' | 'en_route' | 'sur_place' | 'debut_service' | 'fin_service';
+export interface LocationChauffeur {
+  id: string;
+  formula: 'evenement' | 'entreprise' | 'mise_a_disposition';
+  duree: string;
+  heures?: number;
+  heuresService: number;
+  vehicle: { id: string; name: string; marque: string; classe?: string; places: number; autonomieKm?: number };
+  debut: string;
+  fin: string;
+  lieu: string | null;
+  contact: { nom: string; telephone: string; email?: string } | null;
+  societe: { nom: string; bonCommande?: string } | null;
+  status: 'devis' | 'reservee' | 'confirmee' | 'en_cours' | 'terminee' | 'annulee';
+  options: Record<string, boolean | number>;
+  jourJ: boolean;
+  kmInclus: number | null;
+  secondChauffeurRequis?: boolean;
+  etapes: { etape: EtapeLocation; at: string; note: string | null }[];
+}
+
+/* ------------------------------ Poste du chauffeur ------------------------------ */
+export interface RequeteVue {
+  id: string; type: string; typeLabel: string; statut: string; statutLabel: string;
+  montant: number | null; montantAccorde: number | null; echeances: number | null;
+  du: string | null; au: string | null; motif: string; createdAt: string;
+  instruiteLe: string | null; decideLe: string | null; decisionNote: string | null;
+  verseLe: string | null; canalVersement: string | null;
+  plan: { numero: number; montant: number; dueDate: string; payeeLe?: string }[] | null;
+  rembourse: number; clotureLe: string | null;
+}
+export interface Poste {
+  activite: { periodeJours: number; courses: number; coursesAnnulees: number; kilometres: number; revenus: number; commissionVersee: number; noteMoyenne: number; nbNotes: number; joursTravailles: number };
+  argent: { solde: number; detteEspeces: number; plafondDette: number; resteDu: number };
+  equipe: { name: string; mission: string | null; chef: string | null; chefTelephone: string | null } | null;
+  acces: { identifiant: string; actif: boolean; aChangerMotDePasse: boolean } | null;
+  requetes: RequeteVue[];
+  litiges: { id: string; kind: string; status: string; createdAt: string }[];
+  maintenance: { id: string; kind: string; title: string; status: string; dueDate?: string }[];
+  alertes: { severite: 'critique' | 'eleve' | 'moyen'; texte: string }[];
+  typesRequete: { code: string; label: string; financiere: boolean }[];
+  plafonds: { avance: number; pret: number; echeancesMax: number };
+  messagesNonLus: number;
+}
+export interface MessageChef {
+  id: string; de: string; deNom: string; sujet?: string; texte: string; urgent: boolean; reponseAttendue: boolean;
+  at: string; luLe?: string; reponses: { de: string; deNom: string; texte: string; at: string }[];
+}
+export interface RapportDemande {
+  id: string; demandeParNom: string; titre: string; consigne: string; echeance: string;
+  statut: 'demande' | 'rendu' | 'accepte' | 'a_revoir'; statutLabel: string;
+  rendu?: { texte: string; at: string }; retour?: { texte: string; at: string; par: string };
+}
+export interface MessagesChef { messages: MessageChef[]; rapports: RapportDemande[]; nonLus: number; identifiant: string | null }
+export interface NouvelleRequete { type: string; montant?: number; echeances?: number; du?: string; au?: string; motif: string }
 
 export interface LedgerEntry {
   id: string;

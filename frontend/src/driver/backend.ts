@@ -1,5 +1,6 @@
-import { configSocketUrl, fetchAppConfig, isLiveBackend, type AppConfig } from '../api';
+import { configSocketUrl, fetchAppConfig, isLiveBackend, sosRepondre, sosSocketUrl, sosSuivi, type AppConfig, type SosSuivi } from '../api';
 import type {
+  EtapeLocation, LocationChauffeur, MessagesChef, MotifAnnulationChauffeur, NouvelleRequete, Poste, RequeteVue,
   ActiveRide, Announcement, DemandCell, DriverConfig, DriverEvent, DriverProfile, Finance, LatLng, LinkState,
   ProfilePatch, QueueInfo, RideHistory, RideStatus, Session, Training, TrainingResult, WaitResult, Wallet,
 } from './types';
@@ -51,7 +52,30 @@ export interface DriverBackend {
   start(rideId: string, code: string): Promise<void>;
   wait(rideId: string, minutes: number): Promise<WaitResult>;
   collectCash(rideId: string): Promise<void>;
-  sos(rideId: string | null, position: LatLng, note?: string): Promise<void>;
+  /** SOS : renvoie l'identifiant de l'alerte, pour en suivre la prise en charge. */
+  sos(rideId: string | null, position: LatLng, note?: string): Promise<string | null>;
+  /** Suivi de SON alerte (comme le client) : état, agent, secours, chat discret. */
+  sosSuivi(alertId: string): Promise<SosSuivi | null>;
+  sosRepondre(alertId: string, text: string): Promise<SosSuivi | null>;
+  /** Abonnement temps réel au suivi de l'alerte. Renvoie la fonction d'arrêt. */
+  sosSubscribe(alertId: string, onSuivi: (s: SosSuivi) => void, onLink: (ok: boolean) => void): () => void;
+  /** Annulation motivée par le chauffeur (le passager garde sa course, sauf absence). */
+  cancelRide(rideId: string, motif: MotifAnnulationChauffeur, details?: string): Promise<{ reattribuee: boolean; frais: number }>;
+  /** Course entièrement couverte par l'abonnement du client : valider la fin sans encaisser. */
+  settleCovered(rideId: string, method: string): Promise<void>;
+
+  rentals(): Promise<LocationChauffeur[]>;
+  rentalStep(rentalId: string, etape: EtapeLocation, note?: string): Promise<LocationChauffeur>;
+  poste(): Promise<Poste>;
+  deposerRequete(r: NouvelleRequete): Promise<RequeteVue>;
+  messages(): Promise<MessagesChef>;
+  lireMessage(id: string): Promise<void>;
+  repondreMessage(id: string, texte: string): Promise<void>;
+  rendreRapport(id: string, texte: string): Promise<void>;
+  setPhoto(dataUrl: string): Promise<string | null>;
+  deletePhoto(): Promise<void>;
+  /** Adresse complète de la photo d'un chauffeur (null si aucune). */
+  photoSrc(driver: { id: string; photoUpdatedAt?: string }): string | null;
 
   wallet(): Promise<Wallet>;
   payout(amount: number, method: string): Promise<void>;
@@ -208,9 +232,43 @@ function createLiveBackend(): DriverBackend {
       });
     },
     async sos(rideId, position, note) {
-      if (rideId) await post(`/rides/${rideId}/sos`, { by: 'chauffeur', note });
-      else await post('/safety/sos', { userId: id(), location: position });
+      // La position la plus fraîche part avec l'alerte (le tracé suit aussi la course).
+      try { await post(`/drivers/${id()}/location`, { position }); } catch { /* l'alerte prime */ }
+      if (rideId) return (await post<{ alert: { id: string } }>(`/rides/${rideId}/sos`, { by: 'chauffeur', note })).alert.id;
+      return (await post<{ alert: { id: string } }>('/safety/sos', { userId: id(), location: position, note })).alert.id;
     },
+    sosSuivi: (alertId) => sosSuivi(alertId, id()),
+    sosRepondre: (alertId, text) => sosRepondre(alertId, id(), text),
+    sosSubscribe(alertId, onSuivi, onLink) {
+      const url = sosSocketUrl(alertId, id());
+      if (!url) return () => undefined;
+      return resilientSocket(url, (m) => {
+        const sv = m.type === 'connected' ? (m['suivi'] as SosSuivi | undefined) : m.type === 'sos.suivi' ? (m.data as SosSuivi | undefined) : undefined;
+        if (sv) onSuivi(sv);
+      }, (l) => onLink(l === 'online'));
+    },
+    cancelRide: (rideId, motif, details) => post(`/drivers/${id()}/rides/${rideId}/cancel`, { motif, details }),
+    async settleCovered(rideId, method) {
+      await call(`/rides/${rideId}/pay`, {
+        method: 'POST', body: JSON.stringify({ method }),
+        headers: { 'idempotency-key': `couvert-${rideId}` },
+      });
+    },
+
+    async rentals() { return (await call<{ rentals: LocationChauffeur[] }>(`/drivers/${id()}/rentals`)).rentals; },
+    async rentalStep(rentalId, etape, note) { return (await post<{ rental: LocationChauffeur }>(`/drivers/${id()}/rentals/${rentalId}/etape`, { etape, note })).rental; },
+    poste: () => call(`/drivers/${id()}/poste`),
+    async deposerRequete(r) { return (await post<{ requete: RequeteVue }>(`/drivers/${id()}/requetes`, r)).requete; },
+    messages: () => call(`/drivers/${id()}/messages`),
+    async lireMessage(mid) { await post(`/drivers/${id()}/messages/${mid}/lu`); },
+    async repondreMessage(mid, texte) { await post(`/drivers/${id()}/messages/${mid}/reponse`, { texte }); },
+    async rendreRapport(rid, texte) { await post(`/drivers/${id()}/rapports/${rid}/rendre`, { texte }); },
+    async setPhoto(dataUrl) {
+      const r = await call<{ photoUrl: string | null }>(`/drivers/${id()}/photo`, { method: 'PUT', body: JSON.stringify({ photo: dataUrl }) });
+      return r.photoUrl ? `${API}${r.photoUrl}` : null;
+    },
+    async deletePhoto() { await call(`/drivers/${id()}/photo`, { method: 'DELETE' }); },
+    photoSrc: (d) => (d.photoUpdatedAt ? `${API}/drivers/${d.id}/photo?v=${encodeURIComponent(d.photoUpdatedAt)}` : null),
 
     wallet: () => call(`/drivers/${id()}/wallet`),
     async payout(amount, method) { await post(`/drivers/${id()}/payout`, { amount, method }); },

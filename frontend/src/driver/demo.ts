@@ -2,7 +2,9 @@ import type { AppConfig } from '../api';
 import type { DriverBackend } from './backend';
 import { ApiError } from './errors';
 import { saveSession, loadSession } from './session';
+import type { SosSuivi } from '../api';
 import type {
+  EtapeLocation, LocationChauffeur, MessagesChef, Poste, RequeteVue,
   ActiveRide, Announcement, DemandCell, DriverConfig, DriverEvent, DriverProfile, Finance, LatLng,
   LedgerEntry, RideHistory, RideStatus, RideView, Totals,
 } from './types';
@@ -65,6 +67,8 @@ interface DemoRide extends RideView {
   events: { type: string; at: string }[];
   clientName: string;
   clientPhone: string;
+  /** Part prise en charge par l'abonnement du client (démo : une course sur six). */
+  couvert?: number;
 }
 
 interface DemoState {
@@ -74,6 +78,13 @@ interface DemoState {
   rides: DemoRide[];
   activeRideId: string | null;
   offer: { rideId: string; expiresAt: string; timeoutSec: number } | null;
+  /* --- Alignement écosystème (champs absents des anciens états : complétés au chargement) --- */
+  requetes?: RequeteVue[];
+  messages?: MessagesChef['messages'];
+  rapports?: MessagesChef['rapports'];
+  rentals?: LocationChauffeur[];
+  photo?: string | null;
+  sos?: SosSuivi[];
 }
 
 const now = () => new Date().toISOString();
@@ -100,6 +111,8 @@ function load(): DemoState {
 export function createDemoBackend(): DriverBackend {
   const st = load();
   const listeners = new Set<(e: DriverEvent) => void>();
+  /** Abonnés au suivi d'une alerte SOS (démo). */
+  const sosEcoutes = new Map<string, Set<(s: SosSuivi) => void>>();
   const timers = new Set<number>();
   let lastPos: LatLng = { lat: 5.336, lng: -4.026 };
 
@@ -126,16 +139,26 @@ export function createDemoBackend(): DriverBackend {
     const debt = b < 0 ? -b : 0;
     return { balance: b, cashDebt: debt, cashDebtLimit: DEMO_DRIVER_CONFIG.cashDebtLimit, cashBlocked: debt > DEMO_DRIVER_CONFIG.cashDebtLimit, commissionRate: rate(drv()), frozen: false };
   };
+  /** Même calcul que le serveur : prix fixe + attente facturée − part de l'abonnement. */
+  const encaissement = (r: DemoRide) => {
+    const attente = Math.max(0, r.waitMinutes - DEMO_DRIVER_CONFIG.wait.freeMinutes) * DEMO_DRIVER_CONFIG.wait.feePerMin;
+    const brut = r.amount + attente;
+    const prisEnCharge = Math.min(brut, r.couvert ?? 0);
+    return { brut, attente, prisEnCharge, aEncaisser: brut - prisEnCharge, abonnement: r.couvert ? { plan: 'ORION Confort', raison: 'Course incluse dans le forfait du client' } : null };
+  };
   const view = (r: DemoRide): RideView => {
     const sum = (types: string[]) => st.ledger.filter((e) => e.rideId === r.id && types.includes(e.type)).reduce((s, e) => s + e.amount, 0);
-    const { events: _e, clientName: _n, clientPhone: _p, ...rest } = r;
-    return { ...rest, earnings: { net: sum(['ride_earning']), bonus: sum(['adjustment']), commission: -sum(['commission']), cashCollected: -sum(['cash_collected']) } };
+    const { events: _e, clientName: _n, clientPhone: _p, couvert: _c, ...rest } = r;
+    return {
+      ...rest, encaissement: encaissement(r), liberee: false,
+      earnings: { net: sum(['ride_earning']), bonus: sum(['adjustment']), commission: -sum(['commission']), cashCollected: -sum(['cash_collected']) },
+    };
   };
   const active = (): ActiveRide | null => {
     const r = st.rides.find((x) => x.id === st.activeRideId);
     if (!r) return null;
     const offer = st.offer && st.offer.rideId === r.id ? { expiresAt: st.offer.expiresAt, timeoutSec: st.offer.timeoutSec } : null;
-    return { ...view(r), events: r.events, client: { id: `client-${r.id}`, name: r.clientName, phone: r.clientPhone, rides: 3 + Math.floor(Math.random() * 20) }, pickupZone: null, offer };
+    return { ...view(r), events: r.events, client: { id: `client-${r.id}`, name: r.clientName.split(' ')[0] ?? r.clientName, phone: r.clientPhone, rides: 3 + Math.floor(Math.random() * 20), photo: null }, pickupZone: null, offer };
   };
   const ledger = (type: LedgerEntry['type'], amount: number, note: string, rideId?: string) => {
     st.ledger.unshift({ id: uid(), type, amount: Math.round(amount), rideId, at: now(), note });
@@ -162,6 +185,7 @@ export function createDemoBackend(): DriverBackend {
         id: `demo-${uid()}`, status: 'accepted', serviceType: 'ride', category: d.category, origin, destination, stops: [],
         distanceMeters: meters, etaSeconds: Math.round((km / 24) * 3600), amount, waitMinutes: 0,
         paymentMethod: pick(METHODS), paidAmount: null, earnings: { net: 0, bonus: 0, commission: 0, cashCollected: 0 },
+        couvert: Math.random() < 1 / 6 ? amount : undefined,
         rating: null, createdAt: now(), updatedAt: now(), events: [{ type: 'accepted', at: now() }],
         clientName: pick(CLIENTS), clientPhone: `+22507${Math.floor(10_000_000 + Math.random() * 89_999_999)}`,
       };
@@ -194,25 +218,27 @@ export function createDemoBackend(): DriverBackend {
   const settle = (r: DemoRide, method: string) => {
     const d = drv();
     const free = DEMO_DRIVER_CONFIG.wait.freeMinutes;
-    const total = r.amount + Math.max(0, r.waitMinutes - free) * DEMO_DRIVER_CONFIG.wait.feePerMin;
+    void free;
+    const { brut: total, aEncaisser } = encaissement(r);
     const rt = rate(d);
     const commission = Math.round((total * rt) / 5) * 5;
     ledger('ride_earning', total - commission, 'Gain course (net)', r.id);
     ledger('commission', -commission, `Commission ${Math.round(rt * 100)}%`, r.id);
-    if (method === 'cash') ledger('cash_collected', -total, 'Espèces encaissées (commission due à ORION)', r.id);
+    if (method === 'cash' && aEncaisser > 0) ledger('cash_collected', -aEncaisser, 'Espèces encaissées (commission due à ORION)', r.id);
     r.paymentMethod = method;
-    r.paidAmount = total;
+    r.paidAmount = aEncaisser;
     if ((d.engine ?? 'electric') === 'electric') d.electricRides = (d.electricRides ?? 0) + 1;
     d.availability = 'online';
     st.activeRideId = null;
     setStatus(r, 'paid');
-    emit('payment.received', { rideId: r.id, amount: total, method });
+    emit('payment.received', { rideId: r.id, amount: aEncaisser, method });
     driverChanged();
     // Note du client quelques secondes plus tard.
     later(3500, () => {
       const stars = Math.random() < 0.8 ? 5 : 4;
       r.rating = stars;
       setStatus(r, 'rated');
+      emit('ride.rated', { rideId: r.id, stars, tags: stars === 5 ? ['#Courtoisie'] : [] });
       d.ratingAvg = Math.round(((d.ratingAvg * d.ratingCount + stars) / (d.ratingCount + 1)) * 100) / 100;
       d.ratingCount += 1;
       driverChanged();
@@ -224,7 +250,8 @@ export function createDemoBackend(): DriverBackend {
     const rows = st.rides.filter((r) => r.paidAmount !== null && Date.parse(r.updatedAt) >= since).map(view);
     return {
       rides: rows.length,
-      gross: rows.reduce((s, v) => s + (v.paidAmount ?? 0), 0),
+      // Brut = ce qui rémunère le chauffeur (net + commission), même couvert par un abonnement.
+      gross: rows.reduce((s, v) => s + v.earnings.net + v.earnings.commission, 0),
       net: rows.reduce((s, v) => s + v.earnings.net + v.earnings.bonus, 0),
       commission: rows.reduce((s, v) => s + v.earnings.commission, 0),
       cashCollected: rows.reduce((s, v) => s + v.earnings.cashCollected, 0),
@@ -271,6 +298,23 @@ export function createDemoBackend(): DriverBackend {
         };
         // Petit historique de bienvenue (bonus d'activation).
         ledger('adjustment', 2000, 'Bonus de bienvenue ORION');
+        st.requetes = [];
+        st.rapports = [];
+        st.photo = null;
+        st.sos = [];
+        // Démo : le chef d'équipe souhaite la bienvenue, une location Signature est prévue.
+        st.messages = [{
+          id: `msg-${uid()}`, de: 'serge.kone', deNom: 'Serge Koné (chef d’équipe)', texte: 'Bienvenue dans l’équipe Plateau ! Passe au bureau quand ton dossier est validé.',
+          urgent: false, reponseAttendue: true, at: now(), reponses: [],
+        }];
+        st.rentals = [{
+          id: `loc-${uid()}`, formula: 'evenement', duree: 'journee', heuresService: 10,
+          vehicle: { id: 'maextro-s800', name: 'Huawei Maextro S800', marque: 'Huawei', classe: 'Berline prestige', places: 4, autonomieKm: 702 },
+          debut: new Date(Date.now() + 3 * 86_400_000).toISOString(), fin: new Date(Date.now() + 4 * 86_400_000).toISOString(),
+          lieu: 'Église Sainte-Jeanne-d’Arc, Cocody', contact: { nom: 'Aya Konan', telephone: '+2250102030405' }, societe: null,
+          status: 'confirmee', options: { decoration: true, tapisRouge: true, rafraichissements: true, cortege: 0, hotesses: 0 },
+          jourJ: false, kmInclus: 100, secondChauffeurRequis: false, etapes: [],
+        }];
       }
       persist();
       saveSession({ token: 'demo', driverId: st.driver.id, expiresAt: new Date(Date.now() + 30 * 86_400_000).toISOString() });
@@ -409,9 +453,158 @@ export function createDemoBackend(): DriverBackend {
       if (r.status !== 'completed') throw new ApiError(400, 'La course doit être terminée avant paiement');
       settle(r, 'cash');
     },
-    async sos() {
-      notify('Alerte SOS transmise 🚨', 'Le poste de supervision ORION et le SAMU (185) sont prévenus. Restez en sécurité.');
+    // SOS : même circuit que la console. Rien n'est annoncé avant d'avoir eu lieu —
+    // la prise en charge et les messages de l'agent arrivent quand l'agent agit.
+    async sos(rideId, position, note) {
+      const a: SosSuivi = {
+        id: `sos-${uid()}`, kind: 'sos', status: 'raised', createdAt: now(), location: position, zoneName: 'Abidjan',
+        priseEnCharge: null, chat: note ? [{ from: 'usager', text: note, at: now() }] : [], secours: [], clotureeA: null,
+      } as SosSuivi;
+      st.sos = [a, ...(st.sos ?? [])].slice(0, 10);
+      persist();
+      void rideId;
+      const pousser = () => { persist(); sosEcoutes.get(a.id)?.forEach((f) => f({ ...a, chat: [...a.chat], secours: [...a.secours] })); };
+      later(3000, () => { a.status = 'acknowledged'; a.priseEnCharge = { agent: 'Céline', at: now() }; pousser(); });
+      later(5500, () => { a.chat.push({ from: 'agent', author: 'Céline', text: 'Je suis avec vous. Pouvez-vous me dire ce qui se passe ?', at: now() }); pousser(); });
+      return a.id;
     },
+    async sosSuivi(alertId) { return (st.sos ?? []).find((a) => a.id === alertId) ?? null; },
+    async sosRepondre(alertId, text) {
+      const a = (st.sos ?? []).find((x) => x.id === alertId);
+      if (!a) return null;
+      a.chat.push({ from: 'usager', text, at: now() });
+      persist();
+      sosEcoutes.get(a.id)?.forEach((f) => f({ ...a, chat: [...a.chat] }));
+      return a;
+    },
+    sosSubscribe(alertId, onSuivi, onLink) {
+      const set = sosEcoutes.get(alertId) ?? new Set();
+      set.add(onSuivi);
+      sosEcoutes.set(alertId, set);
+      onLink(true);
+      const a = (st.sos ?? []).find((x) => x.id === alertId);
+      if (a) onSuivi(a);
+      return () => { set.delete(onSuivi); };
+    },
+    async cancelRide(rideId, motif) {
+      const r = ride(rideId);
+      if (!['accepted', 'driver_en_route', 'arrived'].includes(r.status)) throw new ApiError(400, 'La course est en cours : terminez-la, ou utilisez le SOS en cas de danger.');
+      if (motif === 'client_absent') {
+        const arrivee = [...r.events].reverse().find((e) => e.type === 'arrived');
+        const min = arrivee ? (Date.now() - Date.parse(arrivee.at)) / 60_000 : 0;
+        if (r.status !== 'arrived' || min < DEMO_DRIVER_CONFIG.wait.freeMinutes) {
+          throw new ApiError(400, `« Client absent » : possible après ${DEMO_DRIVER_CONFIG.wait.freeMinutes} min d’attente au point de prise en charge.`);
+        }
+      }
+      const d = drv();
+      if (motif !== 'securite') d.cancellations = (d.cancellations ?? 0) + 1;
+      st.activeRideId = null;
+      st.offer = null;
+      st.rides = st.rides.filter((x) => x.id !== rideId);
+      d.availability = motif === 'vehicule_panne' ? 'offline' : 'online';
+      driverChanged();
+      emit('ride.withdrawn', { rideId, reason: 'chauffeur_annule' });
+      if (d.availability === 'online') scheduleOffer(9000);
+      return motif === 'client_absent' ? { reattribuee: false, frais: DEMO_DRIVER_CONFIG.cancel.fee } : { reattribuee: true, frais: 0 };
+    },
+    async settleCovered(rideId) {
+      const r = ride(rideId);
+      if (r.status !== 'completed') throw new ApiError(400, 'La course doit être terminée avant paiement');
+      settle(r, 'card');
+    },
+
+    async rentals() { return [...(st.rentals ?? [])]; },
+    async rentalStep(rentalId, etape: EtapeLocation, note) {
+      const r = (st.rentals ?? []).find((x) => x.id === rentalId);
+      if (!r) throw new ApiError(404, 'Location introuvable');
+      if (r.etapes.some((e) => e.etape === etape)) throw new ApiError(409, 'Étape déjà déclarée');
+      if (etape === 'fin_service' && !r.etapes.some((e) => e.etape === 'debut_service')) throw new ApiError(400, 'Déclarez d’abord le début de service');
+      r.etapes.push({ etape, at: now(), note: note ?? null });
+      if (etape === 'debut_service') r.status = 'en_cours';
+      if (etape === 'fin_service') r.status = 'terminee';
+      persist();
+      return { ...r, etapes: [...r.etapes] };
+    },
+    async poste(): Promise<Poste> {
+      const d = drv();
+      const payees = st.rides.filter((r) => r.paidAmount !== null);
+      const notes = st.rides.map((r) => r.rating).filter((n): n is number => n !== null);
+      const b = Math.round(balance());
+      return {
+        activite: {
+          periodeJours: 30, courses: payees.length, coursesAnnulees: d.cancellations ?? 0,
+          kilometres: Math.round(payees.reduce((n, r) => n + r.distanceMeters, 0) / 1000),
+          revenus: st.ledger.filter((e) => e.type === 'ride_earning').reduce((n, e) => n + e.amount, 0),
+          commissionVersee: -st.ledger.filter((e) => e.type === 'commission').reduce((n, e) => n + e.amount, 0),
+          noteMoyenne: notes.length ? Math.round((notes.reduce((a, n) => a + n, 0) / notes.length) * 10) / 10 : d.ratingAvg,
+          nbNotes: notes.length, joursTravailles: new Set(payees.map((r) => r.createdAt.slice(0, 10))).size,
+        },
+        argent: {
+          solde: b, detteEspeces: b < 0 ? -b : 0, plafondDette: DEMO_DRIVER_CONFIG.cashDebtLimit,
+          resteDu: (st.requetes ?? []).filter((r) => (r.type === 'pret' || r.type === 'avance') && r.statut === 'versee').reduce((n, r) => n + (r.montantAccorde ?? 0) - r.rembourse, 0),
+        },
+        equipe: { name: 'Équipe Plateau', mission: 'Secteur Plateau & Adjamé', chef: 'Serge Koné', chefTelephone: '+2250700000001' },
+        acces: { identifiant: d.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '.'), actif: true, aChangerMotDePasse: true },
+        requetes: [...(st.requetes ?? [])],
+        litiges: [],
+        maintenance: [],
+        alertes: d.insuranceExpiry && Date.parse(d.insuranceExpiry) < Date.now() ? [{ severite: 'critique', texte: 'Assurance expirée — le passager n’est pas couvert.' }] : [],
+        typesRequete: [
+          { code: 'pret', label: 'Prêt', financiere: true }, { code: 'avance', label: 'Avance sur revenus', financiere: true },
+          { code: 'conge', label: 'Congé', financiere: false }, { code: 'materiel', label: 'Matériel', financiere: true },
+          { code: 'reparation', label: 'Réparation', financiere: true }, { code: 'reclamation', label: 'Réclamation', financiere: false },
+          { code: 'document', label: 'Document administratif', financiere: false },
+        ],
+        plafonds: { avance: 150_000, pret: 1_000_000, echeancesMax: 12 },
+        messagesNonLus: (st.messages ?? []).filter((m) => !m.luLe).length,
+      };
+    },
+    async deposerRequete(input) {
+      const financiere = ['pret', 'avance', 'materiel', 'reparation'].includes(input.type);
+      if (financiere && !input.montant) throw new ApiError(400, 'Indiquez le montant demandé.');
+      if (input.type === 'avance' && (input.montant ?? 0) > 150_000) throw new ApiError(400, 'Montant au-dessus du plafond (avance 150 000 F, prêt 1 000 000 F).');
+      if (input.type === 'pret' && (input.montant ?? 0) > 1_000_000) throw new ApiError(400, 'Montant au-dessus du plafond (avance 150 000 F, prêt 1 000 000 F).');
+      if (input.type === 'conge' && (!input.du || !input.au)) throw new ApiError(400, 'Indiquez les dates du congé (du … au …)');
+      const labels: Record<string, string> = { pret: 'Prêt', avance: 'Avance sur revenus', conge: 'Congé', materiel: 'Matériel', reparation: 'Réparation', reclamation: 'Réclamation', document: 'Document administratif' };
+      const r: RequeteVue = {
+        id: uid().slice(0, 8), type: input.type, typeLabel: labels[input.type] ?? input.type, statut: 'deposee', statutLabel: 'Déposée',
+        montant: input.montant ?? null, montantAccorde: null, echeances: input.type === 'pret' ? (input.echeances ?? 3) : null,
+        du: input.du ?? null, au: input.au ?? null, motif: input.motif, createdAt: now(),
+        instruiteLe: null, decideLe: null, decisionNote: null, verseLe: null, canalVersement: null, plan: null, rembourse: 0, clotureLe: null,
+      };
+      st.requetes = [r, ...(st.requetes ?? [])];
+      persist();
+      emit('crew.request', { requete: r, evenement: 'depot' });
+      // Démo : le circuit console avance tout seul (chef, puis direction financière).
+      later(5000, () => { r.statut = 'instruite'; r.statutLabel = 'Instruite par le chef d’équipe'; r.instruiteLe = now(); persist(); emit('crew.request', { requete: r, evenement: 'instruction' }); });
+      later(10_000, () => {
+        r.statut = 'accordee'; r.statutLabel = 'Accordée'; r.decideLe = now(); r.montantAccorde = r.montant; r.decisionNote = 'Accord de la direction financière';
+        persist();
+        emit('crew.request', { requete: r, evenement: 'accord' });
+        notify('Votre requête ORION', `Requête ${r.id} accordée.`);
+      });
+      return r;
+    },
+    async messages(): Promise<MessagesChef> {
+      const m = st.messages ?? [];
+      return { messages: [...m], rapports: [...(st.rapports ?? [])], nonLus: m.filter((x) => !x.luLe).length, identifiant: 'demo' };
+    },
+    async lireMessage(mid) { const m = (st.messages ?? []).find((x) => x.id === mid); if (m && !m.luLe) { m.luLe = now(); persist(); } },
+    async repondreMessage(mid, texte) {
+      const m = (st.messages ?? []).find((x) => x.id === mid);
+      if (!m) throw new ApiError(404, 'Message introuvable');
+      m.reponses.push({ de: 'moi', deNom: drv().name, texte, at: now() });
+      persist();
+    },
+    async rendreRapport(rid, texte) {
+      const r = (st.rapports ?? []).find((x) => x.id === rid);
+      if (!r) throw new ApiError(404, 'Rapport introuvable');
+      r.statut = 'rendu'; r.statutLabel = 'Rendu, en attente de lecture'; r.rendu = { texte, at: now() };
+      persist();
+    },
+    async setPhoto(dataUrl) { st.photo = dataUrl; drv().photoUpdatedAt = now(); driverChanged(); return dataUrl; },
+    async deletePhoto() { st.photo = null; delete drv().photoUpdatedAt; driverChanged(); },
+    photoSrc: (d) => (d.photoUpdatedAt ? st.photo ?? null : null),
 
     async wallet() { return { balance: Math.round(balance()), currency: 'XOF', history: [...st.ledger] }; },
     async payout(amount) {
