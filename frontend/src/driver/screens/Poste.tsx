@@ -36,14 +36,14 @@ export function Poste({ app, unread, openNotices }: ScreenProps) {
         <button className={onglet === 'messages' ? 'on' : ''} onClick={() => setOnglet('messages')}>{nonLus > 0 ? tr('Messages ({0})', [nonLus]) : tr('Messages')}</button>
       </div>
       {erreur && <div className="dv-empty">{tr('Poste indisponible — vérifiez votre connexion.')}</div>}
-      {poste && onglet === 'activite' && <Activite poste={poste} />}
+      {poste && onglet === 'activite' && <Activite app={app} poste={poste} />}
       {poste && onglet === 'demandes' && <Demandes app={app} poste={poste} />}
       {onglet === 'messages' && <Messages app={app} msgs={msgs} />}
     </div>
   );
 }
 
-function Activite({ poste }: { poste: PosteData }) {
+function Activite({ app, poste }: { app: ScreenProps['app']; poste: PosteData }) {
   const a = poste.activite;
   const g = poste.argent;
   const chef = poste.equipe?.chefTelephone ? lienTel(poste.equipe.chefTelephone) : null;
@@ -80,7 +80,10 @@ function Activite({ poste }: { poste: PosteData }) {
           </div>
         ) : <div className="faint" style={{ fontSize: 13 }}>{tr('Vous n’êtes pas encore rattaché à une équipe.')}</div>}
         {poste.acces
-          ? <div className="faint" style={{ fontSize: 12.5 }}>{tr('Votre identifiant console ORION :')} <strong>{poste.acces.identifiant}</strong>{poste.acces.aChangerMotDePasse ? tr(' (mot de passe provisoire à changer à la première connexion)') : ''}</div>
+          ? <>
+              <div className="faint" style={{ fontSize: 12.5 }}>{tr('Votre identifiant console ORION :')} <strong>{poste.acces.identifiant}</strong>{poste.acces.aChangerMotDePasse ? tr(' (mot de passe provisoire à changer à la première connexion)') : ''}</div>
+              <MotDePasseConsole app={app} aChoisir={poste.acces.aChangerMotDePasse} />
+            </>
           : <div className="faint" style={{ fontSize: 12.5 }}>{tr('Pas encore d’identifiant console : demandez-le à votre chef d’équipe.')}</div>}
       </Section>
       {(poste.maintenance.length > 0 || poste.litiges.length > 0) && (
@@ -222,5 +225,45 @@ function Messages({ app, msgs }: { app: ScreenProps['app']; msgs: MessagesChef |
         </div>
       ))}
     </>
+  );
+}
+
+/**
+ * Identifiant console créé automatiquement pour chaque chauffeur : il en choisit lui-même
+ * le mot de passe ici (sa connexion par code SMS prouve qui il est). Il peut ensuite ouvrir
+ * « Mon poste » dans la console ORION avec cet identifiant.
+ */
+function MotDePasseConsole({ app, aChoisir }: { app: ScreenProps['app']; aChoisir: boolean }) {
+  const [ouvert, setOuvert] = useState(false);
+  const [mdp, setMdp] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const differents = confirmation.length > 0 && mdp !== confirmation;
+  const valide = mdp.length >= 10 && mdp === confirmation;
+  if (!ouvert) {
+    return (
+      <button type="button" className="dv-pill green" style={{ alignSelf: 'flex-start' }} onClick={() => setOuvert(true)}>
+        <IconShield size={13} /> {aChoisir ? tr('Choisir mon mot de passe console') : tr('Changer mon mot de passe console')}
+      </button>
+    );
+  }
+  return (
+    <form className="card dv-form" style={{ padding: 14 }} onSubmit={(e) => {
+      e.preventDefault();
+      if (!valide) return;
+      void app.actions.definirMotDePasseConsole(mdp).then((ok) => { if (ok) { setOuvert(false); setMdp(''); setConfirmation(''); } });
+    }}>
+      <div className="faint" style={{ fontSize: 12.5 }}>{tr('Au moins 10 caractères. Il sert à ouvrir « Mon poste » dans la console ORION.')}</div>
+      <label className="dv-label">{tr('Nouveau mot de passe')}
+        <input className="dv-input" type="password" autoComplete="new-password" minLength={10} value={mdp} onChange={(e) => setMdp(e.target.value)} />
+      </label>
+      <label className="dv-label">{tr('Confirmer le mot de passe')}
+        <input className="dv-input" type="password" autoComplete="new-password" value={confirmation} aria-invalid={differents} onChange={(e) => setConfirmation(e.target.value)} />
+      </label>
+      {differents && <div className="dv-code-erreur">{tr('Les deux mots de passe sont différents.')}</div>}
+      <div className="dv-grid2">
+        <button type="button" className="btn btn-ghost" onClick={() => { setOuvert(false); setMdp(''); setConfirmation(''); }}>{tr('Annuler')}</button>
+        <button className="btn btn-primary" disabled={!valide || app.busy}>{tr('Enregistrer')}</button>
+      </div>
+    </form>
   );
 }

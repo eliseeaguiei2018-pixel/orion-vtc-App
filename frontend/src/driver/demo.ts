@@ -85,6 +85,8 @@ interface DemoState {
   rentals?: LocationChauffeur[];
   photo?: string | null;
   sos?: SosSuivi[];
+  /** Mot de passe console choisi depuis l'app (démo : seul le fait compte, jamais le mot de passe). */
+  mdpConsoleChoisi?: boolean;
 }
 
 const now = () => new Date().toISOString();
@@ -544,7 +546,7 @@ export function createDemoBackend(): DriverBackend {
           resteDu: (st.requetes ?? []).filter((r) => (r.type === 'pret' || r.type === 'avance') && r.statut === 'versee').reduce((n, r) => n + (r.montantAccorde ?? 0) - r.rembourse, 0),
         },
         equipe: { name: 'Équipe Plateau', mission: 'Secteur Plateau & Adjamé', chef: 'Serge Koné', chefTelephone: '+2250700000001' },
-        acces: { identifiant: d.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '.'), actif: true, aChangerMotDePasse: true },
+        acces: { identifiant: d.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '.'), actif: true, aChangerMotDePasse: !st.mdpConsoleChoisi },
         requetes: [...(st.requetes ?? [])],
         litiges: [],
         maintenance: [],
@@ -595,6 +597,12 @@ export function createDemoBackend(): DriverBackend {
       if (!m) throw new ApiError(404, 'Message introuvable');
       m.reponses.push({ de: 'moi', deNom: drv().name, texte, at: now() });
       persist();
+    },
+    async definirMotDePasseConsole(motDePasse) {
+      if (motDePasse.length < 10) throw new ApiError(400, 'Au moins 10 caractères');
+      st.mdpConsoleChoisi = true;
+      persist();
+      return { identifiant: drv().name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '.') };
     },
     async rendreRapport(rid, texte) {
       const r = (st.rapports ?? []).find((x) => x.id === rid);

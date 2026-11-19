@@ -72,6 +72,8 @@ export interface DriverBackend {
   lireMessage(id: string): Promise<void>;
   repondreMessage(id: string, texte: string): Promise<void>;
   rendreRapport(id: string, texte: string): Promise<void>;
+  /** Le chauffeur choisit le mot de passe de son identifiant console (créé automatiquement). */
+  definirMotDePasseConsole(motDePasse: string): Promise<{ identifiant: string }>;
   setPhoto(dataUrl: string): Promise<string | null>;
   deletePhoto(): Promise<void>;
   /** Adresse complète de la photo d'un chauffeur (null si aucune). */
@@ -270,6 +272,7 @@ function createLiveBackend(): DriverBackend {
     async lireMessage(mid) { await post(`/drivers/${id()}/messages/${mid}/lu`); },
     async repondreMessage(mid, texte) { await post(`/drivers/${id()}/messages/${mid}/reponse`, { texte }); },
     async rendreRapport(rid, texte) { await post(`/drivers/${id()}/rapports/${rid}/rendre`, { texte }); },
+    async definirMotDePasseConsole(motDePasse) { return post<{ identifiant: string }>(`/drivers/${id()}/console/mot-de-passe`, { motDePasse }); },
     async setPhoto(dataUrl) {
       const r = await call<{ photoUrl: string | null }>(`/drivers/${id()}/photo`, { method: 'PUT', body: JSON.stringify({ photo: dataUrl }) });
       photoSignee = r.photoUrl;

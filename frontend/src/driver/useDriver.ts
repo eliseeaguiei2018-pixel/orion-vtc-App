@@ -413,6 +413,7 @@ export function useDriver() {
     }, tr('Étape enregistrée — la console ORION la voit')),
     deposerRequete: (r: NouvelleRequete) => run(async () => { const x = await backend.deposerRequete(r); setPosteVersion((v) => v + 1); return x; }, tr('Demande envoyée à votre chef d’équipe')),
     repondreMessage: (id: string, texte: string) => run(async () => { await backend.repondreMessage(id, texte); setPosteVersion((v) => v + 1); return true; }, tr('Réponse envoyée')),
+    definirMotDePasseConsole: (motDePasse: string) => run(async () => { await backend.definirMotDePasseConsole(motDePasse); setPosteVersion((v) => v + 1); return true; }, tr('Mot de passe console enregistré')),
     rendreRapport: (id: string, texte: string) => run(async () => { await backend.rendreRapport(id, texte); setPosteVersion((v) => v + 1); return true; }, tr('Rapport rendu')),
     lireMessage: async (id: string) => { await backend.lireMessage(id).catch(() => undefined); setPosteVersion((v) => v + 1); },
     setPhoto: (dataUrl: string) => run(async () => { await backend.setPhoto(dataUrl); await refresh(); return true; }, tr('Photo enregistrée — vos passagers vous reconnaîtront')),
