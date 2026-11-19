@@ -1,4 +1,5 @@
 import type { DriverConfig, KycStatus, LatLng, RideStatus, Zone } from './types';
+import { libelles, localeCourante, tr } from './i18n';
 
 /** Montant en F CFA, ex. « 12 500 F ». */
 export const fcfa = (n: number | null | undefined): string => `${Math.round(n ?? 0).toLocaleString('fr-FR')} F`;
@@ -11,33 +12,33 @@ export const km = (meters: number): string => `${(meters / 1000).toLocaleString(
 export const minutes = (seconds: number): string => `${Math.max(1, Math.round(seconds / 60))} min`;
 
 export const dateTime = (iso: string): string =>
-  new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  new Date(iso).toLocaleString(localeCourante(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-export const shortDate = (iso: string): string => new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+export const shortDate = (iso: string): string => new Date(iso).toLocaleDateString(localeCourante(), { day: '2-digit', month: 'short', year: 'numeric' });
 
-export const METHOD_LABEL: Record<string, string> = {
+export const METHOD_LABEL: Record<string, string> = libelles({
   cash: 'Espèces', wave: 'Wave', orange_money: 'Orange Money', mtn_momo: 'MTN MoMo', moov_money: 'Moov Money', card: 'Carte bancaire',
-};
-export const methodLabel = (m: string | null | undefined): string => (m ? METHOD_LABEL[m] ?? m : 'Non précisé');
+});
+export const methodLabel = (m: string | null | undefined): string => (m ? METHOD_LABEL[m] ?? m : tr('Non précisé'));
 
-export const STATUS_LABEL: Record<RideStatus, string> = {
+export const STATUS_LABEL: Record<RideStatus, string> = libelles({
   searching: 'Recherche', accepted: 'Attribuée', driver_en_route: 'En route vers le client', arrived: 'Arrivé au point de prise en charge',
   in_progress: 'Course en cours', completed: 'Terminée — paiement', paid: 'Payée', rated: 'Notée', cancelled: 'Annulée', no_driver: 'Sans chauffeur',
-};
+});
 
-export const KYC_LABEL: Record<KycStatus, string> = {
+export const KYC_LABEL: Record<KycStatus, string> = libelles({
   draft: 'Brouillon — à compléter', docs_submitted: 'Envoyé — en attente d’examen', manual_review: 'En examen par ORION',
   approved: 'Validé', active: 'Actif', suspended: 'Suspendu',
-};
+});
 
-export const TIER_LABEL: Record<string, string> = { bronze: 'Bronze', argent: 'Argent', or: 'Or', diamant: 'Diamant', moto: 'Coursier moto' };
+export const TIER_LABEL: Record<string, string> = libelles({ bronze: 'Bronze', argent: 'Argent', or: 'Or', diamant: 'Diamant', moto: 'Coursier moto' });
 
 /** Livraison à moto : les mêmes étapes, dites avec les mots du coursier. */
-export const STATUS_LABEL_LIVRAISON: Partial<Record<RideStatus, string>> = {
+export const STATUS_LABEL_LIVRAISON: Partial<Record<RideStatus, string>> = libelles({
   accepted: 'Livraison attribuée', driver_en_route: 'En route vers le colis', arrived: 'Au point de retrait',
   in_progress: 'Livraison en cours', completed: 'Colis livré · paiement',
-};
-export const TAILLE_COLIS: Record<string, string> = { petit: 'petit colis', moyen: 'colis moyen', grand: 'grand colis' };
+});
+export const TAILLE_COLIS: Record<string, string> = libelles({ petit: 'petit colis', moyen: 'colis moyen', grand: 'grand colis' });
 export const statutLabel = (status: RideStatus, livraison: boolean) => (livraison ? STATUS_LABEL_LIVRAISON[status] : undefined) ?? STATUS_LABEL[status];
 const TIER_RANK: Record<string, number> = { bronze: 0, argent: 1, or: 2, diamant: 3 };
 export const meetsStandard = (category: string, min: string | null): boolean => !min || (TIER_RANK[category] ?? 0) >= (TIER_RANK[min] ?? 0);

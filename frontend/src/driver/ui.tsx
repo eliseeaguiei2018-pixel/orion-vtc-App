@@ -1,22 +1,24 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { LogoGlyph } from '../components/Logo';
 import { Scooter, Voiture, vehiculeDeGamme } from '../components/Vehicules';
-import { IconBell, IconBriefcase, IconCar, IconHome, IconLeaf, IconSettings, IconWallet } from '../icons';
+import { IconBell, IconBriefcase, IconCar, IconCheck, IconGlobe, IconHome, IconLeaf, IconSettings, IconWallet } from '../icons';
+import { tr } from './i18n';
+import { LANGUAGES, useI18n, type Lang } from '../i18n';
 
 export type Tab = 'home' | 'rides' | 'earnings' | 'poste' | 'green' | 'profile';
 
 /** Barre d'onglets du bas (pouce-friendly). */
 export function BottomNav({ tab, onTab, alert }: { tab: Tab; onTab: (t: Tab) => void; alert?: Partial<Record<Tab, boolean>> }) {
   const items: Array<{ id: Tab; label: string; icon: ReactNode }> = [
-    { id: 'home', label: 'Accueil', icon: <IconHome size={21} /> },
-    { id: 'rides', label: 'Courses', icon: <IconCar size={21} /> },
-    { id: 'earnings', label: 'Gains', icon: <IconWallet size={21} /> },
-    { id: 'poste', label: 'Poste', icon: <IconBriefcase size={21} /> },
-    { id: 'green', label: 'Éco', icon: <IconLeaf size={21} /> },
-    { id: 'profile', label: 'Profil', icon: <IconSettings size={21} /> },
+    { id: 'home', label: tr('Accueil'), icon: <IconHome size={21} /> },
+    { id: 'rides', label: tr('Courses'), icon: <IconCar size={21} /> },
+    { id: 'earnings', label: tr('Gains'), icon: <IconWallet size={21} /> },
+    { id: 'poste', label: tr('Poste'), icon: <IconBriefcase size={21} /> },
+    { id: 'green', label: tr('Éco'), icon: <IconLeaf size={21} /> },
+    { id: 'profile', label: tr('Profil'), icon: <IconSettings size={21} /> },
   ];
   return (
-    <nav className="dv-tabs" aria-label="Navigation">
+    <nav className="dv-tabs" aria-label={tr('Navigation')}>
       {items.map((it) => (
         <button key={it.id} className={`dv-tab${tab === it.id ? ' on' : ''}`} onClick={() => onTab(it.id)} aria-current={tab === it.id}>
           <span className="dv-tab-ico">{it.icon}{alert?.[it.id] && <i className="dv-dot" />}</span>
@@ -54,7 +56,7 @@ export function VehiculeChauffeur({ category, largeur = 150 }: { category: strin
 
 export function BellButton({ count, onClick }: { count: number; onClick: () => void }) {
   return (
-    <button className="avatar dv-bell" onClick={onClick} aria-label={`Notifications (${count})`}>
+    <button className="avatar dv-bell" onClick={onClick} aria-label={tr('Notifications ({0})', [count])}>
       <IconBell size={20} />
       {count > 0 && <span className="dv-bell-n">{count > 9 ? '9+' : count}</span>}
     </button>
@@ -111,10 +113,41 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
       <div className="dv-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={title}>
         <div className="row between" style={{ marginBottom: 12 }}>
           <h2 className="h-title" style={{ fontSize: 19 }}>{title}</h2>
-          <button className="dv-x" onClick={onClose} aria-label="Fermer">✕</button>
+          <button className="dv-x" onClick={onClose} aria-label={tr('Fermer')}>✕</button>
         </div>
         {children}
       </div>
     </div>
+  );
+}
+
+/** Choix de la langue (les 8 langues de l'app cliente, même mémorisation « orion.lang »). */
+export function ChoixLangue({ onChoisi }: { onChoisi?: () => void }) {
+  const { lang, setLang } = useI18n();
+  return (
+    <div className="dv-langues" role="group" aria-label={tr('Langue')}>
+      {LANGUAGES.map((l) => (
+        <button key={l.code} type="button" className={`opt${l.code === lang ? ' active' : ''}`} lang={l.code}
+          onClick={() => { setLang(l.code as Lang); onChoisi?.(); }}>
+          <span style={{ fontSize: 20 }}>{l.flag}</span> <span className="grow" style={{ textAlign: 'start' }}>{l.label}</span>
+          {l.code === lang && <IconCheck size={16} />}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Bouton globe : ouvre le choix de la langue (écran de connexion). */
+export function BoutonLangue() {
+  const [ouvert, setOuvert] = useState(false);
+  const { lang } = useI18n();
+  const drapeau = LANGUAGES.find((l) => l.code === lang)?.flag;
+  return (
+    <>
+      <button type="button" className="avatar dv-auth-lang" onClick={() => setOuvert(true)} aria-label={tr('Langue')}>
+        <IconGlobe size={18} /><span className="dv-auth-drapeau">{drapeau}</span>
+      </button>
+      {ouvert && <Modal title={tr('Langue')} onClose={() => setOuvert(false)}><ChoixLangue onChoisi={() => setOuvert(false)} /></Modal>}
+    </>
   );
 }

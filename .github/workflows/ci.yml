@@ -48,6 +48,8 @@ jobs:
       - run: npm ci
       - name: Typecheck
         run: npm run typecheck
+      - name: Traductions de l'app Chauffeur (8 langues)
+        run: npm run check:langues
       - name: Build
         run: npm run build
       - name: Audit (échoue sur vulnérabilité haute/critique)

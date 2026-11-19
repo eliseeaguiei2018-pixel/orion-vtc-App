@@ -13,6 +13,7 @@ import { OfferSheet } from './screens/Offer';
 import { RideScreen, SettledModal } from './screens/Ride';
 import { Poste } from './screens/Poste';
 import { SosLive, SosPill } from './screens/SosLive';
+import { tr, useLangueChauffeur } from './i18n';
 
 /**
  * APP CHAUFFEUR ORION — troisième page du projet (driver.html), à côté de l'app cliente
@@ -20,6 +21,8 @@ import { SosLive, SosPill } from './screens/SosLive';
  * et la console : voir useDriver().
  */
 export function DriverApp() {
+  // La langue choisie est appliquée avant le rendu des écrans (toasts compris).
+  useLangueChauffeur();
   const app = useDriver();
   return (
     <div className="app-shell">
@@ -39,7 +42,7 @@ function Shell({ app }: { app: DriverApp }) {
     return (
       <div className="dv-login" style={{ justifyContent: 'center', alignItems: 'center' }}>
         <LogoIcon size={84} />
-        <div className="eyebrow" style={{ marginTop: 14 }}>ORION Chauffeur</div>
+        <div className="eyebrow" style={{ marginTop: 14 }}>{tr('ORION Chauffeur')}</div>
       </div>
     );
   }
@@ -47,10 +50,10 @@ function Shell({ app }: { app: DriverApp }) {
   if (!app.driver) {
     return (
       <div className="dv-login" style={{ justifyContent: 'center' }}>
-        <h1 className="h-title">Connexion au serveur impossible</h1>
-        <p className="h-sub">Vérifiez votre réseau puis réessayez.</p>
-        <button className="btn btn-primary" onClick={() => void app.actions.refresh()}>Réessayer</button>
-        <button className="btn btn-ghost" onClick={() => void app.actions.logout()}>Se déconnecter</button>
+        <h1 className="h-title">{tr('Connexion au serveur impossible')}</h1>
+        <p className="h-sub">{tr('Vérifiez votre réseau puis réessayez.')}</p>
+        <button className="btn btn-primary" onClick={() => void app.actions.refresh()}>{tr('Réessayer')}</button>
+        <button className="btn btn-ghost" onClick={() => void app.actions.logout()}>{tr('Se déconnecter')}</button>
       </div>
     );
   }
@@ -78,8 +81,8 @@ function Shell({ app }: { app: DriverApp }) {
       {ride?.offer && <OfferSheet app={app} ride={ride} />}
       {app.settled && <SettledModal app={app} />}
       {noticesOpen && (
-        <Modal title="Notifications" onClose={() => setNoticesOpen(false)}>
-          {app.notices.length === 0 && app.announcements.length === 0 && <div className="dv-empty">Aucune notification pour l’instant.</div>}
+        <Modal title={tr('Notifications')} onClose={() => setNoticesOpen(false)}>
+          {app.notices.length === 0 && app.announcements.length === 0 && <div className="dv-empty">{tr('Aucune notification pour l’instant.')}</div>}
           <div className="col" style={{ gap: 8 }}>
             {app.notices.map((n) => (
               <div key={`${n.kind}-${n.id}`} className="card dv-item" style={{ alignItems: 'flex-start' }}>

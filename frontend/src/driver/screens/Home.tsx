@@ -6,6 +6,7 @@ import type { DemandCell, QueueInfo, RideHistory } from '../types';
 import { BellButton, Banner, PageHeader, Section, Stat, VehiculeChauffeur, type Tab } from '../ui';
 import { fcfa, inOffPeak, meetsStandard, pct, TIER_LABEL, zoneAt } from '../format';
 import { Alerts } from './Alerts';
+import { tr } from '../i18n';
 
 /**
  * ACCUEIL : mise en ligne / hors ligne / pause, position GPS, secteur courant (bonus,
@@ -50,9 +51,9 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
     return () => window.clearInterval(id);
   }, [app.backend]);
 
-  const disabledReason = closed ? 'ORION est fermé (maintenance)'
-    : driver.kycStatus === 'suspended' ? 'Compte suspendu'
-      : !validated ? 'Dossier en attente de validation' : null;
+  const disabledReason = closed ? tr('ORION est fermé (maintenance)')
+    : driver.kycStatus === 'suspended' ? tr('Compte suspendu')
+      : !validated ? tr('Dossier en attente de validation') : null;
 
   const toggle = () => {
     if (onTrip) return;
@@ -63,20 +64,20 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
   return (
     <div className="dv-page">
       <PageHeader
-        title={`Bonjour ${driver.name.split(' ')[0]} 👋`}
-        sub={`${driver.matricule} · Gamme ${TIER_LABEL[driver.category] ?? driver.category}${driver.vip ? ' · ⭐ Top Driver' : ''}`}
+        title={tr('Bonjour {0} 👋', [driver.name.split(' ')[0]])}
+        sub={tr('{0} · Gamme {1}{2}', [driver.matricule, TIER_LABEL[driver.category] ?? driver.category, driver.vip ? tr(' · ⭐ Top Driver') : ''])}
         right={<>
           <LinkPill app={app} />
           <BellButton count={unread} onClick={openNotices} />
-          <button className="dv-hero-photo" onClick={() => onTab('profile')} aria-label="Mon profil">
+          <button className="dv-hero-photo" onClick={() => onTab('profile')} aria-label={tr('Mon profil')}>
             {photo ? <img src={photo} alt="" /> : driver.name.charAt(0).toUpperCase()}
           </button>
         </>}
       >
         <div className="dv-hero-kpis">
-          <div className="dv-hero-kpi"><strong>{fcfa(history?.today.net ?? 0)}</strong><span>Gains du jour</span></div>
-          <div className="dv-hero-kpi"><strong>★ {driver.ratingCount ? driver.ratingAvg.toFixed(2) : '—'}</strong><span>{driver.ratingCount} avis</span></div>
-          <div className="dv-hero-kpi"><strong>{acceptance === null ? '—' : pct(acceptance)}</strong><span>Acceptation</span></div>
+          <div className="dv-hero-kpi"><strong>{fcfa(history?.today.net ?? 0)}</strong><span>{tr('Gains du jour')}</span></div>
+          <div className="dv-hero-kpi"><strong>★ {driver.ratingCount ? driver.ratingAvg.toFixed(2) : '—'}</strong><span>{tr('{0} avis', [driver.ratingCount])}</span></div>
+          <div className="dv-hero-kpi"><strong>{acceptance === null ? '—' : pct(acceptance)}</strong><span>{tr('Acceptation')}</span></div>
         </div>
       </PageHeader>
 
@@ -84,19 +85,19 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
       <div className="dv-go-card">
         <div className={`dv-stage${driver.category === 'moto' ? ' moto' : ''}${online || onTrip ? ' on' : ' off'}`}>
           {online && <><span className="dv-onde" /><span className="dv-onde b" /><span className="dv-onde c" /></>}
-          <span className="dv-stage-tag dv-pill">{driver.vehicleModel ?? (driver.category === 'moto' ? 'Scooter électrique' : `Gamme ${TIER_LABEL[driver.category] ?? driver.category}`)}{driver.vehiclePlate ? ` · ${driver.vehiclePlate}` : ''}</span>
+          <span className="dv-stage-tag dv-pill">{driver.vehicleModel ?? (driver.category === 'moto' ? tr('Scooter électrique') : tr('Gamme {0}', [TIER_LABEL[driver.category] ?? driver.category]))}{driver.vehiclePlate ? ` · ${driver.vehiclePlate}` : ''}</span>
           <VehiculeChauffeur category={driver.category} largeur={180} />
         </div>
         <div className="dv-go-row">
           <span className="grow">
-            <span className="dv-go-titre">{onTrip ? 'En course' : online ? 'En ligne' : paused ? 'En pause' : 'Hors ligne'}</span>
+            <span className="dv-go-titre">{onTrip ? tr('En course') : online ? tr('En ligne') : paused ? tr('En pause') : tr('Hors ligne')}</span>
             <span className="dv-go-detail">
-              {onTrip ? 'Mission en cours'
-                : online ? (queue?.inQueue && queue.position ? `Recherche de courses · ${queue.position}ᵉ sur ${queue.total} en file` : 'Recherche de courses autour de vous…')
-                  : disabledReason ?? (paused ? 'Touchez pour reprendre les courses' : 'Touchez pour recevoir des courses')}
+              {onTrip ? tr('Mission en cours')
+                : online ? (queue?.inQueue && queue.position ? tr('Recherche de courses · {0}ᵉ sur {1} en file', [queue.position, queue.total]) : tr('Recherche de courses autour de vous…'))
+                  : disabledReason ?? (paused ? tr('Touchez pour reprendre les courses') : tr('Touchez pour recevoir des courses'))}
             </span>
           </span>
-          <button className={`dv-switch${online ? ' on' : paused ? ' paused' : ''}`} role="switch" aria-checked={online} aria-label="En ligne"
+          <button className={`dv-switch${online ? ' on' : paused ? ' paused' : ''}`} role="switch" aria-checked={online} aria-label={tr('En ligne')}
             onClick={toggle} disabled={onTrip || app.busy || (!online && disabledReason !== null)} />
         </div>
       </div>
@@ -105,77 +106,77 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
 
       <div className="dv-quick">
         <button className="feature-card" onClick={() => onTab('rides')}>
-          <i><IconCalendar size={19} /></i><span>Locations</span>
+          <i><IconCalendar size={19} /></i><span>{tr('Locations')}</span>
           {locations > 0 && <span className="dv-quick-n">{locations}</span>}
         </button>
-        <button className="feature-card" onClick={() => onTab('poste')}><i><IconBriefcase size={19} /></i><span>Mon poste</span></button>
-        <button className="feature-card" onClick={() => onTab('earnings')}><i><IconWallet size={19} /></i><span>Gains</span></button>
-        <button className="feature-card" onClick={() => onTab('green')}><i><IconLeaf size={19} /></i><span>Éco</span></button>
-        <button className="feature-card danger" onClick={() => setConfirmSos(true)}><i><IconShield size={19} /></i><span>SOS</span></button>
+        <button className="feature-card" onClick={() => onTab('poste')}><i><IconBriefcase size={19} /></i><span>{tr('Mon poste')}</span></button>
+        <button className="feature-card" onClick={() => onTab('earnings')}><i><IconWallet size={19} /></i><span>{tr('Gains')}</span></button>
+        <button className="feature-card" onClick={() => onTab('green')}><i><IconLeaf size={19} /></i><span>{tr('Éco')}</span></button>
+        <button className="feature-card danger" onClick={() => setConfirmSos(true)}><i><IconShield size={19} /></i><span>{tr('SOS')}</span></button>
       </div>
 
       <div className="dv-home-map">
         <OrionMap origin={position} car={position} traffic={false} />
         <div className="dv-map-chip">
-          <span className="dv-link"><IconPin size={13} /> {zone ? zone.name : 'Hors secteur tarifé'} · {app.gps === 'real' ? 'GPS' : 'GPS simulé'}</span>
+          <span className="dv-link"><IconPin size={13} /> {zone ? zone.name : tr('Hors secteur tarifé')} · {app.gps === 'real' ? tr('GPS') : tr('GPS simulé')}</span>
         </div>
       </div>
 
-      {lockedZone && <Banner tone="info" icon={<IconPin size={18} />} title={`Cantonné au secteur ${lockedZone.name}`}>Décision ORION : vous ne recevez que des courses de ce secteur.</Banner>}
+      {lockedZone && <Banner tone="info" icon={<IconPin size={18} />} title={tr('Cantonné au secteur {0}', [lockedZone.name])}>{tr('Décision ORION : vous ne recevez que des courses de ce secteur.')}</Banner>}
       {zone && (zone.driverBonus > 0 || zone.minStandard || zone.surgeManual) && (
         <div className="card dv-item">
           <div className="dv-item-ico"><IconPin size={20} /></div>
           <div className="grow">
-            <div className="dv-item-title">Secteur {zone.name}</div>
+            <div className="dv-item-title">{tr('Secteur {0}', [zone.name])}</div>
             <div className="dv-item-sub">
-              {zone.driverBonus > 0 && `Bonus +${fcfa(zone.driverBonus)} par prise en charge`}
-              {zone.minStandard && ` · Gamme ${TIER_LABEL[zone.minStandard]} minimum`}
-              {zone.waitMaxMin && ` · Attente garantie ${zone.waitMaxMin} min`}
+              {zone.driverBonus > 0 && tr('Bonus +{0} par prise en charge', [fcfa(zone.driverBonus)])}
+              {zone.minStandard && tr(' · Gamme {0} minimum', [TIER_LABEL[zone.minStandard]])}
+              {zone.waitMaxMin && tr(' · Attente garantie {0} min', [zone.waitMaxMin])}
             </div>
           </div>
           {zone.minStandard && !meetsStandard(driver.category, zone.minStandard)
-            ? <span className="dv-pill danger">Non éligible</span>
-            : zone.surgeManual ? <span className="dv-pill gold">×{zone.surgeManual}</span> : <span className="dv-pill green">Éligible</span>}
+            ? <span className="dv-pill danger">{tr('Non éligible')}</span>
+            : zone.surgeManual ? <span className="dv-pill gold">×{zone.surgeManual}</span> : <span className="dv-pill green">{tr('Éligible')}</span>}
         </div>
       )}
 
       <div className="dv-stats">
-        <Stat label="Solde portefeuille" value={fcfa(finance?.balance ?? 0)} sub={finance && finance.cashDebt > 0 ? `Dette espèces ${fcfa(finance.cashDebt)}` : `Commission ${pct(finance?.commissionRate ?? driverConfig.commission.green)}`} />
-        <Stat label="Courses du jour" value={history?.today.rides ?? 0} sub={`Note minimale ${driverConfig.quality.minRating} ★`} />
+        <Stat label={tr('Solde portefeuille')} value={fcfa(finance?.balance ?? 0)} sub={finance && finance.cashDebt > 0 ? tr('Dette espèces {0}', [fcfa(finance.cashDebt)]) : tr('Commission {0}', [pct(finance?.commissionRate ?? driverConfig.commission.green)])} />
+        <Stat label={tr('Courses du jour')} value={history?.today.rides ?? 0} sub={tr('Note minimale {0} ★', [driverConfig.quality.minRating])} />
       </div>
 
       {offPeak && driverConfig.offPeak.bonus > 0 && (
-        <Banner tone="success" icon={<IconLeaf size={18} />} title={`Heures creuses : +${fcfa(driverConfig.offPeak.bonus)} à la recharge`}>
-          Rechargez entre {driverConfig.offPeak.start} h et {driverConfig.offPeak.end} h pour soulager le réseau et toucher le bonus.
+        <Banner tone="success" icon={<IconLeaf size={18} />} title={tr('Heures creuses : +{0} à la recharge', [fcfa(driverConfig.offPeak.bonus)])}>
+          {tr('Rechargez entre {0} h et {1} h pour soulager le réseau et toucher le bonus.', [driverConfig.offPeak.start, driverConfig.offPeak.end])}
         </Banner>
       )}
       {driver.engine !== 'hybrid' && driver.batteryPct !== undefined && driver.batteryPct < 25 && (
-        <Banner tone="warn" icon={<IconBolt size={18} />} title={`Batterie faible : ${driver.batteryPct} %`}>Les longues courses ne vous seront pas proposées. Pensez à recharger.</Banner>
+        <Banner tone="warn" icon={<IconBolt size={18} />} title={tr('Batterie faible : {0} %', [driver.batteryPct])}>{tr('Les longues courses ne vous seront pas proposées. Pensez à recharger.')}</Banner>
       )}
 
-      <Section title="Zones à forte demande" right={<span className="faint" style={{ fontSize: 12 }}>10 dernières min</span>}>
+      <Section title={tr('Zones à forte demande')} right={<span className="faint" style={{ fontSize: 12 }}>{tr('10 dernières min')}</span>}>
         <Heatmap cells={cells} me={position} />
-        {cells.length === 0 && <div className="faint" style={{ fontSize: 13 }}>Demande calme pour le moment.</div>}
+        {cells.length === 0 && <div className="faint" style={{ fontSize: 13 }}>{tr('Demande calme pour le moment.')}</div>}
       </Section>
 
-      <Section title="Règles du moment (console ORION)">
+      <Section title={tr('Règles du moment (console ORION)')}>
         <div className="card" style={{ padding: 14, display: 'grid', gap: 8, fontSize: 13.5 }}>
-          <Rule icon={<IconClock size={16} />} label="Délai pour accepter une offre" value={`${driverConfig.offer.timeoutSec} s`} />
-          <Rule icon={<IconLeaf size={16} />} label="Commission flotte électrique" value={pct(driverConfig.commission.green)} />
-          <Rule icon={<IconCar size={16} />} label="Commission standard" value={pct(driverConfig.commission.standard)} />
-          <Rule icon={<IconClock size={16} />} label="Attente offerte puis facturée" value={`${driverConfig.wait.freeMinutes} min · ${fcfa(driverConfig.wait.feePerMin)}/min`} />
-          <Rule icon={<IconShield size={16} />} label="Plafond dette espèces" value={fcfa(driverConfig.cashDebtLimit)} />
+          <Rule icon={<IconClock size={16} />} label={tr('Délai pour accepter une offre')} value={`${driverConfig.offer.timeoutSec} s`} />
+          <Rule icon={<IconLeaf size={16} />} label={tr('Commission flotte électrique')} value={pct(driverConfig.commission.green)} />
+          <Rule icon={<IconCar size={16} />} label={tr('Commission standard')} value={pct(driverConfig.commission.standard)} />
+          <Rule icon={<IconClock size={16} />} label={tr('Attente offerte puis facturée')} value={`${driverConfig.wait.freeMinutes} min · ${fcfa(driverConfig.wait.feePerMin)}/min`} />
+          <Rule icon={<IconShield size={16} />} label={tr('Plafond dette espèces')} value={fcfa(driverConfig.cashDebtLimit)} />
         </div>
       </Section>
 
-      <button className="btn btn-danger" onClick={() => setConfirmSos(true)}>🚨 Urgence — alerter ORION et le SAMU</button>
+      <button className="btn btn-danger" onClick={() => setConfirmSos(true)}>{tr('🚨 Urgence — alerter ORION et le SAMU')}</button>
       {confirmSos && (
-        <Banner tone="danger" title="Confirmer l’alerte SOS ?" action={
+        <Banner tone="danger" title={tr('Confirmer l’alerte SOS ?')} action={
           <div className="col" style={{ gap: 6 }}>
-            <button className="dv-pill danger" onClick={() => { setConfirmSos(false); void app.actions.sos('Alerte depuis l’accueil chauffeur'); }}>Envoyer</button>
-            <button className="dv-pill" onClick={() => setConfirmSos(false)}>Annuler</button>
+            <button className="dv-pill danger" onClick={() => { setConfirmSos(false); void app.actions.sos('Alerte depuis l’accueil chauffeur'); }}>{tr('Envoyer')}</button>
+            <button className="dv-pill" onClick={() => setConfirmSos(false)}>{tr('Annuler')}</button>
           </div>
-        }>Votre position part à la supervision ORION ; vous suivrez en direct la prise en charge.</Banner>
+        }>{tr('Votre position part à la supervision ORION ; vous suivrez en direct la prise en charge.')}</Banner>
       )}
     </div>
   );
@@ -192,8 +193,8 @@ function Rule({ icon, label, value }: { icon: JSX.Element; label: string; value:
 
 /** Indicateur du lien temps réel avec ORION. */
 export function LinkPill({ app }: { app: ScreenProps['app'] }) {
-  if (!app.live) return <span className="dv-link connecting"><i />Démo</span>;
-  const label = app.link === 'online' ? 'Synchro' : app.link === 'connecting' ? 'Connexion…' : 'Hors ligne';
+  if (!app.live) return <span className="dv-link connecting"><i />{tr('Démo')}</span>;
+  const label = app.link === 'online' ? tr('Synchro') : app.link === 'connecting' ? tr('Connexion…') : tr('Hors ligne');
   return <span className={`dv-link ${app.link}`}><i />{label}</span>;
 }
 
@@ -209,7 +210,7 @@ function Heatmap({ cells, me }: { cells: DemandCell[]; me: { lat: number; lng: n
   const max = Math.max(1, ...cells.map((c) => c.demand));
   return (
     <div className="dv-heat">
-      <svg viewBox="0 0 400 210" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Zones à forte demande">
+      <svg viewBox="0 0 400 210" preserveAspectRatio="xMidYMid meet" role="img" aria-label={tr('Zones à forte demande')}>
         {cells.map((c) => {
           const r = 14 + (c.demand / max) * 30;
           const hot = c.surge > 1;

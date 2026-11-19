@@ -4,6 +4,7 @@ import type { ScreenProps } from '../Driver';
 import type { RideHistory, Training, TrainingResult } from '../types';
 import { Banner, BellButton, PageHeader, Progress, Section, Stat } from '../ui';
 import { fcfa, inOffPeak, pct } from '../format';
+import { tr } from '../i18n';
 
 /** Consommation moyenne d'une citadine électrique en ville (km par kWh). */
 const KM_PER_KWH = 6;
@@ -47,83 +48,83 @@ export function Green({ app, unread, openNotices }: ScreenProps) {
       setAnswers(new Array(t.questions.length).fill(-1));
       setResult(null);
     } catch {
-      app.showToast('Module de formation indisponible', 'danger');
+      app.showToast(tr('Module de formation indisponible'), 'danger');
     }
   };
   const submit = async () => {
     try {
       const r = await app.backend.submitTraining(answers);
       setResult(r);
-      if (r.passed) { app.showToast('Formation validée : vous êtes certifié éco-conduite 🌿', 'success'); void app.actions.refresh(); }
+      if (r.passed) { app.showToast(tr('Formation validée : vous êtes certifié éco-conduite 🌿'), 'success'); void app.actions.refresh(); }
     } catch (e) {
-      app.showToast(e instanceof Error ? e.message : 'Erreur', 'danger');
+      app.showToast(e instanceof Error ? e.message : tr('Erreur'), 'danger');
     }
   };
 
   return (
     <div className="dv-page">
-      <PageHeader title="Mobilité verte" sub="Batterie, recharge, fidélité et éco-conduite" right={<BellButton count={unread} onClick={openNotices} />} />
+      <PageHeader title={tr('Mobilité verte')} sub={tr('Batterie, recharge, fidélité et éco-conduite')} right={<BellButton count={unread} onClick={openNotices} />} />
 
-      <Section title="Ma batterie">
+      <Section title={tr('Ma batterie')}>
         <div className="dv-stats three">
-          <Stat accent label="Charge" value={`${soc} %`} sub={electric ? 'SoC' : 'Hybride'} />
-          <Stat label="Autonomie" value={`${rangeKm} km`} sub={`${capacity} kWh`} />
-          <Stat label="Santé" value={`${soh} %`} sub="SoH" />
+          <Stat accent label={tr('Charge')} value={`${soc} %`} sub={electric ? tr('SoC') : tr('Hybride')} />
+          <Stat label={tr('Autonomie')} value={`${rangeKm} km`} sub={tr('{0} kWh', [capacity])} />
+          <Stat label={tr('Santé')} value={`${soh} %`} sub={tr('SoH')} />
         </div>
         <div className="card" style={{ padding: 14 }}>
-          <label className="dv-label">Niveau de charge : {soc} %
+          <label className="dv-label">{tr('Niveau de charge : {0} %', [soc])}
             <input className="dv-range" type="range" min={0} max={100} value={soc} onChange={(e) => setSoc(Number(e.target.value))} />
           </label>
-          <label className="dv-label" style={{ marginTop: 8 }}>Santé de la batterie : {soh} %
+          <label className="dv-label" style={{ marginTop: 8 }}>{tr('Santé de la batterie : {0} %', [soh])}
             <input className="dv-range" type="range" min={50} max={100} value={soh} onChange={(e) => setSoh(Number(e.target.value))} />
           </label>
           <button className="btn btn-primary" style={{ marginTop: 10 }} disabled={app.busy}
-            onClick={() => void app.actions.telemetry({ batteryPct: soc, batteryHealthPct: soh })}>Transmettre à ORION</button>
+            onClick={() => void app.actions.telemetry({ batteryPct: soc, batteryHealthPct: soh })}>{tr('Transmettre à ORION')}</button>
           <div className="faint" style={{ fontSize: 12, marginTop: 8 }}>
-            Le dispatch ne vous propose que des courses que votre batterie peut couvrir (environ {maxTripKm} km avec la charge actuelle, réserve de 10 % incluse).
+            {tr('Le dispatch ne vous propose que des courses que votre batterie peut couvrir (environ {0} km avec la charge actuelle, réserve de 10 % incluse).', [maxTripKm])}
           </div>
         </div>
-        {electric && soc < 25 && <Banner tone="warn" icon={<IconBolt size={18} />} title="Batterie faible">Rechargez pour recevoir à nouveau des courses longues.</Banner>}
+        {electric && soc < 25 && <Banner tone="warn" icon={<IconBolt size={18} />} title={tr('Batterie faible')}>{tr('Rechargez pour recevoir à nouveau des courses longues.')}</Banner>}
       </Section>
 
-      <Section title="Recharge en heures creuses">
+      <Section title={tr('Recharge en heures creuses')}>
         <Banner tone={offPeakNow ? 'success' : 'info'} icon={<IconBolt size={18} />}
-          title={offPeakNow ? 'C’est le moment de recharger !' : `Heures creuses : ${cfg.offPeak.start} h → ${cfg.offPeak.end} h`}>
-          {cfg.offPeak.bonus > 0 ? `Bonus de ${fcfa(cfg.offPeak.bonus)} versé pour une recharge en heures creuses.` : 'Recharger la nuit soulage le réseau électrique.'}
+          title={offPeakNow ? tr('C’est le moment de recharger !') : tr('Heures creuses : {0} h → {1} h', [cfg.offPeak.start, cfg.offPeak.end])}>
+          {cfg.offPeak.bonus > 0 ? tr('Bonus de {0} versé pour une recharge en heures creuses.', [fcfa(cfg.offPeak.bonus)]) : tr('Recharger la nuit soulage le réseau électrique.')}
         </Banner>
       </Section>
 
-      <Section title="Fidélité électrique">
+      <Section title={tr('Fidélité électrique')}>
         <div className="card" style={{ padding: 14 }}>
           <div className="row between" style={{ marginBottom: 8 }}>
-            <strong>{eRides.toLocaleString('fr-FR')} course{eRides > 1 ? 's' : ''} électrique{eRides > 1 ? 's' : ''}</strong>
-            <span className="muted">objectif {threshold.toLocaleString('fr-FR')}</span>
+            <strong>{tr(eRides > 1 ? '{0} courses électriques' : '{0} course électrique', [eRides.toLocaleString('fr-FR')])}</strong>
+            <span className="muted">{tr('objectif {0}', [threshold.toLocaleString('fr-FR')])}</span>
           </div>
           <Progress value={eRides} max={threshold} tone={eRides >= threshold ? 'gold' : 'green'} />
           <div className="muted" style={{ fontSize: 13, marginTop: 8 }}>
             {driver.commissionOverride !== undefined
-              ? `Commission personnalisée ORION : ${pct(driver.commissionOverride)}.`
+              ? tr('Commission personnalisée ORION : {0}.', [pct(driver.commissionOverride)])
               : eRides >= threshold
-                ? `Palier atteint : commission fidélité ${pct(cfg.commission.loyalty)} 🎉`
-                : `Encore ${(threshold - eRides).toLocaleString('fr-FR')} courses pour passer à ${pct(cfg.commission.loyalty)} (vert actuel : ${pct(cfg.commission.green)}, thermique : ${pct(cfg.commission.standard)}).`}
+                ? tr('Palier atteint : commission fidélité {0} 🎉', [pct(cfg.commission.loyalty)])
+                : tr('Encore {0} courses pour passer à {1} (vert actuel : {2}, thermique : {3}).', [(threshold - eRides).toLocaleString('fr-FR'), pct(cfg.commission.loyalty), pct(cfg.commission.green), pct(cfg.commission.standard)])}
           </div>
         </div>
         <div className="dv-stats">
-          <Stat accent label="CO₂ évité" value={`${co2.toLocaleString('fr-FR')} kg`} sub="sur vos dernières courses" />
-          <Stat label="Km électriques" value={`${Math.round(paidKm).toLocaleString('fr-FR')} km`} sub={electric ? '100 % électrique' : 'Hybride'} />
+          <Stat accent label={tr('CO₂ évité')} value={`${co2.toLocaleString('fr-FR')} kg`} sub={tr('sur vos dernières courses')} />
+          <Stat label={tr('Km électriques')} value={`${Math.round(paidKm).toLocaleString('fr-FR')} km`} sub={electric ? tr('100 % électrique') : tr('Hybride')} />
         </div>
       </Section>
 
-      <Section title="Formation éco-conduite">
+      <Section title={tr('Formation éco-conduite')}>
         {driver.trained ? (
-          <Banner tone="success" icon={<IconCheck size={18} />} title="Certifié standards ORION & éco-conduite">Merci de faire rouler Abidjan plus propre.</Banner>
+          <Banner tone="success" icon={<IconCheck size={18} />} title={tr('Certifié standards ORION & éco-conduite')}>{tr('Merci de faire rouler Abidjan plus propre.')}</Banner>
         ) : !training ? (
           <div className="card" style={{ padding: 14 }}>
             <div className="row" style={{ gap: 10 }}>
               <div className="dv-item-ico"><IconLeaf size={20} /></div>
-              <div className="grow muted" style={{ fontSize: 13.5 }}>Regardez la vidéo des standards ORION puis répondez au QCM (3 bonnes réponses sur 4).</div>
+              <div className="grow muted" style={{ fontSize: 13.5 }}>{tr('Regardez la vidéo des standards ORION puis répondez au QCM (3 bonnes réponses sur 4).')}</div>
             </div>
-            <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => void startTraining()}>Commencer</button>
+            <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => void startTraining()}>{tr('Commencer')}</button>
           </div>
         ) : (
           <div className="col" style={{ gap: 12 }}>
@@ -131,7 +132,7 @@ export function Green({ app, unread, openNotices }: ScreenProps) {
               <strong>{training.title}</strong>
               {training.videoUrl && videoOk
                 ? <video src={training.videoUrl} controls preload="metadata" onError={() => setVideoOk(false)} style={{ width: '100%', borderRadius: 12, marginTop: 10, background: '#000' }} />
-                : <div className="faint" style={{ fontSize: 12, marginTop: 6 }}>Vidéo disponible en agence ORION.</div>}
+                : <div className="faint" style={{ fontSize: 12, marginTop: 6 }}>{tr('Vidéo disponible en agence ORION.')}</div>}
             </div>
             {training.questions.map((q, qi) => (
               <div key={qi} className="col" style={{ gap: 6 }}>
@@ -142,8 +143,8 @@ export function Green({ app, unread, openNotices }: ScreenProps) {
                 ))}
               </div>
             ))}
-            {result && !result.passed && <Banner tone="warn" title={`Score : ${result.score}/${result.total}`}>Il faut au moins {training.passScore} bonnes réponses. Réessayez !</Banner>}
-            <button className="btn btn-primary" disabled={answers.some((a) => a < 0)} onClick={() => void submit()}>Valider mes réponses</button>
+            {result && !result.passed && <Banner tone="warn" title={tr('Score : {0}/{1}', [result.score, result.total])}>{tr('Il faut au moins {0} bonnes réponses. Réessayez !', [training.passScore])}</Banner>}
+            <button className="btn btn-primary" disabled={answers.some((a) => a < 0)} onClick={() => void submit()}>{tr('Valider mes réponses')}</button>
           </div>
         )}
       </Section>

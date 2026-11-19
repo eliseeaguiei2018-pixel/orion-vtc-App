@@ -6,6 +6,7 @@ import type {
   LocationChauffeur, MotifAnnulationChauffeur, NouvelleRequete, EtapeLocation,
   ActiveRide, Announcement, DriverConfig, DriverEvent, DriverProfile, Finance, LatLng, LinkState, RideStatus,
 } from './types';
+import { tr } from './i18n';
 
 /** Notification affichée dans l'app (console, système, annonces). */
 export interface Notice { id: string; title: string; body: string; at: string; kind: 'notification' | 'announcement' | 'system' }
@@ -17,7 +18,7 @@ export interface Settled { rideId: string; amount: number; method: string }
 
 const DEFAULT_POS: LatLng = { lat: 5.336, lng: -4.026 }; // Plateau, Abidjan
 
-const errMsg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : 'Erreur inattendue');
+const errMsg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : tr('Erreur inattendue'));
 
 /** Normalise une config publique reçue (HTTP ou WS) — même logique que l'app cliente. */
 function toAppConfig(c: Partial<AppConfig> | undefined): AppConfig | null {
@@ -124,13 +125,13 @@ export function useDriver() {
         if (!d) break;
         setDriver((prev) => {
           if (prev && prev.kycStatus !== d.kycStatus) {
-            if (d.kycStatus === 'suspended') showToast(`Compte suspendu : ${d.suspensionReason ?? 'contactez ORION'}`, 'danger');
-            else if (d.kycStatus === 'active' || d.kycStatus === 'approved') showToast('Dossier validé par ORION ✅', 'success');
+            if (d.kycStatus === 'suspended') showToast(tr('Compte suspendu : {0}', [d.suspensionReason ?? tr('contactez ORION')]), 'danger');
+            else if (d.kycStatus === 'active' || d.kycStatus === 'approved') showToast(tr('Dossier validé par ORION ✅'), 'success');
           }
           if (prev && (d.warnings ?? 0) > (prev.warnings ?? 0)) {
-            showToast('Avertissement qualité reçu de la console', 'danger');
+            showToast(tr('Avertissement qualité reçu de la console'), 'danger');
           }
-          if (prev && d.vip && !prev.vip) showToast('Félicitations : statut Top Driver ⭐', 'success');
+          if (prev && d.vip && !prev.vip) showToast(tr('Félicitations : statut Top Driver ⭐'), 'success');
           return d;
         });
         break;
@@ -146,10 +147,10 @@ export function useDriver() {
         const reason = (data as { reason?: string } | undefined)?.reason;
         if (rideId && activeRef.current?.id === rideId) {
           setActiveRide(null);
-          showToast(reason === 'expired' ? 'Offre expirée — vous êtes en pause'
-            : reason === 'console' ? 'Course retirée par ORION'
-              : reason === 'chauffeur_annule' ? 'Course annulée — le passager est confié à un autre chauffeur'
-                : 'Offre transmise à un autre chauffeur', reason === 'expired' ? 'danger' : 'info');
+          showToast(reason === 'expired' ? tr('Offre expirée — vous êtes en pause')
+            : reason === 'console' ? tr('Course retirée par ORION')
+              : reason === 'chauffeur_annule' ? tr('Course annulée — le passager est confié à un autre chauffeur')
+                : tr('Offre transmise à un autre chauffeur'), reason === 'expired' ? 'danger' : 'info');
         }
         break;
       }
@@ -161,7 +162,7 @@ export function useDriver() {
         if (status === 'cancelled') {
           setActiveRide(null);
           const reason = (data as { reason?: string } | undefined)?.reason;
-          showToast(reason === 'console' ? 'Course annulée par ORION' : 'Course annulée par le client', 'danger');
+          showToast(reason === 'console' ? tr('Course annulée par ORION') : tr('Course annulée par le client'), 'danger');
           void refresh();
         } else if (status === 'paid' || status === 'rated') {
           setActiveRide(null);
@@ -175,7 +176,7 @@ export function useDriver() {
         const p = data as { rideId: string; amount: number; method: string } | undefined;
         if (p) {
           setSettled(p);
-          showToast(`Paiement reçu : ${p.amount.toLocaleString('fr-FR')} F`, 'success');
+          showToast(tr('Paiement reçu : {0} F', [p.amount.toLocaleString('fr-FR')]), 'success');
         }
         void refresh();
         break;
@@ -201,7 +202,7 @@ export function useDriver() {
         // La note du passager arrive en direct (étoiles et thèmes, jamais son texte).
         const n = data as { stars?: number; tags?: string[] } | undefined;
         if (n?.stars) {
-          showToast(`Nouvelle note : ${'★'.repeat(n.stars)}${'☆'.repeat(5 - n.stars)}${n.tags?.length ? ` · ${n.tags.join(' ')}` : ''}`, n.stars >= 4 ? 'success' : 'info');
+          showToast(tr('Nouvelle note : {0}{1}{2}', ['★'.repeat(n.stars), '☆'.repeat(5 - n.stars), n.tags?.length ? ` · ${n.tags.join(' ')}` : '']), n.stars >= 4 ? 'success' : 'info');
           void refresh();
         }
         break;
@@ -322,7 +323,7 @@ export function useDriver() {
         setSession(backend.session());
         setDriver(r.driver);
         await refresh();
-        showToast(r.created ? 'Compte chauffeur créé — complétez votre dossier' : `Bon retour, ${r.driver.name.split(' ')[0]} 👋`, 'success');
+        showToast(r.created ? tr('Compte chauffeur créé — complétez votre dossier') : tr('Bon retour, {0} 👋', [r.driver.name.split(' ')[0]]), 'success');
         return true;
       } catch (e) {
         showToast(errMsg(e), 'danger');
@@ -340,11 +341,11 @@ export function useDriver() {
       setFinance(null);
       setActiveRide(null);
     },
-    goOnline: () => run(async () => { await backend.goOnline(posRef.current); await refresh(); }, 'Vous êtes en ligne'),
-    goOffline: () => run(async () => { await backend.goOffline(); await refresh(); }, 'Vous êtes hors ligne'),
+    goOnline: () => run(async () => { await backend.goOnline(posRef.current); await refresh(); }, tr('Vous êtes en ligne')),
+    goOffline: () => run(async () => { await backend.goOffline(); await refresh(); }, tr('Vous êtes hors ligne')),
     accept: (rideId: string) => run(async () => { setActiveRide(await backend.acceptOffer(rideId)); },
-      activeRide?.serviceType === 'delivery' ? 'Livraison acceptée, cap sur le colis !' : 'Course acceptée — en route !'),
-    decline: (rideId: string, reason?: string) => run(async () => { await backend.declineOffer(rideId, reason); setActiveRide(null); await refresh(); }, 'Offre refusée'),
+      activeRide?.serviceType === 'delivery' ? tr('Livraison acceptée, cap sur le colis !') : tr('Course acceptée — en route !')),
+    decline: (rideId: string, reason?: string) => run(async () => { await backend.declineOffer(rideId, reason); setActiveRide(null); await refresh(); }, tr('Offre refusée')),
     transition: (rideId: string, to: RideStatus) => run(async () => {
       await backend.transition(rideId, to);
       const cur = activeRef.current;
@@ -357,7 +358,7 @@ export function useDriver() {
         await backend.start(rideId, code);
         const cur = activeRef.current;
         if (cur && cur.id === rideId) setActiveRide({ ...cur, status: 'in_progress', codeRequis: false, codeVerifie: true });
-        showToast('Code vérifié : identité du passager confirmée', 'success');
+        showToast(tr('Code vérifié : identité du passager confirmée'), 'success');
         return null;
       } catch (e) {
         return errMsg(e);
@@ -369,7 +370,7 @@ export function useDriver() {
       const r = await backend.wait(rideId, minutes);
       const cur = activeRef.current;
       if (cur && cur.id === rideId) setActiveRide({ ...cur, waitMinutes: r.waitMinutes });
-      showToast(r.billableMinutes > 0 ? `Attente : ${r.waitMinutes} min · ${r.waitFee.toLocaleString('fr-FR')} F facturés` : `Attente : ${r.waitMinutes} min (courtoisie : ${r.freeMinutes} min offertes)`);
+      showToast(r.billableMinutes > 0 ? tr('Attente : {0} min · {1} F facturés', [r.waitMinutes, r.waitFee.toLocaleString('fr-FR')]) : tr('Attente : {0} min (courtoisie : {1} min offertes)', [r.waitMinutes, r.freeMinutes]));
       return r;
     }),
     collectCash: (rideId: string) => run(async () => { await backend.collectCash(rideId); await refresh(); }),
@@ -382,11 +383,11 @@ export function useDriver() {
         setSosId(id);
         setSosOuvert(true);
       }
-    }, 'Alerte reçue par la supervision ORION'),
+    }, tr('Alerte reçue par la supervision ORION')),
     sosRepondre: async (text: string) => {
       if (!sosId) return;
       const s = await backend.sosRepondre(sosId, text).catch(() => null);
-      if (s) setSosLive(s); else showToast('Message non envoyé — réessayez', 'danger');
+      if (s) setSosLive(s); else showToast(tr('Message non envoyé — réessayez'), 'danger');
     },
     sosReduire: () => setSosOuvert(false),
     sosOuvrir: () => setSosOuvert(true),
@@ -399,8 +400,8 @@ export function useDriver() {
       const r = await backend.cancelRide(rideId, motif, details);
       setActiveRide(null);
       await refresh();
-      showToast(r.reattribuee ? 'Course annulée : le passager est confié à un autre chauffeur, sans frais pour lui'
-        : motif === 'client_absent' ? `Passager absent : course annulée${r.frais ? ` (frais d’absence ${r.frais.toLocaleString('fr-FR')} F)` : ''}` : 'Course annulée', 'info');
+      showToast(r.reattribuee ? tr('Course annulée : le passager est confié à un autre chauffeur, sans frais pour lui')
+        : motif === 'client_absent' ? (r.frais ? tr('Passager absent : course annulée (frais d’absence {0} F)', [r.frais.toLocaleString('fr-FR')]) : tr('Passager absent : course annulée')) : tr('Course annulée'), 'info');
       return true;
     }),
     /** Course couverte par l'abonnement : valider la fin (0 F à encaisser). */
@@ -409,17 +410,17 @@ export function useDriver() {
       const r = await backend.rentalStep(rentalId, etape, note);
       setRentals((l) => l.map((x) => (x.id === r.id ? r : x)));
       return r;
-    }, 'Étape enregistrée — la console ORION la voit'),
-    deposerRequete: (r: NouvelleRequete) => run(async () => { const x = await backend.deposerRequete(r); setPosteVersion((v) => v + 1); return x; }, 'Demande envoyée à votre chef d’équipe'),
-    repondreMessage: (id: string, texte: string) => run(async () => { await backend.repondreMessage(id, texte); setPosteVersion((v) => v + 1); return true; }, 'Réponse envoyée'),
-    rendreRapport: (id: string, texte: string) => run(async () => { await backend.rendreRapport(id, texte); setPosteVersion((v) => v + 1); return true; }, 'Rapport rendu'),
+    }, tr('Étape enregistrée — la console ORION la voit')),
+    deposerRequete: (r: NouvelleRequete) => run(async () => { const x = await backend.deposerRequete(r); setPosteVersion((v) => v + 1); return x; }, tr('Demande envoyée à votre chef d’équipe')),
+    repondreMessage: (id: string, texte: string) => run(async () => { await backend.repondreMessage(id, texte); setPosteVersion((v) => v + 1); return true; }, tr('Réponse envoyée')),
+    rendreRapport: (id: string, texte: string) => run(async () => { await backend.rendreRapport(id, texte); setPosteVersion((v) => v + 1); return true; }, tr('Rapport rendu')),
     lireMessage: async (id: string) => { await backend.lireMessage(id).catch(() => undefined); setPosteVersion((v) => v + 1); },
-    setPhoto: (dataUrl: string) => run(async () => { await backend.setPhoto(dataUrl); await refresh(); return true; }, 'Photo enregistrée — vos passagers vous reconnaîtront'),
-    deletePhoto: () => run(async () => { await backend.deletePhoto(); await refresh(); }, 'Photo retirée'),
-    telemetry: (body: { engine?: 'electric' | 'hybrid'; batteryPct?: number; batteryHealthPct?: number }) => run(async () => { await backend.telemetry(body); await refresh(); }, 'Télémétrie transmise'),
-    updateProfile: (patch: Parameters<DriverBackend['updateProfile']>[0]) => run(async () => { await backend.updateProfile(patch); await refresh(); }, 'Dossier enregistré'),
-    submitKyc: () => run(async () => { setDriver(await backend.submitKyc()); }, 'Dossier envoyé à ORION pour validation'),
-    payout: (amount: number, method: string) => run(async () => { await backend.payout(amount, method); await refresh(); return true; }, 'Demande de retrait envoyée'),
+    setPhoto: (dataUrl: string) => run(async () => { await backend.setPhoto(dataUrl); await refresh(); return true; }, tr('Photo enregistrée — vos passagers vous reconnaîtront')),
+    deletePhoto: () => run(async () => { await backend.deletePhoto(); await refresh(); }, tr('Photo retirée')),
+    telemetry: (body: { engine?: 'electric' | 'hybrid'; batteryPct?: number; batteryHealthPct?: number }) => run(async () => { await backend.telemetry(body); await refresh(); }, tr('Télémétrie transmise')),
+    updateProfile: (patch: Parameters<DriverBackend['updateProfile']>[0]) => run(async () => { await backend.updateProfile(patch); await refresh(); }, tr('Dossier enregistré')),
+    submitKyc: () => run(async () => { setDriver(await backend.submitKyc()); }, tr('Dossier envoyé à ORION pour validation')),
+    payout: (amount: number, method: string) => run(async () => { await backend.payout(amount, method); await refresh(); return true; }, tr('Demande de retrait envoyée')),
     dismissSettled: () => setSettled(null),
     refresh,
   };
