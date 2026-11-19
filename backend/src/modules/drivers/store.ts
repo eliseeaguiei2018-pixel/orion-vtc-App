@@ -70,6 +70,8 @@ export interface Driver {
   offersExpired?: number;
   /** Courses annulées par le chauffeur lui-même (qualité de service, hors motif de sécurité). */
   cancellations?: number;
+  /** Date de la photo du chauffeur (l'image elle-même est rangée à part : poste.ts). */
+  photoUpdatedAt?: string;
 }
 
 /** Génère un matricule ORION lisible, ex. ORION-CI-4821. */

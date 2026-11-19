@@ -15,6 +15,7 @@ import { ETAPES_CHAUFFEUR } from '../rental/service.js';
 import { rideStateMachine } from '../services/ride/stateMachine.js';
 import type { Ride } from '../rides/store.js';
 import { offersOf } from './offers.js';
+import { posteChauffeurRoutes } from './poste.js';
 import {
   OtpStore, driverTokenOf, issueDriverToken, normalizePhone, requireDriver, verifyDriverToken,
 } from './auth.js';
@@ -36,6 +37,8 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
   };
   // Arrêt en douceur : coupe les comptes à rebours d'offres.
   app.addHook('onClose', async () => offers.stopAll());
+  // Poste du chauffeur (dossier, requêtes, messages du chef) et photo.
+  await posteChauffeurRoutes(app, container);
 
   /* ------------------------------ Connexion ------------------------------ */
 

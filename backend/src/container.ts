@@ -423,6 +423,27 @@ export function createContainer(): Container {
     controle.unref?.();
   }
 
+  // APP CHAUFFEUR : un message ou une demande de rapport du chef d'équipe à un
+  // chauffeur (compte console lié à son matricule) arrive aussi dans son app.
+  comms.onChange((e) => {
+    const acces = container.accounts.get(e.a);
+    if (!acces?.driverId) return;
+    realtime.publish(driverRoom(acces.driverId), 'poste.message', { kind: e.kind, id: e.objet.id });
+    const notifier = (titre: string, texte: string) => container.notifications.notify({ driverId: acces.driverId!}, titre, texte.slice(0, 140));
+    if (e.kind === 'message') {
+      const m = e.objet as MessageInterne;
+      const derniere = m.reponses[m.reponses.length - 1];
+      if (!derniere) notifier(`Message de ${m.deNom}`, m.texte);
+      // Une réponse écrite par le chauffeur lui-même ne le notifie pas.
+      else if (derniere.de !== acces.username) notifier(`Réponse de ${derniere.deNom}`, derniere.texte);
+    } else {
+      const r = e.objet as DemandeRapport;
+      if (r.statut === 'demande') notifier(`Rapport demandé par ${r.demandeParNom}`, `${r.titre} — à rendre le ${new Date(r.echeance).toLocaleDateString('fr-FR')}`);
+      else if (r.statut === 'accepte') notifier('Rapport accepté ✅', r.titre);
+      else if (r.statut === 'a_revoir') notifier('Rapport à revoir', `${r.titre}${r.retour?.texte ? ` — ${r.retour.texte}` : ''}`);
+    }
+  });
+
   // APP CHAUFFEUR : une location Signature qui bouge (statut console, annulation,
   // réaffectation, étape déclarée) est poussée en direct au chauffeur concerné.
   container.rental.onChange((r, evenement, precedent) => {

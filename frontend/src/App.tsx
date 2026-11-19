@@ -22,7 +22,7 @@ import {
   ABIDJAN_PLACES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { contactCourse, lireCodePriseEnCharge, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type PkgSize, type SafeDriver, type SosSuivi, type SupportMessage } from './api';
+import { urlApi, contactCourse, lireCodePriseEnCharge, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type PkgSize, type SafeDriver, type SosSuivi, type SupportMessage } from './api';
 import { useI18n } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
@@ -311,9 +311,11 @@ export function App() {
     matricule: s.matricule,
     rating: s.ratingAvg,
     trips: s.ratingCount,
-    plate: plateFromMatricule(s.matricule),
+    // La VRAIE plaque et la couleur déclarées par le chauffeur ; à défaut, l'ancienne règle.
+    plate: s.vehiclePlate ?? plateFromMatricule(s.matricule),
     car: s.vehicleModel ?? (livraison ? 'Scooter électrique' : tier.cars[Math.floor(Math.random() * tier.cars.length)] ?? tier.cars[0]!),
-    color: '',
+    color: s.vehicleColor ?? '',
+    photo: urlApi(s.photoUrl),
   });
 
   const confirmRide = async () => {
@@ -691,6 +693,18 @@ function SosOverlay({ state, onRetry, onClose }: { state: 'sending' | 'failed'; 
         )}
       </div>
     </div>
+  );
+}
+
+/** Pastille du chauffeur : sa photo si elle existe, sinon son initiale. */
+function PhotoChauffeur({ driver, style }: { driver: Driver; style?: React.CSSProperties }) {
+  const [echec, setEchec] = useState(false);
+  return (
+    <span className="driver-photo" style={{ ...style, overflow: 'hidden' }}>
+      {driver.photo && !echec
+        ? <img src={driver.photo} alt={driver.name} onError={() => setEchec(true)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        : driver.name.charAt(0)}
+    </span>
   );
 }
 
@@ -1622,7 +1636,7 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
         {/* Fiche chauffeur : photo, nom & prénom, note, matricule ORION */}
         <div className="card" style={{ padding: 14, marginBottom: 12 }}>
           <div className="row">
-            <span className="driver-photo" style={{ color: tier.accent }}>{driver.name.charAt(0)}</span>
+            <PhotoChauffeur driver={driver} style={{ color: tier.accent }} />
             <span className="col grow">
               <strong style={{ fontSize: 16 }}>{driver.name}</strong>
               <span className="row gap-sm" style={{ fontSize: 13 }}><IconStar size={14} color="#f5c451" /> {driver.rating} · {driver.trips.toLocaleString('fr-FR')}</span>
@@ -1696,7 +1710,7 @@ function RatingScreen({ driver, quote, payment, destination, rating, setRating, 
       <div style={{ flex: 1 }} />
       <Sheet>
         <div className="col" style={{ alignItems: 'center', marginBottom: 8 }}>
-          <span className="driver-photo" style={{ width: 64, height: 64, fontSize: 24 }}>{driver.name.charAt(0)}</span>
+          <PhotoChauffeur driver={driver} style={{ width: 64, height: 64, fontSize: 24 }} />
           <h2 className="h-title" style={{ marginTop: 10 }}>{t('rate_notez')} {driver.name}</h2>
           <p className="faint" style={{ fontSize: 13 }}>{driver.car} · {driver.plate}</p>
         </div>
@@ -2093,7 +2107,7 @@ function PaymentScreen({ quote, coverage, payment, driver, rideId, onPaid }: {
           <>
             <div className="row between" style={{ marginBottom: 14 }}>
               <span className="col"><span className="faint" style={{ fontSize: 12 }}>{t('conf_total')}</span><span className="amt" style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 28 }}>{formatXOF(Math.max(0, (quote?.amount ?? 0) - (coverage?.montantCouvert ?? 0) - (coverage?.remise ?? 0)))}</span></span>
-              <span className="driver-photo" style={{ width: 48, height: 48, fontSize: 18 }}>{driver.name.charAt(0)}</span>
+              <PhotoChauffeur driver={driver} style={{ width: 48, height: 48, fontSize: 18 }} />
             </div>
             <div className="chip active" style={{ width: '100%', justifyContent: 'flex-start', marginBottom: 14 }}><IconWallet size={16} /> {provider}</div>
             <button className="btn btn-primary" onClick={pay}><IconWallet size={18} /> {t('pay_now')} · {formatXOF(quote?.amount ?? 0)}</button>

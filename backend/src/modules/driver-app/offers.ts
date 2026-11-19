@@ -3,6 +3,7 @@ import { badRequest, conflict, notFound } from '../../core/errors.js';
 import { driverRoom, rideRoom } from '../realtime/hub.js';
 import type { Ride } from '../rides/store.js';
 import { driverRideView } from './views.js';
+import { chauffeurPourClient } from './poste.js';
 import { categorieDeFlotte } from '../rides/matching.js';
 
 /**
@@ -181,7 +182,7 @@ export class OfferService {
     const d = this.c.drivers.get(match.driverId);
     this.c.realtime.publish(rideRoom(ride.id), 'ride.reassigned', {
       rideId: ride.id,
-      driver: d ? { name: d.name, matricule: d.matricule, ratingAvg: d.ratingAvg, ratingCount: d.ratingCount } : null,
+      driver: d ? chauffeurPourClient(d) : null,
       etaSeconds: match.etaSeconds,
     });
     // Nouveau chauffeur : offre (app) ou comportement historique (démo / simulateur).
@@ -256,7 +257,7 @@ export function consoleReassigned(container: Container, ride: Ride, previous: st
   const d = ride.driverId ? container.drivers.get(ride.driverId) : undefined;
   container.realtime.publish(rideRoom(ride.id), 'ride.reassigned', {
     rideId: ride.id,
-    driver: d ? { name: d.name, matricule: d.matricule, ratingAvg: d.ratingAvg, ratingCount: d.ratingCount } : null,
+    driver: d ? chauffeurPourClient(d) : null,
     etaSeconds: null,
   });
   publishAssignment(container, ride);

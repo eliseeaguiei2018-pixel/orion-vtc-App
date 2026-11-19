@@ -12,6 +12,7 @@ import { rideStateMachine, type RideStatus } from '../services/ride/stateMachine
 import { driverRoom, rideRoom } from '../realtime/hub.js';
 import type { Ride } from './store.js';
 import { publishAssignment } from '../driver-app/offers.js';
+import { chauffeurPourClient } from '../driver-app/poste.js';
 import { categorieDeFlotte } from './matching.js';
 import { config } from '../../config/index.js';
 
@@ -224,7 +225,8 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       ride,
       // Le code ne part QU'À celui qui commande ; il n'est dans aucune autre réponse.
       codePriseEnCharge: code && !code.verifieLe ? code.code : null,
-      driver: drv ? { name: drv.name, matricule: drv.matricule, ratingAvg: drv.ratingAvg, ratingCount: drv.ratingCount, vehicleModel: drv.vehicleModel ?? null } : null,
+      // Photo, véhicule, VRAIE plaque et couleur : le passager reconnaît son chauffeur.
+      driver: drv ? chauffeurPourClient(drv) : null,
       shareUrl: ride.shareToken ? `/share/${ride.shareToken}` : null,
     };
   });
@@ -240,7 +242,8 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       origin: ride.origin,
       destination: ride.destination,
       createdAt: ride.createdAt,
-      driver: driver ? { name: driver.name, matricule: driver.matricule } : null,
+      // Le contact de confiance peut reconnaître le véhicule (plaque, couleur) et le chauffeur.
+      driver: driver ? (({ name, matricule, vehicleModel, vehiclePlate, vehicleColor, photoUrl }) => ({ name, matricule, vehicleModel, vehiclePlate, vehicleColor, photoUrl }))(chauffeurPourClient(driver)) : null,
       supervisedBy: 'ORION',
     };
   });

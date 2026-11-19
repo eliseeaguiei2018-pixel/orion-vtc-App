@@ -464,6 +464,16 @@ export interface SafeDriver {
   ratingCount: number;
   /** Véhicule du conducteur (ex. « Scooter électrique » pour un coursier). */
   vehicleModel?: string | null;
+  /** Vraie plaque et couleur déclarées par le chauffeur dans son app : on reconnaît le véhicule. */
+  vehiclePlate?: string | null;
+  vehicleColor?: string | null;
+  /** Photo du chauffeur (chemin de l'API), s'il en a une. */
+  photoUrl?: string | null;
+}
+
+/** Adresse complète d'une ressource du backend (photo du chauffeur…), null en mode démo. */
+export function urlApi(chemin: string | null | undefined): string | null {
+  return chemin && API ? `${API}${chemin}` : null;
 }
 
 export interface RideCreateResult {

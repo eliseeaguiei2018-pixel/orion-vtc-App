@@ -54,6 +54,8 @@ export interface Driver {
   plate: string;
   car: string;
   color: string;
+  /** Photo du chauffeur (adresse complète), si le backend en a une. */
+  photo?: string | null;
 }
 
 export interface SubPlan {
