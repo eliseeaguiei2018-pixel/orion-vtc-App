@@ -16,6 +16,8 @@ import { RideScreen, SettledModal } from './screens/Ride';
 import { Poste } from './screens/Poste';
 import { SosLive, SosPill } from './screens/SosLive';
 import { tr, useLangueChauffeur } from './i18n';
+import { estEcranVehicule } from './ecran';
+import { Appairage } from './screens/Appairage';
 
 /**
  * APP CHAUFFEUR ORION — troisième page du projet (driver.html), à côté de l'app cliente
@@ -26,6 +28,18 @@ export function DriverApp() {
   // La langue choisie est appliquée avant le rendu des écrans (toasts compris).
   useLangueChauffeur();
   const app = useDriver();
+  // Écran de véhicule : plein écran paysage, sans le cadre « téléphone ».
+  const vehicule = estEcranVehicule();
+  if (typeof document !== 'undefined') document.documentElement.dataset.ecran = vehicule ? 'vehicule' : 'telephone';
+  if (vehicule) {
+    return (
+      <div className="app-shell ecran-vehicule">
+        <div className="veh-cadre">
+          <Shell app={app} vehicule />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="app-shell">
       <div className="phone">
@@ -35,7 +49,7 @@ export function DriverApp() {
   );
 }
 
-function Shell({ app }: { app: DriverApp }) {
+function Shell({ app, vehicule = false }: { app: DriverApp; vehicule?: boolean }) {
   const [tab, setTab] = useState<Tab>('home');
   const [noticesOpen, setNoticesOpen] = useState(false);
   const [seen, setSeen] = useState(0);
@@ -63,7 +77,7 @@ function Shell({ app }: { app: DriverApp }) {
       </div>
     );
   }
-  if (!app.session) return <><Login app={app} />{app.toast && <Toast app={app} />}</>;
+  if (!app.session) return <>{vehicule ? <Appairage app={app} /> : <Login app={app} />}{app.toast && <Toast app={app} />}</>;
   if (!app.driver) {
     return (
       <div className="dv-login" style={{ justifyContent: 'center' }}>

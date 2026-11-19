@@ -389,3 +389,57 @@ a.dv-pill { text-decoration: none; }
 .dv-ride-map .carte-ponts { top: auto; bottom: 112px; }
 /* SOS de la course : en bas à droite de la carte, sous le bandeau de guidage. */
 .dv-ride-map .sos { top: auto; }
+
+/* =======================================================================
+   ÉCRAN DE VÉHICULE — l'app Chauffeur sur l'écran large de la voiture.
+   Plein écran paysage, sans le cadre « téléphone », avec de grandes cibles
+   tactiles. Pensé pour les dalles embarquées (1920×720, 2560×1600) et les
+   tablettes de bord. La navigation guidée et la course en cours occupent tout.
+   ======================================================================= */
+.app-shell.ecran-vehicule { place-items: stretch; }
+.veh-cadre {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  background: var(--phone-grad);
+  overflow: clip;
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+}
+/* Le contenu s'élargit : les écrans de l'app (cartes, listes) se centrent sur une
+   colonne lisible plutôt que de s'étirer sur deux mètres de dalle. */
+.ecran-vehicule .dv-page { max-width: 1100px; margin-inline: auto; width: 100%; }
+/* Course en cours : plein cadre, c'est l'écran principal en voiture. */
+.ecran-vehicule .dv-ride { max-width: none; }
+.ecran-vehicule .dv-ride-map { min-height: 46dvh; }
+
+/* Grandes cibles : conduite = gros boutons, gros texte, peu de gestes fins. */
+.ecran-vehicule { font-size: 17px; }
+.ecran-vehicule .btn { min-height: 60px; font-size: 18px; border-radius: 16px; }
+.ecran-vehicule .dv-tabs { height: 78px; }
+.ecran-vehicule .dv-tab-ico svg { width: 26px; height: 26px; }
+
+/* ---- Appairage de l'écran de véhicule ---- */
+.veh-appairage { min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: var(--shell-grad); }
+.veh-appairage-carte {
+  width: min(560px, 100%); text-align: center; padding: 40px 32px; border-radius: 26px;
+  background: var(--phone-grad); border: 1px solid var(--stroke); box-shadow: var(--shadow);
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+}
+.veh-appairage-carte h1 { font-size: 26px; font-weight: 800; margin: 4px 0 0; }
+.veh-appairage-carte p { color: var(--text-dim); font-size: 15px; line-height: 1.55; margin: 0; max-width: 46ch; }
+.veh-code { display: flex; gap: 10px; justify-content: center; margin: 10px 0; }
+.veh-code-case {
+  width: 58px; height: 72px; text-align: center; font-size: 34px; font-weight: 800;
+  color: var(--text); background: var(--surface, rgba(255,255,255,0.04)); border: 2px solid var(--stroke);
+  border-radius: 14px; outline: none; font-family: var(--font-display, inherit);
+}
+.veh-code-case:focus { border-color: var(--green); box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.18); }
+.veh-grand-bouton { width: 100%; min-height: 64px !important; font-size: 19px !important; }
+.veh-appairage-note { font-size: 12.5px !important; opacity: 0.8; }
+
+/* ---- Fenêtre « Connecter un écran de véhicule » (côté téléphone) ---- */
+.veh-code-affiche { font-size: 44px; font-weight: 800; letter-spacing: 0.22em; text-align: center;
+  font-family: var(--font-display, inherit); color: var(--green); margin: 6px 0; }
+.veh-code-expire { text-align: center; font-size: 13px; color: var(--text-dim); }

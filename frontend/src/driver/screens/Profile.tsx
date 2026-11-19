@@ -7,6 +7,7 @@ import type { DriverProfile, KycStatus, ProfilePatch } from '../types';
 import { Banner, BellButton, ChoixLangue, PageHeader, Progress, Section, Stat, VehiculeChauffeur } from '../ui';
 import { daysUntil, initials, KYC_LABEL, pct, shortDate, TIER_LABEL } from '../format';
 import { aTraduire, tr } from '../i18n';
+import { ConnecterEcranVehicule } from './Appairage';
 
 const PIPELINE: KycStatus[] = ['draft', 'docs_submitted', 'manual_review', 'active'];
 const PLUGS = ['Type 2', 'CCS', 'CHAdeMO', 'Type 1', 'GB/T'];
@@ -186,6 +187,13 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
           {driver.appLinkedAt ? tr('App liée depuis le {0} · ', [shortDate(driver.appLinkedAt)]) : ''}{app.live ? tr('Serveur ORION') : tr('Mode démo')}
         </div>
         <button className="btn btn-ghost" onClick={() => void app.actions.logout()} disabled={driver.availability === 'on_trip'}>{tr('Se déconnecter')}</button>
+      </Section>
+
+      <Section title={tr('Écran de véhicule')}>
+        <div className="card" style={{ padding: 14, display: 'grid', gap: 10, fontSize: 13.5 }}>
+          <div className="faint">{tr('Ouvrez l’app ORION Chauffeur sur l’écran large de votre voiture (Android Automotive, écran du constructeur, tablette de bord) sans ressaisir vos identifiants.')}</div>
+          <ConnecterEcranVehicule app={app} />
+        </div>
       </Section>
 
       <Section title={tr('Aide & sécurité')}>

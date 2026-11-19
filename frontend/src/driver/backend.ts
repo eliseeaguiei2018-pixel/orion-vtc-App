@@ -24,6 +24,11 @@ export interface DriverBackend {
 
   requestOtp(phone: string): Promise<{ phone: string; registered: boolean; devCode?: string }>;
   verifyOtp(phone: string, code: string, name?: string, category?: string): Promise<{ driver: DriverProfile; created: boolean }>;
+  /** Écran de véhicule : échange le code d'appairage affiché sur le téléphone contre une session. */
+  appairerEcran(code: string): Promise<{ driverId: string }>;
+  /** Téléphone : demander un code à montrer, pour connecter un écran de véhicule. */
+  codeEcranVehicule(): Promise<{ code: string; expireLe: string; dureeSecondes: number }>;
+  annulerCodeEcranVehicule(): Promise<void>;
   me(): Promise<{ driver: DriverProfile; finance: Finance }>;
 
   /** Config publique (= app cliente) et config flotte (réglages console chauffeur). */
@@ -190,6 +195,15 @@ function createLiveBackend(): DriverBackend {
       saveSession(current);
       return { driver: r.driver, created: r.created };
     },
+    async appairerEcran(code) {
+      const r = await call<{ token: string; expiresAt: string; driver: { id: string } }>(
+        '/ecran-vehicule/session', { method: 'POST', body: JSON.stringify({ code }) }, false);
+      current = { token: r.token, expiresAt: r.expiresAt, driverId: r.driver.id };
+      saveSession(current);
+      return { driverId: r.driver.id };
+    },
+    codeEcranVehicule: () => post(`/drivers/${id()}/ecran-vehicule/appairer`),
+    annulerCodeEcranVehicule: async () => { await post(`/drivers/${id()}/ecran-vehicule/annuler`); },
     async me() {
       // L'adresse de SA photo est signée par le serveur (l'identifiant seul ne suffit plus).
       const r = await call<{ driver: DriverProfile; finance: Finance; photoUrl?: string | null }>('/drivers/me');

@@ -24,6 +24,8 @@ export default defineConfig({
         // Tableau de bord ORION : écran de supervision à part, synchronisé en direct.
         dashboard: new URL('./dashboard.html', import.meta.url).pathname,
         driver: new URL('./driver.html', import.meta.url).pathname,
+        // Écran embarqué du véhicule : même app Chauffeur, mode paysage plein écran.
+        vehicule: new URL('./vehicule.html', import.meta.url).pathname,
         // Pages publiques exigées par l'App Store et Google Play.
         confidentialite: new URL('./confidentialite.html', import.meta.url).pathname,
         suppression: new URL('./suppression-compte.html', import.meta.url).pathname,

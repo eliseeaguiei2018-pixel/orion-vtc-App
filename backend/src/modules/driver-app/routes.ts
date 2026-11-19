@@ -20,6 +20,7 @@ import { photoUrl } from './photo-url.js';
 import {
   OtpStore, driverTokenOf, issueDriverToken, normalizePhone, requireDriver, verifyDriverToken,
 } from './auth.js';
+import { AppairageVehicules, AppairageRefuse } from './appairage.js';
 
 /** Ajoute un événement daté à une course (même forme que le module courses). */
 function appendEvent(ride: Ride, type: string, payload?: Record<string, unknown>): void {
@@ -31,6 +32,7 @@ const maskPhone = (p: string) => p.replace(/\d(?=\d{2})/g, '•');
 
 export async function driverAppRoutes(app: FastifyInstance, container: Container): Promise<void> {
   const otps = new OtpStore();
+  const appairages = new AppairageVehicules();
   const offers = offersOf(container);
   const activeOf = (driverId: string) => {
     const pending = offers.pendingFor(driverId);
@@ -200,6 +202,56 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
     requireDriver(req, id);
     if (!container.drivers.get(id)) throw notFound('Chauffeur introuvable');
     return { ride: activeOf(id) };
+  });
+
+  /* ------------------- Écran de véhicule (appairage) ------------------- */
+
+  /**
+   * Depuis SON téléphone, le chauffeur demande un code à six chiffres pour ouvrir l'app
+   * sur l'écran large de sa voiture. Le code est à usage unique et valable trois minutes.
+   */
+  app.post('/drivers/:id/ecran-vehicule/appairer', async (req) => {
+    const { id } = req.params as { id: string };
+    requireDriver(req, id);
+    const d = container.drivers.get(id);
+    if (!d) throw notFound('Chauffeur introuvable');
+    const { code, expireLe, dureeSecondes } = appairages.creer(id);
+    container.audit.log({ actor: d.name, role: 'chauffeur', action: 'vehicule.appairage_demande', target: id });
+    return { code, expireLe, dureeSecondes };
+  });
+
+  /** Le chauffeur annule l'appairage en cours. */
+  app.post('/drivers/:id/ecran-vehicule/annuler', async (req) => {
+    const { id } = req.params as { id: string };
+    requireDriver(req, id);
+    appairages.oublier(id);
+    return { ok: true };
+  });
+
+  /**
+   * L'écran du véhicule présente le code affiché sur le téléphone du chauffeur et obtient
+   * une session chauffeur. Aucun identifiant n'est saisi sur l'écran partagé.
+   */
+  app.post('/ecran-vehicule/session', async (req, reply) => {
+    const body = parse(z.object({ code: z.string().min(4).max(10) }), req.body);
+    try {
+      const { token, expiresAt, driverId } = appairages.echanger(body.code, req.ip);
+      const d = container.drivers.get(driverId);
+      container.audit.log({ actor: d?.name ?? driverId, role: 'chauffeur', action: 'vehicule.appairage_reussi', target: driverId, details: { ip: req.ip } });
+      return {
+        token, expiresAt,
+        driver: d ? { id: d.id, name: d.name, matricule: d.matricule, category: d.category } : { id: driverId },
+      };
+    } catch (e) {
+      if (!(e instanceof AppairageRefuse)) throw e;
+      container.audit.log({ actor: `ip:${req.ip}`, role: 'chauffeur', action: `vehicule.appairage_refus.${e.raison}` });
+      if (e.raison === 'trop_d_essais') {
+        reply.code(429).header('retry-after', String(e.attenteSecondes));
+        return { error: { code: 'TROP_D_ESSAIS', message: `Trop d'essais. Réessayez dans ${Math.ceil(e.attenteSecondes / 60)} min.` } };
+      }
+      reply.code(401);
+      return { error: { code: 'CODE_INVALIDE', message: 'Code d\'appairage incorrect ou expiré.' } };
+    }
   });
 
   /* ----------------------- Locations Signature ----------------------- */

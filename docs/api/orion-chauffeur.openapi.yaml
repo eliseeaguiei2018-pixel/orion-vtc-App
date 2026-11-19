@@ -1,0 +1,222 @@
+openapi: 3.1.0
+info:
+  title: ORION — API Chauffeur
+  version: "1.0.0"
+  description: >
+    API destinée aux développeurs des constructeurs automobiles qui intègrent
+    l'application Chauffeur ORION dans l'écran embarqué d'un véhicule (Android Automotive,
+    HarmonyOS/ArkWeb, CarPlay web, dalle du constructeur).
+
+    Dans la plupart des cas, l'intégration la plus simple n'appelle PAS ces points
+    directement : elle héberge l'application web ORION (driver.html, ou vehicule.html en
+    mode écran de véhicule) dans une WebView, et la session s'ouvre par un code d'appairage
+    affiché sur le téléphone du chauffeur. Les points ci-dessous sont là pour les
+    intégrations natives qui veulent parler au serveur ORION sans WebView.
+
+    Toutes les montants sont en francs CFA (XOF). Toutes les dates sont ISO 8601 UTC.
+servers:
+  - url: https://api.orion.ci
+    description: Production (exemple — remplacer par le vrai domaine)
+tags:
+  - name: Appairage
+    description: Connexion d'un écran de véhicule sans saisir d'identifiants dessus.
+  - name: Authentification
+    description: Connexion du chauffeur par code reçu par SMS.
+  - name: Course
+    description: Course en cours et position du véhicule.
+  - name: Configuration
+    description: Réglages publics de la plateforme.
+paths:
+  /ecran-vehicule/session:
+    post:
+      tags: [Appairage]
+      summary: Ouvrir une session depuis un écran de véhicule, avec le code du téléphone
+      description: >
+        Le chauffeur, connecté sur son téléphone, y affiche un code à six chiffres
+        (« Connecter un écran de véhicule »). L'écran du véhicule présente ce code ici et
+        reçoit une session chauffeur. Le code est à usage unique, valable trois minutes,
+        lié au chauffeur qui l'a demandé. Les essais sont limités (anti-force brute).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, pattern: '^[0-9]{6}$', example: "190749" }
+      responses:
+        "200":
+          description: Session chauffeur ouverte pour l'écran du véhicule.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string, description: Jeton de session (Authorization&#58; Bearer). }
+                  expiresAt: { type: string, format: date-time }
+                  driver:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      name: { type: string }
+                      matricule: { type: string }
+                      category: { type: string, enum: [bronze, argent, or, diamant, moto] }
+        "401": { $ref: '#/components/responses/CodeInvalide' }
+        "429": { $ref: '#/components/responses/TropDEssais' }
+  /drivers/{id}/ecran-vehicule/appairer:
+    post:
+      tags: [Appairage]
+      summary: (Téléphone du chauffeur) demander un code pour appairer un écran de véhicule
+      security: [{ sessionChauffeur: [] }]
+      parameters: [{ $ref: '#/components/parameters/DriverId' }]
+      responses:
+        "200":
+          description: Code à montrer sur le téléphone, à saisir sur l'écran du véhicule.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: string, example: "190749" }
+                  expireLe: { type: string, format: date-time }
+                  dureeSecondes: { type: integer, example: 180 }
+        "401": { description: Session chauffeur absente ou expirée. }
+        "403": { description: Ce compte chauffeur ne vous appartient pas. }
+  /drivers/{id}/ecran-vehicule/annuler:
+    post:
+      tags: [Appairage]
+      summary: (Téléphone du chauffeur) annuler l'appairage en cours
+      security: [{ sessionChauffeur: [] }]
+      parameters: [{ $ref: '#/components/parameters/DriverId' }]
+      responses:
+        "200": { description: Annulé. }
+  /drivers/auth/otp:
+    post:
+      tags: [Authentification]
+      summary: Envoyer un code de connexion par SMS
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone: { type: string, example: "+2250700000000" }
+      responses:
+        "200": { description: Code envoyé (le code n'est jamais renvoyé dans la réponse en production). }
+  /drivers/auth/verify:
+    post:
+      tags: [Authentification]
+      summary: Vérifier le code et ouvrir une session chauffeur
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, code]
+              properties:
+                phone: { type: string }
+                code: { type: string }
+                name: { type: string, description: Nom complet, seulement à la création du compte. }
+                category: { type: string }
+      responses:
+        "200":
+          description: Session ouverte.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  expiresAt: { type: string, format: date-time }
+                  driver: { type: object }
+                  created: { type: boolean }
+        "401": { description: Code invalide. }
+  /drivers/{id}/active-ride:
+    get:
+      tags: [Course]
+      summary: Course en cours du chauffeur (reprise, écran de véhicule)
+      security: [{ sessionChauffeur: [] }]
+      parameters: [{ $ref: '#/components/parameters/DriverId' }]
+      responses:
+        "200":
+          description: La course en cours, ou null s'il n'y en a pas.
+          content:
+            application/json:
+              schema: { type: object, properties: { ride: { type: [object, 'null'] } } }
+  /drivers/{id}/location:
+    post:
+      tags: [Course]
+      summary: Envoyer la position GPS du véhicule
+      security: [{ sessionChauffeur: [] }]
+      parameters: [{ $ref: '#/components/parameters/DriverId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [position]
+              properties:
+                position:
+                  type: object
+                  required: [lat, lng]
+                  properties:
+                    lat: { type: number, example: 5.348 }
+                    lng: { type: number, example: -4.027 }
+      responses:
+        "200": { description: Position enregistrée. }
+  /config:
+    get:
+      tags: [Configuration]
+      summary: Réglages publics de la plateforme (devise, services actifs)
+      security: []
+      responses:
+        "200": { description: Configuration publique. }
+components:
+  parameters:
+    DriverId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+      description: Identifiant du chauffeur.
+  responses:
+    CodeInvalide:
+      description: Code d'appairage incorrect ou expiré.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code: { type: string, example: CODE_INVALIDE }
+                  message: { type: string }
+    TropDEssais:
+      description: Trop d'essais — réessayer plus tard.
+      headers:
+        Retry-After: { schema: { type: integer }, description: Secondes à attendre. }
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code: { type: string, example: TROP_D_ESSAIS }
+                  message: { type: string }
+  securitySchemes:
+    sessionChauffeur:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Jeton de session chauffeur obtenu par appairage ou par code SMS.

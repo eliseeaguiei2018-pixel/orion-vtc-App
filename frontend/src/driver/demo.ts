@@ -280,6 +280,15 @@ export function createDemoBackend(): DriverBackend {
       const full = digits.length === 10 ? `+225${digits}` : `+${digits}`;
       return { phone: full, registered: st.phone === full && st.driver !== null, devCode: DEMO_CODE };
     },
+    async appairerEcran(code: string) {
+      if (code.trim() !== DEMO_CODE) throw new ApiError(401, 'Code d\'appairage incorrect (démo : 123456)');
+      if (!st.driver) throw new ApiError(401, 'Aucun chauffeur en démonstration');
+      return { driverId: st.driver.id };
+    },
+    async codeEcranVehicule() {
+      return { code: DEMO_CODE, expireLe: new Date(now() + 180_000).toISOString(), dureeSecondes: 180 };
+    },
+    async annulerCodeEcranVehicule() { /* démo : rien à annuler */ },
     async verifyOtp(phone, code, name, category) {
       if (code.trim() !== DEMO_CODE) throw new ApiError(401, 'Code incorrect (démo : 123456)');
       const digits = phone.replace(/\D/g, '');

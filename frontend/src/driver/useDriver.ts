@@ -343,6 +343,19 @@ export function useDriver() {
         return false;
       }
     },
+    /** Écran de véhicule : appairer avec le code affiché sur le téléphone du chauffeur. */
+    async appairerEcran(code: string) {
+      try {
+        await backend.appairerEcran(code);
+        setSession(backend.session());
+        await refresh();
+        showToast(tr('Écran du véhicule connecté 🚗'), 'success');
+        return true;
+      } catch (e) {
+        showToast(errMsg(e), 'danger');
+        return false;
+      }
+    },
     async logout() {
       // On ne laisse pas un chauffeur « fantôme » en ligne après déconnexion.
       if (driver && (driver.availability === 'online' || driver.availability === 'paused')) {
