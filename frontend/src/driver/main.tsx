@@ -6,6 +6,8 @@ import { I18nProvider } from '../i18n';
 import { DriverApp } from './Driver';
 import '../index.css';
 import './driver.css';
+import '../premium.css';
+import { demarrerDiagnosticFluidite } from '../fps';
 
 ReactDOM.createRoot(document.getElementById('driver-root')!).render(
   <React.StrictMode>
@@ -20,3 +22,4 @@ ReactDOM.createRoot(document.getElementById('driver-root')!).render(
 
 // Application web installable : écran d'accueil du téléphone, tablette, écran de bord.
 enregistrerServiceWorker();
+demarrerDiagnosticFluidite();
