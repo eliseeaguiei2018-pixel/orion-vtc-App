@@ -360,3 +360,32 @@ a.dv-pill { text-decoration: none; }
 [dir='rtl'] .dv-switch.on::after { transform: translateX(-34px); }
 [dir='rtl'] .dv-stage-tag { left: auto; right: 12px; }
 [dir='rtl'] .dv-hero::after { right: auto; left: -30px; }
+
+/* ============================================================
+   NAVIGATION GUIDÉE — bandeau d'instructions sur la vraie carte
+   ============================================================ */
+.dv-nav { position: absolute; left: 10px; right: 10px; top: calc(env(safe-area-inset-top) + 10px); z-index: 6; border-radius: 22px; padding: 12px 14px 10px;
+  color: #fff; background: radial-gradient(90% 140% at 100% 0%, rgba(255,255,255,0.16), transparent 60%), linear-gradient(140deg, var(--green-deep), #06281b);
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.18); animation: rise 0.35s var(--ease-out); }
+.dv-nav-haut { display: flex; align-items: center; gap: 12px; }
+.dv-nav-picto { flex-shrink: 0; width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; background: rgba(255, 255, 255, 0.14); color: #fff; }
+.dv-nav-picto svg { transition: transform 0.3s var(--ease-out); }
+.dv-nav-distance { font-family: var(--font-display); font-weight: 800; font-size: 26px; line-height: 1.05; letter-spacing: -0.02em; }
+.dv-nav-consigne { font-weight: 700; font-size: 15px; line-height: 1.25; }
+.dv-nav-voie { font-size: 13px; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dv-nav-puis { margin-top: 8px; font-size: 12.5px; padding: 6px 10px; border-radius: 12px; background: rgba(0, 0, 0, 0.22); }
+.dv-nav-bas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.16); font-size: 13px; opacity: 0.95; }
+.dv-nav-recalcul { color: #ffd978; font-weight: 700; }
+.dv-nav-voix { position: relative; flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer; display: grid; place-items: center;
+  color: #fff; background: rgba(255, 255, 255, 0.16); }
+.dv-nav-voix i { position: absolute; width: 24px; height: 2px; background: #fff; transform: rotate(-45deg); border-radius: 2px; }
+.dv-nav-calcul { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 14px; }
+.dv-nav-spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.35); border-top-color: #fff; animation: dv-tourne 0.8s linear infinite; }
+@keyframes dv-tourne { to { transform: rotate(360deg); } }
+.dv-map-chip { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.dv-map-chip.bas { top: auto; bottom: 16px; }
+.dv-vue { cursor: pointer; font-weight: 700; }
+.dv-ride-map .carte-recentrer { bottom: 58px; left: 12px; right: auto; }
+.dv-ride-map .carte-ponts { top: auto; bottom: 112px; }
+/* SOS de la course : en bas à droite de la carte, sous le bandeau de guidage. */
+.dv-ride-map .sos { top: auto; }

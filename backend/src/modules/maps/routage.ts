@@ -21,12 +21,34 @@ export interface EtapeItineraire {
   modificateur?: string;
 }
 
+/**
+ * Manœuvre de guidage (navigation de l'app chauffeur) : TOUTES les étapes OSRM, avec la
+ * position exacte du point de manœuvre — y compris les bretelles d'échangeur sans nom,
+ * les ronds-points (numéro de sortie) et les embranchements.
+ */
+export interface Manoeuvre {
+  /** depart, turn, new name, continue, merge, on ramp, off ramp, fork, end of road, roundabout, rotary, exit roundabout, arrive… */
+  type: string;
+  /** left, slight left, sharp left, right, slight right, sharp right, straight, uturn. */
+  modificateur?: string;
+  /** Nom de la voie empruntée après la manœuvre (ou sa référence, ex. A100). */
+  nom: string;
+  /** Distance parcourue sur cette voie jusqu'à la manœuvre suivante. */
+  distanceMeters: number;
+  /** Point où effectuer la manœuvre. */
+  position: LatLng;
+  /** Rond-point : numéro de la sortie à prendre. */
+  sortie?: number;
+}
+
 export interface Itineraire {
   distanceMeters: number;
   durationSeconds: number;
   /** Points du tracé, dans l'ordre (lat/lng). */
   geometrie: LatLng[];
   etapes: EtapeItineraire[];
+  /** Guidage pas à pas (vide pour un tracé de repli). */
+  manoeuvres: Manoeuvre[];
   /** Ponts empruntés, dans l'ordre (repérés par leur nom). */
   ponts: string[];
   provider: 'osrm' | 'repli';
@@ -129,6 +151,18 @@ export class Routage {
       type: s.maneuver.type,
       modificateur: s.maneuver.modifier,
     })));
+    const manoeuvres: Manoeuvre[] = route.legs.flatMap((l, iLeg) => l.steps
+      // Arrivée à un arrêt intermédiaire puis redépart : une seule manœuvre « arrêt ».
+      .filter((s) => !(iLeg > 0 && s.maneuver.type === 'depart'))
+      .map((s) => ({
+        type: s.maneuver.type,
+        ...(s.maneuver.modifier ? { modificateur: s.maneuver.modifier } : {}),
+        nom: s.name || s.ref || '',
+        distanceMeters: Math.round(s.distance),
+        position: s.maneuver.location ? { lat: s.maneuver.location[1], lng: s.maneuver.location[0] } : { lat: 0, lng: 0 },
+        ...(s.maneuver.exit !== undefined ? { sortie: s.maneuver.exit } : {}),
+      })))
+      .filter((m) => m.position.lat !== 0 || m.position.lng !== 0);
     const ponts: string[] = [];
     for (const e of etapes) {
       if (/^pont\b/i.test(e.nom) && !ponts.includes(e.nom)) ponts.push(e.nom);
@@ -138,6 +172,7 @@ export class Routage {
       durationSeconds: Math.round(route.duration),
       geometrie: route.geometry.coordinates.map(([lng, lat]) => ({ lat: lat!, lng: lng! })),
       etapes: etapes.filter((e) => e.nom || e.type === 'arrive' || e.type === 'depart'),
+      manoeuvres,
       ponts,
       provider: 'osrm',
     };
@@ -149,7 +184,7 @@ function repli(points: LatLng[]): Itineraire {
   let d = 0;
   for (let i = 1; i < points.length; i += 1) d += haversineMeters(points[i - 1]!, points[i]!);
   const route = Math.round(d * 1.3);
-  return { distanceMeters: route, durationSeconds: Math.round((route / 1000 / 22) * 3600), geometrie: points, etapes: [], ponts: [], provider: 'repli' };
+  return { distanceMeters: route, durationSeconds: Math.round((route / 1000 / 22) * 3600), geometrie: points, etapes: [], manoeuvres: [], ponts: [], provider: 'repli' };
 }
 
 /** Position à la fraction `t` (0..1) de la longueur d'un tracé. */
@@ -176,6 +211,6 @@ interface OsrmReponse {
     distance: number;
     duration: number;
     geometry: { coordinates: Array<[number, number]> };
-    legs: Array<{ steps: Array<{ name: string; ref?: string; distance: number; maneuver: { type: string; modifier?: string } }> }>;
+    legs: Array<{ steps: Array<{ name: string; ref?: string; distance: number; maneuver: { type: string; modifier?: string; location?: [number, number]; exit?: number } }> }>;
   }>;
 }

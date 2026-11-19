@@ -4,6 +4,7 @@ import { IconClock, IconPhone, IconPin, IconWallet } from '../../icons';
 import type { DriverApp } from '../useDriver';
 import type { ActiveRide, MotifAnnulationChauffeur, RideStatus, RideView } from '../types';
 import { Banner, Modal } from '../ui';
+import { BandeauGuidage } from './Guidage';
 import { fcfa, haversine, km, methodLabel, navLinks, statutLabel, TAILLE_COLIS } from '../format';
 import { lienTel, numeroLisible } from '../../telephone';
 import { aTraduire, tr } from '../i18n';
@@ -18,6 +19,8 @@ const STEPS: RideStatus[] = ['driver_en_route', 'arrived', 'in_progress', 'compl
 export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) {
   const [sos, setSos] = useState(false);
   const [cancel, setCancel] = useState(false);
+  const [suivi, setSuivi] = useState(true);
+  const nav = app.navigation;
   const step = STEPS.indexOf(ride.status);
   const toPickup = ride.status === 'accepted' || ride.status === 'driver_en_route';
   const target = toPickup || ride.status === 'arrived' ? ride.origin : ride.destination;
@@ -35,14 +38,26 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
   const t = (to: RideStatus) => void app.actions.transition(ride.id, to);
   // Livraison à moto : mêmes étapes, mots du coursier (colis à retirer puis à livrer).
   const livraison = ride.serviceType === 'delivery';
+  // Guidage actif tant qu'il y a un point à rejoindre (client, puis destination).
+  const enNavigation = toPickup || ride.status === 'in_progress';
 
   return (
     <div className="dv-ride">
       <div className="dv-ride-map">
-        {toPickup
-          ? <OrionMap origin={app.position} destination={ride.origin} car={app.position} vehicle={livraison ? 'moto' : 'car'} traffic approche />
-          : <OrionMap origin={ride.origin} destination={ride.destination} car={app.position} vehicle={livraison ? 'moto' : 'car'} traffic />}
-        <div className="dv-map-chip"><span className="dv-link online"><i />{statutLabel(ride.status, livraison)}</span></div>
+        {/* Vraie carte de Côte d'Ivoire + navigation guidée : la carte suit le véhicule sur
+            l'itinéraire réel (ponts, échangeurs, voies nouvelles), vers le client puis la destination. */}
+        {enNavigation
+          ? <OrionMap origin={ride.origin} destination={toPickup ? null : ride.destination} car={app.position} vehicle={livraison ? 'moto' : 'car'} traffic
+              trace={nav.guidage?.restant ?? null} ponts={nav.guidage?.ponts} suivi={suivi} basCouvert={0} libelleRecentrer={tr('Recentrer')} />
+          : <OrionMap origin={ride.origin} destination={ride.destination} car={app.position} vehicle={livraison ? 'moto' : 'car'} traffic basCouvert={0} />}
+        <BandeauGuidage guidage={nav.guidage} recalcul={nav.recalcul} actif={enNavigation}
+          arrivee={toPickup ? (livraison ? tr('Arrivée au point de retrait du colis') : tr('Arrivée au point de prise en charge')) : (livraison ? tr('Arrivée au point de livraison') : tr('Arrivée à destination'))} />
+        <div className={`dv-map-chip${enNavigation ? ' bas' : ''}`}>
+          <span className="dv-link online"><i />{statutLabel(ride.status, livraison)}</span>
+          {enNavigation && (
+            <button type="button" className="dv-link dv-vue" onClick={() => setSuivi((v) => !v)}>{suivi ? tr('Vue d’ensemble') : tr('Navigation')}</button>
+          )}
+        </div>
         <button className="sos" style={{ bottom: 40 }} onClick={() => setSos(true)} aria-label={tr('SOS')}>{tr('SOS')}</button>
       </div>
 

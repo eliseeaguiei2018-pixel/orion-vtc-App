@@ -850,12 +850,24 @@ export async function paySubscriptionInvoice(invoiceId: string, method: string, 
 
 /* ------------------------------ Itinéraire routier ------------------------------ */
 
+/** Manœuvre de guidage (navigation chauffeur) : bretelles d'échangeur, ronds-points, ponts… */
+export interface Manoeuvre {
+  type: string;
+  modificateur?: string;
+  nom: string;
+  distanceMeters: number;
+  position: LatLng;
+  sortie?: number;
+}
+
 export interface ItineraireRoute {
   geometrie: LatLng[];
   distanceMeters: number;
   durationSeconds: number;
   ponts: string[];
   provider: 'osrm' | 'repli';
+  /** Guidage pas à pas (serveurs récents ; absent d'un tracé de repli). */
+  manoeuvres?: Manoeuvre[];
 }
 
 const cacheItineraires = new Map<string, Promise<ItineraireRoute | null>>();
@@ -877,13 +889,17 @@ export function itineraire(points: LatLng[]): Promise<ItineraireRoute | null> {
     try {
       const coords = points.map((q) => `${q.lng.toFixed(6)},${q.lat.toFixed(6)}`).join(';');
       const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true`, { signal: AbortSignal.timeout(8000) });
-      const j = await res.json() as { code: string; routes?: Array<{ distance: number; duration: number; geometry: { coordinates: [number, number][] }; legs: Array<{ steps: Array<{ name: string }> }> }> };
+      const j = await res.json() as { code: string; routes?: Array<{ distance: number; duration: number; geometry: { coordinates: [number, number][] }; legs: Array<{ steps: Array<{ name: string; ref?: string; distance: number; maneuver: { type: string; modifier?: string; location: [number, number]; exit?: number } }> }> }> };
       const route = j.routes?.[0];
       if (j.code !== 'Ok' || !route) return null;
       const ponts = [...new Set(route.legs.flatMap((l) => l.steps.map((st) => st.name)).filter((n) => /^pont\b/i.test(n)))];
       return {
         geometrie: route.geometry.coordinates.map(([lng, lat]) => ({ lat, lng })),
         distanceMeters: Math.round(route.distance), durationSeconds: Math.round(route.duration), ponts, provider: 'osrm',
+        manoeuvres: route.legs.flatMap((l, i) => l.steps.filter((st) => !(i > 0 && st.maneuver.type === 'depart')).map((st) => ({
+          type: st.maneuver.type, modificateur: st.maneuver.modifier, nom: st.name || st.ref || '', distanceMeters: Math.round(st.distance),
+          position: { lat: st.maneuver.location[1], lng: st.maneuver.location[0] }, sortie: st.maneuver.exit,
+        }))),
       };
     } catch {
       return null;

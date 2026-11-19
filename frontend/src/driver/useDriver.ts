@@ -7,6 +7,7 @@ import type {
   ActiveRide, Announcement, DriverConfig, DriverEvent, DriverProfile, Finance, LatLng, LinkState, RideStatus,
 } from './types';
 import { tr } from './i18n';
+import { pointA, projeter, useNavigation } from './navigation';
 
 /** Notification affichée dans l'app (console, système, annonces). */
 export interface Notice { id: string; title: string; body: string; at: string; kind: 'notification' | 'announcement' | 'system' }
@@ -267,14 +268,26 @@ export function useDriver() {
     return () => navigator.geolocation.clearWatch(id);
   }, [tracking]);
 
-  // GPS simulé : le véhicule progresse vers le point de prise en charge puis la destination.
-  useEffect(() => {
-    if (gps !== 'simulated' || !activeRide) return;
-    const target = activeRide.status === 'in_progress' ? activeRide.destination
+  /* ---------- Navigation guidée : vers le client, puis vers la destination ---------- */
+  const cibleNavigation = !activeRide ? null
+    : activeRide.status === 'in_progress' ? activeRide.destination
       : (activeRide.status === 'accepted' && !activeRide.offer) || activeRide.status === 'driver_en_route' ? activeRide.origin : null;
-    if (!target) return;
+  const navigation = useNavigation(position, cibleNavigation);
+  const routeNav = useRef(navigation.route);
+  routeNav.current = navigation.route;
+
+  // GPS simulé : le véhicule progresse vers le point de prise en charge puis la destination,
+  // EN SUIVANT LES ROUTES de l'itinéraire guidé (ponts, échangeurs), sinon en ligne droite.
+  useEffect(() => {
+    if (gps !== 'simulated' || !cibleNavigation) return;
+    const target = cibleNavigation;
     const id = window.setInterval(() => {
       setPosition((p) => {
+        const r = routeNav.current;
+        if (r && r.cible.lat === target.lat && r.cible.lng === target.lng && r.geometrie.length > 1) {
+          const ici = projeter(r.geometrie, r.cumul, p);
+          return pointA(r.geometrie, r.cumul, ici.parcouru + 100); // ~100 m par tick (démo accélérée)
+        }
         const dLat = target.lat - p.lat;
         const dLng = target.lng - p.lng;
         const step = 0.0009; // ~100 m par tick (démo accélérée)
@@ -284,7 +297,7 @@ export function useDriver() {
       });
     }, 1500);
     return () => window.clearInterval(id);
-  }, [gps, activeRide]);
+  }, [gps, cibleNavigation?.lat, cibleNavigation?.lng]);
 
   // Heartbeat de position (présence + suivi client en direct) : toutes les 5 s en ligne,
   // toutes les 3 s en mission, et immédiatement à chaque étape de la course.
@@ -428,7 +441,7 @@ export function useDriver() {
 
   return {
     backend, live: backend.live, booting, session, driver, finance, appConfig, driverConfig, activeRide, link,
-    notices, announcements, toast, settled, position, gps, busy, showToast, actions,
+    notices, announcements, toast, settled, position, gps, busy, showToast, actions, navigation,
     rentals, posteVersion, sosLive, sosOuvert, sosHorsLigne,
   };
 }

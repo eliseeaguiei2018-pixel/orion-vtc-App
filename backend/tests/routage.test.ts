@@ -59,3 +59,27 @@ test('API : réservé à la Côte d’Ivoire', async (t) => {
   assert.equal(paris.statusCode, 400);
   assert.match(paris.body, /Côte d’Ivoire/);
 });
+
+test('guidage chauffeur : toutes les manœuvres, avec leur position (bretelles, ronds-points)', async () => {
+  const osrm = {
+    code: 'Ok',
+    routes: [{
+      distance: 4200, duration: 420,
+      geometry: { coordinates: [[-4.0217, 5.3236], [-4.015, 5.33], [-4.005, 5.34], [-3.99, 5.36]] },
+      legs: [{ steps: [
+        { name: 'Boulevard de la République', distance: 800, maneuver: { type: 'depart', location: [-4.0217, 5.3236] } },
+        { name: '', distance: 300, maneuver: { type: 'on ramp', modifier: 'slight right', location: [-4.015, 5.33] } },
+        { name: 'Boulevard Latrille', distance: 2100, maneuver: { type: 'roundabout', modifier: 'right', exit: 2, location: [-4.005, 5.34] } },
+        { name: '', distance: 0, maneuver: { type: 'arrive', location: [-3.99, 5.36] } },
+      ] }],
+    }],
+  };
+  const faux = (async () => new Response(JSON.stringify(osrm), { status: 200 })) as typeof fetch;
+  const it = await new Routage('https://osrm.exemple', faux).itineraire([PLATEAU, COCODY]);
+  assert.equal(it.manoeuvres.length, 4, 'la bretelle sans nom est gardée pour le guidage');
+  assert.deepEqual(it.manoeuvres[1], { type: 'on ramp', modificateur: 'slight right', nom: '', distanceMeters: 300, position: { lat: 5.33, lng: -4.015 } });
+  assert.equal(it.manoeuvres[2]!.sortie, 2);
+  assert.equal(it.etapes.length, 3, 'les étapes nommées historiques sont inchangées');
+  const repli = await new Routage(undefined).itineraire([PLATEAU, COCODY]);
+  assert.deepEqual(repli.manoeuvres, []);
+});

@@ -63,6 +63,12 @@ interface Props {
   traffic?: boolean;
   /** Le chauffeur rejoint le départ : son trajet d'approche est tracé en pointillés. */
   approche?: boolean;
+  /* --- Navigation guidée (app chauffeur), carte réelle uniquement --- */
+  trace?: LatLng[] | null;
+  ponts?: string[];
+  suivi?: boolean;
+  basCouvert?: number;
+  libelleRecentrer?: string;
 }
 
 /** Itinéraire, départ et véhicule prennent la couleur choisie par le client. */
@@ -83,14 +89,15 @@ export function OrionMap(props: Props) {
   const [repli, setRepli] = useState(false);
   const config = getVectorConfig();
   if (config && !repli) {
-    const { origin, destination, stops, car, vehicle, approche } = props;
-    return <CarteReelle origin={origin} destination={destination} stops={stops} car={car} vehicle={vehicle} approche={approche} config={config} onEchec={() => setRepli(true)} />;
+    const { origin, destination, stops, car, vehicle, approche, trace, ponts, suivi, basCouvert, libelleRecentrer } = props;
+    return <CarteReelle origin={origin} destination={destination} stops={stops} car={car} vehicle={vehicle} approche={approche} config={config} onEchec={() => setRepli(true)}
+      trace={trace} ponts={ponts} suivi={suivi} basCouvert={basCouvert} libelleRecentrer={libelleRecentrer} />;
   }
   return <CarteStylisee {...props} />;
 }
 
 /** Carte stylisée hors-ligne (démonstration sans réseau, repli). */
-function CarteStylisee({ origin, destination, stops = [], car, vehicle = 'car', traffic = true }: Props) {
+function CarteStylisee({ origin, destination, stops = [], car, vehicle = 'car', traffic = true, trace }: Props) {
   const { resolved, accent } = useTheme();
   const P: Palette = { ...(resolved === 'light' ? LIGHT : DARK), ...ACCENT_CARTE[accent][resolved] };
 
@@ -116,7 +123,10 @@ function CarteStylisee({ origin, destination, stops = [], car, vehicle = 'car', 
 
   // Itinéraire passant par les arrêts.
   const points: Pt[] = d ? [o, ...sp, d] : [];
-  const segs = points.slice(1).map((p, i) => curvedPath(points[i]!, p));
+  // Navigation guidée (chauffeur) : le tracé réel restant, point par point, même hors ligne.
+  const segs = trace && trace.length > 1
+    ? [trace.map(project).map((p, i) => `${i ? 'L' : 'M'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ')]
+    : points.slice(1).map((p, i) => curvedPath(points[i]!, p));
 
   return (
     <div className="map-wrap">
