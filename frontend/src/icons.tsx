@@ -218,3 +218,26 @@ export const IconMoon = ({ size, strokeWidth }: P) => (
 export const IconBellOff = ({ size, strokeWidth }: P) => (
   <svg {...base(size, strokeWidth)}><path d="M8.5 5.2A6 6 0 0 1 18 10v3.5l1.5 2.5H9M6 10v3.5L4.5 16H9M10 19.5a2 2 0 0 0 4 0M3 3l18 18" /></svg>
 );
+
+/* ---- Services à venir (accueil client) ---- */
+export const IconUtensils = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M7 3v8M4.5 3v5a2.5 2.5 0 0 0 5 0V3M7 11v10" /><path d="M17 21V3c-2 1.5-3 4-3 7v3h3" /></svg>
+);
+export const IconBag = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M5 8h14l-1 12H6L5 8Z" /><path d="M9 10V6.5a3 3 0 0 1 6 0V10" /></svg>
+);
+export const IconCart = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M3 4h2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2" /><circle cx="9.5" cy="19.5" r="1.3" /><circle cx="17" cy="19.5" r="1.3" /></svg>
+);
+export const IconPackage = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" /><path d="m4 7.5 8 4.5 8-4.5M12 12v9M8 5.3l8 4.5" /></svg>
+);
+export const IconClose = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M6 6l12 12M18 6 6 18" /></svg>
+);
+export const IconDownload = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5" /><path d="M5 19h14" /></svg>
+);
+export const IconUser = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><circle cx="12" cy="8" r="3.6" /><path d="M5 20c.8-3.6 3.6-5.6 7-5.6s6.2 2 7 5.6" /></svg>
+);

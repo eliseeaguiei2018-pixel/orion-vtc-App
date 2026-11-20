@@ -3,6 +3,7 @@ import { useI18n } from '../i18n';
 import { TopBar } from './ui';
 import { IconCheck, IconGlobe, IconLock, IconMedical, IconPhone, IconShieldCheck, IconUsers, IconWallet } from '../icons';
 import {
+  modeLocal,
   ANTECEDENTS, GROUPES_SANGUINS, enregistrerDossierAssurance, lireDossierAssurance, statutAssurance, supprimerDossierAssurance,
   type FicheMedicale, type StatutAssurance,
 } from '../api';
@@ -95,7 +96,8 @@ function Presentation({ onBack, onContinuer }: { onBack: () => void; onContinuer
     [<IconMedical size={20} key="b" />, 'as_pourquoi_t', 'as_pourquoi'],
     [<IconUsers size={20} key="c" />, 'as_demande_t', 'as_demande'],
     [<IconPhone size={20} key="d" />, 'as_qui_t', 'as_qui'],
-    [<IconLock size={20} key="e" />, 'as_protege_t', 'as_protege'],
+    // Sans serveur ORION, le dossier ne peut pas être sur nos serveurs : l'écran le dit.
+    [<IconLock size={20} key="e" />, 'as_protege_t', modeLocal() ? 'as_protege_local' : 'as_protege'],
     [<IconWallet size={20} key="f" />, 'as_prix_t', 'as_prix'],
   ];
   return (
@@ -251,7 +253,7 @@ function Formulaire({ initiale, onBack, onEnregistre, onToast }: {
           <div className="as-form">
             <label className="as-champ"><span>{t('as_contact_nom')}</span><div className="field"><input value={f.urgence.nom} onChange={(e) => maj('urgence', { nom: e.target.value })} /></div></label>
             <label className="as-champ"><span>{t('as_contact_lien')}</span><div className="field"><input value={f.urgence.lien} onChange={(e) => maj('urgence', { lien: e.target.value })} /></div></label>
-            <label className="as-champ"><span>{t('as_contact_tel')}</span><div className="field"><span className="dialcode">🇨🇮 +225</span><input inputMode="tel" value={f.urgence.telephone.replace(/^\+225/, '')} onChange={(e) => maj('urgence', { telephone: `+225${e.target.value.replace(/[^0-9 ]/g, '')}` })} /></div></label>
+            <label className="as-champ"><span>{t('as_contact_tel')}</span><div className="field"><span className="dialcode">+225</span><input inputMode="tel" value={f.urgence.telephone.replace(/^\+225/, '')} onChange={(e) => maj('urgence', { telephone: `+225${e.target.value.replace(/[^0-9 ]/g, '')}` })} /></div></label>
             <span className="eyebrow" style={{ marginTop: 8 }}>{t('as_medecin')}</span>
             <div className="as-ligne">
               <div className="field"><input placeholder={t('as_nom')} value={f.medecin?.nom ?? ''} onChange={(e) => setF((x) => ({ ...x, medecin: { ...x.medecin, nom: e.target.value } }))} /></div>

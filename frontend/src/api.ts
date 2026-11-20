@@ -6,6 +6,7 @@ import {
   PRESTIGE_FALLBACK, RENTAL_COEF, RENTAL_DUREES, RENTAL_FORMULES, RENTAL_JOURS,
   RENTAL_OPTION_KEYS, RENTAL_TARIFF,
 } from './data';
+import { repondreLocal, reserverLocationLocale } from './serveurLocal';
 
 /**
  * Client API ORION. Si VITE_API_URL est défini et joignable, on utilise le backend réel.
@@ -15,7 +16,11 @@ import {
 const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
 
 async function tryFetch<T>(path: string, init?: RequestInit, timeoutMs = 2500): Promise<T | null> {
-  if (!API) return null;
+  if (!API) {
+    // Sans serveur : l'app répond elle-même (compte, SOS, assurance…) ; null = simulation.
+    const r = repondreLocal(path, init);
+    return r && r.status < 400 ? r.data as T : null;
+  }
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -242,7 +247,11 @@ export function messageErreur(json: Record<string, unknown>, status: number): st
 
 /** Appel avec retour d'erreur lisible (le message du serveur), au lieu d'un simple échec muet. */
 async function appel<T>(path: string, init: RequestInit = {}, timeoutMs = 8000): Promise<{ ok: true; data: T } | { ok: false; error: string; status: number }> {
-  if (!API) return { ok: false, error: 'Mode démonstration : aucun serveur connecté.', status: 0 };
+  if (!API) {
+    const r = repondreLocal(path, init);
+    if (!r) return { ok: false, error: 'Fonction indisponible sans serveur ORION.', status: 0 };
+    return r.status < 400 ? { ok: true, data: r.data as T } : { ok: false, error: messageErreur(r.data as Record<string, unknown>, r.status), status: r.status };
+  }
   const jeton = sessionClient();
   try {
     const ctrl = new AbortController();
@@ -351,6 +360,25 @@ export async function mesAlertesSos(): Promise<SosSuivi[] | null> {
   return r.ok ? r.data.alertes : null;
 }
 
+/* ------------------------------ Portefeuille ------------------------------ */
+/** Mouvement du portefeuille client (remboursement d'assurance, transfert mobile money…). */
+export interface MouvementPortefeuille { id: string; type: string; amount: number; at: string; note?: string }
+export interface Cotisations { count: number; total: number; year: number; estimatedRefund: number }
+
+export async function chargerPortefeuille(): Promise<{ balance: number; history: MouvementPortefeuille[] } | null> {
+  const r = await appel<{ balance: number; history: MouvementPortefeuille[] }>(`/clients/${encodeURIComponent(clientId())}/wallet`);
+  return r.ok ? r.data : null;
+}
+export async function resumeCotisations(): Promise<Cotisations | null> {
+  const r = await appel<{ summary: Cotisations }>(`/clients/${encodeURIComponent(clientId())}/insurance`);
+  return r.ok ? r.data.summary : null;
+}
+/** Transfert du solde vers un compte mobile money (Wave, Orange Money, MTN MoMo, Moov Money). */
+export async function transfererPortefeuille(amount: number, method: string): Promise<{ ok: true; balance: number } | { ok: false; error: string }> {
+  const r = await appel<{ balance: number }>(`/clients/${encodeURIComponent(clientId())}/wallet/transfer`, { method: 'POST', body: JSON.stringify({ amount, method }) });
+  return r.ok ? { ok: true, balance: r.data.balance } : { ok: false, error: r.error };
+}
+
 /* ------------------------------ Annulation ------------------------------ */
 export const MOTIFS_ANNULATION = [
   'attente_longue', 'chauffeur_immobile', 'changement_plan', 'erreur_adresse',
@@ -395,6 +423,11 @@ export interface SosResult {
   /** Suivi en direct de l'alerte (absent si l'envoi a échoué). */
   suivi?: SosSuivi;
   alert?: unknown;
+  /**
+   * App sans serveur (APK de démonstration) : l'alerte est suivie sur le téléphone mais
+   * n'est transmise à personne — `delivered` reste faux et l'écran le dit.
+   */
+  local?: boolean;
 }
 
 /**
@@ -409,8 +442,14 @@ export interface SosResult {
  * À l'appelant d'afficher les numéros d'urgence si `delivered` est faux.
  */
 export async function sos(userId: string, location: LatLng, rideId?: string): Promise<SosResult> {
-  if (!API) return { delivered: false }; // mode démo : aucune alerte réelle n'est envoyée
   const body = JSON.stringify({ userId, location, rideId });
+  if (!API) {
+    // Sans serveur : aucune alerte réelle ne part. Le suivi s'ouvre quand même (numéros
+    // d'urgence, position, messages) avec la mention « démonstration ».
+    const r = repondreLocal('/safety/sos', { method: 'POST', body });
+    const suivi = (r?.data as { suivi?: SosSuivi } | undefined)?.suivi;
+    return { delivered: false, local: true, suivi };
+  }
   for (let essai = 0; essai < 3; essai++) {
     // 8 s : une urgence mérite plus de patience qu'un appel ordinaire (2,5 s).
     const remote = await tryFetch<{ alert: unknown; suivi?: SosSuivi }>('/safety/sos', { method: 'POST', body }, 8000);
@@ -422,6 +461,11 @@ export async function sos(userId: string, location: LatLng, rideId?: string): Pr
 
 export function isLiveBackend(): boolean {
   return Boolean(API);
+}
+
+/** L'app fonctionne sans serveur : ses données restent sur le téléphone (voir serveurLocal.ts). */
+export function modeLocal(): boolean {
+  return !API;
 }
 
 /**
@@ -795,6 +839,11 @@ export interface RentalReserveInput extends RentalQuoteInput {
 
 /** Réservation ferme. `null` = backend injoignable (rien n'a été réservé). */
 export async function reserveRental(input: RentalReserveInput): Promise<RentalReservation | null> {
+  if (!API) {
+    // Sans serveur : le devis local devient une réservation conservée sur le téléphone.
+    const devis = previewRental(input, PRESTIGE_FALLBACK);
+    return reserverLocationLocale(devis, { userId: input.userId, lieu: input.lieu, contact: input.contact, societe: input.societe }) as unknown as RentalReservation;
+  }
   const r = await tryFetch<{ reservation: RentalReservation }>('/rental/reserve', {
     method: 'POST',
     body: JSON.stringify({
@@ -945,15 +994,8 @@ export interface StatutAssurance {
   consultations: Array<{ le: string; par: string; alerteId: string }>;
 }
 
-const DEMO_ASSURANCE = 'orion.demo.assurance';
-
 export async function statutAssurance(): Promise<StatutAssurance | null> {
   const id = clientId();
-  if (!API) {
-    // Démonstration sans serveur : rien de médical n'est conservé, seulement « inscrit ».
-    const inscrit = (() => { try { return localStorage.getItem(DEMO_ASSURANCE) === '1'; } catch { return false; } })();
-    return { disponible: true, inscrit, depuis: null, majLe: null, consultations: [] };
-  }
   const r = await appel<{ statut: StatutAssurance }>(`/clients/${encodeURIComponent(id)}/assurance`);
   return r.ok ? r.data.statut : null;
 }
@@ -964,7 +1006,6 @@ export async function lireDossierAssurance(): Promise<{ fiche: FicheMedicale | n
 }
 
 export async function enregistrerDossierAssurance(fiche: FicheMedicale): Promise<StatutAssurance | string> {
-  if (!API) { try { localStorage.setItem(DEMO_ASSURANCE, '1'); } catch { /* ignore */ } return { disponible: true, inscrit: true, depuis: new Date().toISOString(), majLe: new Date().toISOString(), consultations: [] }; }
   const r = await appel<{ statut: StatutAssurance }>(`/clients/${encodeURIComponent(clientId())}/assurance/dossier`, {
     method: 'PUT', body: JSON.stringify({ fiche, consentement: { version: CONSENTEMENT_ASSURANCE, lu: true, accepte: true } }),
   });
@@ -972,7 +1013,6 @@ export async function enregistrerDossierAssurance(fiche: FicheMedicale): Promise
 }
 
 export async function supprimerDossierAssurance(): Promise<StatutAssurance | string> {
-  if (!API) { try { localStorage.removeItem(DEMO_ASSURANCE); } catch { /* ignore */ } return { disponible: true, inscrit: false, depuis: null, majLe: null, consultations: [] }; }
   const r = await appel<{ statut: StatutAssurance }>(`/clients/${encodeURIComponent(clientId())}/assurance/dossier`, { method: 'DELETE' });
   return r.ok ? r.data.statut : r.error;
 }
@@ -988,7 +1028,6 @@ export interface MessageOrion {
 }
 
 export async function listerMessages(): Promise<{ messages: MessageOrion[]; nonLus: number } | null> {
-  if (!API) return null;
   return tryFetch<{ messages: MessageOrion[]; nonLus: number }>(`/clients/${encodeURIComponent(clientId())}/messages`);
 }
 export async function marquerMessageLu(id: string): Promise<number | null> {

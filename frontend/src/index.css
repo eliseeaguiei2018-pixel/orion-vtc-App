@@ -422,10 +422,9 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: 0; }
 .svc-mini-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .svc-mini { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 6px;
   border-radius: 16px; border: 1px solid var(--stroke); background: var(--surface); cursor: pointer; }
-.svc-mini-illus { display: grid; place-items: center; width: 48px; height: 48px; }
+.svc-mini-illus { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--surface-2); color: var(--text-dim); box-shadow: inset 0 0 0 1px var(--stroke); }
 .svc-mini-label { font-size: 11.5px; font-weight: 600; color: var(--text); text-align: center; }
-.svc-soon { position: absolute; top: 6px; right: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.04em;
-  background: var(--surface); color: var(--text-dim); border: 1px solid var(--stroke); padding: 1px 6px; border-radius: 6px; }
+.svc-mini-note { font-size: 10.5px; line-height: 1.2; color: var(--text-faint, var(--muted)); text-align: center; }
 
 .hub-quick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .hub-quick .feature-card { flex-direction: column; gap: 6px; padding: 12px 6px; font-size: 11.5px; }
@@ -948,10 +947,6 @@ body { letter-spacing: 0; text-rendering: optimizeLegibility; }
 }
 .svc-mini:active { transform: var(--press); }
 .svc-mini-label { font-size: 11px; color: var(--text-dim); }
-.svc-soon {
-  top: -6px; right: 50%; transform: translateX(50%); font-size: 9.5px; letter-spacing: 0;
-  padding: 2px 6px; box-shadow: none;
-}
 .hub-quick { grid-template-columns: repeat(5, 1fr); gap: 8px; }
 .hub-quick .feature-card {
   align-items: center; text-align: center; gap: 8px; padding: 12px 4px 10px; border-radius: 18px;
@@ -960,7 +955,8 @@ body { letter-spacing: 0; text-rendering: optimizeLegibility; }
 }
 .hub-quick .feature-card i {
   display: grid; place-items: center; width: 38px; height: 38px; border-radius: 13px; font-style: normal;
-  background: rgba(var(--accent-rgb), 0.14); color: var(--green); box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.22);
+  /* Pastille neutre : l'accent reste réservé aux actions principales. */
+  background: var(--surface-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--stroke);
 }
 
 /* --- Listes (récents, destinations, paramètres) --- */
@@ -1265,3 +1261,8 @@ body { letter-spacing: 0; text-rendering: optimizeLegibility; }
 
 /* Écritures de droite à gauche (arabe) : aucun interlettrage, il casse les liaisons. */
 [dir='rtl'] *, [dir='rtl'] *::before, [dir='rtl'] *::after { letter-spacing: 0 !important; }
+.etoiles { display: inline-flex; gap: 2px; color: var(--gold, #f5c451); }
+/* Portefeuille : solde sur fond plein, sans dégradé décoratif. */
+.wal-solde { display: flex; flex-direction: column; gap: 4px; padding: 20px; margin-bottom: 16px; background: var(--green); color: var(--btn-on); border: none; }
+.wal-solde span { font-size: 13px; font-weight: 600; opacity: 0.85; }
+.wal-solde strong { font-family: var(--font-display); font-weight: 600; font-size: 34px; }

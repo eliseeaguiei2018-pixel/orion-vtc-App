@@ -2,14 +2,14 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Sheet, TopBar } from './ui';
 import {
   IconCamera, IconCheck, IconChevron, IconClock, IconFingerprint, IconGlobe, IconImage, IconLock,
-  IconPin, IconShield, IconShieldCheck, IconWallet, IconCrown, IconPhone, IconCar, IconMedical,
+  IconPin, IconShield, IconShieldCheck, IconWallet, IconCrown, IconPhone, IconCar, IconMedical, IconStar,
 } from '../icons';
 import { useI18n, LANGUAGES, type Lang } from '../i18n';
 import { ACCENTS, useTheme, type ThemeMode } from '../theme';
 import { COUNTRIES, formatXOF } from '../data';
 import { isBiometricEnabled, setBiometricEnabled } from '../security';
 import {
-  AGENT_GENERIQUE, MOTIFS_ANNULATION, annulerCourse, apercuAnnulation, chargerHistorique, envoyerPhoto, isLiveBackend, mesAlertesSos,
+  AGENT_GENERIQUE, MOTIFS_ANNULATION, annulerCourse, apercuAnnulation, chargerHistorique, envoyerPhoto, mesAlertesSos,
   modifierProfil, retirerPhoto, sessionClient,
   type CourseHistorique, type FraisAnnulation, type Historique, type MotifAnnulation, type ProfilClient, type SosSuivi,
   type TrustedContact,
@@ -140,7 +140,6 @@ export function PhotoScreen({ profil, onDone }: { profil: ProfilClient | null; o
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const valider = async (dataUrl: string) => {
-    if (!isLiveBackend()) { onDone(profil ? { ...profil, photo: dataUrl } : null); return; }
     setEnCours(true); setErreur(null);
     const r = await envoyerPhoto(dataUrl);
     setEnCours(false);
@@ -272,7 +271,7 @@ export function SettingsScreen({
               <Avatar photo={profil.photo} name={profil.name} size={62} />
               <span className="col grow" style={{ textAlign: 'start' }}>
                 <strong style={{ fontSize: 17 }}>{profil.name}</strong>
-                <span className="faint" style={{ fontSize: 13 }}>{profil.phone}{profil.phoneVerifiedAt ? ' ✓' : ''}</span>
+                <span className="faint" style={{ fontSize: 13 }}>{profil.phone}{profil.phoneVerifiedAt && <IconCheck size={13} />}</span>
                 <span className="faint" style={{ fontSize: 12 }}>{profil.email ?? t('prof_no_email')}</span>
               </span>
             </div>
@@ -315,7 +314,7 @@ export function SettingsScreen({
           <input placeholder={t('tc_name')} value={name} onChange={(e) => { setName(e.target.value); saveContact(e.target.value, phone); }} />
         </div>
         <div className="field" style={{ marginBottom: 8 }}>
-          <span className="dialcode">🇨🇮 +225</span>
+          <span className="dialcode">+225</span>
           <input inputMode="tel" placeholder={t('tc_phone')} value={phone} onChange={(e) => { setPhone(e.target.value); saveContact(name, e.target.value); }} />
         </div>
         <div className="opt">
@@ -401,24 +400,6 @@ const MOYEN: Record<string, string> = {
   orange_money: 'Orange Money', wave: 'Wave', mtn_momo: 'MTN MoMo', moov_money: 'Moov Money', cash: 'Espèces', card: 'Carte',
 };
 
-function historiqueDemo(): Historique {
-  const il = (j: number, h = 0) => new Date(Date.now() - j * 86_400_000 - h * 3_600_000).toISOString();
-  const bd = (m: number) => ({ base: 500, distance: Math.round(m * 0.55), time: Math.round(m * 0.15), traffic: 0, tva: Math.round(m * 0.09), fee: 150, insurance: 0 });
-  const c = (id: string, j: number, status: string, statutLabel: string, depart: string, arrivee: string, montant: number, x: Partial<CourseHistorique> = {}): CourseHistorique => ({
-    id, createdAt: il(j, 2), status, statutLabel, depart, arrivee, distanceKm: Math.round(montant / 300) / 1, montant, categorie: 'argent',
-    breakdown: bd(montant) as CourseHistorique['breakdown'], paiement: { moyen: 'orange_money', regle: status === 'rated' || status === 'paid', montant },
-    chauffeur: { name: 'Konan Yao', matricule: 'ORION-CI-4411', vehicule: 'BYD Atto 3', plaque: '4411 AB 01' }, note: status === 'rated' ? 5 : null,
-    annulation: null, sos: [], ...x,
-  });
-  const courses = [
-    c('demo-1', 1, 'rated', 'Payée et notée', 'Cocody', 'Plateau', 2100),
-    c('demo-2', 2, 'cancelled', 'Annulée', 'Plateau', 'Marcory', 1800, { paiement: { moyen: 'cash', regle: false, montant: null }, annulation: { par: 'client', motif: 'attente_longue', details: null, frais: 500, at: il(2) } }),
-    c('demo-3', 4, 'paid', 'Payée', 'Marcory', 'Port-Bouët', 3400),
-    c('demo-4', 6, 'no_driver', 'Annulée · aucun chauffeur disponible', 'Yopougon', 'Adjamé', 1500, { chauffeur: null, annulation: { par: 'systeme', motif: 'aucun_chauffeur', details: null, frais: 0, at: il(6) } }),
-  ];
-  return { courses, resume: { total: 4, terminees: 2, annulees: 2, depense: 5500, fraisAnnulation: 500, alertesSos: 0 } };
-}
-
 /**
  * Historique des courses : terminées, annulées (par qui, pourquoi, combien), reçus,
  * chauffeur, paiement, note, et alerte SOS éventuelle.
@@ -430,7 +411,6 @@ export function HistoryScreen({ onBack, onLogin }: { onBack: () => void; onLogin
   const [ouvert, setOuvert] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isLiveBackend()) { setH(historiqueDemo()); return; }
     if (!sessionClient()) { setH('connexion'); return; }
     void chargerHistorique().then((x) => setH(x ?? 'connexion'));
   }, []);
@@ -501,7 +481,7 @@ export function HistoryScreen({ onBack, onLogin }: { onBack: () => void; onLogin
                           {!c.annulation && (
                             <>
                               <div className="fare-line"><span>{t('hist_payment')}</span><span>{c.paiement.moyen ? (MOYEN[c.paiement.moyen] ?? c.paiement.moyen) : '—'} · {c.paiement.regle ? t('hist_paid') : t('hist_pending')}</span></div>
-                              {c.note && <div className="fare-line"><span>{t('hist_rating')}</span><span>{'★'.repeat(c.note)}</span></div>}
+                              {c.note && <div className="fare-line"><span>{t('hist_rating')}</span><span className="etoiles" aria-label={`${c.note}/5`}>{Array.from({ length: c.note }, (_, k) => <IconStar key={k} size={13} />)}</span></div>}
                               <div className="divider" style={{ margin: '8px 0' }} />
                               <span className="eyebrow">{t('hist_receipt')}</span>
                               <div style={{ marginTop: 6 }}>
@@ -535,7 +515,7 @@ export function SosHistoryScreen({ onBack }: { onBack: () => void }) {
   const { t } = useI18n();
   const [alertes, setAlertes] = useState<SosSuivi[] | null>(null);
   useEffect(() => {
-    if (!isLiveBackend() || !sessionClient()) { setAlertes([]); return; }
+    if (!sessionClient()) { setAlertes([]); return; }
     void mesAlertesSos().then((a) => setAlertes(a ?? []));
   }, []);
   return (
@@ -555,7 +535,7 @@ export function SosHistoryScreen({ onBack }: { onBack: () => void }) {
                 {a.zoneName ?? 'Abidjan'}{a.priseEnCharge ? ` · ${a.priseEnCharge.agent === AGENT_GENERIQUE ? t('sos_step_agent_team') : t('sos_step_agent', { a: a.priseEnCharge.agent })}` : ''}
               </p>
               {a.secours.map((s, i) => (
-                <p key={i} style={{ fontSize: 12.5, margin: '4px 0 0' }}>• {s.service} ({s.numero}){s.issue === 'joint' ? ' ✓' : ''}</p>
+                <p key={i} style={{ fontSize: 12.5, margin: '4px 0 0' }}>• {s.service} ({s.numero}){s.issue === 'joint' && <IconCheck size={12} />}</p>
               ))}
               {a.chat.length > 0 && <p className="faint" style={{ fontSize: 12, margin: '6px 0 0' }}>{t('sos_hist_msgs', { n: a.chat.length })}</p>}
             </div>

@@ -4,13 +4,13 @@ import { App as AppNative } from '@capacitor/app';
 import { OrionMap } from './components/OrionMap';
 import { Sheet, TopBar, Toast } from './components/ui';
 import {
-  IconBell, IconBolt, IconBriefcase, IconCalendar, IconCamera, IconCar, IconCheck, IconChevron, IconClock, IconCrown,
+  IconBell, IconClose, IconUser, IconBolt, IconBriefcase, IconCalendar, IconCamera, IconCar, IconCheck, IconChevron, IconClock, IconCrown,
   IconFingerprint, IconGem, IconGlobe, IconHome, IconLeaf, IconLock, IconMinus,
   IconPhone, IconPin, IconPlane, IconPlus, IconRing, IconSearch, IconSettings, IconShare,
   IconShield, IconShieldCheck, IconMedical, IconStar, IconTraffic, IconWallet, IconWifi,
+  IconUtensils, IconBag, IconCart, IconPackage,
 } from './icons';
 import { LogoGlyph } from './components/Logo';
-import { IllusFood, IllusShop, IllusMarket, IllusColis } from './components/Illustrations';
 import { Voiture, Scooter, vehiculeDeGamme } from './components/Vehicules';
 import { AssuranceScreen } from './components/AssuranceScreens';
 import { BoutonMessages, ControleSecurite, MessagesScreen, useMessagerie } from './components/MessagesOrion';
@@ -18,11 +18,13 @@ import type { MessageOrion } from './api';
 import { authenticateBiometric, isBiometricEnabled } from './security';
 import type { TrustedContact } from './api';
 import { numeroLisible, ouvrirClavier } from './telephone';
+import { lienPosition, partager } from './partage';
+import { enregistrerCourseLocale } from './serveurLocal';
 import {
   DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { urlApi, contactCourse, lireCodePriseEnCharge, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type PkgSize, type SafeDriver, type SosSuivi, type SupportMessage } from './api';
+import { urlApi, contactCourse, lireCodePriseEnCharge, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, modeLocal, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, chargerPortefeuille, resumeCotisations, transfererPortefeuille, type Cotisations, type MouvementPortefeuille, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type PkgSize, type SafeDriver, type SosSuivi, type SupportMessage } from './api';
 import { useI18n } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
@@ -113,6 +115,10 @@ export function App() {
   // ORION Assurance : l'option ne s'active qu'avec un dossier de premiers secours.
   const [assuranceInscrite, setAssuranceInscrite] = useState(false);
   const [assuranceRequise, setAssuranceRequise] = useState(false);
+  /** Service pas encore ouvert dont le client consulte la fiche (Food, Achat & Vente, Supermarché). */
+  const [bientot, setBientot] = useState<string | null>(null);
+  /** Le profil s'ouvre depuis l'accueil (bouton à côté des paramètres) ou depuis les paramètres. */
+  const [retourProfil, setRetourProfil] = useState<Screen>('home');
   const [retourAssurance, setRetourAssurance] = useState<Screen>('settings');
   // Messagerie ORION : messages de la supervision, contrôle de sécurité en course.
   const messagerie = useMessagerie();
@@ -142,11 +148,11 @@ export function App() {
    * sans jamais la clore ; à la racine, il met l'app en arrière-plan.
    */
   const etatRetour = useRef<{ screen: Screen; sos: boolean; annulation: boolean }>({ screen: 'splash', sos: false, annulation: false });
-  useEffect(() => { if (isLiveBackend() && sessionClient()) void chargerProfil().then((p) => { if (p) setProfil(p); }); }, []);
+  useEffect(() => { if (sessionClient()) void chargerProfil().then((p) => { if (p) setProfil(p); }); }, []);
   // Les compteurs du profil (courses, annulations, points) suivent l'activité :
   // ils sont relus à chaque ouverture des paramètres.
   useEffect(() => {
-    if (screen === 'settings' && isLiveBackend() && sessionClient()) void chargerProfil().then((p) => { if (p) setProfil(p); });
+    if (screen === 'settings' && sessionClient()) void chargerProfil().then((p) => { if (p) setProfil(p); });
   }, [screen]);
   /** Ce que l'abonnement ORION couvrirait sur cette course (aperçu, rien n'est consommé). */
   const [coverage, setCoverage] = useState<SubCoverage | null>(null);
@@ -183,7 +189,6 @@ export function App() {
 
   // Reprise : une alerte ouverte survit à la fermeture de l'app.
   useEffect(() => {
-    if (!isLiveBackend()) return;
     let id: string | null = null;
     try { id = localStorage.getItem('orion.sos'); } catch { /* stockage indisponible */ }
     if (!id) return;
@@ -199,20 +204,27 @@ export function App() {
     let ferme = false;
     let ws: WebSocket | null = null;
     let relance: number | undefined;
+    const recevoir = (sv: SosSuivi) => {
+      const nouveaux = nbAgent(sv) - sosAgentVus.current;
+      sosAgentVus.current = nbAgent(sv);
+      if (nouveaux > 0 && !sosOuvertRef.current) setSosNonLu((n) => n + nouveaux);
+      setSosLive(sv);
+    };
     const connecter = () => {
       const url = sosSocketUrl(sosId, clientId());
-      if (!url) return;
+      if (!url) {
+        // Sans canal temps réel (app sans serveur) : l'état est relu toutes les 2 s.
+        const tic = window.setInterval(() => { void sosSuivi(sosId, clientId()).then((sv) => { if (sv && !ferme) recevoir(sv); }); }, 2000);
+        relance = tic;
+        return;
+      }
       ws = new WebSocket(url);
       ws.onopen = () => setSosHorsLigne(false);
       ws.onmessage = (ev) => {
         try {
           const m = JSON.parse(ev.data as string) as { type: string; suivi?: SosSuivi; data?: SosSuivi };
           const sv = m.type === 'connected' ? m.suivi : m.type === 'sos.suivi' ? m.data : undefined;
-          if (!sv) return;
-          const nouveaux = nbAgent(sv) - sosAgentVus.current;
-          sosAgentVus.current = nbAgent(sv);
-          if (nouveaux > 0 && !sosOuvertRef.current) setSosNonLu((n) => n + nouveaux);
-          setSosLive(sv);
+          if (sv) recevoir(sv);
         } catch { /* trame illisible */ }
       };
       ws.onclose = () => {
@@ -222,7 +234,7 @@ export function App() {
       };
     };
     connecter();
-    return () => { ferme = true; window.clearTimeout(relance); ws?.close(); };
+    return () => { ferme = true; window.clearTimeout(relance); window.clearInterval(relance); ws?.close(); };
   }, [sosId]);
   const [announce, setAnnounce] = useState<Announcement | null>(null);
   useEffect(() => { listAnnouncements().then((a) => setAnnounce(a[0] ?? null)); }, []);
@@ -387,12 +399,11 @@ export function App() {
    * version affichait toujours « SAMU notifié », même quand rien n'était parti.
    */
   const triggerSos = async () => {
-    if (!isLiveBackend()) { showToast(t('toast_sos'), true); return; } // démo : simulation
     // Une alerte est déjà ouverte : on la rouvre au lieu d'en créer une seconde.
     if (sosLive && !sosLive.clotureeA) { setSosOuvert(true); return; }
     setSosState('sending');
     const res = await sos(clientId(), carPos ?? origin.location, rideId ?? undefined);
-    if (res.delivered) {
+    if (res.delivered || (res.local && res.suivi)) {
       setSosState(null);
       if (res.suivi) {
         sosAgentVus.current = nbAgent(res.suivi);
@@ -413,6 +424,27 @@ export function App() {
   const fermerSos = () => {
     setSosLive(null); setSosOuvert(false); setSosNonLu(0);
     try { localStorage.removeItem('orion.sos'); } catch { /* ignore */ }
+  };
+
+  /** Partage réel du trajet en cours : position, chauffeur, véhicule et destination. */
+  const partagerTrajet = async () => {
+    const lien = lienPosition(carPos ?? origin.location);
+    const texte = t('share_text', { nom: driver?.name ?? '', car: driver?.car ?? '', plaque: driver?.plate ?? '', dest: destination?.name ?? '' });
+    const issue = await partager(t('share_title'), texte, lien);
+    if (issue === 'copie') showToast(t('share_copied'));
+    else if (issue === 'echec') showToast(t('share_failed'), true);
+  };
+  /** App sans serveur : la course terminée rejoint l'historique du téléphone. */
+  const noterCourseLocale = () => {
+    if (!modeLocal() || !destination) return;
+    enregistrerCourseLocale({
+      status: rating ? 'rated' : 'paid', statutLabel: rating ? 'Payée et notée' : 'Payée', depart: origin.name, arrivee: destination.name,
+      distanceKm: Math.round((quote?.distanceMeters ?? 0) / 100) / 10, montant: quote?.amount ?? 0,
+      categorie: mode === 'delivery' ? 'livraison' : tier.id, breakdown: quote?.breakdown ?? null,
+      paiement: { moyen: payment, regle: true, montant: quote?.amount ?? null },
+      chauffeur: driver ? { name: driver.name, matricule: driver.matricule, vehicule: driver.car, plaque: driver.plate } : null,
+      note: rating || null,
+    });
   };
 
   const cancelCurrentRide = () => {
@@ -450,14 +482,12 @@ export function App() {
   /* ------------------------------ Compte client ------------------------------ */
   const envoyerCode = async () => {
     setErreurInscription(null);
-    if (!isLiveBackend()) { setScreen('otp'); return; } // démonstration sans serveur
     const r = await demanderCode(phone);
     if (!r.ok) { setErreurInscription(r.error); return; }
     setDevCode(r.devCode);
     setScreen('otp');
   };
   const verifierNumero = async (code: string): Promise<string | null> => {
-    if (!isLiveBackend()) { setScreen('photo'); return null; }
     const r = await verifierCode(phone, code, clientName, email);
     if (!r.ok) return r.error;
     setProfil(r.client);
@@ -541,7 +571,7 @@ export function App() {
         {toast && <Toast message={toast.message} danger={toast.danger} />}
         {sosState && <SosOverlay state={sosState} onRetry={() => void triggerSos()} onClose={() => setSosState(null)} />}
         {sosLive && sosOuvert && (
-          <SosLive suivi={sosLive} horsLigne={sosHorsLigne} onMinimize={() => setSosOuvert(false)} onClose={fermerSos} onSend={(x) => void repondreSos(x)} />
+          <SosLive suivi={sosLive} horsLigne={sosHorsLigne} demo={modeLocal()} onMinimize={() => setSosOuvert(false)} onClose={fermerSos} onSend={(x) => void repondreSos(x)} />
         )}
         {sosLive && !sosOuvert && <SosPill suivi={sosLive} nonLu={sosNonLu} onOpen={() => setSosOuvert(true)} />}
         {locked && <LockScreen onUnlock={() => setLocked(false)} />}
@@ -568,9 +598,9 @@ export function App() {
             onDelivery={() => { if (guardOpen()) { setMode('delivery'); if (position.etat === 'inconnue') position.localiser(); setScreen('delivery'); } }}
             onQuick={(p) => { if (guardOpen()) { setMode('ride'); if (position.etat === 'inconnue') position.localiser(); chooseDestination(p); } }}
             onAjouterLieu={(quel) => ouvrirChoix(quel, 'home')}
-            onNav={setScreen}
+            onNav={(s) => { if (s === 'profile') setRetourProfil('home'); setScreen(s); }}
             nonLus={messagerie.nonLus} onMessages={messagerie.actif ? () => { setRetourMessages('home'); setScreen('messages'); } : undefined}
-            onSoon={(name) => showToast(t('soon_toast', { name }))} />
+            onSoon={setBientot} />
         )}
 
         {screen === 'choixLieu' && choix && (
@@ -595,7 +625,7 @@ export function App() {
           <ConfirmScreen origin={origin} departAConfirmer={departAConfirmer} onDepart={() => ouvrirChoix('depart', 'confirm')} destination={destination} tier={tier} bodyType={bodyType} quote={quote} coverage={coverage} payment={payment}
             payments={enabledPayments} promo={promo} onPromo={setPromo}
             stops={stops} onAddStop={() => ouvrirChoix('arret', 'confirm')} onRemoveStop={(i) => setStops((s) => s.filter((_, j) => j !== i))}
-            scheduled={scheduled} onSchedule={setScheduled} insurance={insurance} onInsurance={(v) => { if (v && !assuranceInscrite && isLiveBackend()) { setAssuranceRequise(true); return; } setInsurance(v); }}
+            scheduled={scheduled} onSchedule={setScheduled} insurance={insurance} onInsurance={(v) => { if (v && !assuranceInscrite) { setAssuranceRequise(true); return; } setInsurance(v); }}
             onPayment={setPayment} onBack={() => setScreen('estimate')}
             onConfirm={() => { if (scheduled) { showToast(t('toast_scheduled')); reset(); } else confirmRide(); }} />
         )}
@@ -607,7 +637,7 @@ export function App() {
         {screen === 'tracking' && destination && driver && (
           <TrackingScreen onMessage={messagerie.recevoir} messages={messagerie.actif ? { nonLus: messagerie.nonLus, ouvrir: () => { setRetourMessages('tracking'); setScreen('messages'); } } : undefined} origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase} mode={mode}
             carPos={carPos} setCarPos={setCarPos} setPhase={setTripPhase} live={live} rideId={rideId} stops={stops}
-            onSos={triggerSos} onShare={() => showToast(t('toast_share'))} onArrived={() => setScreen('payment')}
+            onSos={triggerSos} onShare={() => void partagerTrajet()} onArrived={() => setScreen('payment')}
             onCancel={cancelCurrentRide}
             onReassigned={(d) => {
               // Nouveau chauffeur (refus, délai, annulation du chauffeur, console) : il part
@@ -630,7 +660,7 @@ export function App() {
 
         {screen === 'rating' && destination && driver && (
           <RatingScreen origin={origin} driver={driver} quote={quote} payment={payment} destination={destination} rating={rating} livraison={mode === 'delivery'}
-            setRating={setRating} onDone={() => { if (live && rideId && rating) void rateRide(rideId, rating); showToast(t(mode === 'delivery' ? 'toast_done_liv' : 'toast_done')); reset(); }} />
+            setRating={setRating} onDone={() => { if (live && rideId && rating) void rateRide(rideId, rating); if (!live) noterCourseLocale(); showToast(t(mode === 'delivery' ? 'toast_done_liv' : 'toast_done')); reset(); }} />
         )}
 
         {assuranceRequise && screen === 'confirm' && (
@@ -646,6 +676,22 @@ export function App() {
             </div>
           </div>
         )}
+        {bientot && screen === 'home' && (
+          <div className="controle-voile" role="dialog" aria-modal="true" aria-label={bientot} onClick={(e) => { if (e.target === e.currentTarget) setBientot(null); }}>
+            <div className="controle-carte">
+              <span className="controle-ico"><IconBell size={24} /></span>
+              <h3>{t('soon_toast', { name: bientot })}</h3>
+              <p>{t('soon_dialog', { s: bientot })}</p>
+              <button className="btn btn-primary" onClick={() => {
+                try { localStorage.setItem(`orion.bientot.${bientot}`, new Date().toISOString()); } catch { /* ignore */ }
+                showToast(t('soon_notified', { s: bientot })); setBientot(null);
+              }}>
+                <IconBell size={18} /> {t('soon_notify')}
+              </button>
+              <button className="btn btn-ghost" style={{ marginTop: 8 }} onClick={() => setBientot(null)}>{t('msg_plus_tard')}</button>
+            </div>
+          </div>
+        )}
         {screen === 'tracking' && <ControleSecurite messagerie={messagerie} rideId={rideId} />}
         {screen === 'assurance' && (
           <AssuranceScreen nomClient={profil?.name} onToast={showToast}
@@ -656,7 +702,7 @@ export function App() {
         {screen === 'settings' && (
           <SettingsScreen profil={profil} onBack={() => setScreen(profil ? 'home' : 'onboarding')}
             assuranceActive={assuranceInscrite} onAssurance={() => { setRetourAssurance('settings'); setScreen('assurance'); }}
-            onProfile={() => setScreen('profile')} onHistory={() => setScreen('history')} onSos={() => setScreen('sosHistory')}
+            onProfile={() => { setRetourProfil('settings'); setScreen('profile'); }} onHistory={() => setScreen('history')} onSos={() => setScreen('sosHistory')}
             onWallet={() => setScreen('wallet')} onSubscription={() => setScreen('subscription')}
             onHelp={() => setScreen('help')} onLegal={() => setScreen('legal')} onCreate={() => setScreen('auth')}
             onLogout={() => quitterCompte(t('set_logged_out'))}
@@ -664,10 +710,10 @@ export function App() {
             trusted={trusted} setTrusted={(c) => { setTrusted(c); localStorage.setItem('orion.trusted', JSON.stringify(c)); }}
             shareRides={shareRides} setShareRides={(v) => { setShareRides(v); localStorage.setItem('orion.share', v ? '1' : '0'); }} />
         )}
-        {screen === 'profile' && <ProfileScreen profil={profil} onBack={() => setScreen('settings')} onSaved={setProfil} onToast={showToast} />}
+        {screen === 'profile' && <ProfileScreen profil={profil} onBack={() => setScreen(retourProfil)} onSaved={setProfil} onToast={showToast} />}
         {screen === 'sosHistory' && <SosHistoryScreen onBack={() => setScreen('settings')} />}
         {screen === 'legal' && <LegalScreen onBack={() => setScreen('settings')} />}
-        {screen === 'wallet' && <WalletScreen onBack={() => setScreen('home')} onToast={showToast} />}
+        {screen === 'wallet' && <WalletScreen onBack={() => setScreen('home')} onToast={showToast} onCommander={() => setScreen('destination')} onLogin={() => setScreen('auth')} />}
         {screen === 'history' && <HistoryScreen onBack={() => setScreen(profil ? 'settings' : 'home')} onLogin={() => setScreen('auth')} />}
         {screen === 'help' && <HelpScreen onBack={() => setScreen('home')} onSupport={() => setScreen('support')} />}
         {screen === 'support' && <SupportChatScreen onBack={() => setScreen('help')} />}
@@ -752,8 +798,8 @@ const heure = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-d
  * n'est affiché par anticipation — un secours n'apparaît « prévenu » que lorsqu'un
  * agent l'a effectivement appelé.
  */
-function SosLive({ suivi, horsLigne, onMinimize, onClose, onSend }: {
-  suivi: SosSuivi; horsLigne: boolean; onMinimize: () => void; onClose: () => void; onSend: (t: string) => void;
+function SosLive({ suivi, horsLigne, demo, onMinimize, onClose, onSend }: {
+  suivi: SosSuivi; horsLigne: boolean; demo?: boolean; onMinimize: () => void; onClose: () => void; onSend: (t: string) => void;
 }) {
   const { t } = useI18n();
   const [texte, setTexte] = useState('');
@@ -773,7 +819,7 @@ function SosLive({ suivi, horsLigne, onMinimize, onClose, onSend }: {
     <div className="sos-live" role="dialog" aria-live="polite" aria-label={t('sos_live_title')}>
       <div className={`sos-live-head${close ? ' done' : ''}`}>
         <div className="row between">
-          <span className="sos-live-badge">{close ? '✓' : 'SOS'}</span>
+          <span className="sos-live-badge">{close ? <IconCheck size={16} /> : 'SOS'}</span>
           {!close && <button className="sos-live-min" onClick={onMinimize}>{t('sos_live_minimize')}</button>}
         </div>
         <h2>{close ? t('sos_step_closed') : t('sos_live_title')}</h2>
@@ -782,12 +828,13 @@ function SosLive({ suivi, horsLigne, onMinimize, onClose, onSend }: {
 
       <div className="sos-live-body">
         {horsLigne && !close && <p className="sos-offline">{t('sos_live_offline')}</p>}
+        {demo && !close && <p className="sos-offline" role="alert">{t('sos_demo')}</p>}
         <ol className="sos-steps">
-          <li className="ok"><span className="dot" /><span className="grow">{t('sos_step_received')}</span><time>{heure(suivi.createdAt)}</time></li>
-          {suivi.priseEnCharge
+          <li className="ok"><span className="dot" /><span className="grow">{t(demo ? 'sos_step_local' : 'sos_step_received')}</span><time>{heure(suivi.createdAt)}</time></li>
+          {demo ? null : suivi.priseEnCharge
             ? <li className="ok"><span className="dot" /><span className="grow">{(suivi.priseEnCharge.agent === AGENT_GENERIQUE ? t('sos_step_agent_team') : t('sos_step_agent', { a: suivi.priseEnCharge.agent }))}</span><time>{heure(suivi.priseEnCharge.at)}</time></li>
             : !close && <li className="wait"><span className="dot" /><span className="grow">{t('sos_step_waiting_agent')}</span></li>}
-          {suivi.secours.length > 0
+          {demo ? null : suivi.secours.length > 0
             ? suivi.secours.map((s, i) => (
               <li key={i} className={s.issue === 'joint' || (s.issue === 'tentative' && s.canal !== 'appel') ? 'ok rescue' : s.issue === 'tentative' ? 'wait rescue' : 'warn'}>
                 <span className="dot" /><span className="grow">{libelleSecours(s)}</span><time>{heure(s.at)}</time>
@@ -968,7 +1015,7 @@ function AuthScreen({ phone, setPhone, name, setName, email, setEmail, erreur, o
           <input aria-label={t('reg_name')} autoComplete="name" enterKeyHint="next" onKeyDown={suivant(telRef)} placeholder={t('reg_name')} value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div className="field" style={{ marginBottom: 10 }}>
-          <span className="dialcode">🇨🇮 +225</span>
+          <span className="dialcode">+225</span>
           <input ref={telRef} inputMode="tel" aria-label={t('reg_phone')} autoComplete="tel-national" enterKeyHint="next" onKeyDown={suivant(mailRef)} placeholder={t('reg_phone')} value={phone} onChange={(e) => setPhone(e.target.value)} />
         </div>
         <div className="field" style={{ marginBottom: 16 }}>
@@ -1088,13 +1135,14 @@ function OtpScreen({ phone, devCode, onBack, onResend, onVerify }: {
 }
 
 /* ------------------------------- Home -------------------------------- */
-function MiniSvc({ illus, label, onClick }: { illus: React.ReactNode; label: string; onClick: () => void }) {
+function MiniSvc({ illus, label, soon, onClick }: { illus: React.ReactNode; label: string; soon?: boolean; onClick: () => void }) {
   const { t } = useI18n();
   return (
     <button className="svc-mini list-btn" onClick={onClick}>
       <span className="svc-mini-illus">{illus}</span>
       <span className="svc-mini-label">{label}</span>
-      <span className="svc-soon">{t('soon_badge')}</span>
+      {/* Une mention discrète sous le nom, pas une pastille posée sur la tuile. */}
+      <span className="svc-mini-note">{soon ? t('soon_badge') : t('svc_open')}</span>
     </button>
   );
 }
@@ -1129,8 +1177,12 @@ function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onC
           <span className="hub-brand"><span className="hub-logo"><LogoGlyph size={20} /></span> ORION</span>
           <span className="hub-actions">
             {onMessages && <BoutonMessages nonLus={nonLus} onClick={onMessages} clair />}
+            {/* Le profil du client, à côté des paramètres : sans compte, il ouvre l'inscription. */}
+            <button className="avatar hub-avatar" onClick={() => onNav(profil ? 'profile' : 'auth')} aria-label={profil ? t('set_profile_edit') : t('set_create_account')}>
+              {profil ? <Avatar photo={profil.photo} name={profil.name} size={40} /> : <IconUser size={20} />}
+            </button>
             <button className="avatar hub-avatar" onClick={() => onNav('settings')} aria-label={t('set_title')}>
-              {profil ? <Avatar photo={profil.photo} name={profil.name} size={40} /> : <IconSettings size={20} />}
+              <IconSettings size={20} />
             </button>
           </span>
         </div>
@@ -1155,7 +1207,7 @@ function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onC
               <strong style={{ fontSize: 13 }}>{announce.title}</strong>
               <span style={{ fontSize: 12, opacity: 0.9 }}>{announce.body}</span>
             </span>
-            <button className="hub-announce-x" onClick={() => setShowAnnounce(false)} aria-label="Fermer">✕</button>
+            <button className="hub-announce-x" onClick={() => setShowAnnounce(false)} aria-label="Fermer"><IconClose size={16} /></button>
           </div>
         )}
       </div>
@@ -1176,12 +1228,12 @@ function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onC
           )}
         </div>
 
-        {/* Autres services (bientôt) */}
+        {/* Autres services : Colis ouvre la livraison moto ; les autres arrivent bientôt. */}
         <div className="svc-mini-grid rise rise-3">
-          <MiniSvc illus={<IllusFood size={46} />} label={t('svc_food')} onClick={() => onSoon(t('svc_food'))} />
-          <MiniSvc illus={<IllusShop size={46} />} label={t('svc_shop')} onClick={() => onSoon(t('svc_shop'))} />
-          <MiniSvc illus={<IllusMarket size={46} />} label={t('svc_market')} onClick={() => onSoon(t('svc_market'))} />
-          <MiniSvc illus={<IllusColis size={46} />} label={t('svc_colis')} onClick={() => onSoon(t('svc_colis'))} />
+          <MiniSvc soon illus={<IconUtensils size={22} strokeWidth={1.6} />} label={t('svc_food')} onClick={() => onSoon(t('svc_food'))} />
+          <MiniSvc soon illus={<IconBag size={22} strokeWidth={1.6} />} label={t('svc_shop')} onClick={() => onSoon(t('svc_shop'))} />
+          <MiniSvc soon illus={<IconCart size={22} strokeWidth={1.6} />} label={t('svc_market')} onClick={() => onSoon(t('svc_market'))} />
+          <MiniSvc illus={<IconPackage size={22} strokeWidth={1.6} />} label={t('svc_colis')} onClick={() => (deliveryOff || closed ? onSoon(t('svc_colis')) : onDelivery())} />
         </div>
 
         {/* Raccourcis ORION */}
@@ -1465,7 +1517,7 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
         </div>
         {promo && (
           discount > 0
-            ? <p className="faint" style={{ fontSize: 12, color: 'var(--green)', marginTop: -6, marginBottom: 12 }}>✓ {t('promo_ok', { code: promo, amount: formatXOF(discount) })}</p>
+            ? <p className="faint" style={{ fontSize: 12, color: 'var(--green)', marginTop: -6, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}><IconCheck size={14} /> {t('promo_ok', { code: promo, amount: formatXOF(discount) })}</p>
             : <p className="faint" style={{ fontSize: 12, marginTop: -6, marginBottom: 12 }}>{t('promo_none', { code: promo })}</p>
         )}
 
@@ -2055,7 +2107,7 @@ function HelpScreen({ onBack, onSupport }: { onBack: () => void; onSupport: () =
             </div>
           ))}
         </div>
-        <p className="faint" style={{ textAlign: 'center', fontSize: 12 }}>ORION · v0.2.0 · Abidjan 🇨🇮</p>
+        <p className="faint" style={{ textAlign: 'center', fontSize: 12 }}>ORION · v0.2.0 · Abidjan</p>
       </div>
     </div>
   );
@@ -2231,37 +2283,91 @@ function PaymentScreen({ quote, coverage, payment, driver, rideId, onPaid, desti
 }
 
 /* ----------------------------- Portefeuille -------------------------- */
-function WalletScreen({ onBack, onToast }: { onBack: () => void; onToast: (m: string) => void }) {
+function WalletScreen({ onBack, onToast, onCommander, onLogin }: { onBack: () => void; onToast: (m: string, danger?: boolean) => void; onCommander: () => void; onLogin: () => void }) {
   const { t } = useI18n();
-  // Données de démonstration (ou backend en production).
-  const [balance, setBalance] = useState(3250);
-  const insuranceYear = 1840;
-  const refund = Math.round(insuranceYear * 0.5);
+  /*
+   * Le portefeuille affiché est celui du compte : solde, mouvements et cotisations ORION
+   * Assurance réels. Avant, il montrait un solde inventé (3 250 F) et des transferts qui
+   * ne faisaient que retirer 1 000 F à l'écran.
+   */
+  const [compte, setCompte] = useState<{ balance: number; history: MouvementPortefeuille[] } | null | 'connexion'>(null);
+  const [cotis, setCotis] = useState<Cotisations | null>(null);
+  const [operateur, setOperateur] = useState('Wave');
+  const [montant, setMontant] = useState('');
+  const [enCours, setEnCours] = useState(false);
+  const charger = () => {
+    if (!sessionClient()) { setCompte('connexion'); return; }
+    void chargerPortefeuille().then((c) => setCompte(c ?? { balance: 0, history: [] }));
+    void resumeCotisations().then(setCotis);
+  };
+  useEffect(charger, []);
+  const transferer = async () => {
+    const v = Math.round(Number(montant.replace(/\s/g, '')));
+    if (!(v > 0)) { onToast(t('wal_amount_invalid'), true); return; }
+    setEnCours(true);
+    const r = await transfererPortefeuille(v, operateur);
+    setEnCours(false);
+    if (!r.ok) { onToast(r.error, true); return; }
+    setMontant('');
+    onToast(t('wal_transfer_done', { m: formatXOF(v), op: operateur }));
+    charger();
+  };
+  const solde = compte && compte !== 'connexion' ? compte.balance : 0;
   return (
     <div className="screen page">
       <TopBar onBack={onBack} title={t('wal_title')} />
       <div className="page-body">
-        <div className="card" style={{ padding: 20, marginBottom: 16, background: 'linear-gradient(135deg, var(--green-deep), var(--green-bright))', border: 'none', color: 'var(--btn-on)' }}>
-          <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.85 }}>{t('wal_balance')}</span>
-          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 36 }}>{formatXOF(balance)}</div>
-        </div>
-
-        <div className="card" style={{ padding: 16, marginBottom: 16 }}>
-          <div className="row gap-sm" style={{ marginBottom: 10 }}>
-            <span className="list-ico" style={{ color: 'var(--green)' }}><IconShieldCheck size={18} /></span>
-            <strong style={{ fontSize: 15 }}>ORION Assurance</strong>
+        {compte === 'connexion' ? (
+          <div className="card" style={{ textAlign: 'center' }}>
+            <p className="faint">{t('hist_login')}</p>
+            <button className="btn btn-primary" onClick={onLogin}>{t('set_create_account')}</button>
           </div>
-          <div className="fare-line"><span>{t('wal_ins_year')}</span><span>{formatXOF(insuranceYear)}</span></div>
-          <div className="fare-line"><span>{t('wal_refund')}</span><span style={{ color: 'var(--green)', fontWeight: 600 }}>{formatXOF(refund)}</span></div>
-        </div>
+        ) : (
+          <>
+            <div className="card wal-solde">
+              <span>{t('wal_balance')}</span>
+              <strong>{compte === null ? '…' : formatXOF(solde)}</strong>
+            </div>
 
-        <span className="eyebrow">{t('wal_transfer')}</span>
-        <div className="chips" style={{ margin: '10px 0 16px' }}>
-          {['Wave', 'Orange Money', 'MTN MoMo', 'Moov Money'].map((m) => (
-            <button key={m} className="chip" onClick={() => { setBalance((b) => Math.max(0, b - 1000)); onToast(t('toast_transfer')); }}><IconWallet size={15} /> {m}</button>
-          ))}
-        </div>
-        <button className="btn btn-ghost"><IconCheck size={18} /> {t('wal_use')}</button>
+            <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+              <div className="row gap-sm" style={{ marginBottom: 10 }}>
+                <span className="list-ico"><IconShieldCheck size={18} /></span>
+                <strong style={{ fontSize: 15 }}>ORION Assurance</strong>
+              </div>
+              <div className="fare-line"><span>{t('wal_ins_year')}</span><span>{formatXOF(cotis?.total ?? 0)}</span></div>
+              <div className="fare-line"><span>{t('wal_refund')}</span><span style={{ fontWeight: 600 }}>{formatXOF(cotis?.estimatedRefund ?? 0)}</span></div>
+              <p className="faint" style={{ fontSize: 12, margin: '8px 0 0' }}>{t('wal_refund_note')}</p>
+            </div>
+
+            <span className="eyebrow">{t('wal_transfer')}</span>
+            <div className="chips" style={{ margin: '10px 0 10px' }}>
+              {['Wave', 'Orange Money', 'MTN MoMo', 'Moov Money'].map((m) => (
+                <button key={m} className={`chip${operateur === m ? ' active' : ''}`} aria-pressed={operateur === m} onClick={() => setOperateur(m)}><IconWallet size={15} /> {m}</button>
+              ))}
+            </div>
+            <div className="field" style={{ marginBottom: 10 }}>
+              <input inputMode="numeric" aria-label={t('wal_amount')} placeholder={t('wal_amount')} value={montant} onChange={(e) => setMontant(e.target.value.replace(/[^\d\s]/g, ''))} />
+              <span className="dialcode" style={{ borderInlineEnd: 'none', paddingInlineEnd: 0 }}>F CFA</span>
+            </div>
+            <button className="btn btn-primary" disabled={enCours || !montant} onClick={() => void transferer()}>
+              <IconWallet size={18} /> {t('wal_transfer_to', { op: operateur })}
+            </button>
+            {solde === 0 && compte !== null && <p className="faint" style={{ fontSize: 12, textAlign: 'center', margin: '8px 0 0' }}>{t('wal_empty')}</p>}
+
+            <span className="eyebrow" style={{ display: 'block', marginTop: 20 }}>{t('wal_history')}</span>
+            <div className="stack" style={{ marginTop: 10 }}>
+              {compte && compte.history.length === 0 && <p className="faint" style={{ fontSize: 13 }}>{t('wal_no_moves')}</p>}
+              {compte && compte.history.map((h) => (
+                <div key={h.id} className="fare-line">
+                  <span>{h.note ?? h.type}<br /><small className="faint">{new Date(h.at).toLocaleDateString()}</small></span>
+                  <span style={{ fontWeight: 600 }}>{h.amount > 0 ? '+' : ''}{formatXOF(h.amount)}</span>
+                </div>
+              ))}
+            </div>
+
+            <button className="btn btn-ghost" style={{ marginTop: 16 }} onClick={onCommander}><IconCar size={18} /> {t('wal_use')}</button>
+          </>
+        )}
       </div>
     </div>
   );

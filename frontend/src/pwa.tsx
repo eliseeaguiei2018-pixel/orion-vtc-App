@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { IconDownload } from './icons';
 
 /**
  * APPLICATION WEB INSTALLABLE : la console, le tableau de bord et l'application chauffeur
@@ -57,7 +58,7 @@ export function BoutonInstaller({ classe, nom }: { classe: string; nom: string }
     return (
       <button type="button" className={classe} data-testid="installer-application"
         onClick={() => { void invite.prompt().then(() => invite.userChoice).then(() => setInvite(null)); }}>
-        ⬇ Installer {nom} sur cet appareil
+        <IconDownload size={16} /> Installer {nom} sur cet appareil
       </button>
     );
   }
@@ -65,7 +66,7 @@ export function BoutonInstaller({ classe, nom }: { classe: string; nom: string }
   if (ios) {
     return (
       <>
-        <button type="button" className={classe} onClick={() => setAideIos((v) => !v)}>⬇ Installer {nom} sur cet appareil</button>
+        <button type="button" className={classe} onClick={() => setAideIos((v) => !v)}><IconDownload size={16} /> Installer {nom} sur cet appareil</button>
         {aideIos && <p style={{ fontSize: 12.5, lineHeight: 1.5, margin: '8px 0 0', opacity: 0.85 }}>Dans Safari, touchez <strong>Partager</strong> puis <strong>Sur l’écran d’accueil</strong>.</p>}
       </>
     );

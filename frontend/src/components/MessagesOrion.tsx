@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useI18n } from '../i18n';
 import { TopBar } from './ui';
 import { IconMessage, IconShieldCheck, IconBell, IconCheck } from '../icons';
-import { isLiveBackend, listerMessages, marquerMessageLu, repondreMessage, sessionClient, type MessageOrion } from '../api';
+import { listerMessages, marquerMessageLu, repondreMessage, sessionClient, type MessageOrion } from '../api';
 
 /**
  * MESSAGERIE ORION (app cliente).
@@ -15,7 +15,7 @@ import { isLiveBackend, listerMessages, marquerMessageLu, repondreMessage, sessi
 export function useMessagerie() {
   const [messages, setMessages] = useState<MessageOrion[]>([]);
   const [nonLus, setNonLus] = useState(0);
-  const actif = isLiveBackend() && Boolean(sessionClient());
+  const actif = Boolean(sessionClient());
   const rafraichir = useCallback(async () => {
     if (!actif) return;
     const r = await listerMessages();
