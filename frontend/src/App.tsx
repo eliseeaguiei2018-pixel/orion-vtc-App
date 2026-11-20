@@ -2037,9 +2037,9 @@ function WeddingScreen({ onBack, onReserve }: { onBack: () => void; onReserve: (
         <div className="opt" style={{ marginBottom: 18 }}>
           <span className="grow" style={{ textAlign: 'start' }}>{t('wed_convoy')}</span>
           <div className="row gap-sm">
-            <button className="step" onClick={() => setConvoy((c) => Math.max(0, c - 1))}><IconMinus size={16} /></button>
+            <button className="step" aria-label={`${t('wed_convoy')} −`} disabled={convoy <= 0} onClick={() => setConvoy((c) => Math.max(0, c - 1))}><IconMinus size={16} /></button>
             <strong style={{ minWidth: 18, textAlign: 'center' }}>{convoy}</strong>
-            <button className="step" onClick={() => setConvoy((c) => Math.min(8, c + 1))}><IconPlus size={16} /></button>
+            <button className="step" aria-label={`${t('wed_convoy')} +`} disabled={convoy >= 8} onClick={() => setConvoy((c) => Math.min(8, c + 1))}><IconPlus size={16} /></button>
           </div>
         </div>
 

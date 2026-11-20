@@ -232,9 +232,9 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
             <div className="opt" style={{ marginBottom: 6 }}>
               <span className="grow" style={{ textAlign: 'start' }}>{t('rent_hours')}</span>
               <div className="row gap-sm">
-                <button className="step" onClick={() => setHeures((h) => Math.max(catalogue?.bareme.minHeures ?? 3, h - 1))}><IconMinus size={16} /></button>
+                <button className="step" aria-label={`${t('rent_hours')} −`} disabled={heures <= (catalogue?.bareme.minHeures ?? 3)} onClick={() => setHeures((h) => Math.max(catalogue?.bareme.minHeures ?? 3, h - 1))}><IconMinus size={16} /></button>
                 <strong style={{ minWidth: 28, textAlign: 'center' }}>{heures} h</strong>
-                <button className="step" onClick={() => setHeures((h) => Math.min(catalogue?.bareme.maxHeures ?? 12, h + 1))}><IconPlus size={16} /></button>
+                <button className="step" aria-label={`${t('rent_hours')} +`} disabled={heures >= (catalogue?.bareme.maxHeures ?? 12)} onClick={() => setHeures((h) => Math.min(catalogue?.bareme.maxHeures ?? 12, h + 1))}><IconPlus size={16} /></button>
               </div>
             </div>
             <p className="faint" style={{ fontSize: 11.5, marginBottom: 16 }}>
@@ -300,10 +300,10 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
           <div className="opt">
             <span className="grow" style={{ textAlign: 'start' }}>{t('rent_o_cortege')}</span>
             <div className="row gap-sm">
-              <button className="step" onClick={() => setCortege((c) => Math.max(0, c - 1))}><IconMinus size={16} /></button>
+              <button className="step" aria-label={`${t('rent_o_cortege')} −`} disabled={cortege <= 0} onClick={() => setCortege((c) => Math.max(0, c - 1))}><IconMinus size={16} /></button>
               <strong style={{ minWidth: 18, textAlign: 'center' }}>{cortege}</strong>
               <button
-                className="step"
+                className="step" aria-label={`${t('rent_o_cortege')} +`} disabled={cortege >= Math.max(0, (vehicle?.exemplaires ?? 1) - 1)}
                 onClick={() => setCortege((c) => Math.min(Math.max(0, (vehicle?.exemplaires ?? 1) - 1), c + 1))}
               ><IconPlus size={16} /></button>
             </div>
@@ -313,9 +313,9 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
           <div className="opt">
             <span className="grow" style={{ textAlign: 'start' }}>{t('rent_o_hotesses')}</span>
             <div className="row gap-sm">
-              <button className="step" onClick={() => setHotesses((h) => Math.max(0, h - 1))}><IconMinus size={16} /></button>
+              <button className="step" aria-label={`${t('rent_o_hotesses')} −`} disabled={hotesses <= 0} onClick={() => setHotesses((h) => Math.max(0, h - 1))}><IconMinus size={16} /></button>
               <strong style={{ minWidth: 18, textAlign: 'center' }}>{hotesses}</strong>
-              <button className="step" onClick={() => setHotesses((h) => Math.min(6, h + 1))}><IconPlus size={16} /></button>
+              <button className="step" aria-label={`${t('rent_o_hotesses')} +`} disabled={hotesses >= 6} onClick={() => setHotesses((h) => Math.min(6, h + 1))}><IconPlus size={16} /></button>
             </div>
           </div>
           )}

@@ -592,6 +592,7 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: 0; }
 /* ---- Stepper ---- */
 .step { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--stroke); background: var(--surface-2); color: var(--text); display: grid; place-items: center; cursor: pointer; }
 .step:active { transform: scale(0.92); }
+.step:disabled { opacity: 0.35; cursor: default; transform: none; }
 
 /* ---- Inscription / OTP ---- */
 .dialcode { font-weight: 600; font-size: 15px; color: var(--text); white-space: nowrap; padding-inline-end: 6px; border-inline-end: 1px solid var(--stroke); }
