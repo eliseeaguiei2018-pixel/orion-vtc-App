@@ -75,8 +75,8 @@ export function TrendsChart({ stats, statsDays, onStatsDays }: { stats: Stats; s
 
 /* --------------------- Session SAMU (« dark room ») ------------------- */
 export const SOS_KIND: Record<string, string> = {
-  sos: '🆘 SOS', crash: '🚨 Accident', deviation: '🧭 Déviation d’itinéraire',
-  immobilisation: '⏸ Immobilisation anormale', mot_sensible: '⚠️ Mot sensible (avis)',
+  sos: 'SOS', crash: 'Accident', deviation: 'Déviation d’itinéraire',
+  immobilisation: 'Immobilisation anormale', mot_sensible: 'Mot sensible (avis)',
 };
 export const LEVEL_META: Record<string, { label: string; cls: string }> = {
   rouge: { label: 'ROUGE', cls: 'lvl-rouge' },
@@ -113,7 +113,7 @@ export function SamuSection({ alerts, fleet, openAlerts, canWrite, contacts, onC
         <div className="adm-card">
           <div className="adm-card-h"><h3>File de triage</h3><span className="adm-muted">{openAlerts.length} ouverte(s)</span></div>
           <div className="adm-alert-list">
-            {alerts.length === 0 && <p className="adm-empty">Aucune alerte. Tout est calme. ✅</p>}
+            {alerts.length === 0 && <p className="adm-empty">Aucune alerte. Tout est calme.</p>}
             {alerts.map((a) => {
               const open = a.status !== 'resolved' && a.status !== 'cancelled';
               const lvl = LEVEL_META[a.level ?? 'rouge']!;
@@ -122,8 +122,8 @@ export function SamuSection({ alerts, fleet, openAlerts, canWrite, contacts, onC
                   <div className="adm-alert-top">
                     <span className={`adm-pill ${lvl.cls}`}>{lvl.label}</span>
                     <span className={`adm-tag ${a.kind}`}>{SOS_KIND[a.kind] ?? a.kind}</span>
-                    {open && <span className="samu-sla mono" title="Temps écoulé depuis le déclenchement (SLA)">⏱ {sla(a)}</span>}
-                    <span className={`adm-status ${a.status}`}>{a.sealed ? '🔏 Scellée' : statusLabel(a.status)}</span>
+                    {open && <span className="samu-sla mono" title="Temps écoulé depuis le déclenchement (SLA)">{sla(a)}</span>}
+                    <span className={`adm-status ${a.status}`}>{a.sealed ? 'Scellée' : statusLabel(a.status)}</span>
                   </div>
                   <div className="adm-alert-meta">
                     {a.zoneName ?? 'Zone inconnue'}{a.impactG ? ` · impact ${a.impactG} g` : ''}
@@ -136,8 +136,8 @@ export function SamuSection({ alerts, fleet, openAlerts, canWrite, contacts, onC
                   {/* Joindre la personne sans ouvrir le dossier : une seconde compte. */}
                   {open && a.userPhone && (
                     <div className="row" style={{ gap: 6, marginTop: 4 }}>
-                      <a className="adm-btn xs solid" href={lienTel(a.userPhone) ?? undefined}>📞 Appeler</a>
-                      <a className="adm-btn xs" href={`sms:${a.userPhone}`}>✉️ SMS</a>
+                      <a className="adm-btn xs solid" href={lienTel(a.userPhone) ?? undefined}>Appeler</a>
+                      <a className="adm-btn xs" href={`sms:${a.userPhone}`}>SMS</a>
                     </div>
                   )}
                   <div className="adm-alert-actions">
@@ -259,16 +259,16 @@ export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf
     <Drawer title={`Dossier ${a.id.slice(0, 8)}`} sub={`${SOS_KIND[a.kind] ?? a.kind} · niveau ${a.level ?? 'rouge'}`} onClose={onClose}>
       <div className="adm-drawer-tags">
         <span className={`adm-pill ${lvl.cls}`}>{lvl.label}</span>
-        <span className="adm-pill">⏱ SLA {sla(a)}</span>
+        <span className="adm-pill">SLA {sla(a)}</span>
         {a.agent && <span className="adm-pill av-online">Agent : {a.agent}</span>}
-        {a.sealed && <span className="adm-pill tr-rejected">🔏 Scellé</span>}
+        {a.sealed && <span className="adm-pill tr-rejected">Scellé</span>}
       </div>
 
       <h4 className="adm-drawer-sec">Fiche véhicule (à dicter à la police)</h4>
       {d.vehicle ? (
         <div className="samu-plate">
           <div className="samu-plate-no mono">{d.vehicle.plate}</div>
-          <div className="adm-muted">{d.vehicle.model} · {d.vehicle.color} · {d.vehicle.engine === 'electric' ? '⚡ 100 % Électrique (batterie haute tension)' : d.vehicle.engine === 'hybrid' ? 'Hybride (batterie haute tension)' : 'Thermique'}</div>
+          <div className="adm-muted">{d.vehicle.model} · {d.vehicle.color} · {d.vehicle.engine === 'electric' ? '100 % Électrique (batterie haute tension)' : d.vehicle.engine === 'hybrid' ? 'Hybride (batterie haute tension)' : 'Thermique'}</div>
         </div>
       ) : <p className="adm-muted">Aucun véhicule associé.</p>}
 
@@ -276,8 +276,8 @@ export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf
       <div className="adm-mini-kpis">
         <div className="adm-mini-kpi"><span>Chauffeur</span><strong>{d.driver?.name ?? '—'}</strong></div>
         <div className="adm-mini-kpi"><span>Tél. / permis</span><strong style={{ fontSize: 12 }}>{d.driver?.phone ?? 'n/c'} · {d.driver?.licenseNo ?? 'n/c'}</strong></div>
-        <div className="adm-mini-kpi"><span>📱 Batterie chauffeur</span><strong>{d.driver ? `${d.driver.phoneBatteryPct} %` : '—'}</strong></div>
-        <div className="adm-mini-kpi"><span>📱 Batterie passager</span><strong>{d.passenger.phoneBatteryPct} %</strong></div>
+        <div className="adm-mini-kpi"><span>Batterie chauffeur</span><strong>{d.driver ? `${d.driver.phoneBatteryPct} %` : '—'}</strong></div>
+        <div className="adm-mini-kpi"><span>Batterie passager</span><strong>{d.passenger.phoneBatteryPct} %</strong></div>
       </div>
       {/* Photo du chauffeur : la personne à décrire aux secours et à la police. */}
       {d.driver?.photoUrl && (
@@ -296,7 +296,7 @@ export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf
       {d.assurance?.inscrit && <DossierMedicalUrgence alerteId={a.id} agent={a.agent} ouverte={open} />}
       <p className="adm-muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
         Passager : {d.passenger.name ?? d.passenger.id} · {d.passenger.phone ?? 'tél. n/c'} · {d.passenger.lastRides.length} trajets récents
-        {d.passenger.lastRides.length < 2 ? ' — ⚠ compte récent (vérifier fraude)' : ''}
+        {d.passenger.lastRides.length < 2 ? ' — compte récent (vérifier fraude)' : ''}
       </p>
 
       <h4 className="adm-drawer-sec">Télémétrie live (rafraîchie chaque seconde)</h4>
@@ -350,7 +350,7 @@ export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf
           <h4 className="adm-drawer-sec">Clôture (note de synthèse OBLIGATOIRE)</h4>
           <textarea className="adm-select" rows={3} aria-label="Rapport d’incident" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Résumé factuel de l’incident, actions menées, issue… (10 caractères min.)" />
           <button className="adm-btn solid" style={{ marginTop: 8 }} disabled={note.trim().length < 10} onClick={() => onCloseAlert(a.id, note.trim())}>
-            🔏 Clore & sceller le dossier
+            Clore & sceller le dossier
           </button>
           <p className="adm-muted" style={{ fontSize: 11, marginTop: 6 }}>Après scellement, le dossier n’est plus lisible que par la direction.</p>
         </>
@@ -361,9 +361,9 @@ export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf
 }
 
 
-const CANAL_LABEL: Record<string, string> = { appel: '📞 Appel', sms: '✉️ SMS', whatsapp: '💬 WhatsApp' };
+const CANAL_LABEL: Record<string, string> = { appel: 'Appel', sms: 'SMS', whatsapp: 'WhatsApp' };
 const ISSUE_LABEL: Record<string, string> = {
-  tentative: 'En cours', joint: '✅ Joint', non_joint: '❌ Injoignable', messagerie: '📩 Messagerie',
+  tentative: 'En cours', joint: 'Joint', non_joint: 'Injoignable', messagerie: 'Messagerie',
 };
 const CATEGORIE_LABEL: Record<string, string> = {
   secours: 'Secours', interne: 'ORION', partenaire: 'Partenaire', course: 'Personnes de la course',
@@ -455,9 +455,9 @@ function DossierMedicalUrgence({ alerteId, agent, ouverte }: { alerteId: string;
         <>
           {!agent && <p className="adm-muted" style={{ fontSize: 12, margin: '8px 0 0' }}>Prenez d’abord l’alerte en charge pour ouvrir le dossier.</p>}
           <button className="adm-btn solid adm-medical-btn" disabled={charge} onClick={() => void ouvrir()}>
-            {charge ? 'Déchiffrement…' : '🔓 Ouvrir le dossier médical (consultation journalisée)'}
+            {charge ? 'Déchiffrement…' : 'Ouvrir le dossier médical (consultation journalisée)'}
           </button>
-          {erreur && <p className="adm-medical-err" role="alert">⛔ {erreur}</p>}
+          {erreur && <p className="adm-medical-err" role="alert">{erreur}</p>}
         </>
       )}
       {fiche && sa && (
@@ -480,7 +480,7 @@ function DossierMedicalUrgence({ alerteId, agent, ouverte }: { alerteId: string;
           <div className="adm-medical-contact">
             <span>Personne à prévenir</span>
             <strong>{fiche.urgence.nom} · {fiche.urgence.lien}</strong>
-            <a className="adm-btn xs solid" href={lienTel(fiche.urgence.telephone) ?? undefined}>📞 {telLisible(fiche.urgence.telephone)}</a>
+            <a className="adm-btn xs solid" href={lienTel(fiche.urgence.telephone) ?? undefined}>{telLisible(fiche.urgence.telephone)}</a>
             {fiche.medecin && <span className="adm-muted">Médecin : {fiche.medecin.nom}{fiche.medecin.telephone ? ` · ${telLisible(fiche.medecin.telephone)}` : ''}</span>}
           </div>
           <button className="adm-btn ghost xs" onClick={() => setFiche(null)}>Masquer le dossier</button>
@@ -541,18 +541,18 @@ function PosteContact({ dossier, canWrite, onContact, onIssue }: {
                   </div>
                   <div className="row" style={{ gap: 4 }}>
                     <button className="adm-btn xs solid" disabled={!canWrite} title={`Appeler ${l.label}`}
-                      onClick={() => onContact(a.id, { canal: 'appel', contactId: l.id, numero: l.numero, label: l.label })}>📞</button>
+                      onClick={() => onContact(a.id, { canal: 'appel', contactId: l.id, numero: l.numero, label: l.label })}>Appeler</button>
                     <button className="adm-btn xs" disabled={!canWrite} title={cat === 'secours' ? `Envoyer la position et le dossier par SMS à ${l.label}` : `SMS à ${l.label}`}
-                      onClick={() => onContact(a.id, { canal: 'sms', contactId: l.id, numero: l.numero, label: l.label, message: message || (cat === 'secours' ? messageSecours : undefined) })}>✉️</button>
+                      onClick={() => onContact(a.id, { canal: 'sms', contactId: l.id, numero: l.numero, label: l.label, message: message || (cat === 'secours' ? messageSecours : undefined) })}>SMS</button>
                     <button className="adm-btn xs" disabled={!canWrite} title={cat === 'secours' ? `Envoyer la position et le dossier par WhatsApp à ${l.label}` : `WhatsApp à ${l.label}`}
-                      onClick={() => onContact(a.id, { canal: 'whatsapp', contactId: l.id, numero: l.numero, label: l.label, message: message || (cat === 'secours' ? messageSecours : undefined) })}>💬</button>
+                      onClick={() => onContact(a.id, { canal: 'whatsapp', contactId: l.id, numero: l.numero, label: l.label, message: message || (cat === 'secours' ? messageSecours : undefined) })}>WhatsApp</button>
                   </div>
                 </div>
               ))}
             </div>
             {cat === 'secours' && (
               <p className="adm-muted" style={{ fontSize: 11.5, margin: '6px 2px 0' }}>
-                ✉️ / 💬 vers un secours transmet : « {messageSecours} »
+                / vers un secours transmet : « {messageSecours} »
               </p>
             )}
           </div>
@@ -567,7 +567,7 @@ function PosteContact({ dossier, canWrite, onContact, onIssue }: {
             value={message} onChange={(e) => setMessage(e.target.value)} />
           <button className="adm-btn xs solid" disabled={libre.trim().length < 3}
             onClick={() => { onContact(a.id, { canal: 'appel', numero: libre.trim(), label: 'Numéro libre' }); setLibre(''); }}>
-            📞 Composer
+            Composer
           </button>
         </div>
       )}
@@ -641,7 +641,7 @@ export function SecuritySection({ attempts }: { attempts: SecurityAttempt[] }) {
       </div>
       <div className="adm-card">
         <div className="adm-card-h"><h3>Tentatives d'accès non autorisé</h3><span className="adm-muted">{attempts.length}</span></div>
-        {attempts.length === 0 && <p className="adm-empty">Aucune tentative signalée. ✅</p>}
+        {attempts.length === 0 && <p className="adm-empty">Aucune tentative signalée.</p>}
         <table className="adm-table">
           <thead><tr><th>Quand</th><th>Employé</th><th>Rôle</th><th>Session / permission visée</th><th>IP</th><th>Notifiés</th></tr></thead>
           <tbody>

@@ -23,9 +23,9 @@ const SEV_META: Record<Severite, { label: string; cls: string; poids: string }> 
 };
 
 const DOMAINE_LABEL: Record<string, string> = {
-  securite: '🛑 Sécurité', conformite: '⚖️ Conformité', flotte: '🚗 Flotte',
-  exploitation: '🎯 Exploitation', finance: '💰 Finance', configuration: '🧩 Configuration',
-  client: '👥 Client',
+  securite: 'Sécurité', conformite: 'Conformité', flotte: 'Flotte',
+  exploitation: 'Exploitation', finance: 'Finance', configuration: 'Configuration',
+  client: 'Client',
 };
 
 const ETAT_META: Record<string, { label: string; tone: string; phrase: string }> = {
@@ -87,7 +87,7 @@ export function VigilanceSection({ sante, onAller, onRapportPdf, onRafraichir }:
         {vues.length === 0 ? (
           <p className="adm-empty">
             {sante.constats.length === 0
-              ? 'Aucun constat : la plateforme est saine. ✅'
+              ? 'Aucun constat : la plateforme est saine.'
               : 'Aucun constat pour ce filtre.'}
           </p>
         ) : (

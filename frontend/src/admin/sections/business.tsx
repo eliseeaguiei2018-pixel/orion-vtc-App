@@ -74,13 +74,13 @@ export function ZonesSection({ zones, canWrite, onSave, onToggle, onDelete, onRe
                 <td className="r">{z.radiusKm} km</td>
                 <td>
                   <div className="row" style={{ gap: 4, flexWrap: 'wrap' }}>
-                    {z.waitMaxMin && <span className="adm-pill" title="Temps d'attente garanti">⏱ ≤ {z.waitMaxMin} min</span>}
+                    {z.waitMaxMin && <span className="adm-pill" title="Temps d'attente garanti">≤ {z.waitMaxMin} min</span>}
                     {z.minStandard && <span className="adm-pill tr-pending cap" title="Standard minimal">≥ {z.minStandard}</span>}
                     {z.pickupFee ? <span className="adm-pill" title="Frais de prise en charge">+{z.pickupFee} F</span> : null}
-                    {z.driverBonus ? <span className="adm-pill av-online" title="Bonus chauffeur">🎁 {z.driverBonus} F</span> : null}
-                    {z.dedicated && <span className="adm-pill tr-approved" title="Flotte cantonnée">📌 Flotte dédiée</span>}
-                    {z.surgeManual && z.surgeManual > 1 ? <span className="adm-pill tr-rejected" title="Surge manuel d'urgence">⚡ surge ×{z.surgeManual}</span> : null}
-                    {(z.flatRates ?? []).length > 0 ? <span className="adm-pill tr-approved" title="Forfaits A→B">🎫 {z.flatRates!.length} forfait(s)</span> : null}
+                    {z.driverBonus ? <span className="adm-pill av-online" title="Bonus chauffeur">{z.driverBonus} F</span> : null}
+                    {z.dedicated && <span className="adm-pill tr-approved" title="Flotte cantonnée">Flotte dédiée</span>}
+                    {z.surgeManual && z.surgeManual > 1 ? <span className="adm-pill tr-rejected" title="Surge manuel d'urgence">surge ×{z.surgeManual}</span> : null}
+                    {(z.flatRates ?? []).length > 0 ? <span className="adm-pill tr-approved" title="Forfaits A→B">{z.flatRates!.length} forfait(s)</span> : null}
                     {z.emptyReturnFee ? <span className="adm-pill" title="Retour à vide">↩ {z.emptyReturnFee} F</span> : null}
                     {z.premiumFloor ? <span className="adm-pill tr-pending" title="Plancher premium">⬆ {z.premiumFloor} F</span> : null}
                     {!z.waitMaxMin && !z.minStandard && !z.pickupFee && !z.driverBonus && !z.dedicated && !z.surgeManual && !(z.flatRates ?? []).length && !z.emptyReturnFee && !z.premiumFloor && <span className="adm-muted">—</span>}
@@ -95,8 +95,8 @@ export function ZonesSection({ zones, canWrite, onSave, onToggle, onDelete, onRe
                       if (input === null) return;
                       const v = Math.min(2.5, Math.max(1, Number(input) || 1));
                       onSave({ ...z, surgeManual: v });
-                    }}>⚡ Surge</button>
-                    <button className="adm-btn xs" title="Forfait plat A→B" onClick={() => setFlatRate(z)}>🎫 Forfait</button>
+                    }}>Surge</button>
+                    <button className="adm-btn xs" title="Forfait plat A→B" onClick={() => setFlatRate(z)}>Forfait</button>
                     <button className="adm-btn xs" title="Retour à vide (périphérie)" onClick={() => setEmptyReturn(z)}>↩ Retour</button>
                     <button className={`adm-btn xs${z.active ? '' : ' solid'}`} title="Kill switch territorial" onClick={() => onToggle(z.id, !z.active)}>{z.active ? '⏻ Couper' : 'Activer'}</button>
                     <button className="adm-btn xs" onClick={() => onDelete(z.id)}>Suppr.</button>
@@ -252,7 +252,7 @@ export function SupportSection({ convs, stats, macros, canWrite, canPromo, clien
               {canWrite && macros.length > 0 && (
                 <div className="row" style={{ gap: 6, flexWrap: 'wrap', margin: '8px 0' }}>
                   {macros.map((m) => (
-                    <button key={m.title} className="adm-btn xs" title={m.text} onClick={() => onReply(conv.id, m.text)}>⚡ {m.title}</button>
+                    <button key={m.title} className="adm-btn xs" title={m.text} onClick={() => onReply(conv.id, m.text)}>{m.title}</button>
                   ))}
                 </div>
               )}
@@ -268,7 +268,7 @@ export function SupportSection({ convs, stats, macros, canWrite, canPromo, clien
                   <span className="adm-muted" style={{ fontSize: 12 }}>Geste commercial :</span>
                   <input className="adm-inline-input" style={{ width: 70 }} type="number" min={5} max={50} value={compPct} onChange={(e) => setCompPct(Number(e.target.value))} />
                   <span className="adm-muted" style={{ fontSize: 12 }}>%</span>
-                  <button className="adm-btn xs solid" onClick={() => onCompensate(conv.clientId, compPct)}>🎟 Code de dédommagement (7 j, usage unique)</button>
+                  <button className="adm-btn xs solid" onClick={() => onCompensate(conv.clientId, compPct)}>Code de dédommagement (7 j, usage unique)</button>
                 </div>
               )}
             </>
@@ -299,7 +299,7 @@ export function AuditSection({ entries }: { entries: AuditEntry[] }) {
 }
 export const convStatus = (s: string) => ({ open: 'Ouverte', pending: 'En attente', closed: 'Close' }[s] ?? s);
 
-export const CHANNEL_META: Record<string, string> = { push: '📲 Push', sms: '✉️ SMS', email: '📧 E-mail' };
+export const CHANNEL_META: Record<string, string> = { push: 'Push', sms: 'SMS', email: 'E-mail' };
 export const SEGMENT_LABEL: Record<string, string> = { tous: 'Tous', nouveaux: 'Nouveaux inscrits sans course', vip: 'Utilisateurs VIP', green: 'Adeptes 100 % électrique', inactifs: 'Inactifs 30 jours' };
 
 export function NotifySection({ broadcasts, triggers, canWrite, onSend, onTrigger }: {
@@ -326,9 +326,9 @@ export function NotifySection({ broadcasts, triggers, canWrite, onSend, onTrigge
           <div className="price-grid">
             <label className="price-field"><span>Canal</span>
               <select className="adm-select" value={channel} onChange={(e) => setChannel(e.target.value)}>
-                <option value="push">📲 Push in-app (immédiat)</option>
-                <option value="sms">✉️ SMS (critique / hors-ligne)</option>
-                <option value="email">📧 E-mail (newsletters, bilans)</option>
+                <option value="push">Push in-app (immédiat)</option>
+                <option value="sms">SMS (critique / hors-ligne)</option>
+                <option value="email">E-mail (newsletters, bilans)</option>
               </select>
             </label>
             <label className="price-field"><span>Destinataires</span>
@@ -345,7 +345,7 @@ export function NotifySection({ broadcasts, triggers, canWrite, onSend, onTrigge
           </div>
           <label className="price-field" style={{ marginTop: 12 }}><span>Titre</span><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex. Wi-Fi gratuit à bord" /></label>
           <label className="price-field" style={{ marginTop: 12 }}><span>Message — balises : [Prénom], [Destination_Favorite]</span><textarea className="adm-select" rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Bonjour [Prénom], voici 10 % de réduction pour votre prochain trajet vers [Destination_Favorite]…" /></label>
-          <button className="adm-btn solid" style={{ marginTop: 12 }} onClick={send}>📣 {scheduledAt ? 'Programmer la campagne' : 'Diffuser maintenant'}</button>
+          <button className="adm-btn solid" style={{ marginTop: 12 }} onClick={send}>{scheduledAt ? 'Programmer la campagne' : 'Diffuser maintenant'}</button>
         </div>
       )}
       {triggers && (
@@ -354,26 +354,26 @@ export function NotifySection({ broadcasts, triggers, canWrite, onSend, onTrigge
           <div className="row" style={{ gap: 18, flexWrap: 'wrap', alignItems: 'flex-start' }}>
             <div style={{ flex: 1, minWidth: 260 }}>
               <div className="row between" style={{ marginBottom: 6 }}>
-                <strong style={{ fontSize: 13 }}>🔋 Batterie &lt; 15 % → borne partenaire ({triggers.lowBattery.length})</strong>
+                <strong style={{ fontSize: 13 }}>Batterie &lt; 15 % → borne partenaire ({triggers.lowBattery.length})</strong>
                 {canWrite && triggers.lowBattery.length > 0 && <button className="adm-btn xs solid" onClick={() => onTrigger('battery')}>Envoyer le guidage</button>}
               </div>
               <ul className="adm-conv-list">
                 {triggers.lowBattery.map((d) => (
                   <li key={d.id}><span>{d.name} · {d.batteryPct} %</span><span className="adm-muted" style={{ fontSize: 11 }}>{d.station ?? '—'}</span></li>
                 ))}
-                {triggers.lowBattery.length === 0 && <li><span className="adm-muted">Aucun véhicule sous 15 %. ✅</span></li>}
+                {triggers.lowBattery.length === 0 && <li><span className="adm-muted">Aucun véhicule sous 15 %.</span></li>}
               </ul>
             </div>
             <div style={{ flex: 1, minWidth: 260 }}>
               <div className="row between" style={{ marginBottom: 6 }}>
-                <strong style={{ fontSize: 13 }}>💚 Win-back — inactifs 30 j ({triggers.winback.length})</strong>
+                <strong style={{ fontSize: 13 }}>Win-back — inactifs 30 j ({triggers.winback.length})</strong>
                 {canWrite && <button className="adm-btn xs solid" onClick={() => onTrigger('winback')}>Envoyer code retour</button>}
               </div>
               <ul className="adm-conv-list">
                 {triggers.winback.map((c) => (
                   <li key={c.id}><span>{c.name ?? c.id} · {c.rides} courses</span><span className="adm-muted">{ago(c.lastSeenAt)}</span></li>
                 ))}
-                {triggers.winback.length === 0 && <li><span className="adm-muted">Aucun client silencieux. ✅</span></li>}
+                {triggers.winback.length === 0 && <li><span className="adm-muted">Aucun client silencieux.</span></li>}
               </ul>
             </div>
           </div>
@@ -396,17 +396,17 @@ export function NotifySection({ broadcasts, triggers, canWrite, onSend, onTrigge
                   <span className="adm-pill">{CHANNEL_META[a.channel ?? 'push']}</span>
                   <span className="adm-pill av-online">{audLabel(a.audience)}</span>
                   {a.segment && a.segment !== 'tous' && <span className="adm-pill tr-pending">{SEGMENT_LABEL[a.segment] ?? a.segment}</span>}
-                  {a.scheduledAt && Date.parse(a.scheduledAt) > Date.now() && <span className="adm-pill tr-pending">🕒 programmée</span>}
+                  {a.scheduledAt && Date.parse(a.scheduledAt) > Date.now() && <span className="adm-pill tr-pending">programmée</span>}
                 </span>
               </div>
               <p className="adm-muted" style={{ margin: '4px 0', fontSize: 13 }}>{a.body}</p>
               {a.stats && a.stats.sent > 0 && (
                 <div className="row" style={{ gap: 10, flexWrap: 'wrap', fontSize: 12 }}>
-                  <span>📤 {a.stats.sent} envoyés</span>
-                  <span>✅ {a.stats.delivered} délivrés</span>
-                  <span>👁 {a.stats.opened} ouverts ({a.stats.sent ? Math.round((a.stats.opened / a.stats.sent) * 100) : 0} %)</span>
-                  <span>🖱 {a.stats.clicked} clics</span>
-                  <span className="pos">🚗 {a.stats.rides} courses générées</span>
+                  <span>{a.stats.sent} envoyés</span>
+                  <span>{a.stats.delivered} délivrés</span>
+                  <span>{a.stats.opened} ouverts ({a.stats.sent ? Math.round((a.stats.opened / a.stats.sent) * 100) : 0} %)</span>
+                  <span>{a.stats.clicked} clics</span>
+                  <span className="pos">{a.stats.rides} courses générées</span>
                 </div>
               )}
               <span className="adm-muted" style={{ fontSize: 11 }}>{a.author} · {new Date(a.at).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
@@ -480,7 +480,7 @@ export function FinanceSection({ finance, ops, cashDebt, gateways, expenses, onE
       {/* Recouvrement dette espèces */}
       {cashDebt.length > 0 && (
         <div className="adm-card" style={{ borderColor: 'var(--a-danger)' }}>
-          <div className="adm-card-h"><h3>⚠️ Recouvrement — dette espèces</h3><span className="adm-muted">{cashDebt.length} chauffeur(s) au-delà du plafond</span></div>
+          <div className="adm-card-h"><h3>Recouvrement — dette espèces</h3><span className="adm-muted">{cashDebt.length} chauffeur(s) au-delà du plafond</span></div>
           <table className="adm-table sm">
             <thead><tr><th>Chauffeur</th><th>Matricule</th><th className="r">Solde</th><th className="r">Plafond</th></tr></thead>
             <tbody>
@@ -505,7 +505,7 @@ export function FinanceSection({ finance, ops, cashDebt, gateways, expenses, onE
                   <strong>{fcfa(t.amount)}</strong>
                   <span className="adm-pill">{EXP_CAT[t.category] ?? t.category}</span>
                   <span className={`adm-pill ${EXP_STATUS[t.status]?.cls ?? ''}`}>{EXP_STATUS[t.status]?.label ?? t.status}</span>
-                  {t.blocked && <span className="adm-pill tr-rejected">🔒 gelé (justif. en retard)</span>}
+                  {t.blocked && <span className="adm-pill tr-rejected">gelé (justif. en retard)</span>}
                   {t.cashOut && <span className="adm-pill av-online">décaissé {t.cashOut.channel}</span>}
                   {t.receipt && <span className={`adm-pill ${t.receipt.matches ? 'tr-approved' : 'tr-rejected'}`}>justif. {fcfa(t.receipt.amount)}</span>}
                   {t.refunded ? <span className="adm-pill">reliquat {fcfa(t.refunded)}</span> : null}
@@ -697,7 +697,7 @@ export function GlobalSearch({ onSearch, onOpenDriver, onOpenClient, onOpenRide 
   return (
     <div className="adm-search">
       <input
-        className="adm-search-input" type="search" placeholder="🔎 Rechercher chauffeur, client, course…"
+        className="adm-search-input" type="search" placeholder="Rechercher chauffeur, client, course…"
         value={q} onChange={(e) => change(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Escape') close(); }}
       />
@@ -714,7 +714,7 @@ export function GlobalSearch({ onSearch, onOpenDriver, onOpenClient, onOpenRide 
               <span className="adm-search-cat">Chauffeurs</span>
               {results.drivers.map((d) => (
                 <button key={d.id} className="adm-search-item" onClick={() => { onOpenDriver(d.id); close(); }}>
-                  <span>🧑‍✈️ {d.name}</span><span className="mono adm-muted">{d.matricule}</span>
+                  <span>{d.name}</span><span className="mono adm-muted">{d.matricule}</span>
                 </button>
               ))}
             </div>
@@ -724,7 +724,7 @@ export function GlobalSearch({ onSearch, onOpenDriver, onOpenClient, onOpenRide 
               <span className="adm-search-cat">Clients</span>
               {results.clients.map((c) => (
                 <button key={c.id} className="adm-search-item" onClick={() => { onOpenClient(c.id); close(); }}>
-                  <span>👤 {c.name ?? c.id}</span><span className="mono adm-muted">{c.phone ?? c.id}</span>
+                  <span>{c.name ?? c.id}</span><span className="mono adm-muted">{c.phone ?? c.id}</span>
                 </button>
               ))}
             </div>
@@ -734,7 +734,7 @@ export function GlobalSearch({ onSearch, onOpenDriver, onOpenClient, onOpenRide 
               <span className="adm-search-cat">Courses</span>
               {results.rides.map((r) => (
                 <button key={r.id} className="adm-search-item" onClick={() => { onOpenRide(r.id); close(); }}>
-                  <span>🚗 {r.id.slice(0, 12)}</span><span className="adm-muted">{rideStatusLabel(r.status)} · {fcfa(r.amount)}</span>
+                  <span>{r.id.slice(0, 12)}</span><span className="adm-muted">{rideStatusLabel(r.status)} · {fcfa(r.amount)}</span>
                 </button>
               ))}
             </div>
@@ -787,7 +787,7 @@ export function TreasurySection({ transfers, meName, liquidity, amortization, ca
               <div><span className="adm-muted" style={{ fontSize: 12 }}>Compte séquestre</span><div><strong>{fcfa(liquidity.escrow)}</strong></div></div>
               <div><span className="adm-muted" style={{ fontSize: 12 }}>Revenu net mensuel</span><div><strong>{fcfa(liquidity.netMonthly)}</strong></div></div>
             </div>
-            {!liquidity.backingOk && <p style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--a-danger)' }}>🔴 Alerte : l'argent virtuel dépasse le séquestre. Transférez des fonds vers le compte séquestre (risque de bank-run).</p>}
+            {!liquidity.backingOk && <p style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--a-danger)' }}>Alerte : l'argent virtuel dépasse le séquestre. Transférez des fonds vers le compte séquestre (risque de bank-run).</p>}
             {amortization && amortization.vehicles > 0 && (
               <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
                 Flotte électrique en propre (CAPEX) : {amortization.vehicles} véhicule(s) · valeur nette comptable {fcfa(amortization.totalBookValue)} (amortissement selon les km).
@@ -898,7 +898,7 @@ export function GreenSection({ g, ops, onPdf, onEnergyCsv }: { g: GreenReport; o
           <div className="adm-card-h"><h3>Fidélisation verte — Points Carbone</h3><span className="adm-muted">passagers les plus engagés</span></div>
           <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
             {g.topGreenClients!.map((c) => (
-              <span key={c.id} className="adm-pill av-online" title={c.id}>🌿 {c.name ?? c.id} · {c.greenPoints.toLocaleString('fr-FR')} pts</span>
+              <span key={c.id} className="adm-pill av-online" title={c.id}>{c.name ?? c.id} · {c.greenPoints.toLocaleString('fr-FR')} pts</span>
             ))}
           </div>
           <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
@@ -912,7 +912,7 @@ export function GreenSection({ g, ops, onPdf, onEnergyCsv }: { g: GreenReport; o
           <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
             {g.chargingStations!.map((s) => (
               <span key={s.id} className={`adm-pill ${s.fast ? 'av-online' : ''}`} title={`${s.lat.toFixed(4)}, ${s.lng.toFixed(4)}`}>
-                🔌 {s.name}{s.fast ? ' · rapide' : ''}
+                {s.name}{s.fast ? ' · rapide' : ''}
               </span>
             ))}
           </div>
@@ -993,7 +993,7 @@ export function IntelSection({ predict, conversion, churn, fraud, elasticity, ca
       {/* Assistant ORION — moteur de questions sur les données réelles. */}
       <div className="adm-card">
         <div className="adm-card-h">
-          <h3>🔎 Assistant ORION</h3>
+          <h3>Assistant ORION</h3>
           <span className="adm-muted">interroge les données réelles de la plateforme</span>
         </div>
         <div className="adm-chat-input">
@@ -1036,7 +1036,7 @@ export function IntelSection({ predict, conversion, churn, fraud, elasticity, ca
 
       {/* Moteur anti-fraude */}
       <div className="adm-card">
-        <div className="adm-card-h"><h3>🛡️ Détection de fraude</h3><span className="adm-muted">courses fantômes · spoofing GPS · risque transactionnel</span></div>
+        <div className="adm-card-h"><h3>Détection de fraude</h3><span className="adm-muted">courses fantômes · spoofing GPS · risque transactionnel</span></div>
         <div className="row" style={{ gap: 18, flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div style={{ flex: 1, minWidth: 240 }}>
             <p className="adm-muted" style={{ margin: '0 0 6px', fontSize: 12 }}>Courses fantômes / collusion ({fraud?.ghostRides.length ?? 0})</p>
@@ -1044,7 +1044,7 @@ export function IntelSection({ predict, conversion, churn, fraud, elasticity, ca
               {(fraud?.ghostRides ?? []).map((g, i) => (
                 <li key={i}><span>{g.driverName ?? g.driverId.slice(0, 8)} ↔ {g.clientId.slice(0, 12)}</span><span className="adm-pill tr-rejected">{g.count} courses</span></li>
               ))}
-              {(fraud?.ghostRides.length ?? 0) === 0 && <li><span className="adm-muted">Aucune collusion détectée ✅</span></li>}
+              {(fraud?.ghostRides.length ?? 0) === 0 && <li><span className="adm-muted">Aucune collusion détectée</span></li>}
             </ul>
           </div>
           <div style={{ flex: 1, minWidth: 240 }}>
@@ -1053,7 +1053,7 @@ export function IntelSection({ predict, conversion, churn, fraud, elasticity, ca
               {(fraud?.gpsSpoof ?? []).map((s, i) => (
                 <li key={i}><span className="mono">{s.rideId.slice(0, 10)}</span><span className="adm-pill tr-rejected">saut {(s.jumpMeters / 1000).toFixed(1)} km</span></li>
               ))}
-              {(fraud?.gpsSpoof.length ?? 0) === 0 && <li><span className="adm-muted">Aucun spoofing détecté ✅</span></li>}
+              {(fraud?.gpsSpoof.length ?? 0) === 0 && <li><span className="adm-muted">Aucun spoofing détecté</span></li>}
             </ul>
           </div>
           <div style={{ flex: 1, minWidth: 240 }}>
@@ -1062,7 +1062,7 @@ export function IntelSection({ predict, conversion, churn, fraud, elasticity, ca
               {(fraud?.txRisk ?? []).map((c) => (
                 <li key={c.id}><span>{c.name ?? c.id}</span><span className="adm-pill tr-pending">{c.cancellations} annul.</span></li>
               ))}
-              {(fraud?.txRisk.length ?? 0) === 0 && <li><span className="adm-muted">Aucun compte à risque ✅</span></li>}
+              {(fraud?.txRisk.length ?? 0) === 0 && <li><span className="adm-muted">Aucun compte à risque</span></li>}
             </ul>
           </div>
         </div>
@@ -1071,7 +1071,7 @@ export function IntelSection({ predict, conversion, churn, fraud, elasticity, ca
       {/* Élasticité-prix */}
       {elasticity.length > 0 && (
         <div className="adm-card">
-          <div className="adm-card-h"><h3>📈 Élasticité-prix</h3><span className="adm-muted">multiplicateur recommandé d’après le taux de conversion observé</span></div>
+          <div className="adm-card-h"><h3>Élasticité-prix</h3><span className="adm-muted">multiplicateur recommandé d’après le taux de conversion observé</span></div>
           <table className="adm-table">
             <thead><tr><th>Cellule</th><th className="r">Sessions</th><th className="r">Conversion</th><th className="r">Multiplicateur optimal</th></tr></thead>
             <tbody>
@@ -1134,7 +1134,7 @@ export function IntelSection({ predict, conversion, churn, fraud, elasticity, ca
       <div className="adm-card">
         <div className="adm-card-h">
           <h3>Prédiction d'attrition (churn)</h3>
-          {canNotify && <button className="adm-btn xs solid" onClick={onReengage}>📣 Campagne de réengagement</button>}
+          {canNotify && <button className="adm-btn xs solid" onClick={onReengage}>Campagne de réengagement</button>}
         </div>
         <div className="row" style={{ gap: 18, flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div style={{ flex: 1, minWidth: 260 }}>
@@ -1143,7 +1143,7 @@ export function IntelSection({ predict, conversion, churn, fraud, elasticity, ca
               {(churn?.clients ?? []).map((c) => (
                 <li key={c.id}><span>{c.name ?? c.id} · {c.rides} courses</span><span className="adm-muted">{ago(c.lastSeenAt)}</span></li>
               ))}
-              {(churn?.clients.length ?? 0) === 0 && <li><span className="adm-muted">Aucun — fidélité au vert ✅</span></li>}
+              {(churn?.clients.length ?? 0) === 0 && <li><span className="adm-muted">Aucun — fidélité au vert</span></li>}
             </ul>
           </div>
           <div style={{ flex: 1, minWidth: 260 }}>
@@ -1152,7 +1152,7 @@ export function IntelSection({ predict, conversion, churn, fraud, elasticity, ca
               {(churn?.drivers ?? []).map((d) => (
                 <li key={d.id}><span>{d.name}</span><span className="adm-muted mono">{d.matricule}</span></li>
               ))}
-              {(churn?.drivers.length ?? 0) === 0 && <li><span className="adm-muted">Aucun — flotte engagée ✅</span></li>}
+              {(churn?.drivers.length ?? 0) === 0 && <li><span className="adm-muted">Aucun — flotte engagée</span></li>}
             </ul>
           </div>
         </div>
@@ -1233,8 +1233,8 @@ export function CorporateSection({ accounts, canWrite, canSettle, canBook, onSav
                     </div>
                     <div className="row" style={{ gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
                       {a.kickbackRate ? <span className="adm-pill av-online" title="Rétrocommission">↩ {Math.round(a.kickbackRate * 100)} %</span> : null}
-                      {(a.members?.length ?? 0) > 0 ? <span className="adm-pill">👥 {a.members!.length}</span> : null}
-                      {a.policy ? <span className="adm-pill tr-pending" title="Politique de déplacement active">🔒 politique</span> : null}
+                      {(a.members?.length ?? 0) > 0 ? <span className="adm-pill">{a.members!.length}</span> : null}
+                      {a.policy ? <span className="adm-pill tr-pending" title="Politique de déplacement active">politique</span> : null}
                     </div>
                   </td>
                   <td className="mono">{a.id}</td>
@@ -1247,8 +1247,8 @@ export function CorporateSection({ accounts, canWrite, canSettle, canBook, onSav
                     </div>
                   </td>
                   <td><div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                    {canBook && <button className="adm-btn xs" title="Web Booker (conciergerie)" onClick={() => doBook(a.id)}>🛎 Booker</button>}
-                    {canWrite && <button className="adm-btn xs" title="Import de masse des collaborateurs" onClick={() => doImport(a.id)}>👥 Import</button>}
+                    {canBook && <button className="adm-btn xs" title="Web Booker (conciergerie)" onClick={() => doBook(a.id)}>Booker</button>}
+                    {canWrite && <button className="adm-btn xs" title="Import de masse des collaborateurs" onClick={() => doImport(a.id)}>Import</button>}
                     <button className="adm-btn xs" onClick={() => onInvoice(a.id)}>⬇ CSV</button>
                     <button className="adm-btn xs" title="Facture consolidée PDF" onClick={() => onInvoicePdf(a.id)}>⬇ Facture</button>
                     <button className="adm-btn xs" title="Rapport ESG / RSE (bilan carbone certifié)" onClick={() => onEsg(a.id)}>⬇ ESG</button>

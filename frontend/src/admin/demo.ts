@@ -487,7 +487,7 @@ const support = [
     messages: [
       { id: 'm1', from: 'client', text: 'Bonjour, j’ai oublié mon téléphone dans la voiture.', at: iso(40) },
       { id: 'm2', from: 'agent', author: 'Support ORION', text: 'Bonjour Awa, on contacte le chauffeur tout de suite.', at: iso(30) },
-      { id: 'm3', from: 'client', text: 'Merci beaucoup 🙏', at: iso(6) },
+      { id: 'm3', from: 'client', text: 'Merci beaucoup', at: iso(6) },
     ] },
   { id: 'd4e5f6', clientId: 'client-1190', subject: 'Question paiement', status: 'pending', assignee: 'Support ORION', createdAt: iso(120), updatedAt: iso(55),
     messages: [
@@ -508,7 +508,7 @@ const finance = {
 };
 
 const broadcasts = [
-  { id: 'b1', audience: 'clients', title: 'Wi-Fi gratuit à bord 🚀', body: 'Profitez du Wi-Fi illimité gratuit sur toutes vos courses ORION.', author: 'Support ORION', at: iso(120) },
+  { id: 'b1', audience: 'clients', title: 'Wi-Fi gratuit à bord', body: 'Profitez du Wi-Fi illimité gratuit sur toutes vos courses ORION.', author: 'Support ORION', at: iso(120) },
   { id: 'b2', audience: 'all', title: 'Prix en baisse', body: 'ORION, toujours moins cher — profitez de nos nouveaux tarifs.', author: 'Awa (Finance)', at: iso(600) },
 ];
 

@@ -133,7 +133,7 @@ export function EnrolementAppareil({ application, classes, onEnrole, onRetour, l
 export function LigneAppareil({ etat, classe, onEnroler }: { etat: EtatAppareil | null; classe: string; onEnroler: () => void }) {
   if (!etat || !etat.configure) return null;
   if (etat.appareil) {
-    return <p className={classe} data-testid="appareil-enrole">🔐 Appareil de confiance : <strong>{etat.appareil.nom}</strong> · enrôlé le {new Date(etat.appareil.enroleLe).toLocaleDateString('fr-FR')}</p>;
+    return <p className={classe} data-testid="appareil-enrole">Appareil de confiance : <strong>{etat.appareil.nom}</strong> · enrôlé le {new Date(etat.appareil.enroleLe).toLocaleDateString('fr-FR')}</p>;
   }
   return <p className={classe}>Appareil non enrôlé · <button type="button" onClick={onEnroler} style={{ background: 'none', border: 0, color: 'inherit', textDecoration: 'underline', cursor: 'pointer', padding: 0, font: 'inherit' }}>Enrôler avec le code de synchronisation</button></p>;
 }

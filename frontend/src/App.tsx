@@ -713,7 +713,7 @@ function SosOverlay({ state, onRetry, onClose }: { state: 'sending' | 'failed'; 
           </>
         ) : (
           <>
-            <h2 className="sos-title danger">⚠️ {t('sos_failed')}</h2>
+            <h2 className="sos-title danger">{t('sos_failed')}</h2>
             <p className="sos-sub">{t('sos_failed_sub')}</p>
             <div className="sos-nums">
               {numeros.map(([label, num]) => (
@@ -882,7 +882,7 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
   }, []);
   return (
     <div className="lock-screen">
-      <div className="logo-mark" style={{ width: 64, height: 64, color: '#fff' }}><LogoGlyph size={36} /></div>
+      <div className="logo-mark" style={{ width: 64, height: 64, color: 'var(--btn-on)' }}><LogoGlyph size={36} /></div>
       <div className="lock-fp" onClick={unlock} role="button">
         <IconFingerprint size={56} />
       </div>
@@ -961,7 +961,7 @@ function AuthScreen({ phone, setPhone, name, setName, email, setEmail, erreur, o
       <TopBar onBack={onBack} />
       <div style={{ flex: 1 }} />
       <Sheet>
-        <div className="logo-mark" style={{ width: 56, height: 56, marginBottom: 12, color: '#fff' }}><LogoGlyph size={32} /></div>
+        <div className="logo-mark" style={{ width: 56, height: 56, marginBottom: 12, color: 'var(--btn-on)' }}><LogoGlyph size={32} /></div>
         <h2 className="h-title">{t('reg_title')}</h2>
         <p className="h-sub" style={{ marginBottom: 16 }}>{t('reg_subtitle')}</p>
         <div className="field" style={{ marginBottom: 10 }}>
@@ -1134,7 +1134,7 @@ function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onC
             </button>
           </span>
         </div>
-        <h2 className="hub-greet rise">{profil?.name ? t('home_greeting_name', { name: profil.name.split(' ')[0]! }) : t('home_greeting')}</h2>
+        <h2 className="hub-greet rise">{t('home_whereTo')}</h2>
         <button className="hub-search rise rise-2" onClick={onSearch}>
           <IconSearch size={20} /> <span>{t('home_search')}</span>
         </button>
@@ -1409,7 +1409,7 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
             droite={<TierBadge tier={tier.id} size={32} suv={bodyType === 'suv'} />} />
           {stops.map((s, i) => (
             <div key={`${s.id}-${i}`}><div className="divider" /><div className="list-row" style={{ padding: '6px 0' }}>
-              <span className="list-ico" style={{ color: 'var(--green)', fontSize: 12, fontWeight: 700 }}>{i + 1}</span>
+              <span className="list-ico" style={{ color: 'var(--green)', fontSize: 12, fontWeight: 600 }}>{i + 1}</span>
               <span className="col grow" style={{ minWidth: 0 }}><strong style={{ fontSize: 14 }}>{s.name}</strong><span className="faint" style={{ fontSize: 12 }}>{s.area || t('p_stops')}</span></span>
               <button className="icon-btn" style={{ width: 36, height: 36 }} aria-label={t('lieu_retirer_arret')} onClick={() => onRemoveStop(i)}><IconMinus size={16} /></button>
             </div></div>
@@ -1427,7 +1427,7 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
             <IconCalendar size={16} /> {t('sched_later')}
           </button>
         </div>
-        {scheduled && <p className="faint" style={{ fontSize: 12, marginBottom: 12 }}>⏰ {t('sched_note')}</p>}
+        {scheduled && <p className="faint" style={{ fontSize: 12, marginBottom: 12 }}>{t('sched_note')}</p>}
 
         {/* ORION Assurance (optionnelle, +2%) */}
         <div className="opt" style={{ marginBottom: 14, ...(insurance ? { borderColor: 'var(--green)', background: 'rgba(var(--accent-rgb),0.06)' } : {}) }}>
@@ -1532,7 +1532,7 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
       {showIns && (
         <div className="modal-backdrop" onClick={() => setShowIns(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="logo-mark" style={{ width: 52, height: 52, color: '#fff', marginBottom: 12 }}><IconShieldCheck size={26} /></div>
+            <div className="logo-mark" style={{ width: 52, height: 52, color: 'var(--btn-on)', marginBottom: 12 }}><IconShieldCheck size={26} /></div>
             <h2 className="h-title">{t('ins_toggle')}</h2>
             <p className="h-sub" style={{ marginTop: 8 }}>{t('ins_desc')}</p>
             <button className="btn btn-primary" style={{ marginTop: 18 }} onClick={() => { onInsurance(true); setShowIns(false); }}>{t('ins_toggle')} (+2%)</button>
@@ -1737,7 +1737,7 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
           </a>
         </div>
         <p className="faint" style={{ fontSize: 11, textAlign: 'center', marginTop: 6 }} role={avisAppel ? 'status' : undefined}>
-          {avisAppel ?? (contact ? `📞 ${numeroLisible(contact.telephone)} · ${t('call_clavier')}` : t('call_clavier'))}
+          {avisAppel ?? (contact ? `${numeroLisible(contact.telephone)} · ${t('call_clavier')}` : t('call_clavier'))}
         </p>
 
         {(phase === 'enroute' || phase === 'arrived') && (
@@ -2197,7 +2197,7 @@ function PaymentScreen({ quote, coverage, payment, driver, rideId, onPaid, desti
         {phase !== 'success' ? (
           <>
             <div className="row between" style={{ marginBottom: 14 }}>
-              <span className="col"><span className="faint" style={{ fontSize: 12 }}>{t('conf_total')}</span><span className="amt" style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 28 }}>{formatXOF(Math.max(0, (quote?.amount ?? 0) - (coverage?.montantCouvert ?? 0) - (coverage?.remise ?? 0)))}</span></span>
+              <span className="col"><span className="faint" style={{ fontSize: 12 }}>{t('conf_total')}</span><span className="amt" style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 28 }}>{formatXOF(Math.max(0, (quote?.amount ?? 0) - (coverage?.montantCouvert ?? 0) - (coverage?.remise ?? 0)))}</span></span>
               <PhotoChauffeur driver={driver} style={{ width: 48, height: 48, fontSize: 18 }} />
             </div>
             <div className="chip active" style={{ width: '100%', justifyContent: 'flex-start', marginBottom: 14 }}><IconWallet size={16} /> {provider}</div>
@@ -2219,7 +2219,7 @@ function PaymentScreen({ quote, coverage, payment, driver, rideId, onPaid, desti
 
       {phase === 'redirect' && (
         <div className="call-overlay" style={{ justifyContent: 'center', gap: 22 }}>
-          <div className="logo-mark" style={{ width: 64, height: 64, color: '#fff' }}><IconWallet size={32} /></div>
+          <div className="logo-mark" style={{ width: 64, height: 64, color: 'var(--btn-on)' }}><IconWallet size={32} /></div>
           <h2 className="h-title">{t('pay_redirect', { p: provider })}</h2>
           <p className="h-sub" style={{ textAlign: 'center' }}>{t('pay_confirm_in', { p: provider })}</p>
           <div className="pay-spinner" />
@@ -2243,7 +2243,7 @@ function WalletScreen({ onBack, onToast }: { onBack: () => void; onToast: (m: st
       <div className="page-body">
         <div className="card" style={{ padding: 20, marginBottom: 16, background: 'linear-gradient(135deg, var(--green-deep), var(--green-bright))', border: 'none', color: 'var(--btn-on)' }}>
           <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.85 }}>{t('wal_balance')}</span>
-          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 36 }}>{formatXOF(balance)}</div>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 36 }}>{formatXOF(balance)}</div>
         </div>
 
         <div className="card" style={{ padding: 16, marginBottom: 16 }}>
@@ -2252,7 +2252,7 @@ function WalletScreen({ onBack, onToast }: { onBack: () => void; onToast: (m: st
             <strong style={{ fontSize: 15 }}>ORION Assurance</strong>
           </div>
           <div className="fare-line"><span>{t('wal_ins_year')}</span><span>{formatXOF(insuranceYear)}</span></div>
-          <div className="fare-line"><span>{t('wal_refund')}</span><span style={{ color: 'var(--green)', fontWeight: 700 }}>{formatXOF(refund)}</span></div>
+          <div className="fare-line"><span>{t('wal_refund')}</span><span style={{ color: 'var(--green)', fontWeight: 600 }}>{formatXOF(refund)}</span></div>
         </div>
 
         <span className="eyebrow">{t('wal_transfer')}</span>

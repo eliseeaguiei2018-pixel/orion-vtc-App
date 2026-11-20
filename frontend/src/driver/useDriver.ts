@@ -127,12 +127,12 @@ export function useDriver() {
         setDriver((prev) => {
           if (prev && prev.kycStatus !== d.kycStatus) {
             if (d.kycStatus === 'suspended') showToast(tr('Compte suspendu : {0}', [d.suspensionReason ?? tr('contactez ORION')]), 'danger');
-            else if (d.kycStatus === 'active' || d.kycStatus === 'approved') showToast(tr('Dossier validé par ORION ✅'), 'success');
+            else if (d.kycStatus === 'active' || d.kycStatus === 'approved') showToast(tr('Dossier validé par ORION'), 'success');
           }
           if (prev && (d.warnings ?? 0) > (prev.warnings ?? 0)) {
             showToast(tr('Avertissement qualité reçu de la console'), 'danger');
           }
-          if (prev && d.vip && !prev.vip) showToast(tr('Félicitations : statut Top Driver ⭐'), 'success');
+          if (prev && d.vip && !prev.vip) showToast(tr('Félicitations : statut Top Driver'), 'success');
           return d;
         });
         break;
@@ -195,7 +195,7 @@ export function useDriver() {
         if (a) {
           setAnnouncements((list) => [a, ...list.filter((x) => x.id !== a.id)].slice(0, 20));
           pushNotice({ id: a.id, title: a.title, body: a.body, at: a.at, kind: 'announcement' });
-          showToast(`📢 ${a.title}`);
+          showToast(`${a.title}`);
         }
         break;
       }
@@ -336,7 +336,7 @@ export function useDriver() {
         setSession(backend.session());
         setDriver(r.driver);
         await refresh();
-        showToast(r.created ? tr('Compte chauffeur créé — complétez votre dossier') : tr('Bon retour, {0} 👋', [r.driver.name.split(' ')[0]]), 'success');
+        showToast(r.created ? tr('Compte chauffeur créé — complétez votre dossier') : tr('Bon retour, {0}', [r.driver.name.split(' ')[0]]), 'success');
         return true;
       } catch (e) {
         showToast(errMsg(e), 'danger');
@@ -349,7 +349,7 @@ export function useDriver() {
         await backend.appairerEcran(code);
         setSession(backend.session());
         await refresh();
-        showToast(tr('Écran du véhicule connecté 🚗'), 'success');
+        showToast(tr('Écran du véhicule connecté'), 'success');
         return true;
       } catch (e) {
         showToast(errMsg(e), 'danger');
@@ -370,7 +370,7 @@ export function useDriver() {
     goOnline: () => run(async () => { await backend.goOnline(posRef.current); await refresh(); }, tr('Vous êtes en ligne')),
     goOffline: () => run(async () => { await backend.goOffline(); await refresh(); }, tr('Vous êtes hors ligne')),
     accept: (rideId: string) => run(async () => { setActiveRide(await backend.acceptOffer(rideId)); },
-      activeRide?.serviceType === 'delivery' ? tr('Livraison acceptée, cap sur le colis !') : tr('Course acceptée — en route !')),
+      activeRide?.serviceType === 'delivery' ? tr('Livraison acceptée, cap sur le colis') : tr('Course acceptée — en route')),
     decline: (rideId: string, reason?: string) => run(async () => { await backend.declineOffer(rideId, reason); setActiveRide(null); await refresh(); }, tr('Offre refusée')),
     transition: (rideId: string, to: RideStatus) => run(async () => {
       await backend.transition(rideId, to);

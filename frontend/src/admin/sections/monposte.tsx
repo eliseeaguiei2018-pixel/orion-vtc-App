@@ -16,11 +16,11 @@ import { lienTel } from '../../telephone';
  */
 
 const TYPE_META: Record<string, { icone: string; label: string }> = {
-  sos: { icone: '🚨', label: 'Alerte SOS' },
-  support: { icone: '💬', label: 'Conversation' },
-  litige: { icone: '⚖️', label: 'Litige' },
-  location: { icone: '💎', label: 'Location' },
-  maintenance: { icone: '🔧', label: 'Maintenance' },
+  sos: { icone: '', label: 'Alerte SOS' },
+  support: { icone: '', label: 'Conversation' },
+  litige: { icone: '', label: 'Litige' },
+  location: { icone: '', label: 'Location' },
+  maintenance: { icone: '', label: 'Maintenance' },
 };
 
 const SLOT_LABEL: Record<string, string> = { matin: 'Matin', soir: 'Soir', nuit: 'Nuit' };
@@ -309,7 +309,7 @@ export function MonPosteSection({ poste, onAller, onLireMessage, onRepondre, onR
                     {f.requetesOuvertes > 0 && <> <span className="adm-pill tr-pending">{f.requetesOuvertes} requête(s)</span></>}
                     {f.alertes === 0 && f.requetesOuvertes === 0 && <span className="adm-muted">—</span>}
                   </td>
-                  <td>{f.phone ? <a className="adm-btn xs solid" href={lienTel(f.phone) ?? undefined}>📞 Appeler</a> : <span className="adm-muted">n° inconnu</span>}</td>
+                  <td>{f.phone ? <a className="adm-btn xs solid" href={lienTel(f.phone) ?? undefined}>Appeler</a> : <span className="adm-muted">n° inconnu</span>}</td>
                   <td><button className="adm-btn xs" onClick={() => onOuvrirChauffeur(f.driverId)}>Ouvrir</button></td>
                 </tr>
               ))}
@@ -320,7 +320,7 @@ export function MonPosteSection({ poste, onAller, onLireMessage, onRepondre, onR
 
       {rienAFaire && (
         <div className="adm-card">
-          <p className="adm-empty">Rien ne vous attend pour le moment. ✅</p>
+          <p className="adm-empty">Rien ne vous attend pour le moment.</p>
         </div>
       )}
 
@@ -378,7 +378,7 @@ export function MonPosteSection({ poste, onAller, onLireMessage, onRepondre, onR
             <tbody>
               {poste.mesDemandes.map((d) => (
                 <tr key={`${d.type}-${d.id}`}>
-                  <td>{d.type === 'virement' ? '🏦 Virement' : '🧾 Note de frais'}</td>
+                  <td>{d.type === 'virement' ? 'Virement' : 'Note de frais'}</td>
                   <td>{d.libelle}</td>
                   <td className="r" style={{ whiteSpace: 'nowrap' }}>{d.montant.toLocaleString('fr-FR')} F</td>
                   <td><span className="adm-pill">{d.statut}</span></td>
@@ -534,7 +534,7 @@ function PosteChauffeur({ poste, dossier: d, onChangerMotDePasse, onDeposer }: {
             {d.equipe ? (
               <div className="row between" style={{ gap: 10, flexWrap: 'wrap' }}>
                 <span><strong>{d.equipe.name}</strong><br /><span className="adm-muted">Chef d’équipe : {d.equipe.managerName ?? 'non désigné'}</span></span>
-                {d.equipe.managerPhone && <a className="adm-btn solid" href={lienTel(d.equipe.managerPhone) ?? undefined}>📞 Appeler mon chef d’équipe</a>}
+                {d.equipe.managerPhone && <a className="adm-btn solid" href={lienTel(d.equipe.managerPhone) ?? undefined}>Appeler mon chef d’équipe</a>}
               </div>
             ) : <p className="adm-muted" style={{ margin: 0 }}>Vous n’êtes rattaché(e) à aucune équipe. Vos demandes vont directement à la direction.</p>}
           </div>
@@ -645,7 +645,7 @@ function FormulaireRequete({ dossier: d, onDeposer }: {
         <button className="adm-btn solid" disabled={!pret || envoi === 'envoi'} onClick={() => void envoyer()}>
           {envoi === 'envoi' ? 'Envoi…' : 'Envoyer ma demande'}
         </button>
-        {envoi === 'ok' && <p className="adm-muted" style={{ margin: 0 }}>✅ Demande enregistrée : votre chef d’équipe est prévenu. Vous suivez son avancement ci-contre.</p>}
+        {envoi === 'ok' && <p className="adm-muted" style={{ margin: 0 }}>Demande enregistrée : votre chef d’équipe est prévenu. Vous suivez son avancement ci-contre.</p>}
       </div>
     </div>
   );

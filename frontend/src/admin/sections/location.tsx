@@ -525,7 +525,7 @@ export function RentalTarifsSection({ etat, canWrite, onSave, onReset }: {
         )}
         {modifie && (
           <p className="adm-muted" style={{ marginTop: 8, fontSize: 12 }}>
-            ⚠️ Rien n’est enregistré tant que vous n’avez pas appliqué. Le changement sera
+            Rien n’est enregistré tant que vous n’avez pas appliqué. Le changement sera
             journalisé à votre nom et prendra effet sur le devis suivant.
           </p>
         )}

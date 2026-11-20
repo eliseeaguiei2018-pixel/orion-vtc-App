@@ -394,7 +394,7 @@ export function createDemoBackend(): DriverBackend {
         if (!st.driver || st.driver.kycStatus !== 'docs_submitted') return;
         st.driver.kycStatus = 'active';
         driverChanged();
-        notify('Dossier validé ✅', 'ORION a validé votre dossier. Vous pouvez passer en ligne.');
+        notify('Dossier validé', 'ORION a validé votre dossier. Vous pouvez passer en ligne.');
       });
       return d;
     },

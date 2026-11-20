@@ -84,7 +84,7 @@ export function TelematiqueSection({ suivi, onRafraichir, onDeclarerVol, onImmob
 
       {suivi.vols.length > 0 && (
         <div className="adm-card">
-          <div className="adm-card-h"><h3>🚨 Véhicules déclarés volés</h3><span className="adm-muted">{suivi.vols.length} dossier(s)</span></div>
+          <div className="adm-card-h"><h3>Véhicules déclarés volés</h3><span className="adm-muted">{suivi.vols.length} dossier(s)</span></div>
           <div className="stack" style={{ gap: 10 }}>
             {suivi.vols.map((v) => (
               <div key={v.id} className="adm-constat critique">
@@ -239,8 +239,8 @@ function VehiculeLigne({ v, ouvert, onBasculer, motifs, vitesseCoupureMax, peutA
           {v.locataire.telephone
             ? (
               <span className="row" style={{ gap: 6, marginTop: 4 }}>
-                <a className="adm-btn xs solid" href={lienTel(v.locataire.telephone) ?? undefined}>📞 Appeler</a>
-                <a className="adm-btn xs" href={`sms:${v.locataire.telephone}`}>✉️ SMS</a>
+                <a className="adm-btn xs solid" href={lienTel(v.locataire.telephone) ?? undefined}>Appeler</a>
+                <a className="adm-btn xs" href={`sms:${v.locataire.telephone}`}>SMS</a>
                 <span className="adm-muted mono" style={{ fontSize: 12 }}>{v.locataire.telephone}</span>
               </span>
             )
@@ -280,7 +280,7 @@ function VehiculeLigne({ v, ouvert, onBasculer, motifs, vitesseCoupureMax, peutA
                   else if (c !== null) alert('Décrivez les circonstances : le commissariat en a besoin.');
                 }}
               >
-                🚨 Déclarer un vol
+                Déclarer un vol
               </button>
             </div>
           )}

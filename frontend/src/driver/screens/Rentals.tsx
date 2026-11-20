@@ -60,7 +60,7 @@ function Location({ app, r }: { app: DriverApp; r: LocationChauffeur }) {
       <button className="row between" style={{ background: 'none', border: 'none', color: 'inherit', padding: 0, cursor: 'pointer', textAlign: 'start' }} onClick={() => setOuvert(!ouvert)}>
         <div>
           <div className="eyebrow">{FORMULE[r.formula]}{r.jourJ ? tr(' · aujourd’hui') : ''}</div>
-          <div className="dv-item-title" style={{ fontSize: 16 }}>💎 {r.vehicle.name}</div>
+          <div className="dv-item-title" style={{ fontSize: 16 }}>{r.vehicle.name}</div>
           <div className="dv-item-sub"><IconCalendar size={12} /> {dateTime(r.debut)} → {dateTime(r.fin)}</div>
         </div>
         <span className={`dv-pill ${st.ton}`}>{tr(st.label)}</span>

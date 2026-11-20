@@ -51,7 +51,7 @@ export function Login({ app }: { app: DriverApp }) {
       <div className="sheet">
         <div className="grabber" />
         <div className="row between dv-auth-icone">
-          <div className="logo-mark" style={{ width: 56, height: 56, color: '#fff' }}><LogoGlyph size={32} /></div>
+          <div className="logo-mark" style={{ width: 56, height: 56, color: 'var(--btn-on)' }}><LogoGlyph size={32} /></div>
           <div className="dv-auth-veh" aria-hidden="true"><VehiculeChauffeur category={category} largeur={120} /></div>
         </div>
         <div className="eyebrow">{tr('ORION Chauffeur · {0}', [app.appConfig?.city ?? 'Abidjan'])}</div>

@@ -46,7 +46,7 @@ async function fichierVersDataUrl(f: File): Promise<string> {
 }
 
 export function Avatar({ photo, name, size = 44 }: { photo?: string | null; name?: string | null; size?: number }) {
-  const initiales = (name ?? '').trim().split(/\s+/).map((x) => x[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '🙂';
+  const initiales = (name ?? '').trim().split(/\s+/).map((x) => x[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '';
   return photo
     ? <img className="profil-avatar" src={photo} alt="" style={{ width: size, height: size }} />
     : <span className="profil-avatar initiales" style={{ width: size, height: size, fontSize: size * 0.36 }}>{initiales}</span>;

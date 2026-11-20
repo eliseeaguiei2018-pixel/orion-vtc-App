@@ -228,7 +228,7 @@ function FileRequetes({ attente, droits, onOuvrir, onInstruire, onDecider, onVer
               <strong>{c.titre}</strong> — {c.aide} ({c.liste.length})
             </p>
             {c.liste.length === 0 ? (
-              <p className="adm-muted" style={{ fontSize: 12.5 }}>Rien en attente ✅</p>
+              <p className="adm-muted" style={{ fontSize: 12.5 }}>Rien en attente</p>
             ) : (
               <div className="stack" style={{ gap: 8 }}>
                 {c.liste.slice(0, 6).map((r) => (
@@ -495,9 +495,9 @@ function DossierChauffeur({ d, droits, onFermer, onContact, onDeposer, onInstrui
         <div style={{ flex: 1, minWidth: 260 }}>
           <p className="adm-muted" style={{ margin: '0 0 6px', fontSize: 12 }}>LITIGES & MAINTENANCE</p>
           <ul className="adm-conv-list">
-            {d.litiges.length === 0 && d.maintenance.length === 0 && <li><span className="adm-muted">Rien à signaler ✅</span></li>}
-            {d.litiges.map((l) => <li key={l.id}><span>⚖️ {l.description.slice(0, 60)}</span><span className="adm-pill">{l.status}</span></li>)}
-            {d.maintenance.map((m) => <li key={m.id}><span>🔧 {m.title}</span><span className="adm-pill">{m.status}</span></li>)}
+            {d.litiges.length === 0 && d.maintenance.length === 0 && <li><span className="adm-muted">Rien à signaler</span></li>}
+            {d.litiges.map((l) => <li key={l.id}><span>{l.description.slice(0, 60)}</span><span className="adm-pill">{l.status}</span></li>)}
+            {d.maintenance.map((m) => <li key={m.id}><span>{m.title}</span><span className="adm-pill">{m.status}</span></li>)}
           </ul>
         </div>
       </div>

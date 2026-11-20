@@ -23,8 +23,8 @@ const CAT_LABEL: Record<string, string> = {
 };
 
 const TYPE_DECISION: Record<string, string> = {
-  virement: '🏦 Virement', note_de_frais: '🧾 Note de frais', litige: '⚖️ Litige',
-  impaye: '💳 Impayé', tarif: '🏷️ Tarif', securite: '🛑 Sécurité',
+  virement: 'Virement', note_de_frais: 'Note de frais', litige: 'Litige',
+  impaye: 'Impayé', tarif: 'Tarif', securite: 'Sécurité',
 };
 
 const GRAVITE_CLS: Record<string, string> = {
@@ -101,7 +101,7 @@ export function DirectionSection({ board, livre, jours, onJours, canAct, onAller
           <span className="adm-muted">{board.decisions.length} dossier(s)</span>
         </div>
         {board.decisions.length === 0 ? (
-          <p className="adm-empty">Rien ne vous est bloqué. ✅</p>
+          <p className="adm-empty">Rien ne vous est bloqué.</p>
         ) : (
           <table className="adm-table">
             <thead><tr><th>Type</th><th>Dossier</th><th className="r">Montant</th><th>En attente depuis</th><th>Traiter</th></tr></thead>

@@ -284,7 +284,7 @@ export function SettledModal({ app }: { app: DriverApp }) {
   }, [app.backend, settled.rideId]);
   const e = view?.earnings;
   return (
-    <Modal title={view?.serviceType === 'delivery' ? tr('Livraison payée ✅') : tr('Course payée ✅')} onClose={app.actions.dismissSettled}>
+    <Modal title={view?.serviceType === 'delivery' ? tr('Livraison payée') : tr('Course payée')} onClose={app.actions.dismissSettled}>
       <div className="col" style={{ gap: 10 }}>
         <div className="row between">
           <span className="muted">{settled.amount === 0 ? tr('Payé par le client') : tr('Montant payé ({0})', [methodLabel(settled.method)])}</span>

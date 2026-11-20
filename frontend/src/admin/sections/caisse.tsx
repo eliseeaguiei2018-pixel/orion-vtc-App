@@ -282,15 +282,15 @@ function MaCaisse({ c, referentiel, onEncaisser, onDecaisser, onArreter }: {
         <div className="row between" style={{ marginTop: 12, flexWrap: 'wrap', gap: 12 }}>
           <div>
             <span className="adm-muted" style={{ fontSize: 12 }}>Compté</span>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>{fcfa(compte)}</div>
+            <div style={{ fontSize: 22, fontWeight: 600 }}>{fcfa(compte)}</div>
           </div>
           <div>
             <span className="adm-muted" style={{ fontSize: 12 }}>Attendu</span>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>{fcfa(c.soldeTheorique)}</div>
+            <div style={{ fontSize: 22, fontWeight: 600 }}>{fcfa(c.soldeTheorique)}</div>
           </div>
           <div>
             <span className="adm-muted" style={{ fontSize: 12 }}>Écart</span>
-            <div className={`${ecart < 0 ? 'neg' : ecart > 0 ? 'pos' : ''}`} style={{ fontSize: 22, fontWeight: 700 }}>
+            <div className={`${ecart < 0 ? 'neg' : ecart > 0 ? 'pos' : ''}`} style={{ fontSize: 22, fontWeight: 600 }}>
               {ecart === 0 ? '0 F' : fcfa(ecart)}
             </div>
           </div>

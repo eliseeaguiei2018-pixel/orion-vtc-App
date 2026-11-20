@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { IconMenu, IconActivity, IconAlarm, IconAlert, IconBank, IconBell, IconBellOff, IconBuilding, IconCar, IconCash, IconChart, IconCompass, IconCrown, IconFile, IconGem, IconGrid, IconIdCard, IconInbox, IconKey, IconLeaf, IconLock, IconMail, IconMap, IconMegaphone, IconMessage, IconMonitor, IconMoon, IconScale, IconShield, IconSignal, IconStar, IconSteering, IconSun, IconTag, IconTarget, IconTicket, IconTrend, IconUsers, IconWallet } from '../icons';
 import { DEMO } from './demo';
 import { API, LIVE, AdminError, H, PAGE_SIZE, adminDel, adminGet, adminPost, adminPut, clearSession, expKey, fcfa, logout, onUnauthorized, setCsrf, setDemoSession, pageSlice, reportResponse, safePost, safePostData, safePut, sessionValid, setAdminErrorSink } from './api';
 import { AuditSection, CorporateSection, FinanceSection, GlobalSearch, GreenSection, IntelSection, NotifySection, PricingEditor, PromosSection, ServicesSection, SupportSection, TreasurySection, ZonesSection } from './sections/business';
@@ -187,7 +188,7 @@ function Login({ onDone }: { onDone: () => void }) {
         )}
         {mfa && (
           <>
-            <p className="adm-login-sub" style={{ marginTop: 0 }}>🛡️ Double authentification — compte de direction.</p>
+            <p className="adm-login-sub" style={{ marginTop: 0 }}>Double authentification — compte de direction.</p>
             <label className="adm-login-label">Code à 6 chiffres (application d'authentification)</label>
             <input className="adm-login-input" type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="123 456" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} autoFocus />
           </>
@@ -205,44 +206,44 @@ function Login({ onDone }: { onDone: () => void }) {
 
 /* ------------------------------ Navigation --------------------------- */
 type Section = 'monPoste' | 'posteEquipe' | 'crew' | 'caisses' | 'telematique' | 'comptes' | 'overview' | 'direction' | 'vigilance' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'clients' | 'support' | 'messagesClients' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles' | 'habilitations';
-const NAV: { id: Section; label: string; perm: string; icon: string }[] = [
-  { id: 'monPoste', label: 'Mon poste', perm: '', icon: '🗂️' },
-  { id: 'posteEquipe', label: 'Mon équipe', perm: 'teams:read', icon: '🧭' },
-  { id: 'overview', label: 'Vue d’ensemble', perm: 'overview:read', icon: '📊' },
-  { id: 'direction', label: 'Direction Générale', perm: 'executive:read', icon: '👑' },
-  { id: 'vigilance', label: 'Vigilance ORION', perm: 'vigilance:read', icon: '🧭' },
-  { id: 'alerts', label: 'Supervision SAMU', perm: 'alerts:read', icon: '🚨' },
-  { id: 'support', label: 'Support & chat', perm: 'support:read', icon: '💬' },
-  { id: 'messagesClients', label: 'Messages clients', perm: 'notify:read', icon: '✉️' },
-  { id: 'notify', label: 'Notifications', perm: 'notify:read', icon: '📣' },
-  { id: 'rides', label: 'Courses', perm: 'rides:read', icon: '🚗' },
-  { id: 'dispatch', label: 'Dispatch', perm: 'rides:write', icon: '🎯' },
-  { id: 'quality', label: 'Qualité & notes', perm: 'drivers:read', icon: '⭐' },
-  { id: 'green', label: 'Mobilité verte', perm: 'overview:read', icon: '🌱' },
-  { id: 'teams', label: 'Équipes', perm: 'teams:read', icon: '🧑‍🤝‍🧑' },
-  { id: 'crew', label: 'Équipages', perm: 'crew:read', icon: '🪪' },
-  { id: 'intel', label: 'Intelligence', perm: 'rides:read', icon: '🧠' },
-  { id: 'b2b', label: 'Entreprises (B2B)', perm: 'finance:read', icon: '🏢' },
-  { id: 'rental', label: 'Location Signature', perm: 'rental:read', icon: '💎' },
-  { id: 'rentalTarifs', label: 'Tarifs location', perm: 'rental:read', icon: '🏷️' },
-  { id: 'telematique', label: 'Suivi véhicules', perm: 'rental:read', icon: '📡' },
-  { id: 'subscriptions', label: 'Abonnements', perm: 'rental:read', icon: '🎫' },
-  { id: 'disputes', label: 'Litiges', perm: 'support:read', icon: '⚖️' },
-  { id: 'drivers', label: 'Chauffeurs', perm: 'drivers:read', icon: '🧑‍✈️' },
-  { id: 'clients', label: 'Clients', perm: 'clients:read', icon: '👥' },
-  { id: 'finance', label: 'Finances', perm: 'finance:read', icon: '📈' },
-  { id: 'treasury', label: 'Trésorerie', perm: 'treasury:read', icon: '🏦' },
-  { id: 'caisses', label: 'Caisses espèces', perm: 'caisse:read', icon: '💵' },
-  { id: 'pricing', label: 'Tarification', perm: 'pricing:read', icon: '💰' },
-  { id: 'zones', label: 'Zones & tarifs', perm: 'pricing:read', icon: '🗺️' },
-  { id: 'promos', label: 'Codes promo', perm: 'promos:read', icon: '🎟️' },
-  { id: 'services', label: 'Services & ville', perm: 'services:read', icon: '🧩' },
-  { id: 'audit', label: 'Journal', perm: 'audit:read', icon: '📜' },
-  { id: 'sessions', label: 'Sessions actives', perm: 'sessions:read', icon: '🖥️' },
-  { id: 'security', label: 'Alertes sécurité', perm: 'security:read', icon: '🛑' },
-  { id: 'comptes', label: 'Personnel & accès', perm: 'accounts:read', icon: '🪪' },
-  { id: 'habilitations', label: 'Habilitations', perm: 'habilitations:read', icon: '🔐' },
-  { id: 'roles', label: 'Rôles & accès', perm: 'roles:read', icon: '🛡️' },
+const NAV: { id: Section; label: string; perm: string; icon: (p: { size?: number; strokeWidth?: number }) => React.JSX.Element }[] = [
+  { id: 'monPoste', label: 'Mon poste', perm: '', icon: IconInbox },
+  { id: 'posteEquipe', label: 'Mon équipe', perm: 'teams:read', icon: IconCompass },
+  { id: 'overview', label: 'Vue d’ensemble', perm: 'overview:read', icon: IconChart },
+  { id: 'direction', label: 'Direction Générale', perm: 'executive:read', icon: IconCrown },
+  { id: 'vigilance', label: 'Vigilance ORION', perm: 'vigilance:read', icon: IconCompass },
+  { id: 'alerts', label: 'Supervision SAMU', perm: 'alerts:read', icon: IconAlarm },
+  { id: 'support', label: 'Support & chat', perm: 'support:read', icon: IconMessage },
+  { id: 'messagesClients', label: 'Messages clients', perm: 'notify:read', icon: IconMail },
+  { id: 'notify', label: 'Notifications', perm: 'notify:read', icon: IconMegaphone },
+  { id: 'rides', label: 'Courses', perm: 'rides:read', icon: IconCar },
+  { id: 'dispatch', label: 'Dispatch', perm: 'rides:write', icon: IconTarget },
+  { id: 'quality', label: 'Qualité & notes', perm: 'drivers:read', icon: IconStar },
+  { id: 'green', label: 'Mobilité verte', perm: 'overview:read', icon: IconLeaf },
+  { id: 'teams', label: 'Équipes', perm: 'teams:read', icon: IconUsers },
+  { id: 'crew', label: 'Équipages', perm: 'crew:read', icon: IconIdCard },
+  { id: 'intel', label: 'Intelligence', perm: 'rides:read', icon: IconActivity },
+  { id: 'b2b', label: 'Entreprises (B2B)', perm: 'finance:read', icon: IconBuilding },
+  { id: 'rental', label: 'Location Signature', perm: 'rental:read', icon: IconGem },
+  { id: 'rentalTarifs', label: 'Tarifs location', perm: 'rental:read', icon: IconTag },
+  { id: 'telematique', label: 'Suivi véhicules', perm: 'rental:read', icon: IconSignal },
+  { id: 'subscriptions', label: 'Abonnements', perm: 'rental:read', icon: IconTicket },
+  { id: 'disputes', label: 'Litiges', perm: 'support:read', icon: IconScale },
+  { id: 'drivers', label: 'Chauffeurs', perm: 'drivers:read', icon: IconSteering },
+  { id: 'clients', label: 'Clients', perm: 'clients:read', icon: IconUsers },
+  { id: 'finance', label: 'Finances', perm: 'finance:read', icon: IconTrend },
+  { id: 'treasury', label: 'Trésorerie', perm: 'treasury:read', icon: IconBank },
+  { id: 'caisses', label: 'Caisses espèces', perm: 'caisse:read', icon: IconCash },
+  { id: 'pricing', label: 'Tarification', perm: 'pricing:read', icon: IconWallet },
+  { id: 'zones', label: 'Zones & tarifs', perm: 'pricing:read', icon: IconMap },
+  { id: 'promos', label: 'Codes promo', perm: 'promos:read', icon: IconTicket },
+  { id: 'services', label: 'Services & ville', perm: 'services:read', icon: IconGrid },
+  { id: 'audit', label: 'Journal', perm: 'audit:read', icon: IconFile },
+  { id: 'sessions', label: 'Sessions actives', perm: 'sessions:read', icon: IconMonitor },
+  { id: 'security', label: 'Alertes sécurité', perm: 'security:read', icon: IconAlert },
+  { id: 'comptes', label: 'Personnel & accès', perm: 'accounts:read', icon: IconIdCard },
+  { id: 'habilitations', label: 'Habilitations', perm: 'habilitations:read', icon: IconKey },
+  { id: 'roles', label: 'Rôles & accès', perm: 'roles:read', icon: IconShield },
 ];
 
 /* ------------------------------- Console ----------------------------- */
@@ -644,7 +645,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
     if (!muted) playSiren();
     if ('Notification' in window && Notification.permission === 'granted') {
       const a = fresh[0]!;
-      new Notification('🚨 Alerte SAMU — ORION', {
+      new Notification('Alerte SAMU — ORION', {
         body: `${a.kind === 'crash' ? 'Accident détecté' : 'SOS client'} · ${a.zoneName ?? 'Abidjan'} — ouvre la console.`,
         tag: a.id,
       });
@@ -1430,7 +1431,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
   // Campagne de réengagement (churn) → diffusion clients avec code promo.
   const reengage = () => void sendBroadcast({
     audience: 'clients',
-    title: 'Tu nous manques 💚',
+    title: 'Tu nous manques',
     body: 'Reviens rouler vert avec ORION : -20 % sur ta prochaine course avec le code RETOUR20.',
   });
 
@@ -1477,10 +1478,10 @@ function Console({ onLogout }: { onLogout: () => void }) {
                 title={allowed ? undefined : 'Session non autorisée pour votre rôle'}
                 onClick={() => { setMenuOuvert(false); if (allowed) setSection(n.id); else void openLocked(n.id, n.label); }}
               >
-                <span className="adm-navi-ico">{n.icon}</span> {n.label}
+                <span className="adm-navi-ico" aria-hidden="true"><n.icon size={18} strokeWidth={1.5} /></span> {n.label}
                 {allowed && n.id === 'alerts' && openAlerts.length > 0 && <span className="adm-navi-badge">{openAlerts.length}</span>}
                 {allowed && n.id === 'security' && security.length > 0 && <span className="adm-navi-badge">{security.length}</span>}
-                {!allowed && <span className="adm-navi-lock" aria-hidden>🔒</span>}
+                {!allowed && <span className="adm-navi-lock" aria-hidden><IconLock size={14} strokeWidth={1.5} /></span>}
               </button>
             );
           })}
@@ -1505,7 +1506,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
         <header className="adm-mhead">
-          <button type="button" className="adm-menu-btn" aria-label="Ouvrir le menu des sessions" aria-controls="adm-menu" aria-expanded={menuOuvert} onClick={() => setMenuOuvert(true)}>☰</button>
+          <button type="button" className="adm-menu-btn" aria-label="Ouvrir le menu des sessions" aria-controls="adm-menu" aria-expanded={menuOuvert} onClick={() => setMenuOuvert(true)}><IconMenu size={20} strokeWidth={1.5} /></button>
           <h2>{NAV.find((n) => n.id === section)?.label}</h2>
           {can('search:read') && (
             <GlobalSearch
@@ -1519,16 +1520,16 @@ function Console({ onLogout }: { onLogout: () => void }) {
             {/* Tableau de bord : de droit pour la direction, la trésorerie, la comptabilité et
                 l'informatique ; un manager le voit aussi, pour pouvoir y demander l'accès. */}
             {(can('dashboard:read') || me.role === 'manager' || me.role === 'fleet_manager') && (
-              <a className="adm-btn ghost" href="./dashboard.html" target="_blank" rel="noopener" title={can('dashboard:read') ? 'Ouvrir le tableau de bord en direct (écran à part)' : 'Accès sur habilitation de la direction : demande possible depuis cet écran'} aria-label="Tableau de bord">📺<span className="adm-lbl"> Tableau de bord</span>{can('dashboard:read') ? '' : ' 🔒'}</a>
+              <a className="adm-btn ghost" href="./dashboard.html" target="_blank" rel="noopener" title={can('dashboard:read') ? 'Ouvrir le tableau de bord en direct (écran à part)' : 'Accès sur habilitation de la direction : demande possible depuis cet écran'} aria-label="Tableau de bord"><span className="adm-lbl"> Tableau de bord</span>{can('dashboard:read') ? '' : ''}</a>
             )}
             <button className="adm-btn ghost adm-mute" title={theme === 'dark' ? 'Passer en mode jour' : 'Passer en mode nuit'} onClick={toggleTheme}>
-              {theme === 'dark' ? '☀️' : '🌙'}
+              {theme === 'dark' ? <IconSun size={18} strokeWidth={1.5} /> : <IconMoon size={18} strokeWidth={1.5} />}
             </button>
             <button className={`adm-btn ghost adm-mute${muted ? ' off' : ''}`} title={muted ? 'Réactiver la sirène SAMU' : 'Couper la sirène SAMU'} onClick={toggleMute}>
-              {muted ? '🔕' : '🔔'}
+              {muted ? <IconBellOff size={18} strokeWidth={1.5} /> : <IconBell size={18} strokeWidth={1.5} />}
             </button>
             <span className={`adm-live ${live ? 'on' : 'demo'}`} title={surServeurDeSecours() ? 'Le serveur principal ne répond pas : la console travaille sur un serveur de secours.' : undefined}>
-              {live ? (surServeurDeSecours() ? '● EN DIRECT · SECOURS' : '● EN DIRECT') : '● MODE DÉMO'}
+              {live ? (surServeurDeSecours() ? '● En direct · secours' : '● En direct') : '● Mode démo'}
             </span>
             <span className="adm-clock">{now.toLocaleTimeString('fr-FR')}</span>
             <button className="adm-btn ghost" onClick={() => void refresh()} aria-label="Rafraîchir"><span className="adm-ico-seul" aria-hidden>⟳</span><span className="adm-lbl">Rafraîchir</span></button>
@@ -1733,7 +1734,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
       {denied && (
         <div className="adm-denied-wrap" onClick={() => setDenied(null)}>
           <div className="adm-denied" onClick={(e) => e.stopPropagation()}>
-            <h3>⛔ Accès refusé</h3>
+            <h3>Accès refusé</h3>
             <p>{denied}</p>
             <button className="adm-btn solid" onClick={() => setDenied(null)}>J’ai compris</button>
           </div>
@@ -1743,7 +1744,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
       {/* Bandeau d'erreur serveur : l'opération n'a PAS été enregistrée. */}
       {notice && (
         <div className="adm-notice" role="alert">
-          <span>⚠️ {notice}</span>
+          <span>{notice}</span>
           <button className="adm-notice-x" onClick={() => setNotice(null)} aria-label="Fermer">✕</button>
         </div>
       )}

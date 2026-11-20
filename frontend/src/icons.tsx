@@ -135,3 +135,86 @@ export const IconMessage = ({ size, strokeWidth }: P) => (
 export const IconMedical = ({ size, strokeWidth }: P) => (
   <svg {...base(size, strokeWidth)}><rect x="3.5" y="3.5" width="17" height="17" rx="5" /><path d="M12 8v8M8 12h8" /></svg>
 );
+
+/* ---- Console : icônes de navigation (même trait que le reste du jeu) ---- */
+export const IconChart = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M4 20h16" /><path d="M7 16v-5" /><path d="M12 16V7" /><path d="M17 16v-8" /></svg>
+);
+export const IconTrend = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="m4 16 5-5 4 3 7-7" /><path d="M15 7h5v5" /></svg>
+);
+export const IconAlert = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M12 4 2.8 19.5h18.4L12 4Z" /><path d="M12 10v4.5" /><path d="M12 17.5h.01" /></svg>
+);
+export const IconFile = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" /><path d="M14 3v5h5" /><path d="M9 13h6M9 17h4" /></svg>
+);
+export const IconMap = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="m9 4-5 2v14l5-2 6 2 5-2V4l-5 2-6-2Z" /><path d="M9 4v14M15 6v14" /></svg>
+);
+export const IconTag = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M3 12V4h8l9 9-8 8-9-9Z" /><circle cx="7.5" cy="8.5" r="1.3" /></svg>
+);
+export const IconBuilding = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><rect x="5" y="3" width="14" height="18" rx="1.5" /><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2M10 21v-3h4v3" /></svg>
+);
+export const IconKey = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><circle cx="8" cy="15" r="4" /><path d="m11 12 9-9M17 6l2 2M15 8l2 2" /></svg>
+);
+export const IconScale = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M12 4v16M7 20h10M5 7h14" /><path d="m5 7-3 6a3 3 0 0 0 6 0L5 7ZM19 7l-3 6a3 3 0 0 0 6 0l-3-6Z" /></svg>
+);
+export const IconSignal = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><circle cx="12" cy="12" r="1.5" /><path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8" /></svg>
+);
+export const IconTicket = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v8a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2V8Z" /><path d="M14 6v12" strokeDasharray="2 2" /></svg>
+);
+export const IconCompass = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><circle cx="12" cy="12" r="9" /><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z" /></svg>
+);
+export const IconTarget = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" /></svg>
+);
+export const IconBank = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M3 9.5 12 4l9 5.5H3Z" /><path d="M5 10v7M9.5 10v7M14.5 10v7M19 10v7M3 20h18" /></svg>
+);
+export const IconCash = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><rect x="2.5" y="6" width="19" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 9.5v.01M18 14.5v.01" /></svg>
+);
+export const IconGrid = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><rect x="4" y="4" width="7" height="7" rx="1.5" /><rect x="13" y="4" width="7" height="7" rx="1.5" /><rect x="4" y="13" width="7" height="7" rx="1.5" /><rect x="13" y="13" width="7" height="7" rx="1.5" /></svg>
+);
+export const IconMonitor = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></svg>
+);
+export const IconMegaphone = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M4 10v4a1 1 0 0 0 1 1h2l8 4V5L7 9H5a1 1 0 0 0-1 1Z" /><path d="M18.5 9.5a3.5 3.5 0 0 1 0 5" /></svg>
+);
+export const IconMail = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></svg>
+);
+export const IconInbox = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M4 13 6.5 5h11L20 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5Z" /><path d="M4 13h4.5l1 2h5l1-2H20" /></svg>
+);
+export const IconActivity = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M3 12h4l3-7 4 14 3-7h4" /></svg>
+);
+export const IconIdCard = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="11" r="2" /><path d="M6 16a3 3 0 0 1 6 0M14 10h4M14 14h3" /></svg>
+);
+export const IconSteering = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="2" /><path d="M3.5 10.5 10 12M20.5 10.5 14 12M12 14v7" /></svg>
+);
+export const IconAlarm = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M6 17v-5a6 6 0 0 1 12 0v5" /><path d="M4 17h16v3H4zM12 3v1.5M4.5 6l1 1M19.5 6l-1 1" /></svg>
+);
+export const IconSun = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" /></svg>
+);
+export const IconMoon = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M20 14.5A8 8 0 1 1 9.5 4 6.5 6.5 0 0 0 20 14.5Z" /></svg>
+);
+export const IconBellOff = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M8.5 5.2A6 6 0 0 1 18 10v3.5l1.5 2.5H9M6 10v3.5L4.5 16H9M10 19.5a2 2 0 0 0 4 0M3 3l18 18" /></svg>
+);

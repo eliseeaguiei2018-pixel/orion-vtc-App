@@ -267,7 +267,7 @@ function Entete({ direct, maintenant, vue, setVue, defilement, setDefilement, ch
       </nav>
       <div className="tb-entete-d">
         <span className={`tb-direct${direct ? '' : ' hors'}`} role="status">
-          <i aria-hidden />{direct ? (LIVE ? 'EN DIRECT' : 'DÉMONSTRATION') : 'RECONNEXION…'}
+          <i aria-hidden />{direct ? (LIVE ? 'En direct' : 'Démonstration') : 'Reconnexion…'}
         </span>
         <span className="tb-date">{maintenant.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
         <span className="tb-horloge" aria-label="Heure">{heure(maintenant)}</span>

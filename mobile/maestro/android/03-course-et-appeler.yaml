@@ -6,7 +6,7 @@ appId: ci.orion.app
 - launchApp:
     stopApp: true
 - extendedWaitUntil:
-    visible: "Bonjour Aya.*"
+    visible: "Où allez-vous.*"
     timeout: 30000
 - tapOn:
     text: "Course"

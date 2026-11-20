@@ -12,8 +12,8 @@ import { AvatarChauffeur, ContactRapide, Drawer, Kpi, Pager, kycLabel, rideStatu
 export const REASSIGNABLE = new Set(['searching', 'no_driver', 'accepted', 'driver_en_route', 'arrived']);
 export const ACTIVE_RIDE = new Set(['accepted', 'driver_en_route', 'arrived', 'in_progress']);
 export const ANOMALY_LABEL: Record<string, string> = {
-  detour: '🔴 Détour majeur', attente_longue: '🟠 Attente longue',
-  sans_chauffeur: '🟠 Sans chauffeur', immobile: '🔴 Immobile',
+  detour: 'Détour majeur', attente_longue: 'Attente longue',
+  sans_chauffeur: 'Sans chauffeur', immobile: 'Immobile',
 };
 
 export function RidesSection({ rides, meta, onPage, canWrite, onReassign, onOpen, onForce, onDest, onContact }: {
@@ -111,7 +111,7 @@ export function ReservationsCard({ reservations, canWrite, onAssign, onCancel }:
                 <td className="cap">{r.category}</td>
                 <td><span className={`adm-pill ${RES_STATUS[r.status]?.cls ?? ''}`}>{RES_STATUS[r.status]?.label ?? r.status}</span></td>
                 <td>{r.driverName ?? '—'}</td>
-                <td>{r.punctualityAlert ? <span className="adm-pill tr-rejected">⚠ Risque de retard</span> : <span className="adm-pill av-online">OK</span>}</td>
+                <td>{r.punctualityAlert ? <span className="adm-pill tr-rejected">Risque de retard</span> : <span className="adm-pill av-online">OK</span>}</td>
                 {canWrite && (
                   <td><div className="row" style={{ gap: 6 }}>
                     {(r.status === 'planifiee' || r.punctualityAlert) && <button className="adm-btn xs solid" onClick={() => onAssign(r.id)}>Assigner</button>}
@@ -208,7 +208,7 @@ export function DispatchSection({ ops, onSave, onSimulate, onConfigPdf, onMatrix
           </label>
           <label className="row" style={{ gap: 8, alignItems: 'center', paddingBottom: 8 }}>
             <button className={`adm-toggle${ops.greenPriority ? ' on' : ''}`} role="switch" aria-checked={ops.greenPriority} aria-label="Priorisation écologique absolue" onClick={() => onSave({ greenPriority: !ops.greenPriority })}><span /></button>
-            <span style={{ fontSize: 13 }}>🌱 Priorisation écologique absolue (le moins émetteur d'abord)</span>
+            <span style={{ fontSize: 13 }}>Priorisation écologique absolue (le moins émetteur d'abord)</span>
           </label>
         </div>
         <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
@@ -339,7 +339,7 @@ export function QualitySection({ q, csat, top, canWrite, onWarn, onSuspend, onSa
         <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
           {top.map((t) => (
             <div key={t.id} className="adm-role-card" style={{ minWidth: 220 }}>
-              <div className="row between"><strong>🏆 {t.name}</strong>{t.vip && <span className="adm-pill av-online">VIP</span>}</div>
+              <div className="row between"><strong>{t.name}</strong>{t.vip && <span className="adm-pill av-online">VIP</span>}</div>
               <p className="adm-muted" style={{ margin: '4px 0', fontSize: 12 }}>★ {t.rating.toFixed(2)} · {t.trips} courses · <span className="mono">{t.matricule}</span></p>
               {canWrite && (
                 <button className={`adm-btn xs${t.vip ? '' : ' solid'}`} onClick={() => onVip(t.id, !t.vip)}>
@@ -393,7 +393,7 @@ export function QualitySection({ q, csat, top, canWrite, onWarn, onSuspend, onSa
 }
 
 /* ------------------------------ Litiges ------------------------------- */
-export const DISPUTE_KIND: Record<string, string> = { objet_perdu: '🧳 Objet perdu', trajet: '🗺️ Contestation trajet', facturation: '🧾 Facturation', comportement: '⚠️ Comportement' };
+export const DISPUTE_KIND: Record<string, string> = { objet_perdu: 'Objet perdu', trajet: 'Contestation trajet', facturation: 'Facturation', comportement: 'Comportement' };
 export const DISPUTE_STATUS: Record<string, { label: string; cls: string }> = {
   open: { label: 'Ouvert', cls: 'tr-pending' },
   investigating: { label: 'En instruction', cls: 'tr-pending' },
@@ -401,7 +401,7 @@ export const DISPUTE_STATUS: Record<string, { label: string; cls: string }> = {
   rejected: { label: 'Rejeté', cls: 'tr-rejected' },
 };
 
-export const ESCALATION_LABEL: Record<string, string> = { sinistre: '🚑 Sinistre/Accident', chargeback: '💳 Fraude bancaire', harcelement: '⚠️ Harcèlement/Agression', degradation: '🔧 Dégradation véhicule' };
+export const ESCALATION_LABEL: Record<string, string> = { sinistre: 'Sinistre/Accident', chargeback: 'Fraude bancaire', harcelement: 'Harcèlement/Agression', degradation: 'Dégradation véhicule' };
 
 export function DisputesSection({ disputes, clients, canWrite, onDecide, onOpenRide, onEscalate, onQuarantine, onNote, onChargeback, onDossier, onLossCsv, onContact }: {
   /** Fiches clients, pour retrouver le numéro du plaignant. */
@@ -438,7 +438,7 @@ export function DisputesSection({ disputes, clients, canWrite, onDecide, onOpenR
             <button className="adm-btn xs" onClick={onLossCsv}>⬇ Matrice des pertes (CSV)</button>
           </div>
         </div>
-        {disputes.length === 0 && <p className="adm-empty">Aucun litige. ✅</p>}
+        {disputes.length === 0 && <p className="adm-empty">Aucun litige.</p>}
         <div className="stack" style={{ gap: 10 }}>
           {disputes.map((d) => (
             <div key={d.id} className="adm-dispute">
@@ -447,9 +447,9 @@ export function DisputesSection({ disputes, clients, canWrite, onDecide, onOpenR
                   <strong>{DISPUTE_KIND[d.kind] ?? d.kind}</strong>
                   <span className={`adm-pill ${DISPUTE_STATUS[d.status]?.cls}`}>{DISPUTE_STATUS[d.status]?.label}</span>
                   {d.escalation && <span className="adm-pill tr-rejected">{ESCALATION_LABEL[d.escalation] ?? d.escalation}</span>}
-                  {d.lockedBy && <span className="adm-pill tr-pending" title="Dossier verrouillé (claim lock)">🔒 {d.lockedBy}</span>}
-                  {d.quarantined && <span className="adm-pill tr-rejected" title="Quarantaine active">❄️ Quarantaine</span>}
-                  <button className="adm-btn xs mono" onClick={() => onOpenRide(d.rideId)}>📍 {d.rideId.slice(0, 8)}</button>
+                  {d.lockedBy && <span className="adm-pill tr-pending" title="Dossier verrouillé (claim lock)">{d.lockedBy}</span>}
+                  {d.quarantined && <span className="adm-pill tr-rejected" title="Quarantaine active">Quarantaine</span>}
+                  <button className="adm-btn xs mono" onClick={() => onOpenRide(d.rideId)}>{d.rideId.slice(0, 8)}</button>
                   <span className="adm-muted mono" style={{ fontSize: 11 }}>{clients.find((x) => x.id === d.clientId)?.name ?? d.clientId}</span>
                   {/* Un litige se dénoue souvent en deux minutes au téléphone. */}
                   <ContactRapide
@@ -475,7 +475,7 @@ export function DisputesSection({ disputes, clients, canWrite, onDecide, onOpenR
                   ))}
                   {d.escalation && (
                     <>
-                      <button className={`adm-btn xs${d.quarantined ? ' solid' : ''}`} onClick={() => onQuarantine(d.id, !d.quarantined)}>{d.quarantined ? 'Lever la quarantaine' : '❄️ Mettre en quarantaine'}</button>
+                      <button className={`adm-btn xs${d.quarantined ? ' solid' : ''}`} onClick={() => onQuarantine(d.id, !d.quarantined)}>{d.quarantined ? 'Lever la quarantaine' : 'Mettre en quarantaine'}</button>
                       <button className="adm-btn xs" onClick={() => onChargeback(d.id)}>⬇ Chargeback (PDF)</button>
                       <button className="adm-btn xs" onClick={() => onDossier(d.id)}>⬇ Dossier légal (PDF)</button>
                     </>
@@ -559,7 +559,7 @@ export const KYC_COLUMNS: { id: string; label: string }[] = [
   { id: 'active', label: 'Actifs' },
   { id: 'suspended', label: 'Suspendus / rejetés' },
 ];
-export const LOYALTY_LABEL: Record<string, string> = { bronze: '🥉 Bronze', silver: '🥈 Silver', gold: '🥇 Gold' };
+export const LOYALTY_LABEL: Record<string, string> = { bronze: 'Bronze', silver: 'Silver', gold: 'Gold' };
 
 export function DriversSection({ drivers, expiring, canWrite, onAction, onSuspend, onLoyalty, onOpen, meta, onPage, onContract, onFleetCsv, onContact }: {
   drivers: DriverRow[]; expiring: ExpiringDoc[]; canWrite: boolean;
@@ -575,7 +575,7 @@ export function DriversSection({ drivers, expiring, canWrite, onAction, onSuspen
     <>
       {expiring.length > 0 && (
         <div className="adm-card" style={{ borderColor: 'var(--a-danger)' }}>
-          <div className="adm-card-h"><h3>⚠️ Documents expirant sous 30 jours</h3><span className="adm-muted">{expiring.length} véhicule(s)</span></div>
+          <div className="adm-card-h"><h3>Documents expirant sous 30 jours</h3><span className="adm-muted">{expiring.length} véhicule(s)</span></div>
           <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
             {expiring.map((e) => (
               <span key={e.id} className={`adm-pill ${e.daysLeft <= 7 ? 'tr-rejected' : 'tr-pending'}`}>{e.name} · assurance J-{e.daysLeft}</span>
@@ -632,8 +632,8 @@ export function DriversSection({ drivers, expiring, canWrite, onAction, onSuspen
                         {d.kycStatus !== 'suspended'
                           ? <button className="adm-btn xs" onClick={() => onSuspend(d.id)}>Suspendre</button>
                           : <button className="adm-btn xs" onClick={() => onAction(d.id, 'kyc', 'active')}>Réactiver</button>}
-                        <button className="adm-btn xs" title="Fidélité (commission réduite)" onClick={() => onLoyalty(d.id, 'gold')}>🏅</button>
-                        <button className="adm-btn xs" title="Contrat de partenariat PDF" onClick={() => onContract(d.id)}>📄</button>
+                        <button className="adm-btn xs" title="Fidélité (commission réduite)" onClick={() => onLoyalty(d.id, 'gold')}>Fidélité</button>
+                        <button className="adm-btn xs" title="Contrat de partenariat PDF" onClick={() => onContract(d.id)}>Contrat</button>
                       </div>
                     </td>
                   )}
@@ -648,7 +648,7 @@ export function DriversSection({ drivers, expiring, canWrite, onAction, onSuspen
   );
 }
 
-export const VIP_LABEL: Record<string, string> = { gold: '⭐ Gold', platinum: '💎 Platinum' };
+export const VIP_LABEL: Record<string, string> = { gold: 'Gold', platinum: 'Platinum' };
 export function ClientsSection({ clients, canWrite, onStatus, onOpen, meta, onPage, onVip, onBlacklist, onNoShow, onLtvCsv, onBehaviorPdf, onContact }: {
   clients: Client[]; canWrite: boolean; onStatus: (id: string, s: string) => void; onOpen: (id: string) => void;
   meta: PageMeta; onPage: (p: number) => void;
@@ -672,7 +672,7 @@ export function ClientsSection({ clients, canWrite, onStatus, onOpen, meta, onPa
         <tbody>
           {clients.map((c) => (
             <tr key={c.id} className="adm-row-click" onClick={() => onOpen(c.id)}>
-              <td>{c.name ?? c.id}<div className="mono adm-muted" style={{ fontSize: 11 }}>{c.id}{(c.greenPoints ?? 0) > 0 ? ` · 🌿 ${c.greenPoints}` : ''}</div></td>
+              <td>{c.name ?? c.id}<div className="mono adm-muted" style={{ fontSize: 11 }}>{c.id}{(c.greenPoints ?? 0) > 0 ? ` · ${c.greenPoints}` : ''}</div></td>
               <td>{c.phone ?? '—'}</td>
               <td onClick={(e) => e.stopPropagation()}>
                 <ContactRapide type="client" id={c.id} numero={c.phone} nom={c.name ?? c.id} onContact={onContact} />
@@ -683,8 +683,8 @@ export function ClientsSection({ clients, canWrite, onStatus, onOpen, meta, onPa
               {canWrite && (
                 <td onClick={(e) => e.stopPropagation()}>
                   <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                    <button className="adm-btn xs" title="Verrouiller VIP no-surge" onClick={() => onVip(c.id, 'platinum', true)}>💎</button>
-                    <button className="adm-btn xs" title="Frais de no-show (GPS)" onClick={() => onNoShow(c.id)}>🚫</button>
+                    <button className="adm-btn xs" title="Verrouiller VIP no-surge" onClick={() => onVip(c.id, 'platinum', true)}>VIP</button>
+                    <button className="adm-btn xs" title="Frais de no-show (GPS)" onClick={() => onNoShow(c.id)}>No-show</button>
                     {c.status === 'blocked'
                       ? <button className="adm-btn xs solid" onClick={() => onStatus(c.id, 'active')}>Débloquer</button>
                       : <button className="adm-btn xs" title="Liste noire (IMEI/e-mail/tél.)" onClick={() => onBlacklist(c.id)}>Bannir</button>}

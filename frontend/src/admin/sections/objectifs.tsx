@@ -55,8 +55,8 @@ export function ObjectifsFinanciersCarte({ peutModifier }: { peutModifier: boole
   return (
     <div className="adm-card">
       <div className="adm-card-h">
-        <h3>🎯 Objectifs financiers</h3>
-        <a className="adm-btn ghost" style={{ textDecoration: 'none' }} href="./dashboard.html#objectifs" target="_blank" rel="noopener">📺 Voir les courbes</a>
+        <h3>Objectifs financiers</h3>
+        <a className="adm-btn ghost" style={{ textDecoration: 'none' }} href="./dashboard.html#objectifs" target="_blank" rel="noopener">Voir les courbes</a>
       </div>
       <p className="adm-muted" style={{ marginBottom: 12 }}>
         Chiffre d’affaires visé, en F CFA. Le tableau de bord compare chaque période à son objectif, heure par heure, jour par jour et mois par mois.
@@ -72,14 +72,14 @@ export function ObjectifsFinanciersCarte({ peutModifier }: { peutModifier: boole
           </label>
         ))}
       </div>
-      {incoherent && <p className="adm-muted" style={{ color: 'var(--a-amber-txt)', marginTop: 10 }}>⚠️ Attention : un objectif est plus petit que celui de la période plus courte. Vérifiez la saisie.</p>}
+      {incoherent && <p className="adm-muted" style={{ color: 'var(--a-amber-txt)', marginTop: 10 }}>Attention : un objectif est plus petit que celui de la période plus courte. Vérifiez la saisie.</p>}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
         {peutModifier ? (
           <button className="adm-btn solid" disabled={envoi || invalides.length > 0 || modifies.length === 0} onClick={() => void enregistrer()}>
             {envoi ? 'Enregistrement…' : 'Enregistrer les objectifs'}
           </button>
         ) : (
-          <span className="adm-muted">🔒 Modification réservée à la direction financière.</span>
+          <span className="adm-muted">Modification réservée à la direction financière.</span>
         )}
         {obj.majLe && <span className="adm-muted">Dernière modification : {obj.majPar ?? '—'}, le {new Date(obj.majLe).toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' })}</span>}
         {message && <span role="status" style={{ color: message.ok ? 'var(--a-green)' : 'var(--a-danger)' }}>{message.texte}</span>}

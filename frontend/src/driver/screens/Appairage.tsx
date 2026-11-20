@@ -108,7 +108,7 @@ export function ConnecterEcranVehicule({ app }: { app: DriverApp }) {
 
   return (
     <>
-      <button className="btn btn-ghost" onClick={() => void demander()}>🚗 {tr('Connecter un écran de véhicule')}</button>
+      <button className="btn btn-ghost" onClick={() => void demander()}>{tr('Connecter un écran de véhicule')}</button>
       {ouvert && (
         <div className="dv-modal-back" onClick={fermer}>
           <div className="dv-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={tr('Connecter un écran de véhicule')}>

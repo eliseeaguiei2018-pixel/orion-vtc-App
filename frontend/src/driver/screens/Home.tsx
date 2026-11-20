@@ -64,8 +64,8 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
   return (
     <div className="dv-page">
       <PageHeader
-        title={tr('Bonjour {0} 👋', [driver.name.split(' ')[0]])}
-        sub={tr('{0} · Gamme {1}{2}', [driver.matricule, TIER_LABEL[driver.category] ?? driver.category, driver.vip ? tr(' · ⭐ Top Driver') : ''])}
+        title={tr('Bonjour {0}', [driver.name.split(' ')[0]])}
+        sub={tr('{0} · Gamme {1}{2}', [driver.matricule, TIER_LABEL[driver.category] ?? driver.category, driver.vip ? tr(' · Top Driver') : ''])}
         right={<>
           <LinkPill app={app} />
           <BellButton count={unread} onClick={openNotices} />
@@ -169,7 +169,7 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
         </div>
       </Section>
 
-      <button className="btn btn-danger" onClick={() => setConfirmSos(true)}>{tr('🚨 Urgence — alerter ORION et le SAMU')}</button>
+      <button className="btn btn-danger" onClick={() => setConfirmSos(true)}>{tr('Urgence — alerter ORION et le SAMU')}</button>
       {confirmSos && (
         <Banner tone="danger" title={tr('Confirmer l’alerte SOS ?')} action={
           <div className="col" style={{ gap: 6 }}>

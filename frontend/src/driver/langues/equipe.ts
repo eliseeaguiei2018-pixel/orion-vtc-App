@@ -74,7 +74,7 @@ export const EQUIPE: Ligne[] = [
 
   // Profil
   ['Dossier, conformité et qualité', 'File, compliance and quality', 'Expediente, conformidad y calidad', 'Pratica, conformità e qualità', 'الملف والامتثال والجودة', '资料、合规与服务质量', 'Unterlagen, Konformität und Qualität', 'Анкета, соответствие и качество'],
-  ['⭐ Top Driver', '⭐ Top Driver', '⭐ Top Driver', '⭐ Top Driver', '⭐ Top Driver', '⭐ Top Driver', '⭐ Top Driver', '⭐ Top Driver'],
+  ['Top Driver', 'Top Driver', 'Top Driver', 'Top Driver', 'Top Driver', 'Top Driver', 'Top Driver', 'Top Driver'],
   ['Fidélité {0}', '{0} loyalty', 'Fidelidad {0}', 'Fedeltà {0}', 'الولاء {0}', '{0} 会员', 'Treue {0}', 'Лояльность: {0}'],
   ['Validation du dossier', 'File approval', 'Validación del expediente', 'Approvazione della pratica', 'المصادقة على الملف', '资料审核', 'Prüfung der Unterlagen', 'Проверка анкеты'],
   ['Compte suspendu par ORION', 'Account suspended by ORION', 'Cuenta suspendida por ORION', 'Account sospeso da ORION', 'أوقفت ORION الحساب', 'ORION 已暂停该账户', 'Konto von ORION gesperrt', 'ORION приостановил аккаунт'],
@@ -104,7 +104,7 @@ export const EQUIPE: Ligne[] = [
   ['Expire dans {0} jours.', 'Expires in {0} days.', 'Caduca en {0} días.', 'Scade tra {0} giorni.', 'ينتهي خلال {0} يومًا.', '{0} 天后到期。', 'Läuft in {0} Tagen ab.', 'Истекает через {0} дн.'],
   ['Conformité verte', 'Green compliance', 'Conformidad verde', 'Conformità green', 'الامتثال البيئي', '绿色合规', 'Grüne Konformität', 'Экосоответствие'],
   ['Motorisation', 'Powertrain', 'Motorización', 'Motorizzazione', 'نوع المحرك', '动力类型', 'Antrieb', 'Тип двигателя'],
-  ['⚡ 100 % électrique', '⚡ 100% electric', '⚡ 100 % eléctrico', '⚡ 100% elettrico', '⚡ كهربائي 100%', '⚡ 100% 纯电', '⚡ 100 % elektrisch', '⚡ 100% электро'],
+  ['100 % électrique', '100% electric', '100 % eléctrico', '100% elettrico', 'كهربائي 100%', '100% 纯电', '100 % elektrisch', '100% электро'],
   ['Batterie (kWh)', 'Battery (kWh)', 'Batería (kWh)', 'Batteria (kWh)', 'البطارية (kWh)', '电池（kWh）', 'Akku (kWh)', 'Батарея (кВт·ч)'],
   ['Type de prise', 'Plug type', 'Tipo de conector', 'Tipo di presa', 'نوع المقبس', '充电接口', 'Steckertyp', 'Тип разъёма'],
   ['Câbles de recharge réglementaires à bord', 'Approved charging cables on board', 'Cables de recarga reglamentarios a bordo', 'Cavi di ricarica a norma a bordo', 'كابلات شحن مطابقة للمعايير على متن المركبة', '车内配备合规充电线', 'Zugelassene Ladekabel an Bord', 'Сертифицированные кабели зарядки в машине'],

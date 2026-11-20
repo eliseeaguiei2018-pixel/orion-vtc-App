@@ -77,7 +77,7 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
           <div className="row" style={{ gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
             <span className={`dv-pill ${driver.kycStatus === 'suspended' ? 'danger' : driver.kycStatus === 'active' || driver.kycStatus === 'approved' ? 'green' : 'gold'}`}>{KYC_LABEL[driver.kycStatus]}</span>
             <span className="dv-pill">{tr('Gamme {0}', [TIER_LABEL[driver.category] ?? driver.category])}</span>
-            {driver.vip && <span className="dv-pill gold">{tr('⭐ Top Driver')}</span>}
+            {driver.vip && <span className="dv-pill gold">{tr('Top Driver')}</span>}
             {driver.loyaltyTier && <span className="dv-pill green">{tr('Fidélité {0}', [driver.loyaltyTier === 'gold' ? tr('Or') : driver.loyaltyTier === 'silver' ? tr('Argent') : tr('Bronze')])}</span>}
           </div>
           {(driver.vehicleModel || driver.vehiclePlate) && (
@@ -135,7 +135,7 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
 
           <h3 className="dv-section-title" style={{ marginTop: 6 }}>{tr('Conformité verte')}</h3>
           <div className="dv-seg" role="group" aria-label={tr('Motorisation')}>
-            <button type="button" className={engine === 'electric' ? 'on' : ''} onClick={() => setEngine('electric')}>{tr('⚡ 100 % électrique')}</button>
+            <button type="button" className={engine === 'electric' ? 'on' : ''} onClick={() => setEngine('electric')}>{tr('100 % électrique')}</button>
             <button type="button" className={engine === 'hybrid' ? 'on' : ''} onClick={() => setEngine('hybrid')}>{tr('Hybride')}</button>
           </div>
           <div className="dv-grid2">

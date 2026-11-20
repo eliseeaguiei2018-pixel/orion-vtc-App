@@ -137,7 +137,7 @@ function Shell({ app, vehicule = false }: { app: DriverApp; vehicule?: boolean }
             {app.notices.map((n) => (
               <div key={`${n.kind}-${n.id}`} className="card dv-item" style={{ alignItems: 'flex-start' }}>
                 <div className="grow">
-                  <div className="dv-item-title">{n.kind === 'announcement' ? '📢 ' : ''}{n.title}</div>
+                  <div className="dv-item-title">{n.kind === 'announcement' ? '' : ''}{n.title}</div>
                   <div className="dv-item-sub" style={{ marginTop: 2 }}>{n.body}</div>
                   <div className="faint" style={{ fontSize: 11, marginTop: 4 }}>{dateTime(n.at)}</div>
                 </div>
@@ -146,7 +146,7 @@ function Shell({ app, vehicule = false }: { app: DriverApp; vehicule?: boolean }
             {app.announcements.filter((a) => !app.notices.some((n) => n.id === a.id)).map((a) => (
               <div key={`ann-${a.id}`} className="card dv-item" style={{ alignItems: 'flex-start' }}>
                 <div className="grow">
-                  <div className="dv-item-title">📢 {a.title}</div>
+                  <div className="dv-item-title">{a.title}</div>
                   <div className="dv-item-sub" style={{ marginTop: 2 }}>{a.body}</div>
                 </div>
               </div>

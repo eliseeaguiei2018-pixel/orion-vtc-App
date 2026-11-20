@@ -88,7 +88,7 @@ function Activite({ app, poste }: { app: ScreenProps['app']; poste: PosteData })
       </Section>
       {(poste.maintenance.length > 0 || poste.litiges.length > 0) && (
         <Section title={tr('Suivi')}>
-          {poste.maintenance.map((m) => <div key={m.id} className="card dv-item"><div className="grow"><div className="dv-item-title">🔧 {m.title}</div><div className="dv-item-sub">{m.status}{m.dueDate ? tr(' · prévu le {0}', [shortDate(m.dueDate)]) : ''}</div></div></div>)}
+          {poste.maintenance.map((m) => <div key={m.id} className="card dv-item"><div className="grow"><div className="dv-item-title">{m.title}</div><div className="dv-item-sub">{m.status}{m.dueDate ? tr(' · prévu le {0}', [shortDate(m.dueDate)]) : ''}</div></div></div>)}
           {poste.litiges.map((l) => <div key={l.id} className="card dv-item"><div className="grow"><div className="dv-item-title">{tr('Litige sur une course')}</div><div className="dv-item-sub">{l.kind} · {l.status} · {shortDate(l.createdAt)}</div></div></div>)}
         </Section>
       )}
@@ -198,7 +198,7 @@ function Messages({ app, msgs }: { app: ScreenProps['app']; msgs: MessagesChef |
     <>
       {msgs.rapports.filter((r) => r.statut === 'demande' || r.statut === 'a_revoir').map((r) => (
         <div key={r.id} className="card" style={{ padding: 14, display: 'grid', gap: 8 }}>
-          <div className="row between"><strong>📋 {r.titre}</strong><span className="dv-pill gold">{r.statutLabel}</span></div>
+          <div className="row between"><strong>{r.titre}</strong><span className="dv-pill gold">{r.statutLabel}</span></div>
           <div className="faint" style={{ fontSize: 12.5 }}>{tr('Demandé par {0} · à rendre le {1}', [r.demandeParNom, shortDate(r.echeance)])}</div>
           <div style={{ fontSize: 13 }}>{r.consigne}</div>
           {r.retour && <div style={{ fontSize: 13 }}>{tr('Retour : {0}', [r.retour.texte])}</div>}
@@ -212,7 +212,7 @@ function Messages({ app, msgs }: { app: ScreenProps['app']; msgs: MessagesChef |
         <div key={m.id} className="card" style={{ padding: 14, display: 'grid', gap: 8, borderColor: !m.luLe ? 'var(--green)' : undefined }}
           onClick={() => { if (!m.luLe) void app.actions.lireMessage(m.id); }}>
           <div className="row between">
-            <strong>{m.urgent ? '⚠️ ' : ''}{m.sujet ?? tr('Message de {0}', [m.deNom])}</strong>
+            <strong>{m.urgent ? '' : ''}{m.sujet ?? tr('Message de {0}', [m.deNom])}</strong>
             <span className="faint" style={{ fontSize: 11.5 }}>{dateTime(m.at)}</span>
           </div>
           <div style={{ fontSize: 14 }}>{m.texte}</div>

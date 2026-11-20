@@ -114,11 +114,11 @@ export function MessagesClientsSection({ canWrite, canControle, rides, onAlerte 
 
       {canWrite && (
         <div className="adm-card">
-          <div className="adm-card-h"><h3>✉️ Écrire aux clients</h3><span className="adm-muted">Le message s’affiche dans l’app, bouton « Messages »</span></div>
+          <div className="adm-card-h"><h3>Écrire aux clients</h3><span className="adm-muted">Le message s’affiche dans l’app, bouton « Messages »</span></div>
           <div className="msg-modeles">
             {MODELES.map((m, i) => (
               <button key={m.titre} className={`msg-modele${titre === m.titre ? ' on' : ''}`} onClick={() => modele(i)}>
-                {m.type === 'controle' ? '🛡️' : m.type === 'consigne' ? '⚠️' : 'ℹ️'} {m.titre}
+                {m.type === 'controle' ? '' : m.type === 'consigne' ? '' : ''} {m.titre}
               </button>
             ))}
           </div>
@@ -132,9 +132,9 @@ export function MessagesClientsSection({ canWrite, canControle, rides, onAlerte 
             </label>
             <label className="price-field"><span>Type</span>
               <select className="adm-select" value={type} onChange={(e) => setType(e.target.value as TypeMsg)}>
-                <option value="controle">🛡️ Contrôle de sécurité (réponses rapides)</option>
-                <option value="consigne">⚠️ Consigne à appliquer</option>
-                <option value="info">ℹ️ Information</option>
+                <option value="controle">Contrôle de sécurité (réponses rapides)</option>
+                <option value="consigne">Consigne à appliquer</option>
+                <option value="info">Information</option>
               </select>
             </label>
             {cible === 'client' && (
@@ -151,7 +151,7 @@ export function MessagesClientsSection({ canWrite, canControle, rides, onAlerte 
               : type === 'consigne' ? 'Le client confirme « Bien reçu » ou signale qu’il a une question.' : 'Simple information, sans réponse attendue.'}
           </p>
           <div className="row" style={{ gap: 10, marginTop: 12, alignItems: 'center' }}>
-            <button className="adm-btn solid" disabled={envoi} onClick={() => void envoyer()}>{envoi ? 'Envoi…' : '✉️ Envoyer'}</button>
+            <button className="adm-btn solid" disabled={envoi} onClick={() => void envoyer()}>{envoi ? 'Envoi…' : 'Envoyer'}</button>
             {retour && <span className={retour.ok ? 'msg-retour ok' : 'msg-retour ko'} role="status">{retour.texte}</span>}
           </div>
         </div>
@@ -159,7 +159,7 @@ export function MessagesClientsSection({ canWrite, canControle, rides, onAlerte 
 
       {canControle && (
         <div className="adm-card">
-          <div className="adm-card-h"><h3>🛡️ Courses en cours</h3><span className="adm-muted">L’app envoie aussi un contrôle automatique pendant chaque course</span></div>
+          <div className="adm-card-h"><h3>Courses en cours</h3><span className="adm-muted">L’app envoie aussi un contrôle automatique pendant chaque course</span></div>
           {enCours.length === 0
             ? <p className="adm-muted">Aucune course en cours.</p>
             : (
@@ -196,7 +196,7 @@ export function MessagesClientsSection({ canWrite, canControle, rides, onAlerte 
                   <div className="msg-titre">{m.titre}</div>
                   <div className="msg-etat">
                     {m.reponse
-                      ? <span className={alerte(m) ? 'msg-rep danger' : 'msg-rep'}>{alerte(m) ? '🚨' : '💬'} « {m.reponse.libelle} » · {ago(m.reponse.le)}</span>
+                      ? <span className={alerte(m) ? 'msg-rep danger' : 'msg-rep'}>{alerte(m) ? '' : ''} « {m.reponse.libelle} » · {ago(m.reponse.le)}</span>
                       : <span className="adm-muted">{m.luLe ? `Lu ${ago(m.luLe)}` : 'Pas encore lu'}{m.reponses.length ? ' · en attente de réponse' : ''}</span>}
                     {alerte(m) && <button className="adm-btn xs msg-btn-alerte" onClick={onAlerte}>Ouvrir la file SAMU</button>}
                   </div>

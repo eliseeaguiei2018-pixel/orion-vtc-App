@@ -24,7 +24,7 @@ appId: ci.orion.app
       - tapOn: "(?i)(while using the app|allow while using app|autoriser lorsque l.app est active|lorsque vous utilisez l.app.*|pendant (que vous utilisez|l.utilisation de) l.app.*)"
 # Position accordée : l'écran propose « Continuer » (ou passe directement à l'accueil).
 - extendedWaitUntil:
-    visible: "Continuer|Bonjour Aya.*"
+    visible: "Continuer|Où allez-vous.*"
     timeout: 30000
 - runFlow:
     when:
@@ -32,7 +32,7 @@ appId: ci.orion.app
     commands:
       - tapOn: "Continuer"
 - extendedWaitUntil:
-    visible: "Bonjour Aya.*"
+    visible: "Où allez-vous.*"
     timeout: 30000
 - waitForAnimationToEnd
 - takeScreenshot: 07-accueil

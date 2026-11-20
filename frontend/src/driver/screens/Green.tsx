@@ -55,7 +55,7 @@ export function Green({ app, unread, openNotices }: ScreenProps) {
     try {
       const r = await app.backend.submitTraining(answers);
       setResult(r);
-      if (r.passed) { app.showToast(tr('Formation validée : vous êtes certifié éco-conduite 🌿'), 'success'); void app.actions.refresh(); }
+      if (r.passed) { app.showToast(tr('Formation validée : vous êtes certifié éco-conduite'), 'success'); void app.actions.refresh(); }
     } catch (e) {
       app.showToast(e instanceof Error ? e.message : tr('Erreur'), 'danger');
     }
@@ -89,7 +89,7 @@ export function Green({ app, unread, openNotices }: ScreenProps) {
 
       <Section title={tr('Recharge en heures creuses')}>
         <Banner tone={offPeakNow ? 'success' : 'info'} icon={<IconBolt size={18} />}
-          title={offPeakNow ? tr('C’est le moment de recharger !') : tr('Heures creuses : {0} h → {1} h', [cfg.offPeak.start, cfg.offPeak.end])}>
+          title={offPeakNow ? tr('C’est le moment de recharger') : tr('Heures creuses : {0} h → {1} h', [cfg.offPeak.start, cfg.offPeak.end])}>
           {cfg.offPeak.bonus > 0 ? tr('Bonus de {0} versé pour une recharge en heures creuses.', [fcfa(cfg.offPeak.bonus)]) : tr('Recharger la nuit soulage le réseau électrique.')}
         </Banner>
       </Section>
@@ -105,7 +105,7 @@ export function Green({ app, unread, openNotices }: ScreenProps) {
             {driver.commissionOverride !== undefined
               ? tr('Commission personnalisée ORION : {0}.', [pct(driver.commissionOverride)])
               : eRides >= threshold
-                ? tr('Palier atteint : commission fidélité {0} 🎉', [pct(cfg.commission.loyalty)])
+                ? tr('Palier atteint : commission fidélité {0}', [pct(cfg.commission.loyalty)])
                 : tr('Encore {0} courses pour passer à {1} (vert actuel : {2}, thermique : {3}).', [(threshold - eRides).toLocaleString('fr-FR'), pct(cfg.commission.loyalty), pct(cfg.commission.green), pct(cfg.commission.standard)])}
           </div>
         </div>
@@ -143,7 +143,7 @@ export function Green({ app, unread, openNotices }: ScreenProps) {
                 ))}
               </div>
             ))}
-            {result && !result.passed && <Banner tone="warn" title={tr('Score : {0}/{1}', [result.score, result.total])}>{tr('Il faut au moins {0} bonnes réponses. Réessayez !', [training.passScore])}</Banner>}
+            {result && !result.passed && <Banner tone="warn" title={tr('Score : {0}/{1}', [result.score, result.total])}>{tr('Il faut au moins {0} bonnes réponses. Réessayez', [training.passScore])}</Banner>}
             <button className="btn btn-primary" disabled={answers.some((a) => a < 0)} onClick={() => void submit()}>{tr('Valider mes réponses')}</button>
           </div>
         )}

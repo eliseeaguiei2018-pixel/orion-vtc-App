@@ -10,7 +10,7 @@ import type { ActiveSession, ContactHandler, DriverRow, MaintenanceTicket, Me, S
 import { ContactRapide } from '../ui';
 import { NOM_PLATEFORME, type AppareilPublic } from '../../appareil';
 
-export const SLOT_LABEL: Record<string, string> = { matin: '🌅 Matin', soir: '🌇 Soir', nuit: '🌙 Nuit' };
+export const SLOT_LABEL: Record<string, string> = { matin: 'Matin', soir: 'Soir', nuit: 'Nuit' };
 export const MAINT_LABEL: Record<string, string> = { controle_technique: 'Contrôle technique', batterie_soh: 'Batterie (SoH)', reparation: 'Réparation', nettoyage: 'Nettoyage', assurance: 'Assurance' };
 
 export function TeamsSection({ teams, allDrivers, staffKpis, shifts, maintenance, canWrite, onSave, onDelete, onShift, onRemoveShift, onMaintenance, onResolveMaintenance, onBroadcast, onPnl, onHoursCsv, onEvalPdf, onContact }: {
@@ -178,8 +178,8 @@ export function TeamsSection({ teams, allDrivers, staffKpis, shifts, maintenance
                   <div className="adm-muted" style={{ fontSize: 12 }}>Manager : {t.managerName ?? t.managerUsername} <span className="mono">({t.managerUsername})</span> · {t.driverIds.length} chauffeur{t.driverIds.length > 1 ? 's' : ''}</div>
                 </div>
                 <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                  <button className="adm-btn xs" onClick={() => void showPnl(t.id)}>📊 Micro P&L</button>
-                  {canWrite && <button className="adm-btn xs" onClick={() => broadcast(t.id)}>📣 Micro-broadcast</button>}
+                  <button className="adm-btn xs" onClick={() => void showPnl(t.id)}>Micro P&L</button>
+                  {canWrite && <button className="adm-btn xs" onClick={() => broadcast(t.id)}>Micro-broadcast</button>}
                   {canWrite && <button className="adm-btn xs" onClick={() => onDelete(t.id)}>Dissoudre</button>}
                 </div>
               </div>

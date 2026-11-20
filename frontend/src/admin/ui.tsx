@@ -42,9 +42,9 @@ export function ContactRapide({ type, id, numero, nom, onContact }: {
   const base = { dossierType: type, dossierId: id, numero, label: nom ?? numero };
   return (
     <div className="row" style={{ gap: 4 }}>
-      <button className="adm-btn xs solid" title={`Appeler ${nom ?? numero}`} onClick={() => onContact({ ...base, canal: 'appel' })}>📞</button>
-      <button className="adm-btn xs" title={`SMS à ${nom ?? numero}`} onClick={() => onContact({ ...base, canal: 'sms' })}>✉️</button>
-      <button className="adm-btn xs" title={`WhatsApp à ${nom ?? numero}`} onClick={() => onContact({ ...base, canal: 'whatsapp' })}>💬</button>
+      <button className="adm-btn xs solid" title={`Appeler ${nom ?? numero}`} onClick={() => onContact({ ...base, canal: 'appel' })}>Appeler</button>
+      <button className="adm-btn xs" title={`SMS à ${nom ?? numero}`} onClick={() => onContact({ ...base, canal: 'sms' })}>SMS</button>
+      <button className="adm-btn xs" title={`WhatsApp à ${nom ?? numero}`} onClick={() => onContact({ ...base, canal: 'whatsapp' })}>WhatsApp</button>
     </div>
   );
 }
@@ -85,7 +85,7 @@ export function AvatarChauffeur({ photoUrl, name, taille = 32 }: { photoUrl?: st
   const style = { width: taille, height: taille, borderRadius: '50%', flexShrink: 0, objectFit: 'cover' as const, border: '1px solid var(--a-line, rgba(127,127,127,.25))' };
   return photoUrl
     ? <img src={`${API}${photoUrl}`} alt={`Photo de ${name}`} style={style} />
-    : <span aria-hidden="true" style={{ ...style, display: 'inline-grid', placeItems: 'center', fontSize: taille * 0.38, fontWeight: 700, background: 'var(--a-soft, rgba(0,168,101,.12))', color: 'var(--a-accent, #00a865)' }}>{initiales}</span>;
+    : <span aria-hidden="true" style={{ ...style, display: 'inline-grid', placeItems: 'center', fontSize: taille * 0.38, fontWeight: 600, background: 'var(--a-soft, rgba(0,168,101,.12))', color: 'var(--a-accent, #00a865)' }}>{initiales}</span>;
 }
 
 export function DriverDrawer({ d, onClose }: { d: DriverDetail; onClose: () => void }) {
@@ -131,8 +131,8 @@ export function DriverDrawer({ d, onClose }: { d: DriverDetail; onClose: () => v
 const PAR_LABEL: Record<string, string> = { client: 'Par le client', systeme: 'Par ORION', chauffeur: 'Par le chauffeur', inconnu: 'Auteur non tracé' };
 const MOTIF_LABEL: Record<string, string> = {
   attente_longue: 'chauffeur trop long', chauffeur_immobile: 'chauffeur immobile', changement_plan: 'changement d’avis',
-  erreur_adresse: 'erreur d’adresse', autre_transport: 'autre moyen trouvé', chauffeur_demande: '⚠ demandé par le chauffeur',
-  securite: '⚠ ne se sentait pas en sécurité', autre: 'autre raison', aucun_chauffeur: 'aucun chauffeur disponible',
+  erreur_adresse: 'erreur d’adresse', autre_transport: 'autre moyen trouvé', chauffeur_demande: 'demandé par le chauffeur',
+  securite: 'ne se sentait pas en sécurité', autre: 'autre raison', aucun_chauffeur: 'aucun chauffeur disponible',
 };
 
 export function ClientDrawer({ c, onClose, onOpenSupport }: { c: ClientDetail; onClose: () => void; onOpenSupport: () => void }) {
@@ -187,7 +187,7 @@ export function ClientDrawer({ c, onClose, onOpenSupport }: { c: ClientDetail; o
 
 export const statusLabel = (s: string) => ({ raised: 'Reçue · à prendre', dispatched: 'Secours alertés', acknowledged: 'Prise en charge', resolved: 'Résolue', cancelled: 'Annulée' }[s] ?? s);
 export const rideStatusLabel = (s: string) => ({ searching: 'Recherche', accepted: 'Acceptée', driver_en_route: 'En approche', arrived: 'Arrivé', in_progress: 'En course', completed: 'Terminée', paid: 'Payée', rated: 'Notée', cancelled: 'Annulée', no_driver: 'Sans chauffeur' }[s] ?? s);
-export const trafficLabel = (s: string) => ({ fluid: '🟢 Fluide', dense: '🟠 Dense', jam: '🔴 Bouchon' }[s] ?? s);
+export const trafficLabel = (s: string) => ({ fluid: 'Fluide', dense: 'Dense', jam: 'Bouchon' }[s] ?? s);
 export const kycLabel = (s: string) => ({ draft: 'Brouillon', docs_submitted: 'Docs reçus', manual_review: 'Revue', approved: 'Approuvé', active: 'Actif', suspended: 'Suspendu' }[s] ?? s);
 export const availLabel = (s: string) => ({ offline: 'Hors-ligne', online: 'En ligne', on_trip: 'En course', paused: 'Pause' }[s] ?? s);
 
