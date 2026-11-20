@@ -176,3 +176,28 @@ remarques sont fondées** ; elles ont été vérifiées sur les données réelle
   position du client ; offre et course du chauffeur ; colonne Trajet, dossiers SOS et
   télématique de la console ; statistiques par commune du tableau de bord. Vérifié en
   temps réel par une course de bout en bout (F7, 17/17).
+
+## 9. Design : passe « unslop » (20 novembre)
+
+Skill unslop (Damir Sokolovsky, CC BY 4.0) copié dans `.claude/skills/unslop`. Audit selon sa
+grille : ~190 emoji en guise d'icônes ou de décor (dont les 37 entrées du menu de la console),
+~160 dégradés de teinte, une trentaine de halos colorés, du texte en dégradé, des titres en
+graisse 800–900, des libellés en capitales espacées, des boucles d'animation décoratives,
+des salutations avec emoji et des points d'exclamation. Corrigé sur les quatre interfaces
+sans toucher aux fonctions : icônes au trait du jeu du projet, aplats, en-têtes sur fond
+neutre, un seul accent vert, texte foncé sur l'accent (4,5:1), graisses 600 au plus, casse
+normale, aucun interlettrage sur l'arabe, accueil titré « Où allez-vous aujourd'hui ? ».
+Les captures du rapport partagé précèdent cette passe.
+
+## 10. Application Android à installer
+
+APK de l'app client compilé et vérifié (Android 7 et plus ; signature v2) : fonctionne sans
+serveur (courses simulées) avec la vraie carte d'Abidjan, le GPS du téléphone et la
+recherche des 449 lieux, livrés dans l'app. Workflow `apk-client.yml` prêt pour le publier
+dans une release du dépôt.
+
+**Intégration continue** : depuis le 20 novembre vers 13 h, GitHub Actions n'attribue plus
+de machine (macOS et Windows d'abord, puis Linux) : chaque tâche s'arrête en quelques
+secondes, sans journal. Cause probable : quota de minutes du compte épuisé (les
+simulateurs iPhone sur macOS comptent dix fois). À vérifier dans les réglages de
+facturation GitHub ; les essais iPhone et Android sont à relancer ensuite.
