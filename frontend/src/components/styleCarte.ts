@@ -37,6 +37,8 @@ const classe = (...c: string[]): ExpressionSpecification => ['match', ['get', 'c
 const nom: ExpressionSpecification = ['coalesce', ['get', 'name:fr'], ['get', 'name']];
 
 export function styleOrion(mode: 'dark' | 'light', cfg: VectorConfig): StyleSpecification {
+  // Polices livrées avec l'app : mêmes fontes, dossiers sans espaces.
+  const police = (nom: string) => (cfg.policesLocales ? nom.replace(/ /g, '') : nom);
   const P = mode === 'light' ? CLAIR : SOMBRE;
   const routes = (_n: string, filtre: ExpressionSpecification, pont: boolean) => {
     const base: ExpressionSpecification = pont
@@ -98,32 +100,32 @@ export function styleOrion(mode: 'dark' | 'light', cfg: VectorConfig): StyleSpec
       ...voirie(true),
       {
         id: 'noms-eau', type: 'symbol', source: 'osm', 'source-layer': 'water_name',
-        layout: { 'text-field': nom, 'text-font': ['Noto Sans Italic'], 'text-size': 13, 'text-letter-spacing': 0.12, 'text-max-width': 8 },
+        layout: { 'text-field': nom, 'text-font': [police('Noto Sans Italic')], 'text-size': 13, 'text-letter-spacing': 0.12, 'text-max-width': 8 },
         paint: { 'text-color': P.texteEau, 'text-halo-color': P.halo, 'text-halo-width': 1.2 },
       },
       {
         id: 'noms-routes', type: 'symbol', source: 'osm', 'source-layer': 'transportation_name', minzoom: 13,
         filter: classe('motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'minor'),
-        layout: { 'symbol-placement': 'line', 'text-field': nom, 'text-font': ['Noto Sans Regular'], 'text-size': ['interpolate', ['linear'], ['zoom'], 13, 10, 17, 13], 'text-max-angle': 30 },
+        layout: { 'symbol-placement': 'line', 'text-field': nom, 'text-font': [police('Noto Sans Regular')], 'text-size': ['interpolate', ['linear'], ['zoom'], 13, 10, 17, 13], 'text-max-angle': 30 },
         paint: { 'text-color': P.texte, 'text-halo-color': P.halo, 'text-halo-width': 1.4 },
       },
       {
         id: 'quartiers', type: 'symbol', source: 'osm', 'source-layer': 'place',
         filter: classe('suburb', 'quarter', 'neighbourhood', 'village', 'town'),
         layout: {
-          'text-field': nom, 'text-font': ['Noto Sans Bold'], 'text-transform': 'uppercase', 'text-letter-spacing': 0.16,
+          'text-field': nom, 'text-font': [police('Noto Sans Bold')], 'text-transform': 'uppercase', 'text-letter-spacing': 0.16,
           'text-size': ['interpolate', ['linear'], ['zoom'], 11, 10, 15, 13], 'text-max-width': 9,
         },
         paint: { 'text-color': P.texte, 'text-halo-color': P.halo, 'text-halo-width': 1.6 },
       },
       {
         id: 'villes', type: 'symbol', source: 'osm', 'source-layer': 'place', filter: classe('city'),
-        layout: { 'text-field': nom, 'text-font': ['Noto Sans Bold'], 'text-size': ['interpolate', ['linear'], ['zoom'], 6, 12, 12, 18] },
+        layout: { 'text-field': nom, 'text-font': [police('Noto Sans Bold')], 'text-size': ['interpolate', ['linear'], ['zoom'], 6, 12, 12, 18] },
         paint: { 'text-color': P.texteFort, 'text-halo-color': P.halo, 'text-halo-width': 1.6 },
       },
       {
         id: 'aeroports', type: 'symbol', source: 'osm', 'source-layer': 'aerodrome_label',
-        layout: { 'text-field': nom, 'text-font': ['Noto Sans Regular'], 'text-size': 11, 'text-max-width': 8 },
+        layout: { 'text-field': nom, 'text-font': [police('Noto Sans Regular')], 'text-size': 11, 'text-max-width': 8 },
         paint: { 'text-color': P.texte, 'text-halo-color': P.halo, 'text-halo-width': 1.4 },
       },
     ] as StyleSpecification['layers'],

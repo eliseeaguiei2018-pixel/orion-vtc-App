@@ -25,6 +25,8 @@ export interface VectorConfig {
   attribution: string;
   bounds?: [number, number, number, number];
   maxzoom?: number;
+  /** Polices livrées avec l'app : dossiers sans espaces (« NotoSansRegular »). */
+  policesLocales?: boolean;
 }
 
 const env = import.meta.env as Record<string, string | undefined>;
@@ -38,6 +40,7 @@ export function getVectorConfig(): VectorConfig | null {
     attribution: '© OpenStreetMap · OpenFreeMap',
     bounds: bornes.length === 4 && bornes.every(Number.isFinite) ? bornes as [number, number, number, number] : undefined,
     maxzoom: env.VITE_MAP_TILES_MAXZOOM ? Number(env.VITE_MAP_TILES_MAXZOOM) : undefined,
+    policesLocales: (env.VITE_MAP_GLYPHS_URL ?? '').startsWith('./'),
   };
 }
 
