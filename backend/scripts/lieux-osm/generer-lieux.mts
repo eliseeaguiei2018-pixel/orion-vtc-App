@@ -163,6 +163,8 @@ export const QUARTIERS_ABIDJAN: readonly Quartier[] = [
 ${sortie.map((l) => `  [${JSON.stringify(l.nom)}, ${l.lat}, ${l.lng}, '${l.niveau}', ${l.commune ? communesListe.indexOf(l.commune) : -1}],`).join('\n')}
 ];
 `);
+// Copie identique pour l'app cliente : recherche des lieux sans serveur (réseau faible, démo).
+writeFileSync(path.resolve(racine, '..', '..', '..', '..', 'frontend', 'src', 'lieux-abidjan.ts'), readFileSync(path.join(racine, 'quartiers-abidjan.ts')));
 writeFileSync(path.join(racine, 'limites-communes.ts'), `/**
  * LIMITES DES COMMUNES DU DISTRICT D'ABIDJAN — OpenStreetMap (limites administratives de
  * niveau 8), extraites le ${stats.date}. Données © contributeurs OSM, ODbL.

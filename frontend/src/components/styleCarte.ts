@@ -70,7 +70,12 @@ export function styleOrion(mode: 'dark' | 'light', cfg: VectorConfig): StyleSpec
     version: 8,
     name: `ORION ${mode}`,
     glyphs: cfg.glyphs,
-    sources: { osm: { type: 'vector', url: cfg.tiles, attribution: cfg.attribution } },
+    sources: {
+      // Modèle {z}/{x}/{y} (tuiles livrées avec l'app) ou TileJSON (serveur de tuiles).
+      osm: cfg.tiles.includes('{z}')
+        ? { type: 'vector', tiles: [cfg.tiles], attribution: cfg.attribution, ...(cfg.bounds ? { bounds: cfg.bounds } : {}), maxzoom: cfg.maxzoom ?? 14 }
+        : { type: 'vector', url: cfg.tiles, attribution: cfg.attribution },
+    },
     layers: [
       { id: 'fond', type: 'background', paint: { 'background-color': P.fond } },
       { id: 'residentiel', type: 'fill', source: 'osm', 'source-layer': 'landuse', filter: classe('residential', 'suburb', 'neighbourhood'), paint: { 'fill-color': P.residentiel } },

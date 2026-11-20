@@ -4,6 +4,7 @@ import { Geocodeur } from '../src/modules/maps/geocodage.js';
 import { QUARTIERS_ABIDJAN } from '../src/modules/maps/quartiers-abidjan.js';
 import { communeDe, lieuDe } from '../src/modules/maps/lieux.js';
 import { buildApp } from '../src/app.js';
+import { readFileSync } from 'node:fs';
 
 const PLATEAU = { lat: 5.3236, lng: -4.0217 };
 
@@ -105,4 +106,10 @@ test('route /maps/recherche : coordonnées pour chaque résultat ; requête trop
   const res = await app.inject({ method: 'POST', url: '/geo/resolve', payload: { point: { lat: 5.34646, lng: -3.97476 } } });
   assert.equal(res.json().lieu.libelle, 'Riviéra 2, Cocody');
   assert.equal((await app.inject({ method: 'GET', url: '/maps/recherche?q=c' })).statusCode, 400);
+});
+
+test("app cliente : sa copie des lieux (recherche sans serveur) est identique à celle du serveur", () => {
+  const serveur = readFileSync(new URL('../src/modules/maps/quartiers-abidjan.ts', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('../../frontend/src/lieux-abidjan.ts', import.meta.url), 'utf8');
+  assert.equal(app, serveur, 'régénérer avec scripts/lieux-osm (README) : les deux copies ont divergé');
 });

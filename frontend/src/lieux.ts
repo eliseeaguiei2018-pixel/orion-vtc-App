@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LatLng, Place } from './types';
 import { ABIDJAN_PLACES, DEFAULT_ORIGIN } from './data';
 import { isLiveBackend, urlApi } from './api';
+import { COMMUNES_ABIDJAN, QUARTIERS_ABIDJAN, type NiveauLieu } from './lieux-abidjan';
 
 /**
  * LIEUX DU CLIENT : point de prise en charge, recherche d'adresse, récents, domicile,
@@ -43,9 +44,53 @@ export function enregistrerLieu(quel: 'home' | 'work', p: Place, nom: string): P
 /** Lieux populaires (gares, aéroport, hôpitaux, université…) : jamais le domicile d'un autre. */
 export const LIEUX_POPULAIRES: Place[] = ABIDJAN_PLACES.filter((p) => p.kind !== 'home' && p.kind !== 'work');
 
-const sansAccents = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const sansAccents = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[-'’]/g, ' ').replace(/\s+/g, ' ').trim();
 
-/** Recherche d'adresse : serveur (répertoire ORION + OpenStreetMap), sinon lieux connus. */
+const LIBELLE_NIVEAU: Record<NiveauLieu, string> = {
+  quartier: 'Quartier', 'sous-quartier': 'Sous-quartier', village: 'Village', hameau: 'Hameau', ile: 'Île',
+};
+const distanceM = (a: LatLng, b: LatLng) => {
+  const r = Math.PI / 180, dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2;
+  return 12_742_000 * Math.asin(Math.sqrt(h));
+};
+
+/**
+ * RECHERCHE SANS SERVEUR : les 449 lieux du Grand Abidjan vérifiés (OpenStreetMap,
+ * dédoublonnés, avec niveau et commune) sont livrés avec l'app — mêmes données et même
+ * classement que le serveur. Sert quand le serveur ne répond pas (réseau faible) et en
+ * démonstration : la recherche d'un quartier marche toujours.
+ */
+export function rechercheLocale(q: string, pres?: LatLng): Place[] {
+  const cle = sansAccents(q);
+  if (cle.length < 2) return [];
+  const rang = (nom: string) => {
+    const n = sansAccents(nom);
+    return n === cle ? 0 : n.startsWith(cle) ? 1 : n.split(' ').some((m) => m.startsWith(cle)) ? 2 : n.includes(cle) ? 3 : -1;
+  };
+  const candidats: Array<Place & { rang: number; poids: number }> = [];
+  for (const p of LIEUX_POPULAIRES) {
+    const r = Math.min(...[rang(p.name), rang(p.area)].map((x) => (x < 0 ? 9 : x)));
+    if (r < 9) candidats.push({ ...p, rang: r, poids: 0 });
+  }
+  for (const [nom, lat, lng, niveau, iCommune] of QUARTIERS_ABIDJAN) {
+    const r = rang(nom);
+    if (r < 0) continue;
+    // Les quartiers passent avant leurs subdivisions (« Zone 4 » avant « Zone 4A »).
+    const poids = niveau === 'quartier' ? 1 : niveau === 'sous-quartier' ? 2 : 3;
+    candidats.push({
+      id: `osm-lieu:${sansAccents(nom).replace(/ /g, '-')}:${lat}`, name: nom,
+      area: `${LIBELLE_NIVEAU[niveau]} · ${COMMUNES_ABIDJAN[iCommune] ?? 'Grand Abidjan'}`,
+      location: { lat, lng }, rang: r, poids,
+    });
+  }
+  return candidats
+    .sort((a, b) => a.rang - b.rang || a.poids - b.poids || (pres ? distanceM(pres, a.location) - distanceM(pres, b.location) : 0))
+    .slice(0, 8)
+    .map(({ rang: _r, poids: _p, ...l }) => l);
+}
+
+/** Recherche d'adresse : serveur (répertoire ORION + OpenStreetMap), sinon répertoire livré. */
 export async function rechercherLieux(q: string, pres?: LatLng, signal?: AbortSignal): Promise<Place[]> {
   const requete = q.trim();
   if (requete.length < 2) return [];
@@ -62,20 +107,36 @@ export async function rechercherLieux(q: string, pres?: LatLng, signal?: AbortSi
       if ((e as Error).name === 'AbortError') throw e;
     }
   }
-  const cle = sansAccents(requete);
-  return LIEUX_POPULAIRES.filter((p) => sansAccents(`${p.name} ${p.area}`).includes(cle));
+  return rechercheLocale(requete, pres);
 }
 
-/** Quartier ou commune d'un point (serveur) ; null si hors de Côte d'Ivoire. */
+/** Lieu le plus proche (quartier, village…) à moins de 1,2 km, d'après le répertoire livré. */
+function lieuProche(p: LatLng): string | null {
+  let meilleur: { nom: string; d: number } | null = null;
+  for (const [nom, lat, lng, , iCommune] of QUARTIERS_ABIDJAN) {
+    if (Math.abs(lat - p.lat) > 0.02 || Math.abs(lng - p.lng) > 0.02) continue;
+    const d = distanceM(p, { lat, lng });
+    const commune = COMMUNES_ABIDJAN[iCommune];
+    if (d <= 1_200 && (!meilleur || d < meilleur.d)) meilleur = { nom: commune ? `${nom}, ${commune}` : nom, d };
+  }
+  return meilleur?.nom ?? null;
+}
+const EN_COTE_D_IVOIRE = (p: LatLng) => p.lat > 4.34 && p.lat < 10.74 && p.lng > -8.61 && p.lng < -2.49;
+
+/** Quartier ou commune d'un point ; null si hors de Côte d'Ivoire ou serveur muet. */
 export async function quartierDe(p: LatLng): Promise<{ nom: string; enZone: boolean } | null> {
-  if (!isLiveBackend()) return { nom: 'Abidjan', enZone: true };
+  // Sans serveur : le lieu le plus proche du répertoire livré avec l'app.
+  if (!isLiveBackend()) return { nom: lieuProche(p) ?? (EN_COTE_D_IVOIRE(p) ? 'Abidjan' : 'Hors de Côte d’Ivoire'), enZone: EN_COTE_D_IVOIRE(p) };
   try {
     const res = await fetch(urlApi('/geo/resolve')!, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ point: p }) });
     if (!res.ok) return null;
     const j = await res.json() as { inServiceArea: boolean; zone: { name: string } | null; lieu?: { libelle: string } | null };
     // « Riviéra 2, Cocody » : quartier réel et commune (limites OSM) ; à défaut, la zone.
     return { nom: j.lieu?.libelle ?? j.zone?.name ?? 'Côte d’Ivoire', enZone: j.inServiceArea };
-  } catch { return null; }
+  } catch {
+    const proche = lieuProche(p);
+    return proche ? { nom: proche, enZone: true } : null;
+  }
 }
 
 /**
