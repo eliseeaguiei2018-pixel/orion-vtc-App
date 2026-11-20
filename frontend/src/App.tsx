@@ -927,7 +927,9 @@ function Onboarding({ onStart, onLang }: { onStart: () => void; onLang: () => vo
  * suivants de la feuille (constat sur simulateur iPhone).
  */
 const fermerClavierHorsFeuille = (e: React.PointerEvent) => {
-  if ((e.target as HTMLElement).closest('.sheet, .topbar')) return;
+  // Seuls la feuille et les éléments interactifs gardent le focus : toucher le titre de la
+  // barre du haut ferme aussi le clavier (écran du code SMS).
+  if ((e.target as HTMLElement).closest('.sheet, button, a, input, textarea, select, label')) return;
   const actif = document.activeElement;
   if (actif instanceof HTMLInputElement || actif instanceof HTMLTextAreaElement) actif.blur();
 };
