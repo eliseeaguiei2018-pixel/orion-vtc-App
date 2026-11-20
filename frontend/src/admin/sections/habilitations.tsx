@@ -86,7 +86,7 @@ export function HabilitationsSection({ can }: { can: (p: string) => boolean }) {
           <span>2 · Transmission à la direction (informatique)</span>
           <span>3 · Décision d’un directeur, jamais celui qui a transmis</span>
         </div>
-        {enAttente.length > 0 && <p style={{ marginTop: 10, color: 'var(--a-amber)' }}>⏳ {enAttente.length} demande{enAttente.length > 1 ? 's' : ''} attend{enAttente.length > 1 ? 'ent' : ''} votre action.</p>}
+        {enAttente.length > 0 && <p style={{ marginTop: 10, color: 'var(--a-amber-txt)' }}>⏳ {enAttente.length} demande{enAttente.length > 1 ? 's' : ''} attend{enAttente.length > 1 ? 'ent' : ''} votre action.</p>}
       </div>
 
       {informatique && (

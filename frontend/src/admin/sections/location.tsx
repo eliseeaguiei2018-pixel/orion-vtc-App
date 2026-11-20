@@ -117,11 +117,11 @@ export function RentalSection({ reservations, fleet, stats, dispos, drivers, can
         <div className="adm-card-h">
           <h3>Dossiers de location</h3>
           <div className="row" style={{ gap: 8 }}>
-            <select className="adm-select" value={formule} onChange={(e) => setFormule(e.target.value)}>
+            <select className="adm-select" aria-label="Filtrer par formule" value={formule} onChange={(e) => setFormule(e.target.value)}>
               <option value="">Toutes les formules</option>
               {Object.entries(LABEL_FORMULE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
-            <select className="adm-select" value={statut} onChange={(e) => setStatut(e.target.value)}>
+            <select className="adm-select" aria-label="Filtrer par statut" value={statut} onChange={(e) => setStatut(e.target.value)}>
               <option value="">Tous les statuts</option>
               {Object.entries(LABEL_STATUT).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
@@ -182,6 +182,7 @@ export function RentalSection({ reservations, fleet, stats, dispos, drivers, can
                                 <>
                                   <select
                                     className="adm-select"
+                                    aria-label="Chauffeur affecté"
                                     value={choixChauffeur[r.id] ?? r.driverId ?? ''}
                                     onChange={(e) => setChoixChauffeur((c) => ({ ...c, [r.id]: e.target.value }))}
                                   >
@@ -322,7 +323,7 @@ export function SubscriptionsSection({ plans, subscriptions, invoices, stats, ca
         <div className="adm-card-h">
           <h3>Factures d’abonnement</h3>
           <div className="row" style={{ gap: 8 }}>
-            <select className="adm-select" value={filtre} onChange={(e) => setFiltre(e.target.value)}>
+            <select className="adm-select" aria-label="Filtrer les factures" value={filtre} onChange={(e) => setFiltre(e.target.value)}>
               <option value="">Toutes</option>
               {Object.entries(LABEL_FACTURE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>

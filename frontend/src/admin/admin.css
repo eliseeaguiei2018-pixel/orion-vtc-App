@@ -2,6 +2,7 @@
 :root {
   --a-bg: #071009; --a-panel: #0f201a; --a-panel2: #0c1a14; --a-stroke: #1c3a2c;
   --a-text: #e8f3ee; --a-muted: #8fb0a2; --a-green: #2bffa6; --a-green2: #00c884;
+  --a-green-txt: var(--a-green); --a-amber-txt: var(--a-amber); --a-teal-txt: var(--a-teal);
   --a-danger: #ff5468; --a-amber: #f5c451; --a-teal: #38e0c0;
 }
 * { box-sizing: border-box; }
@@ -46,7 +47,7 @@ body { margin: 0; background: var(--a-bg); color: var(--a-text); font-family: 'I
 .adm-navi-ico { font-size: 16px; }
 .adm-navi-badge { margin-left: auto; background: var(--a-danger); color: #fff; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 1px 7px; }
 .adm-side-foot { margin-top: auto; border-top: 1px solid var(--a-stroke); padding-top: 12px; }
-.adm-role { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--a-green); font-weight: 700; }
+.adm-role { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--a-green-txt); font-weight: 700; }
 .adm-role-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--a-green); box-shadow: 0 0 0 3px rgba(43,255,166,0.2); }
 .adm-me { font-size: 13px; color: var(--a-text); margin-top: 3px; }
 
@@ -75,8 +76,8 @@ body { margin: 0; background: var(--a-bg); color: var(--a-text); font-family: 'I
 .field select { width: 100%; }
 
 /* Lien sobre dans un tableau ou une fiche. */
-.adm-link { color: var(--a-green); text-decoration: underline; text-underline-offset: 2px; }
-.adm-link-btn { background: none; border: 0; padding: 0; font: inherit; color: var(--a-green); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.adm-link { color: var(--a-green-txt); text-decoration: underline; text-underline-offset: 2px; }
+.adm-link-btn { background: none; border: 0; padding: 0; font: inherit; color: var(--a-green-txt); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .adm-link-btn:focus-visible { outline: 2px solid var(--a-green); outline-offset: 2px; border-radius: 3px; }
 .adm-link:hover { color: var(--a-green2); }
 
@@ -168,8 +169,8 @@ textarea.adm-select { resize: vertical; font-family: inherit; width: 100%; }
 .adm-sub { font-size: 12px; color: var(--a-muted); }
 .adm-top-right { display: flex; align-items: center; gap: 14px; }
 .adm-live { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; }
-.adm-live.on { color: var(--a-green); }
-.adm-live.demo { color: var(--a-amber); }
+.adm-live.on { color: var(--a-green-txt); }
+.adm-live.demo { color: var(--a-amber-txt); }
 .adm-clock { font-variant-numeric: tabular-nums; color: var(--a-muted); font-size: 13px; }
 
 .adm-btn { border: 1px solid var(--a-stroke); background: var(--a-panel); color: var(--a-text);
@@ -255,10 +256,10 @@ textarea.adm-select { resize: vertical; font-family: inherit; width: 100%; }
 .adm-alert.resolved { opacity: 0.55; }
 .adm-alert-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .adm-tag { font-size: 12px; font-weight: 700; }
-.adm-tag.crash { color: var(--a-danger); } .adm-tag.sos { color: var(--a-amber); }
+.adm-tag.crash { color: var(--a-danger); } .adm-tag.sos { color: var(--a-amber-txt); }
 .adm-alert-zone { font-size: 12px; color: var(--a-text); }
 .adm-status { margin-left: auto; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--a-panel); border: 1px solid var(--a-stroke); color: var(--a-muted); }
-.adm-status.resolved { color: var(--a-green); border-color: var(--a-green2); }
+.adm-status.resolved { color: var(--a-green-txt); border-color: var(--a-green2); }
 .adm-alert-meta { font-size: 11px; color: var(--a-muted); margin: 6px 0 8px; }
 .adm-alert-actions { display: flex; gap: 8px; }
 
@@ -271,19 +272,19 @@ textarea.adm-select { resize: vertical; font-family: inherit; width: 100%; }
 .adm-table .cap { text-transform: capitalize; }
 .adm-pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--a-stroke); }
 /* Habilitations au tableau de bord */
-.adm-pill.hab-green { color: var(--a-green); border-color: rgba(43,255,166,0.4); }
-.adm-pill.hab-amber { color: var(--a-amber); border-color: rgba(245,196,81,0.4); }
+.adm-pill.hab-green { color: var(--a-green-txt); border-color: rgba(43,255,166,0.4); }
+.adm-pill.hab-amber { color: var(--a-amber-txt); border-color: rgba(245,196,81,0.4); }
 .adm-pill.hab-red { color: var(--a-danger); border-color: rgba(255,84,104,0.45); }
 .adm-pill.hab-green, .adm-pill.hab-amber, .adm-pill.hab-red { display: inline-block; white-space: nowrap; }
 a.adm-btn { text-decoration: none; }
 .hab-etapes { display: flex; gap: 8px; flex-wrap: wrap; }
 .hab-etapes span { font-size: 12px; color: var(--a-text); padding: 6px 10px; border-radius: 10px; background: var(--a-panel2); border: 1px solid var(--a-stroke); }
-.adm-pill.av-online, .adm-pill.kyc-active, .adm-pill.kyc-approved { color: var(--a-green); border-color: rgba(43,255,166,0.4); }
-.adm-pill.av-on_trip { color: var(--a-amber); border-color: rgba(245,196,81,0.4); }
-.adm-pill.kyc-manual_review { color: var(--a-amber); border-color: rgba(245,196,81,0.4); }
-.adm-pill.s-in_progress, .adm-pill.s-driver_en_route { color: var(--a-teal); border-color: rgba(56,224,192,0.4); }
-.adm-pill.s-completed, .adm-pill.s-paid, .adm-pill.s-rated { color: var(--a-green); border-color: rgba(43,255,166,0.4); }
-.adm-pill.s-searching { color: var(--a-amber); border-color: rgba(245,196,81,0.4); }
+.adm-pill.av-online, .adm-pill.kyc-active, .adm-pill.kyc-approved { color: var(--a-green-txt); border-color: rgba(43,255,166,0.4); }
+.adm-pill.av-on_trip { color: var(--a-amber-txt); border-color: rgba(245,196,81,0.4); }
+.adm-pill.kyc-manual_review { color: var(--a-amber-txt); border-color: rgba(245,196,81,0.4); }
+.adm-pill.s-in_progress, .adm-pill.s-driver_en_route { color: var(--a-teal-txt); border-color: rgba(56,224,192,0.4); }
+.adm-pill.s-completed, .adm-pill.s-paid, .adm-pill.s-rated { color: var(--a-green-txt); border-color: rgba(43,255,166,0.4); }
+.adm-pill.s-searching { color: var(--a-amber-txt); border-color: rgba(245,196,81,0.4); }
 
 .adm-foot { margin-top: 22px; color: var(--a-muted); font-size: 12px; text-align: center; }
 
@@ -322,7 +323,7 @@ a.adm-btn { text-decoration: none; }
 .adm-mini-kpi span { font-size: 11px; color: var(--a-muted); }
 .adm-mini-kpi strong { font-size: 16px; }
 .adm-table.sm { font-size: 12px; }
-.adm-table .pos { color: var(--a-green); } .adm-table .neg { color: var(--a-amber); }
+.adm-table .pos { color: var(--a-green-txt); } .adm-table .neg { color: var(--a-amber-txt); }
 .adm-conv-list { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; }
 .adm-conv-list li { display: flex; justify-content: space-between; gap: 8px; background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
 
@@ -354,8 +355,8 @@ a.adm-btn { text-decoration: none; }
 .adm-search-item:hover { background: rgba(43,255,166,0.08); }
 
 /* --- Trésorerie --- */
-.adm-pill.tr-pending { color: var(--a-amber); border-color: rgba(245,196,81,0.45); }
-.adm-pill.tr-approved { color: var(--a-green); border-color: rgba(43,255,166,0.4); }
+.adm-pill.tr-pending { color: var(--a-amber-txt); border-color: rgba(245,196,81,0.45); }
+.adm-pill.tr-approved { color: var(--a-green-txt); border-color: rgba(43,255,166,0.4); }
 .adm-pill.tr-rejected { color: var(--a-danger); border-color: rgba(255,84,104,0.4); }
 
 /* --- Cloche sirène SAMU --- */
@@ -372,11 +373,11 @@ html[data-adm-theme='light'] {
   --a-bg: #f3f7f4; --a-panel: #ffffff; --a-panel2: #ecf3ee; --a-stroke: #d3e3d8;
   --a-text: #0b1f14; --a-muted: #587165; --a-green: #0eb772; --a-green2: #0a9f66;
   --a-danger: #d92038; --a-amber: #a87407; --a-teal: #0a8f7a;
+  /* Texte : teintes foncées (contraste ≥ 4,5:1, WCAG 1.4.3) ; aplats et jauges inchangés. */
+  --a-green-txt: #067a4b; --a-amber-txt: #7d5200; --a-teal-txt: #066e5e;
 }
 /* Mode clair : les verts et oranges vifs du thème sombre n'atteignent pas le contraste
    4.5:1 des textes (WCAG 1.4.3) sur fond blanc ; teintes foncées pour le TEXTE seulement. */
-html[data-adm-theme='light'] .adm-role, html[data-adm-theme='light'] .adm-live.on,
-html[data-adm-theme='light'] .adm-pill.hab-green { color: #067a4b; }
 html[data-adm-theme='light'] .adm-pill.lvl-rouge { color: #a8102a; }
 html[data-adm-theme='light'] .adm-pill.lvl-orange { color: #9a4700; }
 html[data-adm-theme='light'] .adm-pill.lvl-jaune { color: #6f5a00; }
@@ -442,7 +443,7 @@ html[data-adm-theme='light'] .adm-trace-bg { fill: #0b1f14; }
 /* Session SAMU — « dark room » à fort contraste */
 .samu-room .samu-head { border-color: rgba(255,84,104,0.35); }
 html[data-adm-theme='dark'] .samu-room .adm-card { background: #0a0d0b; }
-.samu-sla { color: var(--a-amber); font-weight: 700; font-size: 12px; }
+.samu-sla { color: var(--a-amber-txt); font-weight: 700; font-size: 12px; }
 .adm-pill.lvl-rouge { background: rgba(217,32,56,0.22); color: #ff6b7d; border: 1px solid rgba(217,32,56,0.5); font-weight: 800; }
 .adm-pill.lvl-orange { background: rgba(230,126,34,0.20); color: #f0913f; border: 1px solid rgba(230,126,34,0.45); font-weight: 800; }
 .adm-pill.lvl-jaune { background: rgba(214,178,7,0.18); color: #d9c23a; border: 1px solid rgba(214,178,7,0.42); font-weight: 800; }
@@ -536,8 +537,8 @@ html[data-adm-theme='dark'] .samu-room .adm-card { background: #0a0d0b; }
 .stack { display: flex; flex-direction: column; gap: 12px; }
 /* Hors tableau, ces utilitaires n'existaient pas non plus. */
 .mono { font-family: ui-monospace, monospace; }
-.pos { color: var(--a-green); }
-.neg { color: var(--a-amber); }
+.pos { color: var(--a-green-txt); }
+.neg { color: var(--a-amber-txt); }
 
 /* ---- Alarme SOS temps réel (flux d'urgence) ---- */
 .adm-alarme { position: sticky; top: 0; z-index: 60; display: flex; align-items: center; gap: 12px;
@@ -577,13 +578,13 @@ html[data-adm-theme='light'] .adm-alarme .adm-btn.ghost { background: transparen
 .msg-modele:hover { border-color: var(--a-green2); }
 .msg-modele.on { border-color: var(--a-green); background: color-mix(in srgb, var(--a-green) 12%, transparent); }
 .msg-retour { font-size: 13px; font-weight: 600; }
-.msg-retour.ok { color: var(--a-green); } .msg-retour.ko { color: var(--a-danger); }
+.msg-retour.ok { color: var(--a-green-txt); } .msg-retour.ko { color: var(--a-danger); }
 .msg-fil { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .msg-fil li { border: 1px solid var(--a-stroke); border-radius: 12px; padding: 10px 12px; background: var(--a-panel2); }
 .msg-fil li.alerte { border-color: var(--a-danger); background: color-mix(in srgb, var(--a-danger) 10%, var(--a-panel2)); }
 .msg-titre { font-size: 13px; margin-top: 2px; }
 .msg-etat { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; font-size: 12.5px; }
-.msg-rep { color: var(--a-green); font-weight: 600; } .msg-rep.danger { color: var(--a-danger); }
+.msg-rep { color: var(--a-green-txt); font-weight: 600; } .msg-rep.danger { color: var(--a-danger); }
 .adm-btn.msg-btn-alerte { background: var(--a-danger); color: #fff; border: none; }
 
 /* ===== ORION Assurance : dossier de premiers secours (tiroir SAMU) ===== */

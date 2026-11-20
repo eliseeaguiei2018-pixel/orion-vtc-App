@@ -72,7 +72,7 @@ export function ObjectifsFinanciersCarte({ peutModifier }: { peutModifier: boole
           </label>
         ))}
       </div>
-      {incoherent && <p className="adm-muted" style={{ color: 'var(--a-amber)', marginTop: 10 }}>⚠️ Attention : un objectif est plus petit que celui de la période plus courte. Vérifiez la saisie.</p>}
+      {incoherent && <p className="adm-muted" style={{ color: 'var(--a-amber-txt)', marginTop: 10 }}>⚠️ Attention : un objectif est plus petit que celui de la période plus courte. Vérifiez la saisie.</p>}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
         {peutModifier ? (
           <button className="adm-btn solid" disabled={envoi || invalides.length > 0 || modifies.length === 0} onClick={() => void enregistrer()}>

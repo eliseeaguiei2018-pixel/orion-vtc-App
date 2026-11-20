@@ -270,6 +270,29 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [section, setSection] = useState<Section>('monPoste');
   // Téléphone et tablette en portrait : le menu est un tiroir, fermé par défaut.
   const [menuOuvert, setMenuOuvert] = useState(false);
+  /*
+   * Sur petit écran, un tableau large défile horizontalement dans sa carte. Une zone qui
+   * défile doit être atteignable au clavier (WCAG 2.1.1) : elle devient une région nommée
+   * et focalisable, seulement quand elle déborde réellement.
+   */
+  useEffect(() => {
+    const marquer = () => {
+      for (const carte of document.querySelectorAll<HTMLElement>('.adm-main .adm-card')) {
+        const deborde = carte.scrollWidth > carte.clientWidth + 1;
+        if (deborde && !carte.hasAttribute('tabindex')) {
+          carte.tabIndex = 0;
+          carte.setAttribute('role', 'region');
+          carte.setAttribute('aria-label', carte.querySelector('h3')?.textContent?.trim() || 'Tableau');
+          carte.dataset.defile = '1';
+        } else if (!deborde && carte.dataset.defile) {
+          carte.removeAttribute('tabindex'); carte.removeAttribute('role'); carte.removeAttribute('aria-label'); delete carte.dataset.defile;
+        }
+      }
+    };
+    const id = window.setTimeout(marquer, 400);
+    window.addEventListener('resize', marquer);
+    return () => { window.clearTimeout(id); window.removeEventListener('resize', marquer); };
+  });
   const [driverSel, setDriverSel] = useState<DriverDetail | null>(null);
   const [clientSel, setClientSel] = useState<ClientDetail | null>(null);
   const [transfers, setTransfers] = useState<Transfer[]>([]);

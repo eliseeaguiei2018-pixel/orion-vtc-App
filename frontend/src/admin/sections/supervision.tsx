@@ -192,6 +192,7 @@ function RepertoireUrgence({ contacts, canWrite, onSave, onDelete }: {
                 {canWrite ? (
                   <input
                     className="adm-input-num" style={{ width: 160, textAlign: 'left' }} defaultValue={c.numero}
+                    aria-label={`Numéro de ${c.label}`} inputMode="tel" autoComplete="off"
                     onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== c.numero) onSave({ id: c.id, label: c.label, numero: v }); }}
                   />
                 ) : c.numero}
@@ -331,7 +332,7 @@ export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf
             ))}
           </div>
           <div className="adm-chat-input">
-            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Message libre (discret)…" onKeyDown={(e) => { if (e.key === 'Enter' && text.trim()) { onMessage(a.id, text.trim()); setText(''); } }} />
+            <input value={text} aria-label="Message à l’usager" onChange={(e) => setText(e.target.value)} placeholder="Message libre (discret)…" onKeyDown={(e) => { if (e.key === 'Enter' && text.trim()) { onMessage(a.id, text.trim()); setText(''); } }} />
             <button className="adm-btn solid" onClick={() => { if (text.trim()) { onMessage(a.id, text.trim()); setText(''); } }}>Envoyer</button>
           </div>
         </>
@@ -346,7 +347,7 @@ export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf
       {canWrite && open && (
         <>
           <h4 className="adm-drawer-sec">Clôture (note de synthèse OBLIGATOIRE)</h4>
-          <textarea className="adm-select" rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Résumé factuel de l’incident, actions menées, issue… (10 caractères min.)" />
+          <textarea className="adm-select" rows={3} aria-label="Rapport d’incident" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Résumé factuel de l’incident, actions menées, issue… (10 caractères min.)" />
           <button className="adm-btn solid" style={{ marginTop: 8 }} disabled={note.trim().length < 10} onClick={() => onCloseAlert(a.id, note.trim())}>
             🔏 Clore & sceller le dossier
           </button>
@@ -559,9 +560,9 @@ function PosteContact({ dossier, canWrite, onContact, onIssue }: {
 
       {canWrite && (
         <div className="row" style={{ gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-          <input className="adm-select" style={{ flex: '1 1 150px' }} placeholder="Numéro libre (+225…)"
+          <input className="adm-select" style={{ flex: '1 1 150px' }} aria-label="Numéro libre à prévenir" inputMode="tel" placeholder="Numéro libre (+225…)"
             value={libre} onChange={(e) => setLibre(e.target.value)} />
-          <input className="adm-select" style={{ flex: '2 1 220px' }} placeholder="Message joint au SMS / WhatsApp (facultatif)"
+          <input className="adm-select" style={{ flex: '2 1 220px' }} aria-label="Message joint au SMS ou WhatsApp" placeholder="Message joint au SMS / WhatsApp (facultatif)"
             value={message} onChange={(e) => setMessage(e.target.value)} />
           <button className="adm-btn xs solid" disabled={libre.trim().length < 3}
             onClick={() => { onContact(a.id, { canal: 'appel', numero: libre.trim(), label: 'Numéro libre' }); setLibre(''); }}>

@@ -452,5 +452,5 @@ a.dv-pill { text-decoration: none; }
   background: var(--surface); color: var(--text); box-shadow: var(--elev-2, 0 10px 30px rgba(0,0,0,.25)); border: 1px solid var(--stroke); font-size: 15px;
 }
 .dv-btn-veh { white-space: nowrap; padding: 12px 18px; min-height: 48px; display: inline-flex; align-items: center; border-radius: 12px;
-  background: var(--green); color: var(--btn-on, #fff); font-weight: 700; text-decoration: none; }
+  background: var(--green); color: #04140d; font-weight: 700; text-decoration: none; }
 .dv-btn-fermer { width: 48px; height: 48px; border-radius: 12px; border: 1px solid var(--stroke); background: transparent; color: var(--text); font-size: 22px; cursor: pointer; }

@@ -279,8 +279,8 @@ export function DirectionSection({ board, livre, jours, onJours, canAct, onAller
             </table>
             <div className="adm-pager">
               <span className="adm-muted">
-                Total du filtre : <strong style={{ color: 'var(--a-green)' }}>+{fcfa(livre.entrees)}</strong> en caisse ·
-                <strong style={{ color: 'var(--a-amber)' }}> −{fcfa(livre.sorties)}</strong> de sorties · page {livre.page} / {livre.pages}
+                Total du filtre : <strong style={{ color: 'var(--a-green-txt)' }}>+{fcfa(livre.entrees)}</strong> en caisse ·
+                <strong style={{ color: 'var(--a-amber-txt)' }}> −{fcfa(livre.sorties)}</strong> de sorties · page {livre.page} / {livre.pages}
               </span>
               <div className="row" style={{ gap: 6 }}>
                 <button className="adm-btn xs" disabled={livre.page <= 1} onClick={() => onPageLivre(livre.page - 1)}>← Précédent</button>
