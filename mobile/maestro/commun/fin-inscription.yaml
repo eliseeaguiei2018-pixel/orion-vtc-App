@@ -1,11 +1,28 @@
-# Fin de l'inscription : autorisations, accueil personnalisé, puis le compte dans les paramètres.
+# Fin de l'inscription : autorisations (VRAIE demande de position au système), accueil
+# personnalisé, puis le compte dans les paramètres.
 appId: ci.orion.app
 ---
+# Le client est à Riviéra 2 (Cocody) : c'est là que le chauffeur doit venir.
+- setLocation:
+    latitude: 5.34646
+    longitude: -3.97476
 - extendedWaitUntil:
-    visible: "Tout autoriser"
+    visible: "Autoriser la localisation"
     timeout: 30000
 - takeScreenshot: 06-autorisations
-- tapOn: "Tout autoriser"
+- tapOn: "Autoriser la localisation"
+# Fenêtre système (Android ou iOS, en français ou en anglais) : « pendant l'utilisation ».
+- runFlow:
+    when:
+      visible: "(?i)(while using the app|pendant (que vous utilisez|l.utilisation de) l.app.*|allow while using app|autoriser lorsque l.app est active)"
+    commands:
+      - takeScreenshot: 06b-autorisation-systeme-position
+      - tapOn: "(?i)(while using the app|pendant (que vous utilisez|l.utilisation de) l.app.*|allow while using app|autoriser lorsque l.app est active)"
+- runFlow:
+    when:
+      visible: "Continuer"
+    commands:
+      - tapOn: "Continuer"
 - extendedWaitUntil:
     visible: "Bonjour Aya.*"
     timeout: 30000

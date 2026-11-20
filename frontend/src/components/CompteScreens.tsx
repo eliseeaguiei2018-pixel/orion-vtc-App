@@ -308,7 +308,7 @@ export function SettingsScreen({
             <strong style={{ fontSize: 14 }}>{t('sec_biometric')}</strong>
             <span className="faint" style={{ fontSize: 12 }}>{t('sec_biometric_d')}</span>
           </span>
-          <button className={`toggle${bio ? ' on' : ''}`} onClick={() => { const v = !bio; setBio(v); setBiometricEnabled(v); }}><span /></button>
+          <button className={`toggle${bio ? ' on' : ''}`} role="switch" aria-checked={bio} aria-label={t('sec_biometric')} onClick={() => { const v = !bio; setBio(v); setBiometricEnabled(v); }}><span /></button>
         </div>
         <span className="faint" style={{ display: 'block', fontSize: 12, margin: '10px 2px 6px' }}><IconShield size={12} /> {t('tc_title')}</span>
         <div className="field" style={{ marginBottom: 8 }}>
@@ -323,7 +323,7 @@ export function SettingsScreen({
             <strong style={{ fontSize: 14 }}>{t('tc_share')}</strong>
             <span className="faint" style={{ fontSize: 12 }}>{t('tc_share_d')}</span>
           </span>
-          <button className={`toggle${shareRides ? ' on' : ''}`} onClick={() => setShareRides(!shareRides)}><span /></button>
+          <button className={`toggle${shareRides ? ' on' : ''}`} role="switch" aria-checked={shareRides} aria-label={t('tc_share')} onClick={() => setShareRides(!shareRides)}><span /></button>
         </div>
         <p className="faint" style={{ fontSize: 11, margin: '8px 2px 0' }}><IconLock size={11} /> {t('sec_privacy')}</p>
 

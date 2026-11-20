@@ -163,7 +163,7 @@ export const GESTION: Ligne[] = [
   ['{0} prévenu par ORION', '{0} alerted by ORION', '{0} avisado por ORION', '{0} avvisato da ORION', 'أبلغت ORION {0}', 'ORION 已通知 {0}', '{0} von ORION benachrichtigt', 'ORION оповестил {0}'],
   ['Prise en charge par la supervision', 'Handled by supervision', 'Atendido por la supervisión', 'Gestito dalla supervisione', 'تتولاه المراقبة', '由监控中心处理', 'Von der Leitstelle übernommen', 'Принято диспетчерской'],
   ['Prise en charge par {0}', 'Handled by {0}', 'Atendido por {0}', 'Gestito da {0}', 'يتولاه {0}', '由 {0} 处理', 'Übernommen von {0}', 'Принято: {0}'],
-  ['SAMU', 'Ambulance (SAMU)', 'SAMU', '118 (SAMU)', 'الإسعاف (SAMU)', '急救（SAMU）', 'Rettungsdienst (SAMU)', 'Скорая (SAMU)'],
+  ['SAMU', 'Ambulance (SAMU)', 'SAMU', 'Ambulanza (SAMU)', 'الإسعاف (SAMU)', '急救（SAMU）', 'Rettungsdienst (SAMU)', 'Скорая (SAMU)'],
   ['Police', 'Police', 'Policía', 'Polizia', 'الشرطة', '警察', 'Polizei', 'Полиция'],
   ['Pompiers', 'Fire brigade', 'Bomberos', 'Vigili del fuoco', 'الإطفاء', '消防', 'Feuerwehr', 'Пожарные'],
 ];

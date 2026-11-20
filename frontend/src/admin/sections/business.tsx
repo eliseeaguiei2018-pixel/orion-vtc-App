@@ -161,13 +161,13 @@ export function ServicesSection({ config, canWrite, onSave }: { config: Services
       <div className="adm-card-h"><h3>Services & disponibilité — {config.city}</h3><span className="adm-muted">Active/désactive les services de l'app cliente</span></div>
       <div className="opt" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--a-stroke)', marginBottom: 10 }}>
         <strong style={{ flex: 1 }}>ORION ouvert (service actif)</strong>
-        <button className={`adm-toggle${config.open ? ' on' : ''}`} disabled={!canWrite} onClick={() => onSave({ open: !config.open })}><span /></button>
+        <button className={`adm-toggle${config.open ? ' on' : ''}`} role="switch" aria-checked={config.open} aria-label="ORION ouvert (service actif)" disabled={!canWrite} onClick={() => onSave({ open: !config.open })}><span /></button>
       </div>
       <div className="stack" style={{ gap: 8 }}>
         {Object.keys(SERVICE_LABEL).map((k) => (
           <div key={k} className="row between" style={{ padding: '8px 0' }}>
             <span>{SERVICE_LABEL[k]}</span>
-            <button className={`adm-toggle${config.services[k] ? ' on' : ''}`} disabled={!canWrite} onClick={() => onSave({ services: { [k]: !config.services[k] } })}><span /></button>
+            <button className={`adm-toggle${config.services[k] ? ' on' : ''}`} role="switch" aria-checked={Boolean(config.services[k])} aria-label={SERVICE_LABEL[k]} disabled={!canWrite} onClick={() => onSave({ services: { [k]: !config.services[k] } })}><span /></button>
           </div>
         ))}
       </div>
@@ -470,7 +470,7 @@ export function FinanceSection({ finance, ops, cashDebt, gateways, expenses, onE
             <div key={g.method} className="row" style={{ gap: 8, alignItems: 'center', padding: '6px 10px', background: 'var(--a-panel2)', borderRadius: 8 }}>
               <span className={`adm-dot ${g.enabled ? 'green' : 'red'}`} />
               <span style={{ fontSize: 13 }}>{GW_LABEL[g.method] ?? g.method}</span>
-              {canGateway && <button className={`adm-toggle${g.enabled ? ' on' : ''}`} onClick={() => onToggleGateway(g.method, !g.enabled)}><span /></button>}
+              {canGateway && <button className={`adm-toggle${g.enabled ? ' on' : ''}`} role="switch" aria-checked={g.enabled} aria-label={`Passerelle ${GW_LABEL[g.method] ?? g.method}`} onClick={() => onToggleGateway(g.method, !g.enabled)}><span /></button>}
             </div>
           ))}
         </div>

@@ -85,7 +85,7 @@ export const CONDUITE: Ligne[] = [
   ['Commission standard', 'Standard commission', 'Comisión estándar', 'Commissione standard', 'العمولة القياسية', '标准佣金', 'Standardprovision', 'Стандартная комиссия'],
   ['Attente offerte puis facturée', 'Free wait, then charged', 'Espera gratuita y luego facturada', 'Attesa gratuita poi addebitata', 'انتظار مجاني ثم مدفوع', '免费等候后计费', 'Wartezeit erst gratis, dann berechnet', 'Бесплатное ожидание, затем платно'],
   ['Plafond dette espèces', 'Cash debt limit', 'Límite de deuda en efectivo', 'Limite debito in contanti', 'سقف الدين النقدي', '现金欠款上限', 'Bargeld-Schuldengrenze', 'Лимит долга по наличным'],
-  ['🚨 Urgence — alerter ORION et le SAMU', '🚨 Emergency — alert ORION and the ambulance service', '🚨 Emergencia: avisar a ORION y al SAMU', '🚨 Emergenza — avvisa ORION e il 118', '🚨 طوارئ — نبّه ORION والإسعاف', '🚨 紧急——通知 ORION 和急救中心', '🚨 Notfall – ORION und den Rettungsdienst alarmieren', '🚨 Тревога — оповестить ORION и скорую'],
+  ['🚨 Urgence — alerter ORION et le SAMU', '🚨 Emergency — alert ORION and the ambulance service', '🚨 Emergencia: avisar a ORION y al SAMU', '🚨 Emergenza — avvisa ORION e il SAMU', '🚨 طوارئ — نبّه ORION والإسعاف', '🚨 紧急——通知 ORION 和急救中心', '🚨 Notfall – ORION und den Rettungsdienst alarmieren', '🚨 Тревога — оповестить ORION и скорую'],
   ['Confirmer l’alerte SOS ?', 'Confirm the SOS alert?', '¿Confirmar la alerta SOS?', 'Confermare l’allarme SOS?', 'تأكيد تنبيه النجدة؟', '确认发送 SOS 警报？', 'SOS-Alarm bestätigen?', 'Подтвердить сигнал SOS?'],
   ['Envoyer', 'Send', 'Enviar', 'Invia', 'إرسال', '发送', 'Senden', 'Отправить'],
   ['Annuler', 'Cancel', 'Cancelar', 'Annulla', 'إلغاء', '取消', 'Abbrechen', 'Отмена'],

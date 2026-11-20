@@ -1409,9 +1409,9 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
           <span className="list-ico" style={{ color: 'var(--green)' }}><IconShieldCheck size={18} /></span>
           <span className="col grow" style={{ textAlign: 'start' }}>
             <strong style={{ fontSize: 14 }}>{t('ins_toggle')}</strong>
-            <button className="faint list-btn" style={{ fontSize: 12, textDecoration: 'underline', padding: 0, textAlign: 'start' }} onClick={() => setShowIns(true)}>{t('ins_why')}</button>
+            <button className="faint list-btn lien-cible" style={{ fontSize: 12, textDecoration: 'underline', textAlign: 'start' }} onClick={() => setShowIns(true)}>{t('ins_why')}</button>
           </span>
-          <button className={`toggle${insurance ? ' on' : ''}`} onClick={() => onInsurance(!insurance)}><span /></button>
+          <button className={`toggle${insurance ? ' on' : ''}`} role="switch" aria-checked={insurance} aria-label={t('ins_toggle')} onClick={() => onInsurance(!insurance)}><span /></button>
         </div>
 
         <span className="eyebrow">{t('conf_payment')}</span>
@@ -1430,7 +1430,7 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
               (sans cela, .btn { width: 100% } écrasait la saisie du code). */}
           <div className="field grow" style={{ padding: '10px 14px', minWidth: 0 }}>
             <IconGem size={16} />
-            <input style={{ textTransform: 'uppercase', fontSize: 14, minWidth: 0 }} value={promoDraft}
+            <input style={{ textTransform: 'uppercase', fontSize: 16, minWidth: 0 }} value={promoDraft}
               onChange={(e) => setPromoDraft(e.target.value.toUpperCase().replace(/\s/g, ''))}
               placeholder={t('promo_ph')} aria-label={t('promo_label')} maxLength={24} />
           </div>
@@ -1960,7 +1960,7 @@ function WeddingScreen({ onBack, onReserve }: { onBack: () => void; onReserve: (
 
         <div className="opt" style={{ marginBottom: 10 }}>
           <span className="grow" style={{ textAlign: 'start' }}>{t('wed_decoration')}</span>
-          <button className={`toggle${decoration ? ' on' : ''}`} onClick={() => setDecoration((v) => !v)}><span /></button>
+          <button className={`toggle${decoration ? ' on' : ''}`} role="switch" aria-checked={decoration} aria-label={t('wed_decoration')} onClick={() => setDecoration((v) => !v)}><span /></button>
         </div>
         <div className="opt" style={{ marginBottom: 18 }}>
           <span className="grow" style={{ textAlign: 'start' }}>{t('wed_convoy')}</span>

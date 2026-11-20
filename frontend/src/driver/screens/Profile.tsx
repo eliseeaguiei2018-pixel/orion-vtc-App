@@ -204,8 +204,8 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
               <a key={n} className="dv-pill danger" href={`tel:${n}`}><IconPhone size={13} /> {l} {n}</a>
             ))}
           </div>
-          <div className="faint">{tr('Une demande (prêt, avance, congé, réparation, réclamation) se fait dans')} <strong>{tr('Mon poste')}</strong> {tr('; votre chef d’équipe la reçoit.')}</div>
-          <a href="./confidentialite.html" target="_blank" rel="noreferrer" style={{ color: 'var(--green)' }}>{tr('Politique de confidentialité ORION')}</a>
+          <div className="faint">{tr('Une demande (prêt, avance, congé, réparation, réclamation) se fait dans')} <strong>{tr('Mon poste')}</strong>{'\u00a0'}{tr('; votre chef d’équipe la reçoit.')}</div>
+          <a href="./confidentialite.html" target="_blank" rel="noreferrer" style={{ color: 'var(--green)', display: 'inline-block', padding: '6px 0', minHeight: 24 }}>{tr('Politique de confidentialité ORION')}</a>
         </div>
       </Section>
     </div>

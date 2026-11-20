@@ -42,9 +42,28 @@ export function DriverApp() {
   }
   return (
     <div className="app-shell">
+      <SuggestionEcranVehicule />
       <div className="phone">
         <Shell app={app} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * Écran tactile large et bas, en paysage (écran embarqué d'une voiture, tablette de bord) :
+ * l'app « téléphone » n'y occupe qu'une bande étroite au centre. On propose le mode écran
+ * de véhicule (plein écran, grandes cibles), sans jamais l'imposer.
+ */
+function SuggestionEcranVehicule() {
+  const requete = '(orientation: landscape) and (max-height: 820px) and (min-width: 960px) and (pointer: coarse)';
+  const [visible, setVisible] = useState(() => typeof matchMedia === 'function' && matchMedia(requete).matches);
+  if (!visible) return null;
+  return (
+    <div className="dv-suggestion-veh" role="note">
+      <span>{tr('Écran de voiture détecté : passez au mode écran de véhicule, en plein écran.')}</span>
+      <a className="dv-btn-veh" href="./vehicule.html">{tr('Mode véhicule')}</a>
+      <button className="dv-btn-fermer" aria-label={tr('Fermer')} onClick={() => setVisible(false)}>×</button>
     </div>
   );
 }

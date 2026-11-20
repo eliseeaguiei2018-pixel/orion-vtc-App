@@ -119,9 +119,12 @@ textarea.adm-select { resize: vertical; font-family: inherit; width: 100%; }
 @media (max-width: 900px) {
   .adm-shell { grid-template-columns: 1fr; }
   .adm-side { position: fixed; inset: 0 auto 0 0; z-index: 60; width: min(84vw, 320px); height: 100dvh;
-    transform: translateX(-104%); transition: transform .22s cubic-bezier(.2,.8,.2,1); will-change: transform;
+    /* Fermé : réellement masqué (hors du parcours clavier et des lecteurs d'écran), après
+       la fin de l'animation de sortie. */
+    transform: translateX(-104%); visibility: hidden;
+    transition: transform .22s cubic-bezier(.2,.8,.2,1), visibility 0s linear .22s; will-change: transform;
     box-shadow: 0 0 0 transparent; padding-top: calc(18px + env(safe-area-inset-top)); padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
-  .adm-shell.menu-ouvert .adm-side { transform: none; box-shadow: 18px 0 50px rgba(0, 0, 0, 0.28); }
+  .adm-shell.menu-ouvert .adm-side { transform: none; visibility: visible; transition: transform .22s cubic-bezier(.2,.8,.2,1), visibility 0s; box-shadow: 18px 0 50px rgba(0, 0, 0, 0.28); }
   .adm-voile { display: block; position: fixed; inset: 0; z-index: 55; background: rgba(4, 16, 11, 0.5); border: 0; padding: 0;
     opacity: 0; pointer-events: none; transition: opacity .2s; }
   .adm-shell.menu-ouvert .adm-voile { opacity: 1; pointer-events: auto; }
@@ -370,6 +373,13 @@ html[data-adm-theme='light'] {
   --a-text: #0b1f14; --a-muted: #587165; --a-green: #0eb772; --a-green2: #0a9f66;
   --a-danger: #d92038; --a-amber: #a87407; --a-teal: #0a8f7a;
 }
+/* Mode clair : les verts et oranges vifs du thème sombre n'atteignent pas le contraste
+   4.5:1 des textes (WCAG 1.4.3) sur fond blanc ; teintes foncées pour le TEXTE seulement. */
+html[data-adm-theme='light'] .adm-role, html[data-adm-theme='light'] .adm-live.on,
+html[data-adm-theme='light'] .adm-pill.hab-green { color: #067a4b; }
+html[data-adm-theme='light'] .adm-pill.lvl-rouge { color: #a8102a; }
+html[data-adm-theme='light'] .adm-pill.lvl-orange { color: #9a4700; }
+html[data-adm-theme='light'] .adm-pill.lvl-jaune { color: #6f5a00; }
 html[data-adm-theme='light'] .adm-login { background: radial-gradient(90% 70% at 50% 0%, #d8efe2 0%, #f3f7f4 60%); }
 html[data-adm-theme='light'] .adm-login-card { box-shadow: 0 30px 80px rgba(11,31,20,0.12); }
 html[data-adm-theme='light'] .adm-navi:hover { background: rgba(10,159,102,0.06); }
@@ -598,3 +608,8 @@ html[data-adm-theme='light'] .adm-alarme .adm-btn.ghost { background: transparen
 .adm-medical-vig p { margin: 4px 0 0; font-size: 12.5px; }
 .adm-medical-contact { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 13px; }
 .adm-medical-contact > span:first-child { flex-basis: 100%; }
+
+/* Écrans tactiles : cibles d'au moins 44 px pour les boutons compacts de la console. */
+@media (pointer: coarse) {
+  .adm-btn, .adm-btn.xs, .adm-link-btn, .adm-navi, .adm-tab { min-height: 44px; }
+}

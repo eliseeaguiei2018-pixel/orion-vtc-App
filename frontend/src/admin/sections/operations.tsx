@@ -203,7 +203,7 @@ export function DispatchSection({ ops, onSave, onSimulate, onConfigPdf, onMatrix
             <input type="number" min={0} max={10} value={ops.weightIdle} onChange={(e) => onSave({ weightIdle: Number(e.target.value) })} />
           </label>
           <label className="row" style={{ gap: 8, alignItems: 'center', paddingBottom: 8 }}>
-            <button className={`adm-toggle${ops.greenPriority ? ' on' : ''}`} onClick={() => onSave({ greenPriority: !ops.greenPriority })}><span /></button>
+            <button className={`adm-toggle${ops.greenPriority ? ' on' : ''}`} role="switch" aria-checked={ops.greenPriority} aria-label="Priorisation écologique absolue" onClick={() => onSave({ greenPriority: !ops.greenPriority })}><span /></button>
             <span style={{ fontSize: 13 }}>🌱 Priorisation écologique absolue (le moins émetteur d'abord)</span>
           </label>
         </div>
@@ -216,7 +216,7 @@ export function DispatchSection({ ops, onSave, onSimulate, onConfigPdf, onMatrix
         <div className="adm-card-h"><h3>Multiplicateur de forte demande (surge)</h3></div>
         <div className="row" style={{ gap: 14, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <label className="row" style={{ gap: 8, alignItems: 'center', paddingBottom: 8 }}>
-            <button className={`adm-toggle${ops.surgeEnabled ? ' on' : ''}`} onClick={() => onSave({ surgeEnabled: !ops.surgeEnabled })}><span /></button>
+            <button className={`adm-toggle${ops.surgeEnabled ? ' on' : ''}`} role="switch" aria-checked={ops.surgeEnabled} aria-label="Multiplicateur de forte demande" onClick={() => onSave({ surgeEnabled: !ops.surgeEnabled })}><span /></button>
             <span style={{ fontSize: 13 }}>{ops.surgeEnabled ? 'Activé' : 'Désactivé'}</span>
           </label>
           <label className="price-field"><span>Seuil demande/offre ×</span>
@@ -354,7 +354,7 @@ export function QualitySection({ q, csat, top, canWrite, onWarn, onSuspend, onSa
               <input type="number" min={1} max={5} step={0.1} value={q.threshold} onChange={(e) => onSaveOps({ minRating: Number(e.target.value) })} />
             </label>
             <label className="row" style={{ gap: 8, alignItems: 'center', paddingBottom: 8 }}>
-              <button className={`adm-toggle${q.autoWarn ? ' on' : ''}`} onClick={() => onSaveOps({ autoWarn: !q.autoWarn })}><span /></button>
+              <button className={`adm-toggle${q.autoWarn ? ' on' : ''}`} role="switch" aria-checked={q.autoWarn} aria-label="Avertissement automatique sous le seuil" onClick={() => onSaveOps({ autoWarn: !q.autoWarn })}><span /></button>
               <span style={{ fontSize: 13 }}>Avertissement automatique sous le seuil</span>
             </label>
           </div>

@@ -11,17 +11,31 @@ appId: ci.orion.app
 - tapOn:
     text: "Course"
     index: 0
+# Recherche d'adresse réelle (répertoire des quartiers d'Abidjan).
+- extendedWaitUntil:
+    visible: "Adresse, quartier, lieu…"
+    timeout: 20000
+- inputText: "PISAM"
 - extendedWaitUntil:
     visible: ".*PISAM.*"
     timeout: 20000
+- takeScreenshot: 08b-recherche-destination
 - tapOn: ".*PISAM.*"
 - extendedWaitUntil:
     visible: "Choisir.*"
     timeout: 30000
 - tapOn: "Choisir.*"
+# Le point de départ vient du GPS ; s'il est inconnu, le client le confirme d'abord.
+- runFlow:
+    when:
+      visible: "Confirmer le point de départ"
+    commands:
+      - tapOn: "Confirmer le point de départ"
+      - tapOn: "Ma position actuelle"
 - extendedWaitUntil:
     visible: "Confirmer la course"
     timeout: 30000
+- takeScreenshot: 08c-depart-gps
 - tapOn: "Confirmer la course"
 # Le numéro arrive du serveur aux seuls participants de la course.
 - extendedWaitUntil:

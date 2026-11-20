@@ -451,3 +451,8 @@ body { min-height: 100vh; }
   .tb-vehicule { transition: none; }
   .ob-jauge-plein, .tb-defil-int, .tb-defil-int::after { transition: none; }
 }
+
+/* Écrans tactiles (tablette, téléphone) : cibles d'au moins 44 px (Apple) / 48 dp (Android). */
+@media (pointer: coarse) {
+  .tb-onglets > button, .tb-theme, .tb-lien, .ob-segments button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+}

@@ -127,11 +127,12 @@ a.dv-pill { text-decoration: none; }
 .dv-form { display: flex; flex-direction: column; gap: 10px; }
 .dv-label { font-size: 12.5px; font-weight: 600; color: var(--text-dim); display: flex; flex-direction: column; gap: 6px; }
 .dv-input, .dv-select { width: 100%; background: var(--surface-2); border: 1px solid var(--stroke); border-radius: 14px; padding: 13px 14px; color: var(--text);
-  font-size: 15px; font-family: var(--font-body); outline: none; }
+  font-size: 16px; font-family: var(--font-body); outline: none; }
 .dv-input:focus, .dv-select:focus { border-color: var(--green); }
 .dv-input.code { font-family: var(--font-display); font-size: 26px; letter-spacing: 0.4em; text-align: center; }
 .dv-check { display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
-.dv-check input { width: 20px; height: 20px; accent-color: var(--green); }
+.dv-check { min-height: 44px; }
+.dv-check input { width: 24px; height: 24px; flex: 0 0 auto; accent-color: var(--green); }
 .dv-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .dv-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; padding: 4px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--stroke); }
 .dv-seg button { border: none; background: none; color: var(--text-dim); padding: 9px 6px; border-radius: 10px; font-weight: 600; font-size: 13px; cursor: pointer; font-family: var(--font-body); }
@@ -317,7 +318,7 @@ a.dv-pill { text-decoration: none; }
 .dv-auth .sheet { position: relative; z-index: 2; max-height: 88%; overflow-y: auto; }
 .dv-auth-icone { margin-bottom: 12px; }
 .dv-auth .field { margin-bottom: 10px; }
-.dv-auth .field input, .dv-auth .field select { flex: 1; background: none; border: none; outline: none; color: var(--text); font-size: 15px; font-family: var(--font-body); min-width: 0; }
+.dv-auth .field input, .dv-auth .field select { flex: 1; background: none; border: none; outline: none; color: var(--text); font-size: 16px; font-family: var(--font-body); min-width: 0; }
 .dv-auth .field select option { color: #10221a; }
 .dv-auth-lang { position: absolute; top: calc(env(safe-area-inset-top) + 14px); right: 16px; z-index: 3; }
 
@@ -443,3 +444,13 @@ a.dv-pill { text-decoration: none; }
 .veh-code-affiche { font-size: 44px; font-weight: 800; letter-spacing: 0.22em; text-align: center;
   font-family: var(--font-display, inherit); color: var(--green); margin: 6px 0; }
 .veh-code-expire { text-align: center; font-size: 13px; color: var(--text-dim); }
+
+/* Suggestion « mode écran de véhicule » sur un écran embarqué (paysage, tactile, bas). */
+.dv-suggestion-veh {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 50; max-width: min(760px, calc(100vw - 32px));
+  display: flex; align-items: center; gap: 14px; padding: 10px 12px 10px 18px; border-radius: 16px;
+  background: var(--surface); color: var(--text); box-shadow: var(--elev-2, 0 10px 30px rgba(0,0,0,.25)); border: 1px solid var(--stroke); font-size: 15px;
+}
+.dv-btn-veh { white-space: nowrap; padding: 12px 18px; min-height: 48px; display: inline-flex; align-items: center; border-radius: 12px;
+  background: var(--green); color: var(--btn-on, #fff); font-weight: 700; text-decoration: none; }
+.dv-btn-fermer { width: 48px; height: 48px; border-radius: 12px; border: 1px solid var(--stroke); background: transparent; color: var(--text); font-size: 22px; cursor: pointer; }

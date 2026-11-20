@@ -48,9 +48,53 @@ jobs:
       - run: npm ci
       - name: Typecheck
         run: npm run typecheck
-      - name: Traductions de l'app Chauffeur (8 langues)
+      - name: Traductions des apps Chauffeur et Client (8 langues)
         run: npm run check:langues
       - name: Build
         run: npm run build
       - name: Audit (échoue sur vulnérabilité haute/critique)
         run: npm audit --omit=dev --audit-level=high
+
+  navigateurs:
+    # Les 5 interfaces dans le moteur de chaque plateforme cible : Safari/WebKit (iPhone,
+    # iPad, Mac), Microsoft Edge sur Windows (console, tableau de bord), Firefox, Chrome.
+    name: Navigateurs · ${{ matrix.nom }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { nom: 'Safari / WebKit (Linux)', os: ubuntu-latest, navigateur: webkit, installer: 'webkit --with-deps' }
+          - { nom: 'Firefox', os: ubuntu-latest, navigateur: firefox, installer: 'firefox --with-deps' }
+          - { nom: 'Microsoft Edge (Windows)', os: windows-latest, navigateur: msedge, installer: '' }
+          - { nom: 'Safari / WebKit (macOS)', os: macos-latest, navigateur: webkit, installer: 'webkit' }
+    defaults:
+      run:
+        working-directory: frontend
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Build (mode démonstration, sans serveur)
+        run: npm run build
+        env:
+          VITE_API_URL: ''
+      - name: Playwright
+        run: |
+          npm i --no-save playwright@1.63.0
+          if [ -n "${{ matrix.installer }}" ]; then npx playwright install ${{ matrix.installer }}; fi
+      - name: Test de fumée des 5 interfaces
+        run: node scripts/fumee-navigateurs.mjs
+        env:
+          NAVIGATEUR: ${{ matrix.navigateur }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fumee-${{ matrix.navigateur }}-${{ matrix.os }}
+          path: frontend/fumee-captures/
+          retention-days: 14

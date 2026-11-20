@@ -1,6 +1,7 @@
 import { webview } from '@kit.ArkWeb';
 import { abilityAccessCtrl, common } from '@kit.AbilityKit';
 import { call } from '@kit.TelephonyKit';
+import { deviceInfo } from '@kit.BasicServicesKit';
 
 /**
  * ORION Chauffeur sur HarmonyOS (Huawei).
@@ -10,10 +11,14 @@ import { call } from '@kit.TelephonyKit';
  * prochain lancement. Les voitures équipées de HarmonyOS peuvent donc héberger
  * l'app Chauffeur telle quelle (écran embarqué ou mode écran de véhicule).
  *
- * L'adresse par défaut est celle de l'app Chauffeur. Sur un écran embarqué, pointer plutôt
- * vers « vehicule.html » (mode paysage plein écran, appairage par code).
+ * L'adresse dépend de l'appareil : l'app Chauffeur sur téléphone et tablette, le mode
+ * écran de véhicule (paysage plein écran, appairage par code) sur l'écran d'une voiture.
  */
-const ADRESSE: string = 'https://chauffeur.orion.ci/driver.html';
+// Écran embarqué d'une voiture (appareil de type « car ») : directement le mode écran de
+// véhicule (plein écran paysage, appairage par code) ; téléphone et tablette : l'app Chauffeur.
+const ADRESSE: string = deviceInfo.deviceType === 'car'
+  ? 'https://chauffeur.orion.ci/vehicule.html'
+  : 'https://chauffeur.orion.ci/driver.html';
 /** Seule origine autorisée à s'afficher dans l'app et à lire la position. */
 const ORIGINE: string = 'https://chauffeur.orion.ci';
 

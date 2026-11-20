@@ -7,3 +7,5 @@ dist/
 
 *.tsbuildinfo
 dist-chauffeur/
+fumee-captures/
+dist-fumee/

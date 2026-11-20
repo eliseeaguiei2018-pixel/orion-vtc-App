@@ -290,6 +290,7 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
               <span className="grow" style={{ textAlign: 'start' }}>{t(`rent_o_${k}`)}</span>
               <button
                 className={`toggle${options[k] ? ' on' : ''}`}
+                role="switch" aria-checked={Boolean(options[k])}
                 onClick={() => setOptions((o) => ({ ...o, [k]: !o[k] }))}
                 aria-label={t(`rent_o_${k}`)}
               ><span /></button>

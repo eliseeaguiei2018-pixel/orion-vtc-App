@@ -3,6 +3,8 @@ import type { Ligne } from './index';
 /** Navigation, notifications (toasts), libellés fixes et bandeaux d'alerte. */
 export const COMMUN: Ligne[] = [
   ['Accueil', 'Home', 'Inicio', 'Home', 'الرئيسية', '首页', 'Start', 'Главная'],
+  ['Écran de voiture détecté : passez au mode écran de véhicule, en plein écran.', 'Car screen detected: switch to vehicle-screen mode, full screen.', 'Pantalla de coche detectada: pase al modo pantalla de vehículo, a pantalla completa.', 'Schermo dell’auto rilevato: passa alla modalità schermo del veicolo, a schermo intero.', 'تم اكتشاف شاشة سيارة: انتقل إلى وضع شاشة المركبة بملء الشاشة.', '检测到车载屏幕：切换到车载屏幕模式，全屏显示。', 'Fahrzeugbildschirm erkannt: Wechseln Sie in den Fahrzeugmodus, im Vollbild.', 'Обнаружен экран автомобиля: перейдите в режим экрана автомобиля на весь экран.'],
+  ['Mode véhicule', 'Vehicle mode', 'Modo vehículo', 'Modalità veicolo', 'وضع المركبة', '车载模式', 'Fahrzeugmodus', 'Режим автомобиля'],
   ['Courses', 'Rides', 'Viajes', 'Corse', 'الرحلات', '行程', 'Fahrten', 'Поездки'],
   ['Gains', 'Earnings', 'Ganancias', 'Guadagni', 'الأرباح', '收入', 'Einnahmen', 'Доход'],
   ['Poste', 'My post', 'Puesto', 'Postazione', 'مركزي', '岗位', 'Posten', 'Пост'],
