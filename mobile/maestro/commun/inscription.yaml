@@ -14,15 +14,30 @@ appId: ci.orion.app
 - extendedWaitUntil:
     visible: "Créer votre compte"
     timeout: 20000
-# Entre deux champs, on ferme le clavier (sur iPhone, il recouvre le bas de la feuille).
 - tapOn: "Votre nom.*"
 - inputText: "Aya Kouassi"
-- runFlow: fermer-clavier.yaml
-- tapOn: "Numéro de téléphone.*"
-- inputText: "0708091011"
-- runFlow: fermer-clavier.yaml
-- tapOn: "E-mail.*"
-- inputText: "aya.kouassi@exemple.ci"
+# Android : on ferme le clavier puis on touche chaque champ.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - runFlow: fermer-clavier.yaml
+      - tapOn: "Numéro de téléphone.*"
+      - inputText: "0708091011"
+      - runFlow: fermer-clavier.yaml
+      - tapOn: "E-mail.*"
+      - inputText: "aya.kouassi@exemple.ci"
+# iPhone : la touche « Suivant » du clavier passe au champ suivant, comme le ferait une
+# cliente. Retrouver un champ de la page web après fermeture du clavier est instable sur
+# le simulateur (champ du numéro tantôt trouvé, tantôt non, d'un passage à l'autre).
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - pressKey: Enter
+      - inputText: "0708091011"
+      - pressKey: Enter
+      - inputText: "aya.kouassi@exemple.ci"
 - runFlow: fermer-clavier.yaml
 - takeScreenshot: 02-formulaire
 - tapOn: "Recevoir le code"
