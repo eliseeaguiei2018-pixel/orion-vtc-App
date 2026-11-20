@@ -4,10 +4,10 @@ name: APK client à installer
 # release « orion-client-android » du dépôt : un lien de téléchargement direct, à ouvrir
 # sur le téléphone (Paramètres → autoriser l'installation depuis le navigateur).
 #
-# Version de DÉMONSTRATION : aucun serveur ORION n'est encore hébergé, donc les courses
-# et les chauffeurs sont simulés dans l'app. Tout le reste est réel : la carte d'Abidjan
-# (OpenStreetMap, par Internet), la position GPS du téléphone, la recherche des 449 lieux
-# du Grand Abidjan (livrés avec l'app), les 8 langues.
+# Version AUTONOME : aucun serveur ORION n'est encore hébergé ; l'app répond elle-même
+# (serveurLocal.ts) et seuls les courses et les chauffeurs sont simulés. La carte du
+# district d'Abidjan (OpenStreetMap), l'index de 31 000 lieux et les pictogrammes sont
+# livrés dans l'APK (scripts/carte-hors-ligne), la position GPS est celle du téléphone.
 on:
   workflow_dispatch:
   push:
@@ -40,13 +40,20 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: gradle
-      - name: App web (sans serveur, vraie carte)
+      - name: Carte d'Abidjan embarquée (tuiles, polices, index des lieux, pictogrammes)
         working-directory: frontend
-        env:
-          VITE_API_URL: ''
         run: |
           npm ci
-          npm run build
+          python3 scripts/carte-hors-ligne/telecharger-tuiles.py "$RUNNER_TEMP/carte"
+          node scripts/carte-hors-ligne/indexer-lieux.mjs "$RUNNER_TEMP/carte/tuiles" "$RUNNER_TEMP/carte/carte/lieux-index.json"
+          mkdir -p "$RUNNER_TEMP/carte/carte/sprites"
+          for f in ofm.json ofm.png ofm@2x.json ofm@2x.png; do
+            curl -sSfo "$RUNNER_TEMP/carte/carte/sprites/$f" "https://tiles.openfreemap.org/sprites/ofm_f384/$f"
+          done
+      - name: App autonome (sans serveur)
+        working-directory: frontend
+        run: |
+          scripts/carte-hors-ligne/construire-autonome.sh "$RUNNER_TEMP/carte" dist
           npx cap sync android
       - name: Compilation de l'APK
         working-directory: frontend/android
@@ -64,10 +71,11 @@ jobs:
           puis autoriser l'installation quand Android le demande (Paramètres → Applications →
           votre navigateur → Installer des applis inconnues).
 
-          **Version de démonstration** : aucun serveur ORION n'est encore hébergé, les courses et
-          les chauffeurs sont donc simulés. Réels : la carte d'Abidjan (Internet requis), la
-          position GPS, la recherche des 449 lieux du Grand Abidjan, les 8 langues. Code SMS :
-          n'importe quel code à 6 chiffres.
+          **Version autonome** : aucun serveur ORION n'est encore hébergé, les courses et les
+          chauffeurs sont donc simulés et aucune alerte SOS n'est transmise (l'app le dit).
+          Tout le reste répond : compte, profil, ORION Assurance, SOS, partage, abonnement,
+          location, mariage, portefeuille, aide. Carte du district d'Abidjan et recherche de
+          31 000 lieux hors connexion. Le code SMS s'affiche à l'écran.
 
           Compilée depuis le commit ${GITHUB_SHA::7}. Empreinte SHA-256 : \`${EMPREINTE}\`.
           EOF
