@@ -5,7 +5,7 @@ import type { Container } from '../../container.js';
 import { parse } from '../../core/validate.js';
 import { badRequest, notFound } from '../../core/errors.js';
 import { PAYMENT_CATALOG, type PaymentMethod } from './providers.js';
-import { driverRoom } from '../realtime/hub.js';
+import { driverRoom, rideRoom } from '../realtime/hub.js';
 import { rideReceipt, sendEmail } from '../../core/mailer.js';
 import { effectiveCommissionRate } from '../wallet/service.js';
 
@@ -115,6 +115,9 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
       ride.status = 'paid';
       ride.events.push({ type: 'paid', at: new Date().toISOString(), payload: { method: result.method, amount: result.amount } });
       container.rides.persist(ride);
+      // Le CLIENT l'apprend aussitôt (espèces déclarées par le chauffeur, confirmation de
+      // l'opérateur) : son écran de paiement passe à « payé » sans qu'il ait à agir.
+      container.realtime.publish(rideRoom(ride.id), 'ride.status', { rideId: ride.id, status: 'paid' });
       // Crédite le gain net du chauffeur (course + attente) et journalise la commission.
       if (ride.driverId) {
         const drv = container.drivers.get(ride.driverId);

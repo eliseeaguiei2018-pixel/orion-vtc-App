@@ -7,6 +7,8 @@
 type D = Record<string, string>;
 
 const fr: D = {
+  pay_cash_info: 'Payez le chauffeur en espèces : l’écran se met à jour dès qu’il confirme l’encaissement.',
+  pay_cash_done: 'J’ai payé en espèces',
   lieu_ma_position: 'Ma position actuelle',
   lieu_ma_position_d: 'Le chauffeur viendra là où vous êtes (GPS)',
   lieu_position_attente: 'Localisation en cours…',
@@ -48,6 +50,8 @@ const fr: D = {
 };
 
 const en: D = {
+  pay_cash_info: 'Pay the driver in cash: this screen updates as soon as they confirm receipt.',
+  pay_cash_done: 'I paid in cash',
   lieu_ma_position: 'My current location',
   lieu_ma_position_d: 'The driver will come to where you are (GPS)',
   lieu_position_attente: 'Locating…',
@@ -89,6 +93,8 @@ const en: D = {
 };
 
 const es: D = {
+  pay_cash_info: 'Pague al conductor en efectivo: la pantalla se actualiza en cuanto confirme el cobro.',
+  pay_cash_done: 'He pagado en efectivo',
   lieu_ma_position: 'Mi ubicación actual',
   lieu_ma_position_d: 'El conductor irá a donde usted está (GPS)',
   lieu_position_attente: 'Localizando…',
@@ -130,6 +136,8 @@ const es: D = {
 };
 
 const it: D = {
+  pay_cash_info: 'Paga l’autista in contanti: lo schermo si aggiorna appena conferma l’incasso.',
+  pay_cash_done: 'Ho pagato in contanti',
   lieu_ma_position: 'La mia posizione attuale',
   lieu_ma_position_d: 'L’autista verrà dove si trova (GPS)',
   lieu_position_attente: 'Localizzazione in corso…',
@@ -171,6 +179,8 @@ const it: D = {
 };
 
 const de: D = {
+  pay_cash_info: 'Bezahlen Sie den Fahrer bar: Die Anzeige aktualisiert sich, sobald er den Erhalt bestätigt.',
+  pay_cash_done: 'Ich habe bar bezahlt',
   lieu_ma_position: 'Mein aktueller Standort',
   lieu_ma_position_d: 'Der Fahrer kommt dorthin, wo Sie sind (GPS)',
   lieu_position_attente: 'Standort wird ermittelt…',
@@ -212,6 +222,8 @@ const de: D = {
 };
 
 const ar: D = {
+  pay_cash_info: 'ادفع للسائق نقدًا: تتحدث الشاشة فور تأكيده الاستلام.',
+  pay_cash_done: 'دفعت نقدًا',
   lieu_ma_position: 'موقعي الحالي',
   lieu_ma_position_d: 'سيأتي السائق إلى مكانك (GPS)',
   lieu_position_attente: 'جارٍ تحديد الموقع…',
@@ -253,6 +265,8 @@ const ar: D = {
 };
 
 const zh: D = {
+  pay_cash_info: '请用现金支付司机：司机确认收款后，此页面会立即更新。',
+  pay_cash_done: '我已用现金支付',
   lieu_ma_position: '我的当前位置',
   lieu_ma_position_d: '司机将到您所在的位置（GPS）',
   lieu_position_attente: '正在定位…',
@@ -294,6 +308,8 @@ const zh: D = {
 };
 
 const ru: D = {
+  pay_cash_info: 'Оплатите водителю наличными: экран обновится, как только он подтвердит получение.',
+  pay_cash_done: 'Я оплатил наличными',
   lieu_ma_position: 'Моё текущее местоположение',
   lieu_ma_position_d: 'Водитель приедет туда, где вы находитесь (GPS)',
   lieu_position_attente: 'Определение местоположения…',

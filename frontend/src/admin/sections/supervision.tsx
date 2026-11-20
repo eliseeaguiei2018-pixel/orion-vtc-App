@@ -303,7 +303,8 @@ export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf
       <div className="adm-mini-kpis">
         <div className="adm-mini-kpi"><span>Vitesse estimée</span><strong>{d.telemetry.speedEstimateKmh ?? '—'} km/h</strong></div>
         <div className="adm-mini-kpi"><span>Points GPS</span><strong>{d.telemetry.points}</strong></div>
-        <div className="adm-mini-kpi"><span>Position</span><strong style={{ fontSize: 12 }}>{a.location.lat.toFixed(4)}, {a.location.lng.toFixed(4)}</strong></div>
+        {/* Le lieu en clair d'abord (à dicter aux secours), les coordonnées ensuite. */}
+        <div className="adm-mini-kpi"><span>Position</span><strong style={{ fontSize: 13 }}>{a.zoneName ?? 'Lieu inconnu'}</strong><span className="mono" style={{ fontSize: 11 }}>{a.location.lat.toFixed(5)}, {a.location.lng.toFixed(5)}</span></div>
       </div>
       {pts.length > 1 && d.ride && (
         <>

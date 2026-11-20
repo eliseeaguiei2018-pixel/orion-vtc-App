@@ -476,7 +476,8 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
 
 /* ---- Stars ---- */
 .stars { display: flex; gap: 10px; justify-content: center; }
-.star { cursor: pointer; transition: transform 0.12s; }
+.star { cursor: pointer; transition: transform 0.12s; background: none; border: 0; padding: 3px; border-radius: 10px; line-height: 0; color: inherit; }
+.star:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 .star:active { transform: scale(0.85); }
 
 /* ---- Screen transitions ---- */

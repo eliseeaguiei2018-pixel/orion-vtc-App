@@ -624,7 +624,7 @@ export function App() {
         )}
 
         {screen === 'payment' && destination && driver && (
-          <PaymentScreen quote={quote} coverage={coverage} payment={payment} driver={driver} rideId={rideId}
+          <PaymentScreen quote={quote} coverage={coverage} payment={payment} driver={driver} rideId={rideId} destination={destination}
             onPaid={() => setScreen('rating')} />
         )}
 
@@ -1769,7 +1769,7 @@ function RatingScreen({ origin, driver, quote, payment, destination, rating, set
         </div>
         <div className="stars" style={{ margin: '8px 0 16px' }}>
           {[1, 2, 3, 4, 5].map((n) => (
-            <span key={n} className="star" onClick={() => setRating(n)}><IconStar size={38} color={n <= rating ? '#f5c451' : 'var(--stroke-strong)'} /></span>
+            <button key={n} type="button" className="star" aria-label={`${t('rate_notez')} ${n}/5`} aria-pressed={n <= rating} onClick={() => setRating(n)}><IconStar size={38} color={n <= rating ? '#f5c451' : 'var(--stroke-strong)'} /></button>
           ))}
         </div>
         <span className="eyebrow">{t('rate_tip')}</span>
@@ -2106,14 +2106,39 @@ function SupportChatScreen({ onBack }: { onBack: () => void }) {
 }
 
 /* ------------------------------ Paiement ----------------------------- */
-function PaymentScreen({ quote, coverage, payment, driver, rideId, onPaid }: {
+function PaymentScreen({ quote, coverage, payment, driver, rideId, onPaid, destination }: {
   quote: Quote | null; coverage: SubCoverage | null; payment: string; driver: Driver; rideId: string | null; onPaid: () => void;
+  /** Le client paie là où il vient d'arriver : la carte s'y centre (et non sur le Plateau). */
+  destination: Place;
 }) {
   const { t } = useI18n();
   const provider = PAYMENTS.find((p) => p.method === payment)?.label ?? payment;
   const mobile = ['orange_money', 'wave', 'mtn_momo', 'moov_money'].includes(payment);
   const [phase, setPhase] = useState<'idle' | 'redirect' | 'success'>('idle');
   const [erreur, setErreur] = useState<string | null>(null);
+  const especes = payment === 'cash';
+  /*
+   * La course passe à « payée » côté serveur sans que le client ait à agir : espèces
+   * déclarées par le chauffeur, confirmation de l'opérateur mobile money. Avant, l'écran
+   * restait sur « Payer » alors que le chauffeur voyait « Course payée ».
+   */
+  useEffect(() => {
+    if (!isLiveBackend() || !rideId) return;
+    const url = rideSocketUrl(rideId);
+    if (!url) return;
+    const ws = new WebSocket(url);
+    let fini = false;
+    ws.onmessage = (ev) => {
+      try {
+        const m = JSON.parse(ev.data as string) as { type: string; data?: { status?: string } };
+        if (!fini && m.type === 'ride.status' && m.data?.status === 'paid') {
+          fini = true; setPhase('success'); window.setTimeout(onPaid, 2200);
+        }
+      } catch { /* message illisible : ignoré */ }
+    };
+    return () => ws.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rideId]);
 
   const pay = () => {
     setErreur(null);
@@ -2152,7 +2177,7 @@ function PaymentScreen({ quote, coverage, payment, driver, rideId, onPaid }: {
 
   return (
     <div className="screen page">
-      <OrionMap origin={DEFAULT_ORIGIN.location} />
+      <OrionMap origin={destination.location} />
       <TopBar title={t('pay_title')} />
       <div style={{ flex: 1 }} />
       <Sheet>
@@ -2163,7 +2188,8 @@ function PaymentScreen({ quote, coverage, payment, driver, rideId, onPaid }: {
               <PhotoChauffeur driver={driver} style={{ width: 48, height: 48, fontSize: 18 }} />
             </div>
             <div className="chip active" style={{ width: '100%', justifyContent: 'flex-start', marginBottom: 14 }}><IconWallet size={16} /> {provider}</div>
-            <button className="btn btn-primary" onClick={pay}><IconWallet size={18} /> {t('pay_now')} · {formatXOF(quote?.amount ?? 0)}</button>
+            {especes && <p className="faint" style={{ fontSize: 13, margin: '0 0 12px' }}>{t('pay_cash_info')}</p>}
+            <button className="btn btn-primary" onClick={pay}><IconWallet size={18} /> {t(especes ? 'pay_cash_done' : 'pay_now')} · {formatXOF(quote?.amount ?? 0)}</button>
             {erreur && <p className="pay-erreur" role="alert">{erreur}</p>}
             {mobile && <p className="faint" style={{ fontSize: 12, textAlign: 'center', marginTop: 8 }}>{t('pay_redirect', { p: provider })}</p>}
           </>
