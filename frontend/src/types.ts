@@ -9,6 +9,8 @@ export interface Place {
   area: string;
   location: LatLng;
   kind?: 'home' | 'work' | 'recent' | 'hub';
+  /** Catégorie du lieu (pictogramme) : restaurant, bank, religious_muslim, road… */
+  categorie?: string;
 }
 
 export type TierId = 'bronze' | 'argent' | 'or' | 'diamant';

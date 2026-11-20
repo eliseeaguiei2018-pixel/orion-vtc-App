@@ -6,7 +6,7 @@ import { Sheet, TopBar, Toast } from './components/ui';
 import {
   IconBell, IconClose, IconUser, IconBolt, IconBriefcase, IconCalendar, IconCamera, IconCar, IconCheck, IconChevron, IconClock, IconCrown,
   IconFingerprint, IconGem, IconGlobe, IconHome, IconLeaf, IconLock, IconMinus,
-  IconPhone, IconPin, IconPlane, IconPlus, IconRing, IconSearch, IconSettings, IconShare,
+  IconPhone, IconPin, IconPlus, IconRing, IconSearch, IconSettings, IconShare,
   IconShield, IconShieldCheck, IconMedical, IconStar, IconTraffic, IconWallet, IconWifi,
   IconUtensils, IconBag, IconCart, IconPackage,
 } from './icons';
@@ -28,7 +28,7 @@ import { urlApi, contactCourse, lireCodePriseEnCharge, AGENT_GENERIQUE, EMERGENC
 import { useI18n } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
-import { ChoixLieu, type ModeChoix } from './components/ChoixLieu';
+import { ChoixLieu, iconeLieu, type ModeChoix } from './components/ChoixLieu';
 import { LIEUX_POPULAIRES, enregistrerLieu, lieuEnregistre, lieuxRecents, memoriserRecent, useDepart, type EtatPosition } from './lieux';
 import { Avatar, CancelSheet, HistoryScreen, LegalScreen, PhotoScreen, ProfileScreen, SettingsScreen, SosHistoryScreen } from './components/CompteScreens';
 
@@ -47,12 +47,7 @@ const lerp = (a: LatLng, b: LatLng, t: number): LatLng => ({
   lng: a.lng + (b.lng - a.lng) * t,
 });
 
-const placeIcon = (kind?: Place['kind']) => {
-  if (kind === 'home') return <IconHome size={20} />;
-  if (kind === 'work') return <IconBriefcase size={20} />;
-  if (kind === 'hub') return <IconPlane size={20} />;
-  return <IconPin size={20} />;
-};
+
 
 /** Plaque d'immatriculation stable dérivée du matricule ORION (cohérente entre affichages). */
 function plateFromMatricule(m: string): string {
@@ -1259,7 +1254,7 @@ function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onC
           ))}
           {quick.map((p) => (
             <button key={p.id} className="list-row list-btn" onClick={() => onQuick(p)}>
-              <span className="list-ico" style={{ color: 'var(--green)' }}>{placeIcon(p.kind)}</span>
+              <span className="list-ico" style={{ color: 'var(--green)' }}>{iconeLieu(p)}</span>
               <span className="col grow" style={{ textAlign: 'start' }}>
                 <strong style={{ fontSize: 15 }}>{p.name}</strong>
                 <span className="faint" style={{ fontSize: 13 }}>{p.area}</span>
@@ -1468,7 +1463,7 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
           ))}
           <div className="divider" />
           <div className="list-row" style={{ padding: '6px 0' }}>
-            <span className="list-ico" style={{ color: 'var(--gold)' }}>{placeIcon(destination.kind)}</span>
+            <span className="list-ico" style={{ color: 'var(--gold)' }}>{iconeLieu(destination)}</span>
             <span className="col grow"><strong style={{ fontSize: 14 }}>{destination.name}</strong><span className="faint" style={{ fontSize: 12 }}>{destination.area}</span></span>
           </div>
         </div>

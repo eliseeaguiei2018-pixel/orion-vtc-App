@@ -9,13 +9,42 @@ import { chargerML } from './chargerCarte';
 import { styleOrion } from './styleCarte';
 import { OrionMap } from './OrionMap';
 import { Sheet, TopBar } from './ui';
-import { IconBriefcase, IconHome, IconPin, IconPlane, IconSearch, IconClock, IconCheck } from '../icons';
+import {
+  IconActivity, IconBag, IconBank, IconBriefcase, IconBuilding, IconBus, IconCarburant, IconCart, IconCar, IconCheck, IconClock, IconEcole,
+  IconEglise, IconHome, IconLeaf, IconLit, IconMap, IconMedical, IconMosquee, IconPin, IconPlane, IconSearch, IconShield, IconTicket, IconUtensils,
+} from '../icons';
 import { LIEUX_POPULAIRES, lieuEnregistre, lieuxRecents, quartierDe, rechercherLieux, type EtatPosition } from '../lieux';
 
 export type ModeChoix = 'destination' | 'depart' | 'livraison' | 'arret' | 'domicile' | 'bureau';
 
-const icone = (p: Place) => p.kind === 'home' ? <IconHome size={20} /> : p.kind === 'work' ? <IconBriefcase size={20} />
-  : p.kind === 'hub' ? <IconPlane size={20} /> : <IconPin size={20} />;
+/** Pictogramme d'un lieu : domicile, bureau, aéroport, ou sa catégorie (restaurant, église, banque…). */
+export function iconeLieu(p: Place, taille = 20) {
+  if (p.kind === 'home') return <IconHome size={taille} />;
+  if (p.kind === 'work') return <IconBriefcase size={taille} />;
+  if (p.kind === 'hub') return <IconPlane size={taille} />;
+  switch (p.categorie) {
+    case 'restaurant': case 'fast_food': case 'cafe': case 'bakery': case 'ice_cream': case 'bar': case 'music': return <IconUtensils size={taille} />;
+    case 'bank': return <IconBank size={taille} />;
+    case 'grocery': return <IconCart size={taille} />;
+    case 'shop': case 'clothing_store': case 'hairdresser': case 'commercial': return <IconBag size={taille} />;
+    case 'religious_christian': return <IconEglise size={taille} />;
+    case 'religious_muslim': return <IconMosquee size={taille} />;
+    case 'place_of_worship': case 'town_hall': case 'embassy': case 'post': case 'cemetery': return <IconBuilding size={taille} />;
+    case 'school': case 'college': case 'library': return <IconEcole size={taille} />;
+    case 'hospital': case 'pharmacy': case 'doctors': case 'dentist': return <IconMedical size={taille} />;
+    case 'lodging': return <IconLit size={taille} />;
+    case 'fuel': return <IconCarburant size={taille} />;
+    case 'car': return <IconCar size={taille} />;
+    case 'cinema': case 'theatre': case 'museum': case 'art_gallery': return <IconTicket size={taille} />;
+    case 'stadium': return <IconActivity size={taille} />;
+    case 'attraction': case 'park': return <IconLeaf size={taille} />;
+    case 'police': case 'fire_station': return <IconShield size={taille} />;
+    case 'bus': case 'ferry': case 'railway': return <IconBus size={taille} />;
+    case 'road': return <IconMap size={taille} />;
+    default: return <IconPin size={taille} />;
+  }
+}
+const icone = (p: Place) => iconeLieu(p);
 
 /**
  * CHOIX D'UN LIEU (destination, point de prise en charge, livraison, domicile, bureau).

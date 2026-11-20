@@ -241,3 +241,21 @@ export const IconDownload = ({ size, strokeWidth }: P) => (
 export const IconUser = ({ size, strokeWidth }: P) => (
   <svg {...base(size, strokeWidth)}><circle cx="12" cy="8" r="3.6" /><path d="M5 20c.8-3.6 3.6-5.6 7-5.6s6.2 2 7 5.6" /></svg>
 );
+export const IconEglise = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M12 2v5M10 4h4" /><path d="M6 21v-8l6-5 6 5v8" /><path d="M10 21v-4a2 2 0 0 1 4 0v4M4 21h16" /></svg>
+);
+export const IconMosquee = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M7 13a5 5 0 0 1 10 0" /><path d="M6 13h12v8H6zM12 8V5" /><path d="M13.6 3.2a1.6 1.6 0 1 0 0 2.4 2 2 0 0 1 0-2.4Z" /><path d="M3 21V11M21 21V11M10 21v-3a2 2 0 0 1 4 0v3" /></svg>
+);
+export const IconEcole = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="m2 9 10-5 10 5-10 5Z" /><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5M22 9v6" /></svg>
+);
+export const IconLit = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M3 19V6M3 15h18v4M21 15v-3a3 3 0 0 0-3-3h-7v6" /><circle cx="7" cy="11" r="2" /></svg>
+);
+export const IconCarburant = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h12M4 10h10" /><path d="M14 8h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V9l-3-3" /></svg>
+);
+export const IconBus = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><rect x="4" y="3" width="16" height="15" rx="3" /><path d="M4 11h16M8 21v-3M16 21v-3" /><circle cx="8" cy="14.5" r=".6" /><circle cx="16" cy="14.5" r=".6" /></svg>
+);

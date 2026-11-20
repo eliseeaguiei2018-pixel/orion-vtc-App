@@ -56,38 +56,102 @@ const distanceM = (a: LatLng, b: LatLng) => {
 };
 
 /**
+ * INDEX DÉTAILLÉ (APK et démonstration) : 31 000 lieux extraits des tuiles OpenStreetMap
+ * du district — commerces, banques, restaurants, maquis, supermarchés, marchés, églises,
+ * mosquées, écoles, hôpitaux, pharmacies, hôtels, stations, lieux de culture et
+ * d'événements, administrations, arrêts — plus les rues nommées et les quartiers d'usage
+ * absents d'OSM (« Riviéra Golf »…). Généré par scripts/carte-hors-ligne/indexer-lieux.mjs
+ * et livré à côté de l'app ; absent des versions reliées au serveur (qui cherche lui-même).
+ */
+interface IndexLieux {
+  communes: string[];
+  /** [libellé, pictogramme, rang] — rang : 0 quartier, 2 rue, 3 lieu, 4 commerce de détail, 5 arrêt. */
+  categories: Array<[string, string, number]>;
+  lieux: Array<[nom: string, lat: number, lng: number, categorie: number, commune: number]>;
+}
+let indexCharge: (IndexLieux & { cles: string[] }) | null = null;
+let chargement: Promise<void> | null = null;
+export function chargerIndexLieux(): Promise<void> {
+  chargement ??= fetch(new URL('./carte/lieux-index.json', window.location.href).href)
+    .then((r) => (r.ok ? r.json() as Promise<IndexLieux> : null))
+    .then((ix) => { if (ix?.lieux?.length) indexCharge = { ...ix, cles: ix.lieux.map((l) => sansAccents(l[0])) }; })
+    .catch(() => { /* pas d'index livré : la recherche garde les quartiers */ });
+  return chargement;
+}
+
+/**
  * RECHERCHE SANS SERVEUR : les 449 lieux du Grand Abidjan vérifiés (OpenStreetMap,
- * dédoublonnés, avec niveau et commune) sont livrés avec l'app — mêmes données et même
- * classement que le serveur. Sert quand le serveur ne répond pas (réseau faible) et en
- * démonstration : la recherche d'un quartier marche toujours.
+ * dédoublonnés, avec niveau et commune), et l'index détaillé quand il est livré. Sert
+ * quand le serveur ne répond pas (réseau faible) et en démonstration.
+ * « pharmacie », « mosquée », « banque »… trouvent aussi les lieux de cette catégorie
+ * les plus proches, même si leur nom ne contient pas le mot.
  */
 export function rechercheLocale(q: string, pres?: LatLng): Place[] {
   const cle = sansAccents(q);
   if (cle.length < 2) return [];
-  const rang = (nom: string) => {
-    const n = sansAccents(nom);
-    return n === cle ? 0 : n.startsWith(cle) ? 1 : n.split(' ').some((m) => m.startsWith(cle)) ? 2 : n.includes(cle) ? 3 : -1;
-  };
-  const candidats: Array<Place & { rang: number; poids: number }> = [];
+  const rang = (n: string) => (n === cle ? 0 : n.startsWith(cle) ? 1 : n.split(' ').some((m) => m.startsWith(cle)) ? 2 : n.includes(cle) ? 3 : -1);
+  type Candidat = Place & { rang: number; poids: number };
+  const candidats: Candidat[] = [];
   for (const p of LIEUX_POPULAIRES) {
-    const r = Math.min(...[rang(p.name), rang(p.area)].map((x) => (x < 0 ? 9 : x)));
+    const r = Math.min(...[rang(sansAccents(p.name)), rang(sansAccents(p.area))].map((x) => (x < 0 ? 9 : x)));
     if (r < 9) candidats.push({ ...p, rang: r, poids: 0 });
   }
+  const dejaQuartiers = new Set<string>();
   for (const [nom, lat, lng, niveau, iCommune] of QUARTIERS_ABIDJAN) {
-    const r = rang(nom);
+    const n = sansAccents(nom);
+    const r = rang(n);
     if (r < 0) continue;
+    dejaQuartiers.add(n);
     // Les quartiers passent avant leurs subdivisions (« Zone 4 » avant « Zone 4A »).
     const poids = niveau === 'quartier' ? 1 : niveau === 'sous-quartier' ? 2 : 3;
     candidats.push({
-      id: `osm-lieu:${sansAccents(nom).replace(/ /g, '-')}:${lat}`, name: nom,
+      id: `osm-lieu:${n.replace(/ /g, '-')}:${lat}`, name: nom,
       area: `${LIBELLE_NIVEAU[niveau]} · ${COMMUNES_ABIDJAN[iCommune] ?? 'Grand Abidjan'}`,
-      location: { lat, lng }, rang: r, poids,
+      location: { lat, lng }, rang: r, poids, categorie: 'marker',
     });
   }
-  return candidats
-    .sort((a, b) => a.rang - b.rang || a.poids - b.poids || (pres ? distanceM(pres, a.location) - distanceM(pres, b.location) : 0))
-    .slice(0, 8)
-    .map(({ rang: _r, poids: _p, ...l }) => l);
+  const ix = indexCharge;
+  if (ix) {
+    // Catégories demandées par leur nom (« pharmacie », « eglise », « supermarche »…).
+    const categoriesVisees = new Set<number>();
+    if (cle.length >= 4) ix.categories.forEach(([libelle], i) => { if (sansAccents(libelle).split(/[ ·]+/).some((m) => m.startsWith(cle))) categoriesVisees.add(i); });
+    const parCategorie: Candidat[] = [];
+    for (let i = 0; i < ix.lieux.length; i++) {
+      const [nom, lat, lng, c, iCommune] = ix.lieux[i]!;
+      const r = rang(ix.cles[i]!);
+      const visee = categoriesVisees.has(c);
+      if (r < 0 && !visee) continue;
+      if (ix.categories[c]![2] === 0 && dejaQuartiers.has(ix.cles[i]!)) continue;
+      const [libelle, icone, rangCat] = ix.categories[c]!;
+      const lieu: Candidat = {
+        id: `osm-poi:${i}`, name: nom, area: `${libelle} · ${ix.communes[iCommune] ?? 'Grand Abidjan'}`,
+        location: { lat, lng },
+        // Un arrêt de bus porte souvent le nom d'un lieu (« Pharmacie », « Mosquée ») : il
+        // passe après les vrais lieux de même nom.
+        rang: visee ? 0.5 : r + (rangCat >= 5 ? 1.5 : 0) + (categoriesVisees.size ? 1 : 0), poids: rangCat === 0 ? 1 : rangCat, categorie: icone,
+      };
+      (visee ? parCategorie : candidats).push(lieu);
+    }
+    // « pharmacie », « mosquée »… : les plus proches de cette catégorie d'abord (il y en a des centaines).
+    if (pres) parCategorie.sort((a, b) => distanceM(pres, a.location) - distanceM(pres, b.location));
+    candidats.push(...parCategorie.slice(0, 10));
+  }
+  const tries = candidats.sort((a, b) => a.rang - b.rang || (a.rang === 0.5 ? 0 : a.poids - b.poids) || (pres ? distanceM(pres, a.location) - distanceM(pres, b.location) : 0));
+  // Un même nom à moins de 300 m (arrêt de bus et école « Riviéra Golf ») : un seul résultat.
+  const retenus: Candidat[] = [];
+  for (const c of tries) {
+    if (retenus.length >= 12) break;
+    if (retenus.some((r) => sansAccents(r.name) === sansAccents(c.name) && distanceM(r.location, c.location) < 300)) continue;
+    retenus.push(c);
+  }
+  return retenus.map(({ rang: _r, poids: _p, ...l }) => {
+    // Le quartier précis d'un commerce ou d'une rue : « Pharmacie · Riviéra 2, Cocody ».
+    if (l.id.startsWith('osm-poi:') && !l.area.startsWith('Quartier')) {
+      const proche = lieuProche(l.location);
+      if (proche) return { ...l, area: `${l.area.split(' · ')[0]} · ${proche}` };
+    }
+    return l;
+  });
 }
 
 /** Recherche d'adresse : serveur (répertoire ORION + OpenStreetMap), sinon répertoire livré. */
@@ -107,6 +171,7 @@ export async function rechercherLieux(q: string, pres?: LatLng, signal?: AbortSi
       if ((e as Error).name === 'AbortError') throw e;
     }
   }
+  await chargerIndexLieux();
   return rechercheLocale(requete, pres);
 }
 
