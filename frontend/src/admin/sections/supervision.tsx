@@ -5,13 +5,13 @@
  * mélangeait types, couche réseau, orchestration et 37 composants.
  */
 import { useState, type CSSProperties } from 'react';
-import { SupervisionMap } from '../SupervisionMap';
+import { SosCarte, SupervisionMap } from '../SupervisionMap';
 import { LIVE, adminGet, fcfa } from '../api';
 import type { Alert, ContactLigne, ContactUrgence, FleetUnit, Overview, SecurityAttempt, SosDossier, Stats } from '../types';
 import { AvatarChauffeur, Drawer, Kpi, statusLabel } from '../ui';
 import { lienTel } from '../../telephone';
 
-export function OverviewSection({ ov, fleet, openAlerts, stats, statsDays, onStatsDays }: { ov: Overview; fleet: FleetUnit[]; openAlerts: Alert[]; stats: Stats | null; statsDays: number; onStatsDays: (d: number) => void }) {
+export function OverviewSection({ ov, fleet, openAlerts, stats, statsDays, onStatsDays, onAlerte }: { ov: Overview; fleet: FleetUnit[]; openAlerts: Alert[]; stats: Stats | null; statsDays: number; onStatsDays: (d: number) => void; onAlerte?: (id: string) => void }) {
   return (
     <>
       <section className="adm-kpis">
@@ -27,8 +27,8 @@ export function OverviewSection({ ov, fleet, openAlerts, stats, statsDays, onSta
       </section>
       {stats && <TrendsChart stats={stats} statsDays={statsDays} onStatsDays={onStatsDays} />}
       <div className="adm-card">
-        <div className="adm-card-h"><h3>Supervision de la flotte</h3><span className="adm-muted">{fleet.length} véhicules · temps réel</span></div>
-        <SupervisionMap fleet={fleet} alerts={openAlerts} />
+        <div className="adm-card-h"><h3>Supervision de la flotte · Abidjan</h3><span className="adm-muted">{fleet.length} véhicules · temps réel</span></div>
+        <SupervisionMap fleet={fleet} alerts={openAlerts} onAlerte={onAlerte} />
         <div className="adm-legend"><span><i className="dot green" /> Disponible</span><span><i className="dot amber" /> En course</span><span><i className="dot red pulse" /> Alerte SAMU</span></div>
       </div>
     </>
@@ -109,7 +109,7 @@ export function SamuSection({ alerts, fleet, openAlerts, canWrite, contacts, onC
         </p>
       </div>
       <div className="adm-grid2">
-        <div className="adm-card"><div className="adm-card-h"><h3>Carte tactique</h3><span className="adm-muted">SAMU 185 · Police 170 · Pompiers 180</span></div><SupervisionMap fleet={fleet} alerts={openAlerts} /></div>
+        <div className="adm-card"><div className="adm-card-h"><h3>Carte tactique · Abidjan</h3><span className="adm-muted">SAMU 185 · Police 170 · Pompiers 180 · cliquez une alerte pour ouvrir son dossier</span></div><SupervisionMap fleet={fleet} alerts={openAlerts} onAlerte={onOpen} /></div>
         <div className="adm-card">
           <div className="adm-card-h"><h3>File de triage</h3><span className="adm-muted">{openAlerts.length} ouverte(s)</span></div>
           <div className="adm-alert-list">
@@ -306,8 +306,8 @@ export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf
       </div>
       {pts.length > 1 && d.ride && (
         <>
-          <p className="adm-muted" style={{ fontSize: 12, margin: '8px 0 4px' }}>Itinéraire théorique (gris) vs réel (rouge) :</p>
-          <SosTrace ride={d.ride} />
+          <p className="adm-muted" style={{ fontSize: 12, margin: '8px 0 4px' }}>Itinéraire sur la carte : trajet réel (rouge) vs trajet direct (pointillés), position de l’alerte :</p>
+          <SosCarte ride={d.ride} alerte={a.location} repli={<SosTrace ride={d.ride} />} />
         </>
       )}
 

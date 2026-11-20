@@ -198,6 +198,28 @@ textarea.adm-select { resize: vertical; font-family: inherit; width: 100%; }
 /* Carte supervision */
 .adm-map { border-radius: 12px; overflow: hidden; border: 1px solid var(--a-stroke); aspect-ratio: 720 / 420; }
 .adm-map svg { width: 100%; height: 100%; display: block; }
+/* Vraie carte d'Abidjan (MapLibre) : même emprise que le plan, interactive. */
+.adm-map-reelle { position: relative; aspect-ratio: auto; height: clamp(320px, 46vh, 560px); background: var(--a-card, #0b1a13); }
+.adm-map-ml { position: absolute; inset: 0; }
+.adm-map-chargement { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; color: var(--a-muted); pointer-events: none; }
+.adm-map { position: relative; }
+.adm-map-repli { position: absolute; left: 10px; bottom: 8px; font-size: 11px; color: #9fb8ac; background: rgba(4,20,13,.72); padding: 3px 8px; border-radius: 6px; }
+.adm-map-reelle .maplibregl-ctrl-group { background: var(--a-card, #0f2219); border: 1px solid var(--a-stroke); box-shadow: none; }
+:root[data-adm-theme='dark'] .adm-map-reelle .maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: invert(1) hue-rotate(180deg); }
+.adm-map-reelle .maplibregl-ctrl-attrib { font-size: 10px; }
+/* Alerte SOS sur la carte : point rouge pulsant, cliquable (ouvre le dossier). */
+.adm-ml-alerte { width: 16px; height: 16px; padding: 0; border-radius: 50%; border: 2px solid #fff; background: #ff5468; cursor: pointer;
+  box-shadow: 0 0 0 0 rgba(255,84,104,.55); animation: adm-ml-pulse 1.6s ease-out infinite; }
+.adm-ml-alerte:focus-visible { outline: 3px solid #ffd2d8; outline-offset: 2px; }
+@keyframes adm-ml-pulse { 0% { box-shadow: 0 0 0 0 rgba(255,84,104,.6); } 70% { box-shadow: 0 0 0 16px rgba(255,84,104,0); } 100% { box-shadow: 0 0 0 0 rgba(255,84,104,0); } }
+@media (prefers-reduced-motion: reduce) { .adm-ml-alerte { animation: none; box-shadow: 0 0 0 4px rgba(255,84,104,.35); } }
+/* Dossier SOS : itinéraire sur la vraie carte. */
+.adm-sos-carte { position: relative; height: 240px; border-radius: 10px; overflow: hidden; border: 1px solid var(--a-stroke); margin-bottom: 6px; }
+.adm-sos-legende { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #e8f6ef;
+  background: rgba(4,20,13,.78); padding: 6px 9px; border-radius: 8px; pointer-events: none; }
+.adm-sos-legende i { display: inline-block; width: 16px; height: 3px; margin-right: 6px; vertical-align: middle; border-radius: 2px; }
+.adm-l-reel { background: #ff5468; } .adm-l-theo { background: repeating-linear-gradient(90deg, #8a9a92 0 4px, transparent 4px 7px); }
+.adm-l-sos { width: 9px !important; height: 9px !important; border-radius: 50% !important; background: #ff5468; border: 1.5px solid #fff; }
 .adm-legend { display: flex; gap: 18px; margin-top: 12px; font-size: 12px; color: var(--a-muted); }
 .adm-legend i.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
 .dot.green { background: var(--a-green); } .dot.amber { background: var(--a-amber); } .dot.red { background: var(--a-danger); }

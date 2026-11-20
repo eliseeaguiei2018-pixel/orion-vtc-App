@@ -177,4 +177,10 @@ test('dossier SOS : la vitesse estimée tient compte de l’intervalle entre deu
   container.rides.save(ride);
   const sans = (await app.inject({ method: 'GET', url: `/admin/sos/${alerte.id}`, headers: AUTH })).json();
   assert.equal(sans.telemetry.speedEstimateKmh, null);
+  // Saut de position GPS (1 km en 2 s = 1 800 km/h) : pas de vitesse absurde pour l'agent.
+  const t2 = Date.now();
+  ride.trace = [{ lat: 5.3, lng: -4.0, t: t2 - 2_000 }, { lat: 5.3 + 1_000 / 111_195, lng: -4.0, t: t2 }];
+  container.rides.save(ride);
+  const saut = (await app.inject({ method: 'GET', url: `/admin/sos/${alerte.id}`, headers: AUTH })).json();
+  assert.equal(saut.telemetry.speedEstimateKmh, null, `vitesse ${saut.telemetry.speedEstimateKmh} km/h`);
 });

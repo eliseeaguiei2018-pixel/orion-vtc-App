@@ -1626,7 +1626,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
             onRapportPdf={() => void downloadFile('/admin/vigilance/rapport.pdf', 'orion-rapport-controle.pdf')}
           />
         )}
-        {section === 'overview' && ov && <OverviewSection ov={ov} fleet={fleet} openAlerts={openAlerts} stats={stats} statsDays={statsDays} onStatsDays={setStatsDays} />}
+        {section === 'overview' && ov && <OverviewSection ov={ov} fleet={fleet} openAlerts={openAlerts} stats={stats} statsDays={statsDays} onStatsDays={setStatsDays} onAlerte={can('alerts:read') ? openSos : undefined} />}
         {section === 'alerts' && (
           <SamuSection
             alerts={alerts} fleet={fleet} openAlerts={openAlerts} canWrite={can('alerts:write')}

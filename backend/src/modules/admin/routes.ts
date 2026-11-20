@@ -931,7 +931,10 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       const [avant, dernier] = trace.slice(-2);
       if (avant?.t && dernier?.t && dernier.t > avant.t && Date.now() - dernier.t < 30_000) {
         const { haversineMeters } = await import('../../core/geo.js');
-        speedEstimateKmh = Math.round((haversineMeters(avant, dernier) / ((dernier.t - avant.t) / 1000)) * 3.6);
+        const v = Math.round((haversineMeters(avant, dernier) / ((dernier.t - avant.t) / 1000)) * 3.6);
+        // Au-delà de 250 km/h, c'est un saut de position GPS, pas une vitesse : l'agent
+        // ne doit pas lire « 700 km/h ». Pas de chiffre plutôt qu'un chiffre faux.
+        speedEstimateKmh = v <= 250 ? v : null;
       }
       return {
         alert,
