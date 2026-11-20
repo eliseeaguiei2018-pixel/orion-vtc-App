@@ -930,6 +930,18 @@ function AuthScreen({ phone, setPhone, name, setName, email, setEmail, erreur, o
   const { t } = useI18n();
   const valid = phone.replace(/\D/g, '').length >= 8 && name.trim().length >= 2
     && (!email.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()));
+  /*
+   * Touche « Suivant » du clavier : passe au champ suivant et l'amène au-dessus du clavier.
+   * Sans cela, sur iPhone, le clavier ouvert recouvrait le champ suivant de la feuille.
+   */
+  const telRef = useRef<HTMLInputElement>(null);
+  const mailRef = useRef<HTMLInputElement>(null);
+  const suivant = (cible: React.RefObject<HTMLInputElement | null>) => (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    cible.current?.focus();
+    cible.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  };
   return (
     <div className="screen page">
       <OrionMap origin={DEFAULT_ORIGIN.location} />
@@ -940,14 +952,14 @@ function AuthScreen({ phone, setPhone, name, setName, email, setEmail, erreur, o
         <h2 className="h-title">{t('reg_title')}</h2>
         <p className="h-sub" style={{ marginBottom: 16 }}>{t('reg_subtitle')}</p>
         <div className="field" style={{ marginBottom: 10 }}>
-          <input aria-label={t('reg_name')} autoComplete="name" placeholder={t('reg_name')} value={name} onChange={(e) => setName(e.target.value)} />
+          <input aria-label={t('reg_name')} autoComplete="name" enterKeyHint="next" onKeyDown={suivant(telRef)} placeholder={t('reg_name')} value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div className="field" style={{ marginBottom: 10 }}>
           <span className="dialcode">🇨🇮 +225</span>
-          <input inputMode="tel" aria-label={t('reg_phone')} autoComplete="tel-national" placeholder={t('reg_phone')} value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <input ref={telRef} inputMode="tel" aria-label={t('reg_phone')} autoComplete="tel-national" enterKeyHint="next" onKeyDown={suivant(mailRef)} placeholder={t('reg_phone')} value={phone} onChange={(e) => setPhone(e.target.value)} />
         </div>
         <div className="field" style={{ marginBottom: 16 }}>
-          <input type="email" inputMode="email" aria-label={t('reg_email')} autoComplete="email" placeholder={t('reg_email')} value={email} onChange={(e) => setEmail(e.target.value)} />
+          <input ref={mailRef} type="email" inputMode="email" aria-label={t('reg_email')} autoComplete="email" enterKeyHint="send" onKeyDown={(e) => { if (e.key === 'Enter' && valid) { e.preventDefault(); (e.target as HTMLInputElement).blur(); onNext(); } }} placeholder={t('reg_email')} value={email} onChange={(e) => setEmail(e.target.value)} />
         </div>
         {erreur && <p className="photo-erreur" style={{ marginTop: -6 }}>{erreur}</p>}
         <button className="btn btn-primary" disabled={!valid} onClick={onNext}>{t('reg_send')} <IconChevron size={18} /></button>
