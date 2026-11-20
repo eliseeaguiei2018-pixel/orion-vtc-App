@@ -7,6 +7,7 @@ on:
     branches: ['**']
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   backend:
@@ -63,11 +64,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { nom: 'Safari / WebKit (Linux)', os: ubuntu-latest, navigateur: webkit, installer: 'webkit --with-deps' }
-          - { nom: 'Firefox', os: ubuntu-latest, navigateur: firefox, installer: 'firefox --with-deps' }
-          - { nom: 'Microsoft Edge (Windows)', os: windows-latest, navigateur: msedge, installer: '' }
-          - { nom: 'Safari / WebKit (macOS)', os: macos-latest, navigateur: webkit, installer: 'webkit' }
+        # Windows et macOS (minutes facturées x2 / x10) : sur demande ou « [ci-full] » dans le commit.
+        include: ${{ fromJSON(github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[ci-full]') ? '[{"nom":"Safari / WebKit (Linux)","os":"ubuntu-latest","navigateur":"webkit","installer":"webkit --with-deps"},{"nom":"Firefox","os":"ubuntu-latest","navigateur":"firefox","installer":"firefox --with-deps"},{"nom":"Microsoft Edge (Windows)","os":"windows-latest","navigateur":"msedge","installer":""},{"nom":"Safari / WebKit (macOS)","os":"macos-latest","navigateur":"webkit","installer":"webkit"}]' : '[{"nom":"Safari / WebKit (Linux)","os":"ubuntu-latest","navigateur":"webkit","installer":"webkit --with-deps"},{"nom":"Firefox","os":"ubuntu-latest","navigateur":"firefox","installer":"firefox --with-deps"}]') }}
     defaults:
       run:
         working-directory: frontend
