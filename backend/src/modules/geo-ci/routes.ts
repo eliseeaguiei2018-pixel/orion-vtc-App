@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { latLng, parse } from '../../core/validate.js';
 import { ABIDJAN_ZONES, ALL_ZONES, CITY_ZONES, isWithinCotedIvoire, nearestZone } from './zones.js';
+import { lieuDe } from '../maps/lieux.js';
 
 /** Expose le plan directeur ivoirien (zones) et le rattachement géographique. */
 export async function geoCiRoutes(app: FastifyInstance, _container: Container): Promise<void> {
@@ -20,6 +21,8 @@ export async function geoCiRoutes(app: FastifyInstance, _container: Container): 
       inServiceArea: inService,
       zone: nearest?.zone ?? null,
       distanceMeters: nearest ? Math.round(nearest.distanceMeters) : null,
+      // Quartier réel + commune selon les limites OSM (« Riviéra 2, Cocody »).
+      lieu: inService ? lieuDe(body.point) : null,
     };
   });
 }

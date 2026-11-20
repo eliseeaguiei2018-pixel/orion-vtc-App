@@ -3,6 +3,7 @@ import { effectiveCommissionRate } from '../wallet/service.js';
 import type { Driver } from '../drivers/store.js';
 import type { Ride } from '../rides/store.js';
 import type { RentalReservation } from '../rental/service.js';
+import { lieuDe } from '../maps/lieux.js';
 
 /** Statuts de course « actifs » côté chauffeur (mission en cours). */
 export const ACTIVE = new Set(['accepted', 'driver_en_route', 'arrived', 'in_progress', 'completed']);
@@ -29,6 +30,8 @@ export function driverRideView(ride: Ride, container: Container, driverId: strin
     category: ride.quote.category,
     origin: ride.origin,
     destination: ride.destination,
+    // Noms réels (quartier, commune) : le chauffeur voyait « Cocody » ou des coordonnées.
+    lieux: { depart: lieuDe(ride.origin).libelle, arrivee: lieuDe(ride.destination).libelle },
     stops: ride.quote.stops ?? [],
     distanceMeters: ride.quote.distanceMeters,
     etaSeconds: ride.quote.etaSeconds,

@@ -6,6 +6,7 @@ import { DASHBOARD_ROOM, type RealtimeMessage } from '../realtime/hub.js';
 import type { Ride } from '../rides/store.js';
 import { config } from '../../config/index.js';
 import { analyser, evenementsDesCumuls, historiqueDemo, type Sources } from './analyse.js';
+import { communeDe } from '../maps/lieux.js';
 
 /**
  * TABLEAU DE BORD ORION : la vue d'ensemble de tout l'écosystème, en direct.
@@ -49,7 +50,8 @@ const service = (r: Ride): Service => (r.serviceType === 'delivery' ? 'livraison
 const momentDe = (r: Ride, type: string) => r.events.find((e) => e.type === type)?.at;
 /** Accord en français : 0 et 1 au singulier. */
 const pl = (n: number, un: string, plusieurs: string) => `${n} ${n > 1 ? plusieurs : un}`;
-const commune = (p: LatLng) => nearestZone(p)?.zone.name ?? 'Abidjan';
+/** Commune réelle (limites OSM) ; hors du district, la ville connue la plus proche. */
+const commune = (p: LatLng) => communeDe(p) ?? nearestZone(p)?.zone.name ?? 'Abidjan';
 
 /** Jours d'historique de démonstration : jamais en production, 730 par défaut en développement simulé. */
 export function joursDeDemo(): number {

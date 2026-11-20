@@ -7,6 +7,7 @@ import { haversineMeters } from '../../core/geo.js';
 import { simplePdf } from '../../core/pdf.js';
 import { config } from '../../config/index.js';
 import { CacheCourt } from '../../core/cache-court.js';
+import { lieuDe } from '../maps/lieux.js';
 
 /**
  * Service d'agrégation pour le dashboard Admin / supervision SAMU.
@@ -175,6 +176,8 @@ export class AdminService {
         trafficLevel: r.quote.trafficLevel,
         origin: r.origin,
         destination: r.destination,
+        depart: lieuDe(r.origin).libelle,
+        arrivee: lieuDe(r.destination).libelle,
         anomaly: this.rideAnomaly(r),
         createdAt: r.createdAt,
       };

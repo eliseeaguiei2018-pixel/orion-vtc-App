@@ -2,6 +2,7 @@ import type { LatLng } from '../../core/geo.js';
 import { haversineMeters } from '../../core/geo.js';
 import { ALL_ZONES } from '../geo-ci/zones.js';
 import { QUARTIERS_ABIDJAN } from './quartiers-abidjan.js';
+import { LIBELLE_NIVEAU, communeParIndice } from './lieux.js';
 
 /**
  * RECHERCHE DE LIEUX (adresse de départ ou de destination).
@@ -11,8 +12,9 @@ import { QUARTIERS_ABIDJAN } from './quartiers-abidjan.js';
  * était introuvable. Deux sources, fusionnées :
  *
  *  1. le RÉPERTOIRE ORION, local et toujours disponible : communes, grandes villes, gares,
- *     aéroport, et les 458 quartiers du Grand Abidjan extraits d'OpenStreetMap (« Riviera 2 »,
- *     « Angré », « Zone 4 »…) ; insensible aux accents (« adjame » trouve « Adjamé ») ;
+ *     aéroport, et les lieux du Grand Abidjan extraits d'OpenStreetMap et NETTOYÉS (doublons
+ *     fusionnés, niveau de chaque lieu, commune selon les limites OSM) : « Riviéra 2 —
+ *     Quartier · Cocody » ; insensible aux accents (« adjame » trouve « Adjamé ») ;
  *  2. OPENSTREETMAP via un service Photon (adresses, rues, commerces, établissements),
  *     limité à la Côte d'Ivoire et classé près de l'utilisateur. Hors ligne ou lent, il
  *     est simplement ignoré : la recherche ne reste jamais vide par sa faute.
@@ -63,9 +65,13 @@ export class Geocodeur {
       const r = rang(z.name);
       if (r >= 0) candidats.push({ id: `zone:${z.id}`, nom: z.name, secteur: z.kind === 'commune' ? `Commune · ${z.region}` : z.region, location: z.center, source: 'repertoire', rang: r, poids: 0 });
     }
-    for (const [nom, lat, lng, nature] of QUARTIERS_ABIDJAN) {
+    for (const [nom, lat, lng, niveau, iCommune] of QUARTIERS_ABIDJAN) {
       const r = rang(nom);
-      if (r >= 0) candidats.push({ id: `osm-quartier:${sansAccents(nom).replace(/ /g, '-')}:${lat}`, nom, secteur: nature === 'village' ? 'Village · Grand Abidjan' : 'Quartier · Abidjan', location: { lat, lng }, source: 'repertoire', rang: r, poids: 1 });
+      if (r < 0) continue;
+      const commune = communeParIndice(iCommune);
+      // Les quartiers passent avant leurs subdivisions (« Zone 4 » avant « Zone 4a »).
+      const poids = niveau === 'quartier' ? 1 : niveau === 'sous-quartier' ? 2 : 3;
+      candidats.push({ id: `osm-lieu:${sansAccents(nom).replace(/ /g, '-')}:${lat}`, nom, secteur: `${LIBELLE_NIVEAU[niveau]} · ${commune ?? 'Grand Abidjan'}`, location: { lat, lng }, source: 'repertoire', rang: r, poids });
     }
     return candidats
       // À rang égal : la commune avant le quartier, puis le plus proche de l'utilisateur.
@@ -81,12 +87,12 @@ export class Geocodeur {
     if (requete.length < 2) return [];
     const local = this.repertoire(requete, pres);
     const distants = this.urlPhoton ? await this.photon(requete, pres) : [];
-    const vus = new Set<string>();
+    // Un même lieu ne s'affiche qu'une fois : même nom (sans accents) à moins de 1,5 km,
+    // qu'il vienne d'OpenStreetMap en ligne ou du répertoire (point et polygone confondus).
     const tous: LieuTrouve[] = [];
     for (const l of [...distants, ...local]) {
-      const cle = `${sansAccents(l.nom)}|${l.location.lat.toFixed(3)}|${l.location.lng.toFixed(3)}`;
-      if (vus.has(cle)) continue;
-      vus.add(cle);
+      const n = sansAccents(l.nom);
+      if (tous.some((t) => sansAccents(t.nom) === n && haversineMeters(t.location, l.location) < 1_500)) continue;
       tous.push(l);
     }
     return tous.slice(0, 10);

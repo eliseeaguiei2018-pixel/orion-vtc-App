@@ -27,11 +27,15 @@ export function RidesSection({ rides, meta, onPage, canWrite, onReassign, onOpen
     <div className="adm-card">
       <div className="adm-card-h"><h3>Courses (radar temps réel)</h3><span className="adm-muted">{meta.total} · anomalies en surbrillance · cliquer = fiche (tracé GPS, tarif)</span></div>
       <table className="adm-table">
-        <thead><tr><th>Course</th><th>Passager</th><th>Chauffeur</th><th>Statut</th><th>Anomalie</th><th>Trafic</th><th className="r">Montant</th>{canWrite && <th>Interventions</th>}</tr></thead>
+        <thead><tr><th>Course</th><th>Trajet</th><th>Passager</th><th>Chauffeur</th><th>Statut</th><th>Anomalie</th><th>Trafic</th><th className="r">Montant</th>{canWrite && <th>Interventions</th>}</tr></thead>
         <tbody>
           {rides.map((r) => (
             <tr key={r.id} className={`adm-row-click${r.anomaly ? ' anomaly' : ''}`} onClick={() => onOpen(r.id)}>
               <td className="mono">{r.id.slice(0, 8)}{r.paymentMethod && <><br /><span className="adm-muted" style={{ fontSize: 11 }}>{r.paymentMethod}</span></>}</td>
+              {/* Le trajet en clair (quartier, commune) : le régulateur ne voyait ni départ ni arrivée. */}
+              <td style={{ minWidth: 170 }}>
+                {r.depart ? <><strong style={{ fontSize: 12.5 }}>{r.depart}</strong><br /><span className="adm-muted" style={{ fontSize: 12 }}>→ {r.arrivee}</span></> : '—'}
+              </td>
               <td onClick={(e) => e.stopPropagation()}>
                 {r.clientName ?? r.clientId.slice(0, 10)}
                 <div style={{ marginTop: 3 }}>

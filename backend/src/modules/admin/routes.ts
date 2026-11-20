@@ -29,6 +29,7 @@ import { consoleForced, consoleReassigned } from '../driver-app/offers.js';
 import { photoUrl } from '../driver-app/photo-url.js';
 import { categorieDeFlotte } from '../rides/matching.js';
 import { ROLES_HABILITABLES, STATUT_HABILITATION_LABEL, type ErreurHabilitation, type Habilitation } from '../dashboard/habilitations.js';
+import { lieuDe } from '../maps/lieux.js';
 
 /**
  * VOLUME : un export s'écrit par tranches de 2 000 lignes, en rendant la main au serveur
@@ -3052,10 +3053,9 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         batteriePct: z.number().min(0).max(100).optional(),
         autonomieKm: z.number().min(0).max(2000).optional(),
       }), req.body);
-      // Le quartier, comme pour une alerte SOS : la zone tarifaire si le point y tombe,
-      // sinon le quartier le plus proche (« Riviera », pas « zone inconnue » au commissariat).
-      const zone = container.settings.zoneForPoint({ lat: body.lat, lng: body.lng })?.name
-        ?? nearestZone({ lat: body.lat, lng: body.lng })?.zone.name;
+      // Le lieu, comme pour une alerte SOS : quartier réel et commune (limites OSM) —
+      // « Riviéra 2, Cocody », jamais « zone inconnue » au commissariat.
+      const zone = lieuDe({ lat: body.lat, lng: body.lng }).libelle;
       const position = container.telematique.majPosition(vehiculeId, { ...body, zone });
       container.realtime.publish(CONFIG_ROOM, 'rental.position', { vehiculeId, position });
       return { position };

@@ -141,6 +141,8 @@ export interface RideRow {
   status: string; amount: number; currency: string; trafficLevel: string;
   anomaly?: string | null; paymentMethod?: string | null;
   trustedContact?: { name: string; phone: string } | null;
+  /** Départ et arrivée en clair : « Riviéra 2, Cocody » (quartier réel, commune OSM). */
+  depart?: string; arrivee?: string;
   createdAt: string;
 }
 export interface DriverRow { id: string; name: string; matricule: string; category: string; kycStatus: string; availability: string; rating: number; trips: number; balance: number; vip?: boolean; loyaltyTier?: string | null; electricRides?: number; suspensionReason?: string | null; phone?: string | null; photoUrl?: string | null; cancellations?: number; }

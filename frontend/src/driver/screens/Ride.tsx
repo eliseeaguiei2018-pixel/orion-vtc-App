@@ -80,7 +80,8 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
               : (toPickup ? tr('Prise en charge') : ride.status === 'arrived' ? tr('Client attendu') : tr('Destination'))}</div>
             <div className="h-title" style={{ fontSize: 19 }}>{ride.client.name ?? (livraison ? tr('Client ORION') : tr('Passager ORION'))}</div>
             <div className="faint" style={{ fontSize: 12.5 }}>
-              {km(haversine(app.position, target))} · {methodLabel(ride.paymentMethod)}{ride.pickupZone ? ` · ${ride.pickupZone.name}` : ''}
+              {km(haversine(app.position, target))} · {methodLabel(ride.paymentMethod)}
+              {(toPickup ? ride.lieux?.depart : ride.lieux?.arrivee) ?? ride.pickupZone?.name ? ` · ${(toPickup ? ride.lieux?.depart : ride.lieux?.arrivee) ?? ride.pickupZone?.name}` : ''}
             </div>
           </div>
           <div style={{ textAlign: 'end' }}>

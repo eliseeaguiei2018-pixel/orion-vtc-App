@@ -3,6 +3,7 @@ import { ROLE_PERMISSIONS, type AdminAccount, type Permission } from '../admin/r
 import { STATUT_RAPPORT_LABEL } from '../staff/comms.js';
 import { nearestZone } from '../geo-ci/zones.js';
 import { PLAFOND_AVANCE, PLAFOND_PRET, MAX_ECHEANCES, TYPE_LABEL, TYPES_FINANCIERS } from '../crew/requests.js';
+import { lieuDe } from '../maps/lieux.js';
 
 /**
  * « MON POSTE » — la journée de travail d'un employé ORION.
@@ -322,7 +323,7 @@ export class WorkspaceService {
       ? (() => {
         const d = this.c.crew.dossier(fiche.driverId!, 30);
         if (!d) return null;
-        const zone = (p: { lat: number; lng: number }) => nearestZone(p)?.zone.name ?? 'Abidjan';
+        const zone = (p: { lat: number; lng: number }) => lieuDe(p).libelle;
         const manager = d.equipe?.managerUsername ? this.c.accounts.get(d.equipe.managerUsername) : undefined;
         const courses = this.c.rides.listByDriver(fiche.driverId!)
           .slice(0, 8)

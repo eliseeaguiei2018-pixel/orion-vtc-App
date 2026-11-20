@@ -11,6 +11,7 @@ import { nearestZone } from '../geo-ci/zones.js';
 import { vueUsager } from '../safety/service.js';
 import type { Client } from './store.js';
 import { issueClientToken, requireClient, validerPhoto } from './auth.js';
+import { lieuDe } from '../maps/lieux.js';
 
 /**
  * COMPTE CLIENT : inscription par numéro vérifié, profil, photo, historique.
@@ -159,7 +160,7 @@ export async function clientAccountRoutes(app: FastifyInstance, container: Conta
   app.get('/clients/:clientId/history', async (req) => {
     const { clientId } = req.params as { clientId: string };
     requireClient(req, clientId);
-    const zone = (p: { lat: number; lng: number }) => nearestZone(p)?.zone.name ?? 'Abidjan';
+    const zone = (p: { lat: number; lng: number }) => lieuDe(p).libelle;
     const alertes = container.safety.parUsager(clientId);
     // listByClient rend déjà les courses de la plus récente à la plus ancienne (index).
     const courses = container.rides.listByClient(clientId)

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { LatLng } from '../../core/geo.js';
 import { EMERGENCY_ROOM, rideRoom, sosRoom, type RealtimeHub } from '../realtime/hub.js';
 import { nearestZone } from '../geo-ci/zones.js';
+import { lieuDe } from '../maps/lieux.js';
 
 /**
  * Sécurité & secours d'urgence (Côte d'Ivoire).
@@ -237,7 +238,8 @@ export class SafetyService {
     source?: 'client' | 'chauffeur' | 'systeme';
   }): EmergencyAlert {
     const now = new Date().toISOString();
-    const zone = nearestZone(input.location)?.zone;
+    // Le lieu exact pour les secours : quartier réel et commune (limites OSM).
+    const lieu = lieuDe(input.location);
     const alert: EmergencyAlert = {
       id: randomUUID(),
       kind: input.kind,
@@ -249,7 +251,7 @@ export class SafetyService {
       userId: input.userId,
       source: input.source,
       location: input.location,
-      zoneName: zone?.name,
+      zoneName: lieu.libelle,
       impactG: input.impactG,
       dispatchedTo: [],
       secours: [],

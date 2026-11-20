@@ -72,8 +72,9 @@ export async function quartierDe(p: LatLng): Promise<{ nom: string; enZone: bool
   try {
     const res = await fetch(urlApi('/geo/resolve')!, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ point: p }) });
     if (!res.ok) return null;
-    const j = await res.json() as { inServiceArea: boolean; zone: { name: string } | null };
-    return { nom: j.zone?.name ?? 'Côte d’Ivoire', enZone: j.inServiceArea };
+    const j = await res.json() as { inServiceArea: boolean; zone: { name: string } | null; lieu?: { libelle: string } | null };
+    // « Riviéra 2, Cocody » : quartier réel et commune (limites OSM) ; à défaut, la zone.
+    return { nom: j.lieu?.libelle ?? j.zone?.name ?? 'Côte d’Ivoire', enZone: j.inServiceArea };
   } catch { return null; }
 }
 

@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Geocodeur } from '../src/modules/maps/geocodage.js';
+import { QUARTIERS_ABIDJAN } from '../src/modules/maps/quartiers-abidjan.js';
+import { communeDe, lieuDe } from '../src/modules/maps/lieux.js';
 import { buildApp } from '../src/app.js';
 
 const PLATEAU = { lat: 5.3236, lng: -4.0217 };
@@ -21,8 +23,47 @@ test('répertoire : les quartiers d’Abidjan (OpenStreetMap) sont trouvés hors
     assert.equal(r[0]?.nom, attendu, `« ${q} » → ${r.map((l) => l.nom).join(', ')}`);
     assert.ok(r[0]!.location.lat > 5.1 && r[0]!.location.lat < 5.6 && r[0]!.location.lng > -4.3 && r[0]!.location.lng < -3.6, 'dans le Grand Abidjan');
   }
-  // Aucune commune devinée pour un quartier (un libellé faux serait pire que rien).
-  assert.equal(g.repertoire('angre')[0]?.secteur, 'Quartier · Abidjan');
+  // La commune vient des LIMITES communales OSM (Angré est à Cocody, pas à Abobo).
+  assert.equal(g.repertoire('angre')[0]?.secteur, 'Quartier · Cocody');
+});
+
+test('données : aucun doublon (même nom à moins de 1,5 km), niveaux et communes renseignés', () => {
+  const sans = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const L = QUARTIERS_ABIDJAN;
+  for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
+    if (sans(L[i]![0]) !== sans(L[j]![0])) continue;
+    const d = Math.hypot((L[i]![1] - L[j]![1]) * 110.6, (L[i]![2] - L[j]![2]) * 110.3);
+    assert.ok(d >= 1.5, `doublon : ${L[i]![0]} / ${L[j]![0]} à ${Math.round(d * 1000)} m`);
+  }
+  assert.ok(L.length > 300, `${L.length} lieux`);
+  assert.ok(L.every(([, , , niveau]) => ['quartier', 'sous-quartier', 'village', 'hameau', 'ile'].includes(niveau)));
+});
+
+test('commune par les limites OSM : cas connus du terrain', () => {
+  const cas: Array<[string, number, number, string]> = [
+    ['Angré', 5.40405, -3.98881, 'Cocody'], ['Riviéra 2', 5.34646, -3.97476, 'Cocody'], ['Deux Plateaux', 5.36966, -3.99195, 'Cocody'],
+    ['Zone 4', 5.29194, -3.98127, 'Marcory'], ['Biétri', 5.27767, -3.97499, 'Marcory'], ['Anoumabo', 5.30966, -3.96822, 'Marcory'],
+    ['Selmer', 5.34037, -4.07002, 'Yopougon'], ['Niangon', 5.32358, -4.09821, 'Yopougon'], ['Williamsville', 5.37183, -4.0247, 'Adjamé'],
+    ['Abobo Baoulé', 5.43429, -3.99602, 'Abobo'], ['Vridi', 5.258, -4.01, 'Port-Bouët'], ['Biafra', 5.31344, -4.00484, 'Treichville'],
+  ];
+  for (const [nom, lat, lng, attendu] of cas) assert.equal(communeDe({ lat, lng }), attendu, nom);
+  assert.equal(communeDe({ lat: 7.69, lng: -5.03 }), null, 'Bouaké est hors du district');
+});
+
+test('nom d’une position : quartier réel et commune ; hors Abidjan, la ville', () => {
+  assert.equal(lieuDe({ lat: 5.34646, lng: -3.97476 }).libelle, 'Riviéra 2, Cocody');
+  assert.equal(lieuDe({ lat: 5.2919, lng: -3.9813 }).libelle, 'Zone 4, Marcory');
+  assert.equal(lieuDe({ lat: 7.6906, lng: -5.0303 }).libelle, 'Bouaké');
+});
+
+test('recherche : un même lieu n’apparaît qu’une fois ; le quartier avant ses subdivisions', () => {
+  const g = new Geocodeur(null);
+  const angre = g.repertoire('angre').filter((l) => l.nom === 'Angré');
+  assert.equal(angre.length, 1, 'Angré proposé une seule fois');
+  const zone4 = g.repertoire('zone 4');
+  assert.equal(zone4[0]?.nom, 'Zone 4');
+  assert.match(zone4[0]!.secteur, /^Quartier · Marcory/);
+  assert.ok(zone4.slice(1).some((l) => /^Sous-quartier · Marcory/.test(l.secteur)), zone4.map((l) => `${l.nom} (${l.secteur})`).join(', '));
 });
 
 test('OpenStreetMap : adresses précises en premier, avec coordonnées, hors Côte d’Ivoire écarté', async () => {
@@ -61,5 +102,7 @@ test('route /maps/recherche : coordonnées pour chaque résultat ; requête trop
   const lieux = r.json().lieux as Array<{ nom: string; location: { lat: number } }>;
   assert.ok(lieux.some((l) => l.nom === 'Cocody'));
   assert.ok(lieux.every((l) => typeof l.location.lat === 'number'));
+  const res = await app.inject({ method: 'POST', url: '/geo/resolve', payload: { point: { lat: 5.34646, lng: -3.97476 } } });
+  assert.equal(res.json().lieu.libelle, 'Riviéra 2, Cocody');
   assert.equal((await app.inject({ method: 'GET', url: '/maps/recherche?q=c' })).statusCode, 400);
 });

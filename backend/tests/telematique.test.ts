@@ -43,7 +43,8 @@ test('la position d’un véhicule loué se voit, et chaque consultation est tra
   const r = await app.inject({ method: 'GET', url: `/admin/rental/vehicules/${vehiculeId}/position?motif=Retard de restitution`, headers: A });
   assert.equal(r.statusCode, 200, r.body);
   assert.equal(r.json().position.vitesseKmh, 42);
-  assert.equal(r.json().position.zone, 'Cocody', 'on dit « Cocody », pas deux décimales');
+  // Le quartier réel et la commune (limites OSM), jamais deux décimales.
+  assert.match(r.json().position.zone, /^[^\d].*, Cocody$/, r.json().position.zone);
 
   // La consultation laisse une trace nominative : c'est ce qui rend l'outil légitime.
   const journal = r.json().journal;

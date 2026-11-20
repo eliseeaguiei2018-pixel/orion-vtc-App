@@ -101,6 +101,8 @@ export interface RideView {
   category: string;
   origin: LatLng;
   destination: LatLng;
+  /** Noms réels du départ et de l'arrivée (quartier, commune) fournis par le serveur. */
+  lieux?: { depart: string; arrivee: string };
   stops: LatLng[];
   distanceMeters: number;
   etaSeconds: number;

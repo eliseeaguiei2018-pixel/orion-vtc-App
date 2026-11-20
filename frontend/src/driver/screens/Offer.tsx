@@ -58,8 +58,9 @@ export function OfferSheet({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
 
   const toPickup = haversine(app.position, ride.origin);
   const coords = (p: { lat: number; lng: number }) => `${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}`;
-  const fromName = ride.pickupZone?.name ?? zoneAt(ride.origin, app.driverConfig.zones)?.name ?? coords(ride.origin);
-  const toName = zoneAt(ride.destination, app.driverConfig.zones)?.name ?? coords(ride.destination);
+  // Le vrai quartier et la commune (serveur) ; à défaut, le secteur tarifé ou les coordonnées.
+  const fromName = ride.lieux?.depart ?? ride.pickupZone?.name ?? zoneAt(ride.origin, app.driverConfig.zones)?.name ?? coords(ride.origin);
+  const toName = ride.lieux?.arrivee ?? zoneAt(ride.destination, app.driverConfig.zones)?.name ?? coords(ride.destination);
   const rate = app.finance?.commissionRate ?? app.driverConfig.commission.green;
   const net = Math.round(ride.amount * (1 - rate)) + (ride.pickupZone?.driverBonus ?? 0);
   const r = 32;
