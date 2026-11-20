@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Kpi } from '../ui';
 import type { SuiviFlotte, VehiculeSuivi } from '../types';
 import { lienTel } from '../../telephone';
+import { CarteLocation, type PointLocation } from '../SupervisionMap';
 
 /**
  * TÉLÉMATIQUE DES VÉHICULES DE LOCATION.
@@ -41,6 +42,32 @@ export function TelematiqueSection({ suivi, onRafraichir, onDeclarerVol, onImmob
   peutAgir: boolean;
 }) {
   const [ouvert, setOuvert] = useState<string | null>(null);
+  const [focus, setFocus] = useState<{ id: string; n: number } | null>(null);
+
+  // Points de la carte : chaque véhicule loué qui remonte une position, plus les véhicules
+  // volés dont la location est close (leur dernière position connue).
+  const points = useMemo<PointLocation[]>(() => {
+    if (!suivi) return [];
+    const pts: PointLocation[] = [];
+    for (const v of suivi.vehicules) {
+      if (!v.position) continue;
+      const etat = v.vol ? 'vol' : v.immobilisation ? 'immobilise' : v.silencieux ? 'silencieux' : 'normal';
+      pts.push({ id: v.reservationId, nom: v.vehiculeNom, lat: v.position.lat, lng: v.position.lng, etat,
+        detail: `${v.locataire.nom} · ${v.position.vitesseKmh} km/h · relevé ${depuis(v.position.at)}` });
+    }
+    for (const vol of suivi.vols) {
+      if (!vol.dernierePosition || suivi.vehicules.some((v) => v.vehiculeId === vol.vehiculeId && v.position)) continue;
+      pts.push({ id: `vol-${vol.id}`, nom: vol.vehiculeNom ?? vol.vehiculeId, lat: vol.dernierePosition.lat, lng: vol.dernierePosition.lng,
+        etat: 'vol', detail: `déclaré volé · dernière position ${depuis(vol.dernierePosition.at)}` });
+    }
+    return pts;
+  }, [suivi]);
+  const voir = (id: string) => setFocus((f) => ({ id, n: (f?.n ?? 0) + 1 }));
+  const ouvrirFiche = (id: string) => {
+    if (id.startsWith('vol-')) return;
+    setOuvert(id);
+    requestAnimationFrame(() => document.getElementById(`loc-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+  };
 
   if (!suivi) return <p className="adm-muted">Interrogation des boîtiers…</p>;
 
@@ -95,7 +122,9 @@ export function TelematiqueSection({ suivi, onRafraichir, onDeclarerVol, onImmob
                         {v.dernierePosition.zone ?? 'zone inconnue'} — {v.dernierePosition.lat.toFixed(5)}, {v.dernierePosition.lng.toFixed(5)}
                         {' · '}relevée {depuis(v.dernierePosition.at)}
                         {' · '}
-                        <a className="adm-link" href={`https://maps.google.com/?q=${v.dernierePosition.lat},${v.dernierePosition.lng}`} target="_blank" rel="noreferrer">voir sur la carte</a>
+                        <button type="button" className="adm-link-btn" onClick={() => { const loue = suivi.vehicules.find((x) => x.vehiculeId === v.vehiculeId && x.position); voir(loue ? loue.reservationId : `vol-${v.id}`); }}>voir sur la carte</button>
+                        {' · '}
+                        <a className="adm-link" href={`https://maps.google.com/?q=${v.dernierePosition.lat},${v.dernierePosition.lng}`} target="_blank" rel="noreferrer" title="Lien à transmettre aux forces de l’ordre">lien Google Maps ↗</a>
                       </dd>
                     </>
                   )}
@@ -110,6 +139,14 @@ export function TelematiqueSection({ suivi, onRafraichir, onDeclarerVol, onImmob
           </div>
         </div>
       )}
+
+      <div className="adm-card">
+        <div className="adm-card-h">
+          <h3>Carte de la flotte · Abidjan</h3>
+          <span className="adm-muted">{points.length} véhicule(s) localisé(s) · cliquez un véhicule pour agir</span>
+        </div>
+        <CarteLocation points={points} focus={focus} onSelect={ouvrirFiche} />
+      </div>
 
       <div className="adm-card">
         <div className="adm-card-h">
@@ -136,6 +173,7 @@ export function TelematiqueSection({ suivi, onRafraichir, onDeclarerVol, onImmob
                 onImmobiliser={onImmobiliser}
                 onConfirmer={onConfirmer}
                 onLever={onLever}
+                onVoir={() => voir(v.reservationId)}
               />
             ))}
           </div>
@@ -160,7 +198,7 @@ export function TelematiqueSection({ suivi, onRafraichir, onDeclarerVol, onImmob
   );
 }
 
-function VehiculeLigne({ v, ouvert, onBasculer, motifs, vitesseCoupureMax, peutAgir, onDeclarerVol, onImmobiliser, onConfirmer, onLever }: {
+function VehiculeLigne({ v, ouvert, onBasculer, motifs, vitesseCoupureMax, peutAgir, onDeclarerVol, onImmobiliser, onConfirmer, onLever, onVoir }: {
   v: VehiculeSuivi;
   ouvert: boolean;
   onBasculer: () => void;
@@ -171,13 +209,14 @@ function VehiculeLigne({ v, ouvert, onBasculer, motifs, vitesseCoupureMax, peutA
   onImmobiliser: (vehiculeId: string, motif: string, commentaire: string, reservationId?: string) => void;
   onConfirmer: (id: string) => void;
   onLever: (id: string, motif: string) => void;
+  onVoir: () => void;
 }) {
   const [motif, setMotif] = useState('impaye');
   const [commentaire, setCommentaire] = useState('');
   const p = v.position;
 
   return (
-    <div className={`adm-constat ${v.vol ? 'critique' : v.immobilisation ? 'eleve' : ''}`}>
+    <div id={`loc-${v.reservationId}`} className={`adm-constat ${v.vol ? 'critique' : v.immobilisation ? 'eleve' : ''}`}>
       <div className="row between" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div className="row grow" style={{ gap: 8, flexWrap: 'wrap' }}>
           <strong style={{ fontSize: 14.5 }}>{v.vehiculeNom}</strong>
@@ -220,7 +259,9 @@ function VehiculeLigne({ v, ouvert, onBasculer, motifs, vitesseCoupureMax, peutA
                 <br />
                 <span className="adm-muted" style={{ fontSize: 11.5 }}>relevé {depuis(p.at)}</span>
                 {' · '}
-                <a className="adm-link" href={`https://maps.google.com/?q=${p.lat},${p.lng}`} target="_blank" rel="noreferrer">carte</a>
+                <button type="button" className="adm-link-btn" onClick={onVoir}>voir sur la carte</button>
+                {' · '}
+                <a className="adm-link" href={`https://maps.google.com/?q=${p.lat},${p.lng}`} target="_blank" rel="noreferrer" title="Lien à transmettre (police, dépanneur)">Google Maps ↗</a>
               </>
             )
             : <span className="adm-muted">Aucune remontée du boîtier.</span>}

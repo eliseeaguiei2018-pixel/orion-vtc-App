@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+import { nearestZone } from '../geo-ci/zones.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Container } from '../../container.js';
@@ -3029,7 +3030,10 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         batteriePct: z.number().min(0).max(100).optional(),
         autonomieKm: z.number().min(0).max(2000).optional(),
       }), req.body);
-      const zone = container.settings.zoneForPoint({ lat: body.lat, lng: body.lng })?.name;
+      // Le quartier, comme pour une alerte SOS : la zone tarifaire si le point y tombe,
+      // sinon le quartier le plus proche (« Riviera », pas « zone inconnue » au commissariat).
+      const zone = container.settings.zoneForPoint({ lat: body.lat, lng: body.lng })?.name
+        ?? nearestZone({ lat: body.lat, lng: body.lng })?.zone.name;
       const position = container.telematique.majPosition(vehiculeId, { ...body, zone });
       container.realtime.publish(CONFIG_ROOM, 'rental.position', { vehiculeId, position });
       return { position };

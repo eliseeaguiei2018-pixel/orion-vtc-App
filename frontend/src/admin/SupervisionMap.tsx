@@ -22,7 +22,7 @@ import type { FleetUnit, Alert, SosDossier } from './types';
 type Theme = 'dark' | 'light';
 
 /** Thème courant de la console (attribut posé par Admin.tsx), suivi en direct. */
-function useThemeConsole(): Theme {
+export function useThemeConsole(): Theme {
   const lire = (): Theme => (document.documentElement.getAttribute('data-adm-theme') === 'light' ? 'light' : 'dark');
   const [theme, setTheme] = useState<Theme>(lire);
   useEffect(() => {
@@ -60,7 +60,7 @@ const alertesGeoJSON = (alerts: Alert[]) => ({
 });
 
 /** Charge une carte MapLibre dans `boite` ; `pret` puis `indispo` si les tuiles ne viennent pas. */
-function useCarteReelle(boite: React.RefObject<HTMLDivElement | null>, theme: Theme, vue: { center: [number, number]; zoom: number }, init: (m: CarteML) => void) {
+export function useCarteReelle(boite: React.RefObject<HTMLDivElement | null>, theme: Theme, vue: { center: [number, number]; zoom: number }, init: (m: CarteML) => void) {
   const carte = useRef<CarteML | null>(null);
   const [pret, setPret] = useState(false);
   const [indispo, setIndispo] = useState(false);
@@ -237,6 +237,86 @@ export function SosCarte({ ride, alerte, repli }: { ride: NonNullable<SosDossier
     <div className="adm-sos-carte">
       <div ref={boite} className="adm-map-ml" />
       <div className="adm-sos-legende"><span><i className="adm-l-reel" />Trajet réel (GPS)</span><span><i className="adm-l-theo" />Trajet direct</span><span><i className="adm-l-sos" />Alerte</span></div>
+    </div>
+  );
+}
+
+/* ======================= FLOTTE EN LOCATION (télématique) ======================= */
+
+export type EtatLocation = 'normal' | 'silencieux' | 'immobilise' | 'vol';
+export interface PointLocation { id: string; nom: string; lat: number; lng: number; etat: EtatLocation; detail: string }
+
+/**
+ * SUIVI DES VÉHICULES DE LOCATION sur la vraie carte : un marqueur par véhicule, coloré
+ * selon son état (en location, boîtier silencieux, moteur coupé, volé), son nom en
+ * étiquette. Un clic ouvre sa fiche ; « Voir sur la carte » dans la liste centre ici.
+ */
+export function CarteLocation({ points, focus, onSelect }: {
+  points: PointLocation[]; focus: { id: string; n: number } | null; onSelect?: (id: string) => void;
+}) {
+  const theme = useThemeConsole();
+  const boite = useRef<HTMLDivElement>(null);
+  const marqueurs = useRef(new Map<string, Marker>());
+  const cadree = useRef(false);
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
+  const { carte, pret, indispo } = useCarteReelle(boite, theme, { center: ABIDJAN, zoom: 11.4 }, () => { /* marqueurs HTML */ });
+
+  useEffect(() => {
+    const m = carte.current;
+    if (!m || !pret) return;
+    void chargerML().then((ml) => {
+      const vus = new Set<string>();
+      for (const pt of points) {
+        vus.add(pt.id);
+        let mk = marqueurs.current.get(pt.id);
+        if (!mk) {
+          const el = document.createElement('button');
+          el.type = 'button';
+          el.innerHTML = '<span class="adm-ml-loc-pin"></span><span class="adm-ml-loc-nom"></span>';
+          el.addEventListener('click', (ev) => { ev.stopPropagation(); onSelectRef.current?.(pt.id); });
+          mk = new ml.Marker({ element: el, anchor: 'left' }).setLngLat([pt.lng, pt.lat]).addTo(m);
+          marqueurs.current.set(pt.id, mk);
+        }
+        const el = mk.getElement();
+        el.className = `adm-ml-loc ${pt.etat}`;
+        el.title = `${pt.nom} — ${pt.detail}`;
+        el.setAttribute('aria-label', `${pt.nom}, ${pt.detail}. Ouvrir la fiche.`);
+        (el.querySelector('.adm-ml-loc-nom') as HTMLElement).textContent = pt.nom;
+        mk.setLngLat([pt.lng, pt.lat]);
+      }
+      for (const [id, mk] of marqueurs.current) if (!vus.has(id)) { mk.remove(); marqueurs.current.delete(id); }
+      if (!cadree.current && points.length > 0) {
+        cadree.current = true;
+        if (points.length === 1) m.easeTo({ center: [points[0]!.lng, points[0]!.lat], zoom: 14, duration: 0 });
+        else {
+          const lngs = points.map((x) => x.lng), lats = points.map((x) => x.lat);
+          m.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 70, maxZoom: 14, duration: 0 });
+        }
+      }
+    });
+  }, [points, pret, carte]);
+
+  // « Voir sur la carte » : la carte va vers le véhicule demandé.
+  useEffect(() => {
+    const m = carte.current;
+    if (!m || !pret || !focus) return;
+    const pt = points.find((x) => x.id === focus.id);
+    if (pt) m.flyTo({ center: [pt.lng, pt.lat], zoom: 15.5, duration: 1200 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus, pret, carte]);
+
+  useEffect(() => () => { for (const mk of marqueurs.current.values()) mk.remove(); marqueurs.current.clear(); cadree.current = false; }, [theme]);
+
+  if (indispo) return <p className="adm-muted">Carte indisponible (serveur de cartes injoignable) : les positions restent lisibles dans la liste ci-dessous.</p>;
+  return (
+    <div className="adm-map adm-map-reelle adm-map-location">
+      <div ref={boite} className="adm-map-ml" />
+      {!pret && <div className="adm-map-chargement">Chargement de la carte d’Abidjan…</div>}
+      <div className="adm-loc-legende">
+        <span><i className="normal" />En location</span><span><i className="silencieux" />Boîtier silencieux</span>
+        <span><i className="immobilise" />Moteur coupé / armé</span><span><i className="vol" />Déclaré volé</span>
+      </div>
     </div>
   );
 }
