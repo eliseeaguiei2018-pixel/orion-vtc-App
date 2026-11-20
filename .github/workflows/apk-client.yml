@@ -1,0 +1,76 @@
+name: APK client à installer
+
+# Compile l'application client ORION pour un vrai téléphone Android et la publie dans la
+# release « orion-client-android » du dépôt : un lien de téléchargement direct, à ouvrir
+# sur le téléphone (Paramètres → autoriser l'installation depuis le navigateur).
+#
+# Version de DÉMONSTRATION : aucun serveur ORION n'est encore hébergé, donc les courses
+# et les chauffeurs sont simulés dans l'app. Tout le reste est réel : la carte d'Abidjan
+# (OpenStreetMap, par Internet), la position GPS du téléphone, la recherche des 449 lieux
+# du Grand Abidjan (livrés avec l'app), les 8 langues.
+on:
+  workflow_dispatch:
+  push:
+    branches: ['claude/orion-platform-overview-osgd1u']
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/apk-client.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-client
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: APK client · release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: App web (sans serveur, vraie carte)
+        working-directory: frontend
+        env:
+          VITE_API_URL: ''
+        run: |
+          npm ci
+          npm run build
+          npx cap sync android
+      - name: Compilation de l'APK
+        working-directory: frontend/android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Publication dans la release « orion-client-android »
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp frontend/android/app/build/outputs/apk/debug/app-debug.apk ORION-client.apk
+          EMPREINTE=$(sha256sum ORION-client.apk | cut -d' ' -f1)
+          cat > notes.md <<EOF
+          Application client ORION pour Android 7 et plus (Samsung Galaxy A55 compris).
+
+          **Installer** : ouvrir ce lien sur le téléphone, télécharger \`ORION-client.apk\`,
+          puis autoriser l'installation quand Android le demande (Paramètres → Applications →
+          votre navigateur → Installer des applis inconnues).
+
+          **Version de démonstration** : aucun serveur ORION n'est encore hébergé, les courses et
+          les chauffeurs sont donc simulés. Réels : la carte d'Abidjan (Internet requis), la
+          position GPS, la recherche des 449 lieux du Grand Abidjan, les 8 langues. Code SMS :
+          n'importe quel code à 6 chiffres.
+
+          Compilée depuis le commit ${GITHUB_SHA::7}. Empreinte SHA-256 : \`${EMPREINTE}\`.
+          EOF
+          gh release delete orion-client-android --yes --cleanup-tag 2>/dev/null || true
+          gh release create orion-client-android ORION-client.apk --prerelease \
+            --target "$GITHUB_SHA" --title "ORION client · APK Android (démonstration)" --notes-file notes.md
