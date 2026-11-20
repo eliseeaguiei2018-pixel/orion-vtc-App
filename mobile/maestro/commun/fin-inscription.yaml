@@ -11,13 +11,21 @@ appId: ci.orion.app
     timeout: 30000
 - takeScreenshot: 06-autorisations
 - tapOn: "Autoriser la localisation"
-# Fenêtre système (Android ou iOS, en français ou en anglais) : « pendant l'utilisation ».
+# Fenêtre système. Android : bouton « pendant l'utilisation de l'appli » repéré par son
+# identifiant (le libellé change selon la version et la langue). iOS : par son texte.
+- tapOn:
+    id: "com.android.permissioncontroller:id/permission_allow_foreground_only_button"
+    optional: true
 - runFlow:
     when:
-      visible: "(?i)(while using the app|pendant (que vous utilisez|l.utilisation de) l.app.*|allow while using app|autoriser lorsque l.app est active)"
+      visible: "(?i)(while using the app|allow while using app|autoriser lorsque l.app est active|lorsque vous utilisez l.app.*|pendant (que vous utilisez|l.utilisation de) l.app.*)"
     commands:
       - takeScreenshot: 06b-autorisation-systeme-position
-      - tapOn: "(?i)(while using the app|pendant (que vous utilisez|l.utilisation de) l.app.*|allow while using app|autoriser lorsque l.app est active)"
+      - tapOn: "(?i)(while using the app|allow while using app|autoriser lorsque l.app est active|lorsque vous utilisez l.app.*|pendant (que vous utilisez|l.utilisation de) l.app.*)"
+# Position accordée : l'écran propose « Continuer » (ou passe directement à l'accueil).
+- extendedWaitUntil:
+    visible: "Continuer|Bonjour Aya.*"
+    timeout: 30000
 - runFlow:
     when:
       visible: "Continuer"

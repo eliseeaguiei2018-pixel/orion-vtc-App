@@ -921,6 +921,17 @@ function Onboarding({ onStart, onLang }: { onStart: () => void; onLang: () => vo
 }
 
 /* --------------------------- Inscription ----------------------------- */
+/**
+ * Toucher la carte au-dessus du formulaire ferme le clavier. Sur iPhone, la carte capte le
+ * toucher sans retirer le focus du champ : le clavier restait ouvert et masquait les champs
+ * suivants de la feuille (constat sur simulateur iPhone).
+ */
+const fermerClavierHorsFeuille = (e: React.PointerEvent) => {
+  if ((e.target as HTMLElement).closest('.sheet, .topbar')) return;
+  const actif = document.activeElement;
+  if (actif instanceof HTMLInputElement || actif instanceof HTMLTextAreaElement) actif.blur();
+};
+
 function AuthScreen({ phone, setPhone, name, setName, email, setEmail, erreur, onBack, onNext, onWhatsApp }: {
   phone: string; setPhone: (v: string) => void;
   name: string; setName: (v: string) => void;
@@ -943,7 +954,7 @@ function AuthScreen({ phone, setPhone, name, setName, email, setEmail, erreur, o
     cible.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   };
   return (
-    <div className="screen page">
+    <div className="screen page" onPointerDown={fermerClavierHorsFeuille}>
       <OrionMap origin={DEFAULT_ORIGIN.location} />
       <TopBar onBack={onBack} />
       <div style={{ flex: 1 }} />
@@ -1047,7 +1058,7 @@ function OtpScreen({ phone, devCode, onBack, onResend, onVerify }: {
   };
 
   return (
-    <div className="screen page">
+    <div className="screen page" onPointerDown={fermerClavierHorsFeuille}>
       <OrionMap origin={DEFAULT_ORIGIN.location} />
       <TopBar onBack={onBack} title={t('otp_title')} />
       <div style={{ flex: 1 }} />
