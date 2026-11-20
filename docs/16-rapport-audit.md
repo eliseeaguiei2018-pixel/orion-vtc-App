@@ -27,8 +27,8 @@ affichée) · *Moyenne* · *Mineure*.
 | | Constats | Corrigés | Restant |
 |---|---:|---:|---:|
 | Critiques | 8 | 8 | 0 |
-| Majeurs | 14 | 14 | 0 |
-| Moyens | 9 | 9 | 0 |
+| Majeurs | 18 | 18 | 0 |
+| Moyens | 12 | 12 | 0 |
 | Mineurs | 4 | 3 | 1 (conservé, justifié : A10) |
 
 Le constat le plus grave : **toutes les courses partaient du Plateau**, affiché
@@ -60,13 +60,16 @@ juridiques, essais sur appareils physiques Huawei (HarmonyOS), clés de producti
 | # | Gravité | Constat | Correction | Preuve |
 |---|---|---|---|---|
 | F1 | Critique | Point de prise en charge codé en dur (Plateau) affiché « Position actuelle ». | Vraie position GPS ; point choisi par le client ; sans position connue, départ « à confirmer » et commande bloquée tant qu'il ne l'est pas. | test réel GPS accordé / refusé (19/19) ; bout en bout : 0 m |
-| F2 | Critique | Recherche d'adresse = filtre d'une liste fixe de 15 lieux. | Recherche serveur (répertoire + OpenStreetMap) ; **458 quartiers du Grand Abidjan** extraits d'OpenStreetMap, disponibles hors ligne ; choix du point exact sur la carte. | tests serveur (5/5) |
+| F2 | Critique | Recherche d'adresse = filtre d'une liste fixe de 15 lieux. | Recherche serveur (répertoire + OpenStreetMap) ; **449 lieux du Grand Abidjan** vérifiés et dédoublonnés (section 8), disponibles hors ligne ; choix du point exact sur la carte. | tests serveur (9/9) |
 | F3 | Critique | Écran « Autorisations » décoratif : 5 interrupteurs sans effet, dont micro, notifications et stockage, jamais utilisés (refus assuré App Store 5.1.1) ; localisation absente de l'Info.plist et du manifeste Android. | Vraie demande de position ; appareil photo expliqué ; textes système iOS et permissions Android ajoutés. | capture 01-autorisations |
 | F4 | Majeure | « Ajouter un arrêt » ajoutait un lieu imposé (PISAM, Sococé, gare). | L'arrêt est cherché et choisi par le client, et retirable. | test réel (arrêt Angré) |
 | F5 | Majeure | HarmonyOS : le bouton « Appeler » ne pouvait pas fonctionner (aucun traitement des liens `tel:`), malgré le commentaire qui l'affirmait ; pas de bouton retour. | Clavier téléphonique du système ; retour arrière dans l'app. | Index.ets |
 | F6 | Majeure | HarmonyOS sur écran de voiture : chargeait l'app « téléphone » (cadre étroit au centre de l'écran). | Sur un appareil de type voiture, le mode écran de véhicule s'ouvre directement ; sur un écran embarqué Android/web, l'app le propose. | capture voiture-1024×600 |
-| F7 | — | Bout en bout : client (GPS Riviéra 2) → offre reçue par la chauffeure (quartier réel affiché) → acceptation → client voit sa chauffeure → console : départ à 0 m → tableau de bord : +1 commande, 1 course en direct → arrivée et code de prise en charge. | Conforme. | 12/12, 0 erreur JS |
+| F7 | — | Bout en bout : client (GPS Riviéra 2) → offre reçue par la chauffeure (« Riviéra 2, Cocody → Zone 4, Marcory ») → acceptation → client voit sa chauffeure → console : départ à 0 m, colonne Trajet → tableau de bord : +1 commande à Cocody → arrivée, code de prise en charge, paiement. | Conforme. | 17/17, 0 erreur JS |
 | F8 | — | Règle d'attribution stricte par gamme (une course Bronze n'est pas proposée à un véhicule Or). | Conforme à la règle commerciale ; à confirmer par la direction si un surclassement doit être permis. | bout en bout |
+| F9 | Majeure | Paiement : quand le chauffeur déclarait les espèces encaissées (ou que l'opérateur confirmait le mobile money), le client restait bloqué sur « Payer ». | Passage à « payée » publié en temps réel sur le canal de la course ; l'écran du client passe seul à la notation. Libellé et consigne propres aux espèces (8 langues). | captures client 22–23 |
+| F10 | Moyenne | Carte de l'écran de paiement centrée sur le Plateau (reste du départ codé en dur). | Centrée sur le lieu d'arrivée. | capture client 21 |
+| F11 | Moyenne | iPhone (simulateur, CI) : toucher la carte au-dessus du formulaire d'inscription ne retirait pas le focus du champ ; le clavier restait ouvert et masquait le champ du numéro. | Toucher la carte ferme le clavier (inscription et code SMS) ; la touche « Suivant » du clavier passe au champ suivant. | essai navigateur tactile ; scénario iPhone |
 
 ## 4. Contenu
 
@@ -80,6 +83,9 @@ juridiques, essais sur appareils physiques Huawei (HarmonyOS), clés de producti
 | C6 | Mineure | Coquille « Huawey » dans l'hôte HarmonyOS. | Corrigée. |
 | C7 | Majeure | Console : carte tactique SAMU schématique au lieu de la ville réelle ; vitesse absurde (726 km/h) sur saut GPS ; « zone inconnue » dans le suivi des véhicules. | Vraie carte d'Abidjan (SAMU, vue d'ensemble, dossier SOS, suivi véhicules) ; vitesse plafonnée ; quartier le plus proche. |
 | C8 | Majeure | Livrables : planches console et tableau de bord prises en mode démonstration ; vidéo 7 contradictoire. | Refaites en mode réel. |
+| C9 | Majeure | Données GPS : doublons OpenStreetMap (« Angré » proposé deux fois, « Kouté / Kouté village », « Cité Star 5 / Cité Stars 5 »…) et commune fausse (Angré classé à Abobo : la commune était devinée au centre le plus proche). | 709 entrées brutes recoupées → 449 lieux uniques avec leur niveau ; commune tirée des limites communales OSM (section 8). |
+| C10 | Majeure | Trajet invisible : aucune colonne départ / arrivée dans le tableau des courses de la console ; l'offre et la course du chauffeur ne donnaient que la commune, ou des coordonnées. | « Riviéra 2, Cocody → Zone 4, Marcory » dans l'offre et la course du chauffeur, la colonne Trajet de la console et l'historique du client. |
+| C11 | Moyenne | Console, dossier SOS : la position n'était donnée qu'en coordonnées. | Lieu en clair d'abord (« Riviéra 2, Cocody »), à dicter aux secours, puis les coordonnées. |
 
 ## 5. Mise en page et accessibilité (WCAG 2.2 AA)
 
@@ -107,6 +113,7 @@ JavaScript : 0.**
 | A12 | Majeure | Console, Location : montants en vert clair (2,6:1) et 2 listes de filtres sans nom. | Variables de couleur dédiées au texte en mode clair (toute la console) ; listes nommées. |
 | A13 | Moyenne | Console sur téléphone : tableaux défilant horizontalement non atteignables au clavier (WCAG 2.1.1). | Zone de défilement nommée et focalisable dès qu'elle déborde. |
 | A14 | Moyenne | Bandeau « mode véhicule » (nouveau) : texte blanc sur vert (contraste insuffisant). | Texte foncé. |
+| A15 | Majeure | Notation de fin de course : étoiles en simples zones cliquables, inaccessibles au clavier et muettes pour un lecteur d'écran (WCAG 2.1.1, 4.1.2). | Vrais boutons nommés (« Notez 4/5 »), état annoncé. |
 
 ## 6. Réserves (hors code)
 
@@ -119,12 +126,53 @@ JavaScript : 0.**
 
 ## 7. Tests en place
 
-- Serveur : 353 tests (351 réussis, 2 ignorés hors base de données réelle), dont les tests
-  d'audit S1–S3 et la recherche de lieux.
+- Serveur : tests d'audit S1–S3, recherche de lieux (aucun doublon, 12 communes de
+  référence, libellés quartier + commune) ; suite complète verte en CI.
 - Traductions : contrôle CI des apps client et chauffeur (8 langues).
 - **Nouveau** : test de fumée multi-navigateurs en CI — Safari/WebKit (Linux et macOS),
   Firefox, **Microsoft Edge sous Windows** — sur les 5 interfaces.
 - Émulateur Android et simulateur iPhone (Maestro) : scénarios mis à jour pour la vraie
-  demande de position et la recherche d'adresse.
+  demande de position et la recherche d'adresse. Android : inscription complète avec photo
+  réussie ; la fenêtre système de localisation est désormais reconnue par l'identifiant de
+  son bouton. iPhone : app compilée et installée ; le blocage de l'inscription (F11) est
+  corrigé.
 - Applications de bureau : règles de sécurité Electron (4 tests) ; installateurs Windows et
   macOS construits par la CI.
+
+## 8. Données GPS : quartiers d'Abidjan (OpenStreetMap)
+
+Vérification demandée : OpenStreetMap mélange-t-il les niveaux (Riviéra, Riviéra 2,
+Riviéra Palmeraie, villages comme Anono ou M'Pouto), enregistre-t-il un même quartier deux
+fois (point et polygone), et peut-on se fier au nombre brut de quartiers ? **Les quatre
+remarques sont fondées** ; elles ont été vérifiées sur les données réelles puis appliquées.
+
+| Étape | Lieux |
+|---|---:|
+| Entrées brutes : tuiles OpenFreeMap (OSM) + export HOT publié sur HDX | 709 (600 + 109) |
+| Lieux habités du Grand Abidjan (hors district et noms de commune écartés) | 656 |
+| Doublons fusionnés (même nom normalisé à moins de 1,5 km) | 207 |
+| **Lieux uniques retenus** | **449** |
+
+- **Niveaux** : 57 quartiers, 289 sous-quartiers, 72 villages, 27 hameaux, 4 îles. Le
+  quartier passe avant ses subdivisions dans la recherche (« Zone 4 » avant « Zone 4A »).
+- **Doublons** : « Angré » quartier + sous-quartier à 591 m, « Kouté / Kouté village »,
+  « Abobo Doumé / Abobo Doumé village », « Gobelet / Gobelet village », « Cité Star 5 /
+  Cité Stars 5 »… Un test bloque tout nouveau doublon.
+- **Communes** : limites administratives OSM (niveau 8) au lieu du centre de commune le
+  plus proche, qui classait Angré à Abobo. 12 lieux de référence contrôlés.
+- **Répartition** : 10 communes centrales, 328 lieux (Cocody 107, Yopougon 104,
+  Attécoubé 26, Abobo 21, Port-Bouët 20, Marcory 17, Adjamé 12, Koumassi 11,
+  Treichville 9, Plateau 1) ; Bingerville 68, Songon 28, Anyama 25. Le repère de l'Agence
+  d'urbanisme d'Abidjan cité par la direction (environ 357 quartiers en 114 secteurs pour
+  les 10 communes centrales) est du même ordre ; il n'a pas pu être vérifié à la source et
+  les deux découpages ne se recouvrent pas exactement.
+- **Recoupements** : les 100 villages et hameaux HDX du Grand Abidjan sont retrouvés ;
+  3 absents des tuiles (Ouhoua, M'Brago 1, Attinguié) ajoutés. Overpass Turbo était
+  injoignable depuis l'environnement d'audit : recoupement à refaire depuis un poste qui y
+  a accès.
+- **Mise à jour** : OSM change chaque semaine ; procédure en trois commandes dans
+  `backend/scripts/lieux-osm/README.md`, à refaire chaque mois.
+- **Quatre interfaces** (résolveur unique `src/modules/maps/lieux.ts`) : recherche et
+  position du client ; offre et course du chauffeur ; colonne Trajet, dossiers SOS et
+  télématique de la console ; statistiques par commune du tableau de bord. Vérifié en
+  temps réel par une course de bout en bout (F7, 17/17).
