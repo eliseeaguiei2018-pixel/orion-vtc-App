@@ -74,11 +74,11 @@ test('profil et photo : réservés au titulaire, photo vérifiée octet par octe
   assert.equal((await app.inject({ method: 'DELETE', url: '/clients/client-aya/photo', headers: H })).json().client.photo, null);
 });
 
-async function courseAvecChauffeur(app: App, container: Awaited<ReturnType<typeof buildApp>>['container'], clientId: string, suffixe: string) {
+async function courseAvecChauffeur(app: App, container: Awaited<ReturnType<typeof buildApp>>['container'], clientId: string, suffixe: string, headers: Record<string, string> = {}) {
   const d = container.drivers.upsert({ id: `drv-an-${suffixe}`, name: 'Konan Yao', matricule: `AN-${suffixe}`, category: 'bronze', kycStatus: 'active', availability: 'offline', ratingAvg: 4.8, ratingCount: 10, phone: '+2250701020304' });
   await container.drivers.goOnline(d.id, { lat: 5.3236, lng: -4.0217 });
   const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3596, lng: -3.9903 }, category: 'bronze', clientId } });
-  const ride = (await app.inject({ method: 'POST', url: '/rides', payload: { clientId, lockId: est.json().quote.lockId } })).json().ride;
+  const ride = (await app.inject({ method: 'POST', url: '/rides', payload: { clientId, lockId: est.json().quote.lockId }, headers })).json().ride;
   assert.equal(ride.driverId, d.id);
   return { ride, driverId: d.id };
 }
@@ -87,22 +87,25 @@ test('annulation : les frais sont annoncés avant, le motif et l’auteur sont e
   const { app, container } = await buildApp();
   t.after(() => app.close());
   const aya = await inscrire(app, 'client-an', '0733333333', 'Aya Kouassi');
+  const SA = { authorization: `Bearer ${aya.token}` };
 
   // Dans le délai de grâce : gratuit.
-  const { ride, driverId } = await courseAvecChauffeur(app, container, 'client-an', '1');
-  const apercu = await app.inject({ method: 'GET', url: `/rides/${ride.id}/cancel-preview?clientId=client-an&motif=changement_plan` });
+  const { ride, driverId } = await courseAvecChauffeur(app, container, 'client-an', '1', SA);
+  // Sans la session d'Aya, son identifiant ne suffit pas.
+  assert.equal((await app.inject({ method: 'GET', url: `/rides/${ride.id}/cancel-preview?clientId=client-an&motif=changement_plan` })).statusCode, 401);
+  const apercu = await app.inject({ method: 'GET', url: `/rides/${ride.id}/cancel-preview?clientId=client-an&motif=changement_plan`, headers: SA });
   assert.equal(apercu.json().frais.montant, 0);
   assert.equal(apercu.json().frais.raisonGratuite, 'delai_de_grace');
 
   // Au-delà : les frais s'appliquent — sauf motif de sécurité.
   container.rides.get(ride.id)!.createdAt = new Date(Date.now() - 10 * 60_000).toISOString();
-  assert.equal((await app.inject({ method: 'GET', url: `/rides/${ride.id}/cancel-preview?clientId=client-an&motif=changement_plan` })).json().frais.montant, 500);
-  assert.equal((await app.inject({ method: 'GET', url: `/rides/${ride.id}/cancel-preview?clientId=client-an&motif=securite` })).json().frais.montant, 0);
+  assert.equal((await app.inject({ method: 'GET', url: `/rides/${ride.id}/cancel-preview?clientId=client-an&motif=changement_plan`, headers: SA })).json().frais.montant, 500);
+  assert.equal((await app.inject({ method: 'GET', url: `/rides/${ride.id}/cancel-preview?clientId=client-an&motif=securite`, headers: SA })).json().frais.montant, 0);
 
   // Personne d'autre ne peut annuler la course d'Aya.
   assert.equal((await app.inject({ method: 'POST', url: `/rides/${ride.id}/cancel`, payload: { clientId: 'client-intrus', motif: 'autre' } })).statusCode, 404);
 
-  const r = await app.inject({ method: 'POST', url: `/rides/${ride.id}/cancel`, payload: { clientId: 'client-an', motif: 'attente_longue', details: 'Le chauffeur ne bougeait plus depuis 8 minutes' } });
+  const r = await app.inject({ method: 'POST', url: `/rides/${ride.id}/cancel`, payload: { clientId: 'client-an', motif: 'attente_longue', details: 'Le chauffeur ne bougeait plus depuis 8 minutes' }, headers: SA });
   assert.equal(r.statusCode, 200, r.body);
   assert.equal(r.json().frais.montant, 500);
   assert.equal(container.drivers.get(driverId)!.availability, 'online', 'le chauffeur est libéré');

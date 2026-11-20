@@ -1,4 +1,5 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { exigerTitulaire } from '../clients/auth.js';
 import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { latLng, parse } from '../../core/validate.js';
@@ -7,6 +8,10 @@ import { EMERGENCY_NUMBERS, vueUsager } from './service.js';
 import { accesPersonnel } from '../admin/acces-hors-console.js';
 
 export async function safetyRoutes(app: FastifyInstance, container: Container): Promise<void> {
+  /** Données d'un client : un compte inscrit doit présenter sa propre session. */
+  const titulaire = (req: FastifyRequest, id: string) =>
+    exigerTitulaire(req, id, (c) => Boolean(container.clients.get(c)?.phoneVerifiedAt));
+
   app.get('/safety/emergency-numbers', async () => ({ numbers: EMERGENCY_NUMBERS }));
 
   // SOS manuel.
@@ -29,6 +34,7 @@ export async function safetyRoutes(app: FastifyInstance, container: Container): 
   app.get('/safety/sos/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
     const { userId } = parse(z.object({ userId: z.string().min(1) }), req.query);
+    titulaire(req, userId);
     const suivi = container.safety.suiviPour(id, userId);
     if (!suivi || suivi === 'interdit') { reply.code(404); return { error: 'Alerte introuvable' }; }
     return { suivi };
@@ -38,6 +44,7 @@ export async function safetyRoutes(app: FastifyInstance, container: Container): 
   app.post('/safety/sos/:id/message', async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = parse(z.object({ userId: z.string().min(1), text: z.string().trim().min(1).max(300) }), req.body);
+    titulaire(req, body.userId);
     const suivi = container.safety.suiviPour(id, body.userId);
     if (!suivi || suivi === 'interdit') { reply.code(404); return { error: 'Alerte introuvable' }; }
     if (suivi.clotureeA) {

@@ -1,4 +1,5 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { exigerTitulaire } from '../clients/auth.js';
 import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { parse } from '../../core/validate.js';
@@ -11,6 +12,10 @@ const optionsSchema = z.object({
 });
 
 export async function weddingRoutes(app: FastifyInstance, container: Container): Promise<void> {
+  /** Données d'un client : un compte inscrit doit présenter sa propre session. */
+  const titulaire = (req: FastifyRequest, id: string) =>
+    exigerTitulaire(req, id, (c) => Boolean(container.clients.get(c)?.phoneVerifiedAt));
+
   // Devis de location mariage (prix selon niveau + durée + options).
   app.post('/wedding/quote', async (req) => {
     const body = parse(
@@ -39,6 +44,7 @@ export async function weddingRoutes(app: FastifyInstance, container: Container):
       }),
       req.body,
     );
+    titulaire(req, body.userId);
     const quote = quoteWedding(body);
     const reservation = container.wedding.reserve(body.userId, quote);
     reply.code(201);
@@ -47,6 +53,7 @@ export async function weddingRoutes(app: FastifyInstance, container: Container):
 
   app.get('/wedding/:userId', async (req) => {
     const { userId } = req.params as { userId: string };
+    titulaire(req, userId);
     return { reservations: container.wedding.listByUser(userId) };
   });
 }

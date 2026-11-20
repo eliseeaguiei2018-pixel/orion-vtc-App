@@ -1,5 +1,6 @@
 import { Readable } from 'node:stream';
 import { nearestZone } from '../geo-ci/zones.js';
+import { timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Container } from '../../container.js';
@@ -58,6 +59,24 @@ const EXEC_ROLES = new Set(['ceo', 'dg', 'daa', 'coo', 'super_admin']);
  * Accès par RÔLE (RBAC) : chaque route exige une permission ; le rôle du compte
  * (résolu depuis x-admin-token) détermine ce qui est autorisé. Couches d'accès selon le poste.
  */
+/**
+ * Boîtier télématique : il présente le jeton partagé TELEMATIQUE_TOKEN (Bearer).
+ * Sans jeton configuré, les remontées ne sont acceptées qu'en développement et en test.
+ */
+function authentifierBoitier(req: FastifyRequest): void {
+  const attendu = config.TELEMATIQUE_TOKEN;
+  if (!attendu) {
+    if (config.NODE_ENV === 'production') {
+      throw new AppError(503, 'TELEMATIQUE_NON_CONFIGUREE', 'Remontées des boîtiers indisponibles : TELEMATIQUE_TOKEN non configuré.');
+    }
+    return;
+  }
+  const m = /^Bearer\s+(.+)$/i.exec((req.headers.authorization ?? '').trim());
+  const a = Buffer.from(m?.[1] ?? '');
+  const b = Buffer.from(attendu);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) throw unauthorized('Boîtier télématique non reconnu');
+}
+
 export async function adminRoutes(app: FastifyInstance, container: Container): Promise<void> {
   // Connexion (public) : login + mot de passe [+ code 2FA] → session JWT signée.
   // Anti-brute-force : 5 échecs → compte verrouillé 15 minutes (journalisé).
@@ -3020,6 +3039,9 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
 
     /** Remontée du boîtier embarqué (ou de l'adaptateur constructeur). */
     app.post('/rental/telematique/:vehiculeId', async (req) => {
+      // Seul un boîtier reconnu remonte une position : une position falsifiée masquerait
+      // un vol, ou ferait appliquer une coupure moteur armée sur un véhicule qui roule.
+      authentifierBoitier(req);
       const { vehiculeId } = req.params as { vehiculeId: string };
       const body = parse(z.object({
         lat: z.number().min(-90).max(90),

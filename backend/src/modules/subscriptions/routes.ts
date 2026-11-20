@@ -1,4 +1,5 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { exigerTitulaire } from '../clients/auth.js';
 import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { parse } from '../../core/validate.js';
@@ -6,11 +7,16 @@ import { badRequest, notFound } from '../../core/errors.js';
 import { PLANS, PLAN_IDS } from './service.js';
 
 export async function subscriptionRoutes(app: FastifyInstance, container: Container): Promise<void> {
+  /** Abonnement d'un client : un compte inscrit doit présenter sa propre session. */
+  const titulaire = (req: FastifyRequest, userId: string) =>
+    exigerTitulaire(req, userId, (c) => Boolean(container.clients.get(c)?.phoneVerifiedAt));
+
   app.get('/subscriptions/plans', async () => ({ plans: PLAN_IDS.map((p) => PLANS[p]) }));
 
   /** État complet : forfait, échéance, quota du jour, facture en attente. */
   app.get('/subscriptions/:userId', async (req) => {
     const { userId } = req.params as { userId: string };
+    titulaire(req, userId);
     const etat = container.subscriptions.etat(userId);
     return { ...etat, invoices: container.subscriptions.facturesDe(userId) };
   });
@@ -25,6 +31,7 @@ export async function subscriptionRoutes(app: FastifyInstance, container: Contai
       }),
       req.body,
     );
+    titulaire(req, body.userId);
     const subscription = container.subscriptions.subscribe(body.userId, body.plan, {
       paymentMethod: body.paymentMethod,
       autoRenew: body.autoRenew,
@@ -42,6 +49,7 @@ export async function subscriptionRoutes(app: FastifyInstance, container: Contai
    */
   app.post('/subscriptions/:userId/apercu', async (req) => {
     const { userId } = req.params as { userId: string };
+    titulaire(req, userId);
     const body = parse(z.object({ amount: z.number().min(0), tier: z.string().max(20).optional() }), req.body);
     return { coverage: container.subscriptions.apercu(userId, body) };
   });
@@ -58,6 +66,7 @@ export async function subscriptionRoutes(app: FastifyInstance, container: Contai
     );
     const facture = container.subscriptions.factures().find((f) => f.id === id);
     if (!facture) throw notFound('Facture d’abonnement introuvable');
+    titulaire(req, facture.userId);
     const provider = container.payments.get(body.method);
     if (!provider) throw badRequest('Moyen de paiement indisponible');
     const result = await provider.charge({
@@ -78,11 +87,13 @@ export async function subscriptionRoutes(app: FastifyInstance, container: Contai
   /** Renouvellement manuel (ou anticipé) de la période. */
   app.post('/subscriptions/:userId/renouveler', async (req) => {
     const { userId } = req.params as { userId: string };
+    titulaire(req, userId);
     return container.subscriptions.renew(userId);
   });
 
   app.post('/subscriptions/:userId/cancel', async (req) => {
     const { userId } = req.params as { userId: string };
+    titulaire(req, userId);
     const body = parse(z.object({ raison: z.string().max(200).optional() }), req.body ?? {});
     return { subscription: container.subscriptions.cancel(userId, body.raison) };
   });

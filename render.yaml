@@ -23,8 +23,20 @@ services:
         value: "*"
       # Jeton du dashboard Admin / supervision SAMU — définir un vrai secret dans Render.
       - key: ADMIN_TOKEN
+        generateValue: true
+      # Mot de passe du compte « admin » de démarrage (12 caractères au moins) : à saisir
+      # dans Render, puis créer les comptes nominatifs dans « Personnel & accès ».
+      - key: ADMIN_PASSWORD
         sync: false
+      # Boîtiers télématiques des véhicules de location : jeton qu'ils présentent pour
+      # remonter leur position (sinon les remontées sont refusées en production).
+      - key: TELEMATIQUE_TOKEN
+        generateValue: true
       # App chauffeur : secret de signature des jetons chauffeur (fort, généré par Render).
+      # Secrets de signature des sessions : générés par Render. Le serveur REFUSE de
+      # démarrer en production avec les valeurs de développement écrites dans le dépôt.
+      - key: ADMIN_JWT_SECRET
+        generateValue: true
       - key: DRIVER_JWT_SECRET
         generateValue: true
       # App cliente : secret de signature des sessions client (distinct, généré par Render).

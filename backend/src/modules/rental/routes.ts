@@ -1,8 +1,9 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { exigerTitulaire } from '../clients/auth.js';
 import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { parse } from '../../core/validate.js';
-import { badRequest } from '../../core/errors.js';
+import { badRequest, notFound } from '../../core/errors.js';
 
 import { finDeLocation, quoteRental } from './service.js';
 import {
@@ -34,6 +35,10 @@ const baseSchema = z.object({
 });
 
 export async function rentalRoutes(app: FastifyInstance, container: Container): Promise<void> {
+  /** Locations d'un client : un compte inscrit doit présenter sa propre session. */
+  const titulaire = (req: FastifyRequest, userId: string) =>
+    exigerTitulaire(req, userId, (c) => Boolean(container.clients.get(c)?.phoneVerifiedAt));
+
   /**
    * Contexte de calcul d'un devis : barème et prix EN VIGUEUR (console), TVA, remise
    * d'abonné et disponibilité réelle. Centralisé pour que le devis consulté et le
@@ -130,6 +135,7 @@ export async function rentalRoutes(app: FastifyInstance, container: Container): 
       }),
       req.body,
     );
+    titulaire(req, body.userId);
     const debut = body.debut ? new Date(body.debut) : new Date();
     const fin = finDeLocation(debut, (body.duree ?? 'journee') as RentalDuree, body.heures);
     const quote = quoteRental(body, contexte(body.vehicleId, debut, fin, body.userId));
@@ -154,6 +160,7 @@ export async function rentalRoutes(app: FastifyInstance, container: Container): 
   /** Mes locations. */
   app.get('/rental/mes-locations/:userId', async (req) => {
     const { userId } = req.params as { userId: string };
+    titulaire(req, userId);
     return { reservations: container.rental.listByUser(userId) };
   });
 
@@ -161,6 +168,7 @@ export async function rentalRoutes(app: FastifyInstance, container: Container): 
   app.get('/rental/reservation/:id', async (req) => {
     const { id } = req.params as { id: string };
     const reservation = container.rental.get(id);
+    if (reservation) titulaire(req, reservation.userId);
     return { reservation: reservation ?? null };
   });
 
@@ -168,6 +176,9 @@ export async function rentalRoutes(app: FastifyInstance, container: Container): 
   app.post('/rental/reservation/:id/annuler', async (req) => {
     const { id } = req.params as { id: string };
     const body = parse(z.object({ raison: z.string().max(200).optional() }), req.body ?? {});
+    const existante = container.rental.get(id);
+    if (!existante) throw notFound('Location introuvable');
+    titulaire(req, existante.userId);
     const r = container.rental.annuler(id, body.raison);
     // Annulation gratuite incluse dans l'abonnement Gold : les frais sont pris en charge.
     const gratuite = container.subscriptions.annulationGratuite(r.reservation.userId);

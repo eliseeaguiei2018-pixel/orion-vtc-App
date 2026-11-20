@@ -8,6 +8,11 @@ import assert from 'node:assert/strict';
  */
 process.env.NODE_ENV = 'production';
 process.env.ADMIN_JWT_SECRET = 'secret-de-test-suffisamment-long-pour-la-production';
+// Production complète : le serveur refuse de démarrer avec un secret public du dépôt.
+process.env.DRIVER_JWT_SECRET = 'secret-chauffeur-de-test-suffisamment-long-0001';
+process.env.CLIENT_JWT_SECRET = 'secret-client-de-test-suffisamment-long-00000001';
+process.env.ADMIN_TOKEN = 'jeton-admin-de-test-suffisamment-long';
+process.env.ADMIN_PASSWORD = 'Mot-de-passe-de-test-2026';
 
 test('production sans opérateur : refus 503 explicite, client et chauffeur', async (t) => {
   const { buildApp } = await import('../src/app.js');

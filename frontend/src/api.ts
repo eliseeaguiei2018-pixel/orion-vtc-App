@@ -496,7 +496,12 @@ export interface TrustedContact {
 export function clientId(): string {
   let id = localStorage.getItem('orion.clientId');
   if (!id) {
-    id = 'client-' + Math.random().toString(36).slice(2, 10);
+    // Identifiant d'un invité : c'est la seule clé de ses courses et locations, il doit
+    // être imprévisible (générateur cryptographique, pas Math.random).
+    const alea = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID().replace(/-/g, '')
+      : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+    id = 'client-' + alea;
     localStorage.setItem('orion.clientId', id);
   }
   return id;

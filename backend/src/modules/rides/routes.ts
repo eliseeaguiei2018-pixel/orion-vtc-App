@@ -108,9 +108,14 @@ async function enregistrerItineraire(container: Container, rideId: string): Prom
 }
 
 export async function rideRoutes(app: FastifyInstance, container: Container): Promise<void> {
+  /** Données d'un client : un compte inscrit doit présenter sa propre session. */
+  const titulaire = (req: FastifyRequest, clientId: string) =>
+    exigerTitulaire(req, clientId, (c) => Boolean(container.clients.get(c)?.phoneVerifiedAt));
+
   // Création de course : idempotente + prix verrouillé + matching.
   app.post('/rides', async (req, reply) => {
     const body = parse(createSchema, req.body);
+    titulaire(req, body.clientId);
 
     const ride = await container.idempotency.run(idempotencyKey(req), async () => {
       // Prix verrouillé : on ne fait confiance qu'au devis serveur, jamais à un prix client.
@@ -352,7 +357,7 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
 
   app.get('/clients/:clientId/rides', async (req) => {
     const { clientId } = req.params as { clientId: string };
-    exigerTitulaire(req, clientId, (c) => Boolean(container.clients.get(c)));
+    exigerTitulaire(req, clientId, (c) => Boolean(container.clients.get(c)?.phoneVerifiedAt));
     return { rides: container.rides.listByClient(clientId) };
   });
 
@@ -413,17 +418,19 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     motif: z.enum(MOTIFS_ANNULATION),
     details: z.string().trim().max(300).optional(),
   });
-  const courseDuClient = (id: string, clientId: string): Ride => {
+  const courseDuClient = (req: FastifyRequest, id: string, clientId: string): Ride => {
     const ride = container.rides.get(id);
     // Même réponse qu'une course inexistante : on n'apprend rien sur les courses des autres.
     if (!ride || ride.clientId !== clientId) throw notFound('Course introuvable');
+    // Connaître l'identifiant ne suffit pas : un compte inscrit doit présenter SA session.
+    titulaire(req, ride.clientId);
     return ride;
   };
 
   app.get('/rides/:id/cancel-preview', async (req) => {
     const { id } = req.params as { id: string };
     const q = parse(z.object({ clientId: z.string().min(1).max(64), motif: z.enum(MOTIFS_ANNULATION).optional() }), req.query);
-    const ride = courseDuClient(id, q.clientId);
+    const ride = courseDuClient(req, id, q.clientId);
     return {
       annulable: rideStateMachine.canTransition(ride.status, 'cancelled'),
       status: ride.status,
@@ -435,7 +442,7 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
   app.post('/rides/:id/cancel', async (req) => {
     const { id } = req.params as { id: string };
     const body = parse(annulationSchema, req.body);
-    const ride = courseDuClient(id, body.clientId);
+    const ride = courseDuClient(req, id, body.clientId);
     if (!rideStateMachine.canTransition(ride.status, 'cancelled')) {
       throw conflict(ride.status === 'in_progress'
         ? 'La course est en cours : demandez au chauffeur de s’arrêter, ou utilisez le SOS en cas de danger.'
@@ -581,6 +588,7 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     const ride = container.rides.get(id);
     if (!ride) throw notFound('Course introuvable');
     if (ride.clientId !== body.clientId) throw badRequest('Cette course n’appartient pas à ce client');
+    titulaire(req, ride.clientId);
     const dispute = container.disputes.open({ rideId: id, ...body });
     reply.code(201);
     return { dispute };
@@ -620,6 +628,7 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     if (Date.parse(body.scheduledFor) < Date.now() + 15 * 60_000) {
       throw badRequest('Une réservation se planifie au moins 15 minutes à l’avance');
     }
+    titulaire(req, body.clientId);
     container.clients.touch(body.clientId);
     const reservation = container.reservations.create(body);
     reply.code(201);
@@ -628,7 +637,7 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
 
   app.get('/clients/:clientId/reservations', async (req) => {
     const { clientId } = req.params as { clientId: string };
-    exigerTitulaire(req, clientId, (c) => Boolean(container.clients.get(c)));
+    exigerTitulaire(req, clientId, (c) => Boolean(container.clients.get(c)?.phoneVerifiedAt));
     return { reservations: container.reservations.listByClient(clientId) };
   });
 }

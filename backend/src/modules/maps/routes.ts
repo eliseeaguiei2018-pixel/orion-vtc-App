@@ -22,6 +22,20 @@ export async function mapsRoutes(app: FastifyInstance, container: Container): Pr
     return { itineraire: await container.routage.itineraire(body.points) };
   });
 
+  /**
+   * Recherche de lieux pour le départ ou la destination : chaque résultat porte ses
+   * coordonnées. Répertoire ORION toujours disponible + OpenStreetMap quand il répond.
+   */
+  app.get('/maps/recherche', { config: { rateLimit: { max: 90, timeWindow: '1 minute' } } }, async (req) => {
+    const q = parse(z.object({
+      q: z.string().trim().min(2).max(120),
+      lat: z.coerce.number().min(-90).max(90).optional(),
+      lng: z.coerce.number().min(-180).max(180).optional(),
+    }), req.query);
+    const pres = q.lat !== undefined && q.lng !== undefined ? { lat: q.lat, lng: q.lng } : undefined;
+    return { lieux: await container.geocodeur.rechercher(q.q, pres) };
+  });
+
   app.get('/maps/autocomplete', async (req) => {
     const q = parse(
       z.object({

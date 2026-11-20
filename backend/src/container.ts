@@ -1,4 +1,5 @@
 import { TableauDeBord } from './modules/dashboard/service.js';
+import { Geocodeur } from './modules/maps/geocodage.js';
 import { ServiceObjectifs } from './modules/dashboard/objectifs.js';
 import { ServiceHabilitations, type Habilitation } from './modules/dashboard/habilitations.js';
 import { creerSms, type SmsSender } from './modules/sms/index.js';
@@ -89,6 +90,8 @@ export interface Container {
   /** Répertoire d'urgence + registre des contacts (poste SAMU). */
   contacts: EmergencyContactsService;
   maps: MapsProvider;
+  /** Recherche de lieux (départ, destination) : répertoire ORION + OpenStreetMap. */
+  geocodeur: Geocodeur;
   /** Itinéraires routiers réels (OSRM / OpenStreetMap), avec repli. */
   routage: Routage;
   /** Tableau de bord ORION : journal d'activité de tout l'écosystème, en direct. */
@@ -315,6 +318,7 @@ export function createContainer(): Container {
       createRepository<ContactJournalEntry>('contacts_journal'),
     ),
     maps: createMapsProvider(),
+    geocodeur: new Geocodeur(config.GEOCODEUR_URL === 'off' ? null : config.GEOCODEUR_URL),
     routage,
     simulator: (() => {
       const sim = new RideSimulator(rides, realtime, {}, routage);

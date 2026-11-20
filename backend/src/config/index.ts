@@ -37,6 +37,9 @@ const schema = z.object({
   // Partenariat Google Maps (Directions / Distance Matrix / Places).
   // Optionnel : sans clé, on bascule sur un calcul interne (haversine) — l'app fonctionne.
   GOOGLE_MAPS_API_KEY: z.string().optional(),
+  // Recherche d'adresses (OpenStreetMap, API Photon). Par défaut le service public
+  // (usage modéré) ; à fort volume, une instance ORION. « off » : répertoire local seul.
+  GEOCODEUR_URL: z.string().default('https://photon.komoot.io'),
   // Calcul d'itinéraire routier (OSRM, données OpenStreetMap). Par défaut : serveur public
   // de démonstration (usage modéré). En production : serveur ORION dédié, même API.
   // Vide = désactivé (tracé de repli en lignes droites).
@@ -133,7 +136,14 @@ const schema = z.object({
   DRIVER_OTP_TTL_SECONDS: z.coerce.number().int().positive().default(300),
   // Mode STRICT : si "true", le jeton chauffeur devient OBLIGATOIRE sur toutes les routes
   // /drivers/:id/* (à activer en production). Désactivé par défaut (compatibilité).
-  DRIVER_AUTH_STRICT: z.string().default('false').transform((v) => v.toLowerCase() === 'true'),
+  // Non renseigné : strict en production (l'app chauffeur se connecte toujours par code
+  // SMS et présente son jeton), souple en développement et en test.
+  DRIVER_AUTH_STRICT: z.enum(['true', 'false', 'TRUE', 'FALSE']).optional(),
+  // BOÎTIERS TÉLÉMATIQUES (véhicules de location) : jeton partagé que chaque boîtier
+  // présente (Authorization: Bearer …) pour remonter sa position. Sans lui en production,
+  // les remontées sont refusées : une position falsifiée pourrait masquer un vol ou
+  // déclencher une coupure moteur armée. Au moins 24 caractères.
+  TELEMATIQUE_TOKEN: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(24, 'TELEMATIQUE_TOKEN : au moins 24 caractères').optional()),
   // TEST DE CHARGE : autorise la préparation d'une flotte de test (/admin/charge/preparer).
   // Toujours refusé en production, quelle que soit cette valeur.
   // File d'attente des connexions entrantes. Node la limite à 511 par défaut : une rafale
@@ -177,6 +187,28 @@ const schema = z.object({
   REDIS_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
   DB_PATH: z.string().default('./data/orion.db'),
 }).superRefine((c, ctx) => {
+  // PRODUCTION : jamais avec un secret public. Les valeurs par défaut sont écrites dans le
+  // dépôt ; les garder en production permet à quiconque de fabriquer un jeton de
+  // super-administrateur. Le serveur refuse de démarrer plutôt que de tourner exposé.
+  if (c.NODE_ENV === 'production') {
+    const secrets: Array<[keyof typeof c, string]> = [
+      ['ADMIN_JWT_SECRET', 'orion-dev-jwt-secret-change-me'],
+      ['DRIVER_JWT_SECRET', 'orion-dev-driver-secret-change-me'],
+      ['CLIENT_JWT_SECRET', 'orion-dev-client-secret-change-me'],
+    ];
+    for (const [cle, defaut] of secrets) {
+      const v = String(c[cle] ?? '');
+      if (v === defaut || v.length < 32) {
+        ctx.addIssue({ code: 'custom', path: [cle], message: `${cle} : secret propre à la production requis (32 caractères au moins, ex. openssl rand -base64 48)` });
+      }
+    }
+    if (c.ADMIN_TOKEN === 'orion-admin-dev' || c.ADMIN_TOKEN.length < 24) {
+      ctx.addIssue({ code: 'custom', path: ['ADMIN_TOKEN'], message: 'ADMIN_TOKEN : la valeur de développement ouvre un accès super-administrateur ; définir un jeton de 24 caractères au moins' });
+    }
+    if (!c.ADMIN_USERS && (c.ADMIN_PASSWORD === 'orion-admin-dev' || c.ADMIN_PASSWORD.length < 12)) {
+      ctx.addIssue({ code: 'custom', path: ['ADMIN_PASSWORD'], message: 'ADMIN_PASSWORD : le mot de passe de développement est public ; en définir un de 12 caractères au moins (ou ADMIN_USERS)' });
+    }
+  }
   // Un opérateur choisi sans ses identifiants : le serveur refuse de démarrer, plutôt que
   // de laisser les clients attendre un SMS qui ne partira jamais.
   if (c.MEDICAL_DATA_KEY && Buffer.from(c.MEDICAL_DATA_KEY, 'base64').length !== 32) {
@@ -197,5 +229,10 @@ if (!parsed.success) {
   process.exit(1);
 }
 
-export const config = parsed.data;
+export const config = {
+  ...parsed.data,
+  DRIVER_AUTH_STRICT: parsed.data.DRIVER_AUTH_STRICT === undefined
+    ? parsed.data.NODE_ENV === 'production'
+    : parsed.data.DRIVER_AUTH_STRICT.toLowerCase() === 'true',
+};
 export type Config = typeof config;

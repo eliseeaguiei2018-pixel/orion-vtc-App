@@ -10,7 +10,7 @@ import { conflict } from '../../core/errors.js';
 export async function insuranceRoutes(app: FastifyInstance, container: Container): Promise<void> {
   // Portefeuille et cotisations : données financières, réservées au titulaire connecté.
   const titulaire = (req: Parameters<typeof exigerTitulaire>[0], id: string) =>
-    exigerTitulaire(req, id, (c) => Boolean(container.clients.get(c)));
+    exigerTitulaire(req, id, (c) => Boolean(container.clients.get(c)?.phoneVerifiedAt));
 
   app.get('/insurance/info', async () => ({
     rate: INSURANCE_RATE,

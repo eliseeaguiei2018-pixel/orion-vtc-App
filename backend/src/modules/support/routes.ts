@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { exigerTitulaire } from '../clients/auth.js';
@@ -11,6 +11,10 @@ import { normalizePhone } from '../driver-app/auth.js';
  * Le client ouvre une conversation et échange avec les agents ORION (chat).
  */
 export async function supportClientRoutes(app: FastifyInstance, container: Container): Promise<void> {
+  /** Données d'un client : un compte inscrit doit présenter sa propre session. */
+  const titulaire = (req: FastifyRequest, id: string) =>
+    exigerTitulaire(req, id, (c) => Boolean(container.clients.get(c)?.phoneVerifiedAt));
+
   // Config publique : services activés + ville ouverte (l'app cliente adapte son hub).
   app.get('/config', async () => ({ ...container.settings.getServices(), currency: 'XOF' }));
 
@@ -34,6 +38,9 @@ export async function supportClientRoutes(app: FastifyInstance, container: Conta
     // même numéro — sans cela, deux fiches cohabitent pour une seule personne.
     // On réutilise LE normaliseur de la plateforme : deux implémentations finiraient
     // par diverger, et le même numéro donnerait deux fiches pour une seule personne.
+    // Le nom et le numéro d'un compte inscrit ne se changent qu'avec SA session : sans
+    // cela, connaître l'identifiant suffisait à détourner le numéro d'un client.
+    titulaire(req, body.clientId);
     const phone = body.phone ? (normalizePhone(body.phone) ?? undefined) : undefined;
     const client = container.clients.touch(body.clientId, { name: body.name, phone });
     return { client: { id: client.id, name: client.name ?? null, phone: client.phone ?? null } };
@@ -48,6 +55,7 @@ export async function supportClientRoutes(app: FastifyInstance, container: Conta
       z.object({ clientId: z.string().min(1), subject: z.string().optional(), text: z.string().min(1).max(2000) }),
       req.body,
     );
+    titulaire(req, body.clientId);
     container.clients.touch(body.clientId);
     const conv = container.support.openFromClient(body);
     reply.code(201);
@@ -57,7 +65,7 @@ export async function supportClientRoutes(app: FastifyInstance, container: Conta
   // Le client consulte ses conversations.
   app.get('/clients/:clientId/support', async (req) => {
     const { clientId } = req.params as { clientId: string };
-    exigerTitulaire(req, clientId, (c) => Boolean(container.clients.get(c)));
+    exigerTitulaire(req, clientId, (c) => Boolean(container.clients.get(c)?.phoneVerifiedAt));
     return { conversations: container.support.listByClient(clientId) };
   });
 

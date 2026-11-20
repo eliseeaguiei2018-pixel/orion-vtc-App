@@ -80,3 +80,30 @@ lance tel quel dans DevEco.
 **Limite franche :** un vrai 144 Hz ne se prouve pas sur un serveur sans écran. Le code
 demande le meilleur taux ; la fréquence réellement obtenue dépend de l'appareil et de ses
 arbitrages d'énergie.
+
+## Boîtiers télématiques des véhicules de location
+
+Les véhicules de la Location Signature (Maextro S800, AITO M9, NIO ES9…) remontent leur
+position par un boîtier embarqué ou par l'API du constructeur. La console l'affiche dans
+**Suivi véhicules** (carte d'Abidjan, vol, coupure moteur).
+
+```
+POST /rental/telematique/{vehiculeId}
+Authorization: Bearer <TELEMATIQUE_TOKEN>
+Content-Type: application/json
+
+{ "lat": 5.3237, "lng": -4.0186, "vitesseKmh": 0, "contact": false,
+  "cap": 90, "batteriePct": 71, "autonomieKm": 420 }
+```
+
+- **Authentification obligatoire.** Le boîtier présente le jeton `TELEMATIQUE_TOKEN`
+  (24 caractères au moins, généré par l'hébergeur). Sans jeton valide : 401. Sans jeton
+  configuré, le serveur de production refuse toutes les remontées (503) : une position
+  falsifiée pourrait masquer un vol, ou faire appliquer une coupure moteur armée sur un
+  véhicule qui roule.
+- `vehiculeId` est l'identifiant de flotte (`maextro-s800`, `aito-m9`…).
+- Une coupure moteur **armée et confirmée par une seconde personne** ne s'applique qu'à
+  une vitesse remontée de 5 km/h au plus. C'est le boîtier qui décide de l'instant, jamais
+  l'agent depuis son écran.
+- Fréquence conseillée : toutes les 10 à 30 s en roulant, toutes les 5 min à l'arrêt.
+  Au-delà d'une heure sans remontée, la console signale un **boîtier silencieux**.

@@ -8,7 +8,7 @@ import { exigerTitulaire } from '../clients/auth.js';
 /** Messagerie ORION : routes du client (boîte de réception, lecture, réponse rapide). */
 export async function messagesRoutes(app: FastifyInstance, container: Container): Promise<void> {
   const titulaire = (req: Parameters<typeof exigerTitulaire>[0], id: string) =>
-    exigerTitulaire(req, id, (c) => Boolean(container.clients.get(c)));
+    exigerTitulaire(req, id, (c) => Boolean(container.clients.get(c)?.phoneVerifiedAt));
 
   app.get('/clients/:clientId/messages', async (req) => {
     const { clientId } = req.params as { clientId: string };
