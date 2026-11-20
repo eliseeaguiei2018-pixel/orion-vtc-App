@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Sauvegarde Android (Android 12 et plus) : RIEN n'est copié dans le nuage ni vers un
+  nouveau téléphone. Les données de l'app contiennent la session du client (jeton) : la
+  restaurer sur un autre appareil y ouvrirait son compte sans code SMS (OWASP MASVS-STORAGE).
+  Sur un nouveau téléphone, le client se reconnecte avec son numéro.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </device-transfer>
+</data-extraction-rules>

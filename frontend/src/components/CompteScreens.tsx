@@ -569,12 +569,14 @@ export function SosHistoryScreen({ onBack }: { onBack: () => void }) {
 /* ====================== CONDITIONS ET CONFIDENTIALITÉ ====================== */
 
 export function LegalScreen({ onBack }: { onBack: () => void }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const sections = ['donnees', 'usage', 'photo', 'sante', 'conservation', 'annulation', 'droits'];
   return (
     <div className="screen page">
       <TopBar onBack={onBack} title={t('set_legal')} />
       <div className="page-body legal">
+        {/* Texte juridique : la version française fait foi tant que la traduction n'est pas validée. */}
+        {lang !== 'fr' && lang !== 'en' && <p className="as-avis-langue" role="note">{t('legal_langue_note')}</p>}
         {sections.map((s) => (
           <div key={s} style={{ marginBottom: 16 }}>
             <span className="eyebrow">{t(`legal_${s}_t`)}</span>

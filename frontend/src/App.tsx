@@ -5,7 +5,7 @@ import { OrionMap } from './components/OrionMap';
 import { Sheet, TopBar, Toast } from './components/ui';
 import {
   IconBell, IconBolt, IconBriefcase, IconCalendar, IconCamera, IconCar, IconCheck, IconChevron, IconClock, IconCrown,
-  IconFingerprint, IconGem, IconGlobe, IconHome, IconImage, IconLeaf, IconLock, IconMic, IconMinus,
+  IconFingerprint, IconGem, IconGlobe, IconHome, IconLeaf, IconLock, IconMinus,
   IconPhone, IconPin, IconPlane, IconPlus, IconRing, IconSearch, IconSettings, IconShare,
   IconShield, IconShieldCheck, IconMedical, IconStar, IconTraffic, IconWallet, IconWifi,
 } from './icons';
@@ -19,13 +19,15 @@ import { authenticateBiometric, isBiometricEnabled } from './security';
 import type { TrustedContact } from './api';
 import { numeroLisible, ouvrirClavier } from './telephone';
 import {
-  ABIDJAN_PLACES, DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
+  DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
 import { urlApi, contactCourse, lireCodePriseEnCharge, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type PkgSize, type SafeDriver, type SosSuivi, type SupportMessage } from './api';
 import { useI18n } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
+import { ChoixLieu, type ModeChoix } from './components/ChoixLieu';
+import { LIEUX_POPULAIRES, enregistrerLieu, lieuEnregistre, lieuxRecents, memoriserRecent, useDepart, type EtatPosition } from './lieux';
 import { Avatar, CancelSheet, HistoryScreen, LegalScreen, PhotoScreen, ProfileScreen, SettingsScreen, SosHistoryScreen } from './components/CompteScreens';
 
 const PAYMENTS = [
@@ -37,8 +39,6 @@ const PAYMENTS = [
   { method: 'card', label: 'Carte' },
 ];
 
-// Arrêts d'exemple proposés lors de l'ajout d'un arrêt (multi-arrêts).
-const EXTRA_STOPS: Place[] = ABIDJAN_PLACES.filter((p) => ['pisam', 'sococe', 'gare'].includes(p.id));
 
 const lerp = (a: LatLng, b: LatLng, t: number): LatLng => ({
   lat: a.lat + (b.lat - a.lat) * t,
@@ -90,7 +90,18 @@ function pointSurTrace(trace: LatLng[], t: number): LatLng {
 export function App() {
   const { t } = useI18n();
   const [screen, setScreen] = useState<Screen>('splash');
-  const origin = DEFAULT_ORIGIN;
+  /*
+   * POINT DE PRISE EN CHARGE : la vraie position du téléphone (GPS) ou le point choisi
+   * par le client. Avant l'audit, toutes les courses partaient du Plateau, affiché
+   * « Position actuelle » : un chauffeur aurait été envoyé à la mauvaise adresse.
+   */
+  const position = useDepart({ maPosition: t('lieu_ma_position') });
+  const origin = position.depart.place;
+  const departAConfirmer = position.depart.source === 'defaut';
+  /** Écran de choix d'un lieu : ce qu'on choisit, et où revenir ensuite. */
+  const [choix, setChoix] = useState<{ mode: ModeChoix; retour: Screen } | null>(null);
+  /** Livraison : point de dépôt choisi (il survit au passage par le choix du point de retrait). */
+  const [depotLivraison, setDepotLivraison] = useState<Place | null>(null);
   const [destination, setDestination] = useState<Place | null>(null);
   const [mode, setMode] = useState<'ride' | 'delivery'>('ride');
   const [pkgSize, setPkgSize] = useState<'petit' | 'moyen' | 'grand'>('moyen');
@@ -294,8 +305,27 @@ export function App() {
   }, [screen, destination, tier, bodyType, stops, insurance, promo, origin.location]);
 
   const chooseDestination = (place: Place) => {
+    memoriserRecent(place);
     setDestination(place);
     setScreen('estimate');
+  };
+
+  /** Ouvre le choix d'un lieu ; à la première demande de course, on se localise. */
+  const ouvrirChoix = (mode: ModeChoix, retour: Screen) => {
+    if ((mode === 'depart' || mode === 'destination') && position.etat === 'inconnue') position.localiser();
+    setChoix({ mode, retour });
+    setScreen('choixLieu');
+  };
+  const lieuChoisi = (p: Place) => {
+    const c = choix;
+    if (!c) return;
+    setChoix(null);
+    if (c.mode === 'destination') { chooseDestination(p); return; }
+    if (c.mode === 'depart') { position.choisir(p); memoriserRecent(p); }
+    else if (c.mode === 'livraison') { setDepotLivraison(p); memoriserRecent(p); }
+    else if (c.mode === 'arret') { setStops((s) => (s.length < 3 ? [...s, p] : s)); memoriserRecent(p); }
+    else { enregistrerLieu(c.mode === 'domicile' ? 'home' : 'work', p, t(c.mode === 'domicile' ? 'lieu_domicile' : 'lieu_bureau')); showToast(t('lieu_enregistre_ok')); }
+    setScreen(c.retour);
   };
 
   const pickDriver = (): Driver => {
@@ -403,7 +433,7 @@ export function App() {
     const PARENT: Partial<Record<Screen, Screen>> = {
       auth: 'onboarding', otp: 'auth', destination: 'home', delivery: 'home', estimate: 'home', confirm: 'estimate',
       settings: 'home', profile: 'settings', sosHistory: 'settings', legal: 'settings', history: 'settings',
-      wallet: 'home', help: 'home', support: 'help', subscription: 'home', rental: 'home', myRentals: 'home', wedding: 'home', assurance: 'settings', messages: 'home',
+      wallet: 'home', help: 'home', support: 'help', subscription: 'home', rental: 'home', myRentals: 'home', wedding: 'home', assurance: 'settings', messages: 'home', choixLieu: 'home',
     };
     const ecoute = AppNative.addListener('backButton', () => {
       const e = etatRetour.current;
@@ -529,25 +559,30 @@ export function App() {
           />
         )}
         {screen === 'photo' && <PhotoScreen profil={profil} onDone={(p) => { if (p) setProfil(p); setScreen('permissions'); }} />}
-        {screen === 'permissions' && <PermissionsScreen onDone={() => setScreen('home')} />}
+        {screen === 'permissions' && <PermissionsScreen etat={position.etat} onLocaliser={position.localiser} onDone={() => setScreen('home')} />}
 
         {screen === 'home' && (
           <HomeScreen announce={announce} closed={closed} deliveryOff={deliveryOff} city={appConfig?.city ?? null} profil={profil}
-            onSearch={() => { if (guardOpen()) { setMode('ride'); setScreen('destination'); } }}
-            onCourse={() => { if (guardOpen()) { setMode('ride'); setScreen('destination'); } }}
-            onDelivery={() => { if (guardOpen()) { setMode('delivery'); setScreen('delivery'); } }}
-            onQuick={(p) => { if (guardOpen()) { setMode('ride'); chooseDestination(p); } }}
+            onSearch={() => { if (guardOpen()) { setMode('ride'); ouvrirChoix('destination', 'home'); } }}
+            onCourse={() => { if (guardOpen()) { setMode('ride'); ouvrirChoix('destination', 'home'); } }}
+            onDelivery={() => { if (guardOpen()) { setMode('delivery'); if (position.etat === 'inconnue') position.localiser(); setScreen('delivery'); } }}
+            onQuick={(p) => { if (guardOpen()) { setMode('ride'); if (position.etat === 'inconnue') position.localiser(); chooseDestination(p); } }}
+            onAjouterLieu={(quel) => ouvrirChoix(quel, 'home')}
             onNav={setScreen}
             nonLus={messagerie.nonLus} onMessages={messagerie.actif ? () => { setRetourMessages('home'); setScreen('messages'); } : undefined}
             onSoon={(name) => showToast(t('soon_toast', { name }))} />
         )}
 
-        {screen === 'destination' && (
-          <DestinationScreen origin={origin} onBack={() => setScreen('home')} onChoose={chooseDestination} />
+        {screen === 'choixLieu' && choix && (
+          <ChoixLieu mode={choix.mode} centre={origin.location} etatPosition={position.etat}
+            onMaPosition={() => { position.revenirAuGps(); setChoix(null); setScreen(choix.retour); }}
+            onChoose={lieuChoisi} onBack={() => { setChoix(null); setScreen(choix.retour); }} />
         )}
 
         {screen === 'delivery' && (
-          <DeliveryScreen origin={origin} pkgSize={pkgSize} onBack={() => setScreen('home')} onConfirm={startDelivery} />
+          <DeliveryScreen origin={origin} departAConfirmer={departAConfirmer} dropoff={depotLivraison} pkgSize={pkgSize}
+            onPickup={() => ouvrirChoix('depart', 'delivery')} onDropoff={() => ouvrirChoix('livraison', 'delivery')}
+            onBack={() => { setDepotLivraison(null); setScreen('home'); }} onConfirm={(d, s) => { setDepotLivraison(null); void startDelivery(d, s); }} />
         )}
 
         {screen === 'estimate' && destination && (
@@ -557,9 +592,9 @@ export function App() {
         )}
 
         {screen === 'confirm' && destination && (
-          <ConfirmScreen origin={origin} destination={destination} tier={tier} bodyType={bodyType} quote={quote} coverage={coverage} payment={payment}
+          <ConfirmScreen origin={origin} departAConfirmer={departAConfirmer} onDepart={() => ouvrirChoix('depart', 'confirm')} destination={destination} tier={tier} bodyType={bodyType} quote={quote} coverage={coverage} payment={payment}
             payments={enabledPayments} promo={promo} onPromo={setPromo}
-            stops={stops} onAddStop={() => setStops((s) => (s.length < 3 ? [...s, EXTRA_STOPS[s.length]!] : s))}
+            stops={stops} onAddStop={() => ouvrirChoix('arret', 'confirm')} onRemoveStop={(i) => setStops((s) => s.filter((_, j) => j !== i))}
             scheduled={scheduled} onSchedule={setScheduled} insurance={insurance} onInsurance={(v) => { if (v && !assuranceInscrite && isLiveBackend()) { setAssuranceRequise(true); return; } setInsurance(v); }}
             onPayment={setPayment} onBack={() => setScreen('estimate')}
             onConfirm={() => { if (scheduled) { showToast(t('toast_scheduled')); reset(); } else confirmRide(); }} />
@@ -594,7 +629,7 @@ export function App() {
         )}
 
         {screen === 'rating' && destination && driver && (
-          <RatingScreen driver={driver} quote={quote} payment={payment} destination={destination} rating={rating} livraison={mode === 'delivery'}
+          <RatingScreen origin={origin} driver={driver} quote={quote} payment={payment} destination={destination} rating={rating} livraison={mode === 'delivery'}
             setRating={setRating} onDone={() => { if (live && rideId && rating) void rateRide(rideId, rating); showToast(t(mode === 'delivery' ? 'toast_done_liv' : 'toast_done')); reset(); }} />
         )}
 
@@ -924,16 +959,24 @@ function AuthScreen({ phone, setPhone, name, setName, email, setEmail, erreur, o
   );
 }
 
-function PermissionsScreen({ onDone }: { onDone: () => void }) {
+/**
+ * AUTORISATIONS. L'écran proposait cinq interrupteurs (position, notifications, micro,
+ * appareil photo, stockage) qui ne demandaient RIEN au téléphone, dont trois pour des
+ * fonctions que l'app n'utilise pas — refus assuré à la revue App Store (règle 5.1.1).
+ * Il ne reste que ce qui sert : la position (vraie demande système, pour le point de
+ * prise en charge) et l'appareil photo (demandé seulement au moment de la photo).
+ */
+function PermissionsScreen({ etat, onLocaliser, onDone }: { etat: EtatPosition; onLocaliser: () => void; onDone: () => void }) {
   const { t } = useI18n();
-  const items = [
-    { icon: <IconPin size={20} />, k: 'loc' },
-    { icon: <IconBell size={20} />, k: 'notif' },
-    { icon: <IconMic size={20} />, k: 'mic' },
-    { icon: <IconCamera size={20} />, k: 'cam' },
-    { icon: <IconImage size={20} />, k: 'storage' },
-  ];
-  const [granted, setGranted] = useState<Record<string, boolean>>({});
+  const [demande, setDemande] = useState(false);
+  // On laisse le temps à la fenêtre système de répondre, puis on passe à l'accueil.
+  useEffect(() => {
+    if (demande && etat !== 'attente' && etat !== 'inconnue') { const id = window.setTimeout(onDone, 600); return () => window.clearTimeout(id); }
+    return undefined;
+  }, [demande, etat, onDone]);
+  const autoriser = () => { setDemande(true); onLocaliser(); };
+  const statut = etat === 'ok' ? t('perm_loc_ok') : etat === 'refus' ? t('perm_loc_refus') : etat === 'attente' ? t('lieu_position_attente')
+    : etat === 'hors_zone' ? t('lieu_position_hors_zone') : etat === 'indisponible' ? t('lieu_position_indispo') : null;
   return (
     <div className="screen page">
       <OrionMap origin={DEFAULT_ORIGIN.location} />
@@ -944,19 +987,24 @@ function PermissionsScreen({ onDone }: { onDone: () => void }) {
         <h2 className="h-title">{t('perm_title')}</h2>
         <p className="h-sub" style={{ marginBottom: 14 }}>{t('perm_sub')}</p>
         <div className="stack">
-          {items.map((it) => (
-            <div key={it.k} className="opt" style={granted[it.k] ? { borderColor: 'var(--green)' } : undefined}>
-              <span className="list-ico" style={{ color: 'var(--green)' }}>{it.icon}</span>
-              <span className="col grow" style={{ textAlign: 'start' }}>
-                <strong style={{ fontSize: 14.5 }}>{t(`perm_${it.k}`)}</strong>
-                <span className="faint" style={{ fontSize: 12 }}>{t(`perm_${it.k}_d`)}</span>
-              </span>
-              <button className={`toggle${granted[it.k] ? ' on' : ''}`} onClick={() => setGranted((g) => ({ ...g, [it.k]: !g[it.k] }))}><span /></button>
-            </div>
-          ))}
+          <div className="opt" style={etat === 'ok' ? { borderColor: 'var(--green)' } : undefined}>
+            <span className="list-ico" style={{ color: 'var(--green)' }}><IconPin size={20} /></span>
+            <span className="col grow" style={{ textAlign: 'start' }}>
+              <strong style={{ fontSize: 14.5 }}>{t('perm_loc')}</strong>
+              <span className="faint" style={{ fontSize: 12 }}>{statut ?? t('perm_loc_d')}</span>
+            </span>
+            {etat === 'ok' ? <IconCheck size={20} color="var(--green)" /> : null}
+          </div>
+          <div className="opt">
+            <span className="list-ico" style={{ color: 'var(--green)' }}><IconCamera size={20} /></span>
+            <span className="col grow" style={{ textAlign: 'start' }}>
+              <strong style={{ fontSize: 14.5 }}>{t('perm_cam')}</strong>
+              <span className="faint" style={{ fontSize: 12 }}>{t('perm_cam_d')}</span>
+            </span>
+          </div>
         </div>
-        <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => { setGranted({ loc: true, notif: true, mic: true, cam: true, storage: true }); onDone(); }}>
-          <IconCheck size={18} /> {t('perm_allow')}
+        <button className="btn btn-primary" style={{ marginTop: 16 }} disabled={etat === 'attente'} onClick={etat === 'ok' ? onDone : autoriser}>
+          <IconCheck size={18} /> {etat === 'ok' ? t('perm_continue') : t('perm_allow')}
         </button>
         <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={onDone}>{t('perm_skip')}</button>
       </Sheet>
@@ -1026,7 +1074,9 @@ function MiniSvc({ illus, label, onClick }: { illus: React.ReactNode; label: str
   );
 }
 
-function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onCourse, onDelivery, onQuick, onNav, onSoon, nonLus = 0, onMessages }: {
+function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onCourse, onDelivery, onQuick, onAjouterLieu, onNav, onSoon, nonLus = 0, onMessages }: {
+  /** Enregistrer le domicile ou le bureau du client. */
+  onAjouterLieu: (quel: 'domicile' | 'bureau') => void;
   profil: ProfilClient | null;
   /** Messagerie ORION : bouton message (absent sans compte ni serveur). */
   nonLus?: number; onMessages?: () => void;
@@ -1035,7 +1085,17 @@ function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onC
   onQuick: (p: Place) => void; onNav: (s: Screen) => void; onSoon: (name: string) => void;
 }) {
   const { t } = useI18n();
-  const quick = ABIDJAN_PLACES.filter((p) => p.kind === 'home' || p.kind === 'work' || p.kind === 'hub');
+  /*
+   * Raccourcis : LE domicile et LE bureau du client (s'il les a enregistrés), ses trajets
+   * récents, puis l'aéroport. Avant, tout le monde voyait le même « Domicile · Cocody »
+   * écrit en dur : un client pouvait commander vers le domicile d'un inconnu.
+   */
+  const domicile = lieuEnregistre('home');
+  const bureau = lieuEnregistre('work');
+  const quick = [
+    ...lieuxRecents().slice(0, 3),
+    ...LIEUX_POPULAIRES.filter((p) => p.kind === 'hub').slice(0, 1),
+  ];
   const [showAnnounce, setShowAnnounce] = useState(true);
   return (
     <div className="screen page hub">
@@ -1108,8 +1168,18 @@ function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onC
           <button className="feature-card" onClick={() => onNav('help')}><i><IconShield size={19} /></i> <span>{t('menu_help')}</span></button>
         </div>
 
-        <span className="eyebrow" style={{ marginTop: 4 }}><IconPin size={13} /> {t('home_recent')}</span>
+        <span className="eyebrow" style={{ marginTop: 4 }}><IconPin size={13} /> {t('lieu_vos_lieux')}</span>
         <div className="stack" style={{ marginTop: 10 }}>
+          {([['domicile', domicile], ['bureau', bureau]] as const).map(([quel, lieu]) => (
+            <button key={quel} className="list-row list-btn" onClick={() => (lieu ? onQuick(lieu) : onAjouterLieu(quel))}>
+              <span className="list-ico" style={{ color: 'var(--green)' }}>{quel === 'domicile' ? <IconHome size={20} /> : <IconBriefcase size={20} />}</span>
+              <span className="col grow" style={{ textAlign: 'start', minWidth: 0 }}>
+                <strong style={{ fontSize: 15 }}>{t(quel === 'domicile' ? 'lieu_domicile' : 'lieu_bureau')}</strong>
+                <span className="faint" style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lieu ? lieu.area || lieu.name : t(quel === 'domicile' ? 'lieu_ajouter_domicile' : 'lieu_ajouter_bureau')}</span>
+              </span>
+              {lieu ? <IconChevron size={18} color="var(--text-faint)" /> : <IconPlus size={18} color="var(--text-faint)" />}
+            </button>
+          ))}
           {quick.map((p) => (
             <button key={p.id} className="list-row list-btn" onClick={() => onQuick(p)}>
               <span className="list-ico" style={{ color: 'var(--green)' }}>{placeIcon(p.kind)}</span>
@@ -1127,17 +1197,12 @@ function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onC
 }
 
 /* ----------------------------- Livraison ----------------------------- */
-function DeliveryScreen({ origin, pkgSize, onBack, onConfirm }: {
-  origin: Place; pkgSize: PkgSize; onBack: () => void; onConfirm: (dropoff: Place, size: PkgSize) => void;
+function DeliveryScreen({ origin, departAConfirmer, dropoff, pkgSize, onPickup, onDropoff, onBack, onConfirm }: {
+  origin: Place; departAConfirmer: boolean; dropoff: Place | null; pkgSize: PkgSize;
+  onPickup: () => void; onDropoff: () => void; onBack: () => void; onConfirm: (dropoff: Place, size: PkgSize) => void;
 }) {
   const { t } = useI18n();
-  const [dropoff, setDropoff] = useState<Place | null>(null);
   const [size, setSize] = useState<PkgSize>(pkgSize);
-  const [q, setQ] = useState('');
-  const results = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    return (s ? ABIDJAN_PLACES.filter((p) => (p.name + ' ' + p.area).toLowerCase().includes(s)) : ABIDJAN_PLACES).slice(0, 6);
-  }, [q]);
   const quote = useMemo(() => (dropoff ? previewDelivery(origin.location, dropoff.location, size) : null), [dropoff, size, origin.location]);
   const sizes: PkgSize[] = ['petit', 'moyen', 'grand'];
 
@@ -1155,35 +1220,18 @@ function DeliveryScreen({ origin, pkgSize, onBack, onConfirm }: {
           </div>
         </div>
 
-        {/* Retrait */}
-        <div className="list-row" style={{ padding: '8px 0' }}>
-          <span className="list-ico" style={{ color: 'var(--green)' }}><IconPin size={18} /></span>
-          <span className="col grow"><strong style={{ fontSize: 14 }}>{origin.area}</strong><span className="faint" style={{ fontSize: 12 }}>{t('del_pickup')}</span></span>
-        </div>
+        {/* Retrait : le client le voit et peut le changer */}
+        <LigneDepart origin={origin} aConfirmer={departAConfirmer} libelle={t('del_pickup')} onChange={onPickup} />
 
         {/* Dépôt */}
-        {dropoff ? (
-          <button className="list-row list-btn" style={{ width: '100%', padding: '8px 0' }} onClick={() => setDropoff(null)}>
-            <span className="list-ico" style={{ color: 'var(--gold)' }}><IconPin size={18} /></span>
-            <span className="col grow" style={{ textAlign: 'start' }}><strong style={{ fontSize: 14 }}>{dropoff.name}</strong><span className="faint" style={{ fontSize: 12 }}>{dropoff.area}</span></span>
-            <span className="faint" style={{ fontSize: 12, textDecoration: 'underline' }}>{t('del_change')}</span>
-          </button>
-        ) : (
-          <>
-            <div className="field" style={{ margin: '8px 0' }}>
-              <IconSearch size={20} color="var(--text-faint)" />
-              <input autoFocus placeholder={t('del_dropoff')} value={q} onChange={(e) => setQ(e.target.value)} />
-            </div>
-            <div style={{ maxHeight: 168, overflowY: 'auto' }}>
-              {results.map((p) => (
-                <button key={p.id} className="list-row list-btn" onClick={() => setDropoff(p)}>
-                  <span className="list-ico" style={{ color: 'var(--green)' }}>{placeIcon(p.kind)}</span>
-                  <span className="col grow" style={{ textAlign: 'start' }}><strong style={{ fontSize: 15 }}>{p.name}</strong><span className="faint" style={{ fontSize: 13 }}>{p.area}</span></span>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
+        <button className="list-row list-btn" style={{ width: '100%', padding: '8px 0' }} onClick={onDropoff}>
+          <span className="list-ico" style={{ color: 'var(--gold)' }}>{dropoff ? <IconPin size={18} /> : <IconSearch size={18} />}</span>
+          <span className="col grow" style={{ textAlign: 'start', minWidth: 0 }}>
+            <strong style={{ fontSize: 14 }}>{dropoff ? dropoff.name : t('del_dropoff')}</strong>
+            <span className="faint" style={{ fontSize: 12 }}>{dropoff ? dropoff.area : t('lieu_recherche')}</span>
+          </span>
+          {dropoff && <span className="faint" style={{ fontSize: 12, textDecoration: 'underline' }}>{t('del_change')}</span>}
+        </button>
 
         {dropoff && (
           <>
@@ -1199,9 +1247,13 @@ function DeliveryScreen({ origin, pkgSize, onBack, onConfirm }: {
                 <span className="amt">{formatXOF(quote.amount)}</span>
               </div>
             )}
-            <button className="btn btn-primary" onClick={() => onConfirm(dropoff, size)}>
-              <IconBolt size={18} /> {t('del_cta')}
-            </button>
+            {departAConfirmer ? (
+              <button className="btn btn-primary" onClick={onPickup}><IconPin size={18} /> {t('lieu_confirmer_depart')}</button>
+            ) : (
+              <button className="btn btn-primary" onClick={() => onConfirm(dropoff, size)}>
+                <IconBolt size={18} /> {t('del_cta')}
+              </button>
+            )}
             <p className="faint" style={{ textAlign: 'center', fontSize: 12, marginTop: 8 }}>{t('del_note')}</p>
           </>
         )}
@@ -1210,39 +1262,25 @@ function DeliveryScreen({ origin, pkgSize, onBack, onConfirm }: {
   );
 }
 
-/* ---------------------------- Destination ---------------------------- */
-function DestinationScreen({ origin, onBack, onChoose }: { origin: Place; onBack: () => void; onChoose: (p: Place) => void }) {
+/**
+ * Le point de prise en charge, tel que le client le voit : d'où vient-il (GPS, choisi,
+ * ou par défaut À CONFIRMER), et un bouton pour le changer.
+ */
+function LigneDepart({ origin, aConfirmer, libelle, onChange, droite }: { origin: Place; aConfirmer: boolean; libelle: string; onChange: () => void; droite?: React.ReactNode }) {
   const { t } = useI18n();
-  const [q, setQ] = useState('');
-  const results = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    if (!s) return ABIDJAN_PLACES;
-    return ABIDJAN_PLACES.filter((p) => (p.name + ' ' + p.area).toLowerCase().includes(s));
-  }, [q]);
+  const titre = aConfirmer ? t('lieu_a_confirmer') : origin.id === 'gps' ? `${origin.name} · ${origin.area}` : origin.name;
   return (
-    <div className="screen">
-      <OrionMap origin={origin.location} />
-      <TopBar onBack={onBack} title={t('dest_title')} />
-      <div style={{ flex: 1 }} />
-      <Sheet>
-        <div className="field" style={{ marginBottom: 8 }}>
-          <IconSearch size={20} color="var(--text-faint)" />
-          <input autoFocus placeholder={t('dest_search')} value={q} onChange={(e) => setQ(e.target.value)} />
-        </div>
-        <div style={{ maxHeight: 340, overflowY: 'auto' }}>
-          {results.map((p) => (
-            <button key={p.id} className="list-row list-btn" onClick={() => onChoose(p)}>
-              <span className="list-ico" style={{ color: 'var(--green)' }}>{placeIcon(p.kind)}</span>
-              <span className="col grow" style={{ textAlign: 'start' }}>
-                <strong style={{ fontSize: 15 }}>{p.name}</strong>
-                <span className="faint" style={{ fontSize: 13 }}>{p.area}</span>
-              </span>
-            </button>
-          ))}
-          {results.length === 0 && <p className="faint" style={{ padding: 20, textAlign: 'center' }}>{t('dest_none')}</p>}
-        </div>
-      </Sheet>
-    </div>
+    <button className="list-row list-btn ligne-depart" style={{ width: '100%', padding: '8px 0' }} onClick={onChange} aria-label={`${libelle} : ${titre}. ${t('del_change')}`}>
+      <span className="list-ico" style={{ color: aConfirmer ? 'var(--warn-ink, var(--gold))' : 'var(--green)' }}><IconPin size={18} /></span>
+      <span className="col grow" style={{ textAlign: 'start', minWidth: 0 }}>
+        <strong className="ligne-depart-titre">{titre}</strong>
+        <span className="faint" style={{ fontSize: 12 }}>
+          {aConfirmer ? <span className="ligne-depart-alerte">{t('lieu_a_confirmer_d')}</span> : libelle}
+          {' · '}<span style={{ textDecoration: 'underline' }}>{t('del_change')}</span>
+        </span>
+      </span>
+      {droite}
+    </button>
   );
 }
 
@@ -1321,8 +1359,9 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
 }
 
 /* ------------------------------ Confirm ------------------------------ */
-function ConfirmScreen({ origin, destination, tier, bodyType = 'berline', quote, coverage, payment, payments, promo, onPromo, stops, onAddStop, scheduled, onSchedule, insurance, onInsurance, onPayment, onBack, onConfirm }: {
+function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, bodyType = 'berline', quote, coverage, payment, payments, promo, onPromo, stops, onAddStop, onRemoveStop, scheduled, onSchedule, insurance, onInsurance, onPayment, onBack, onConfirm }: {
   bodyType?: 'suv' | 'berline';
+  departAConfirmer: boolean; onDepart: () => void; onRemoveStop: (i: number) => void;
   origin: Place; destination: Place; tier: TierOption; quote: Quote | null; coverage: SubCoverage | null; payment: string;
   payments: { method: string; label: string }[]; promo: string; onPromo: (v: string) => void;
   stops: Place[]; onAddStop: () => void; scheduled: boolean; onSchedule: (v: boolean) => void;
@@ -1341,15 +1380,13 @@ function ConfirmScreen({ origin, destination, tier, bodyType = 'berline', quote,
       <div style={{ flex: 1 }} />
       <Sheet>
         <div className="card" style={{ padding: 14, marginBottom: 12 }}>
-          <div className="list-row" style={{ padding: '6px 0' }}>
-            <span className="list-ico" style={{ color: 'var(--green)' }}><IconPin size={18} /></span>
-            <span className="col grow"><strong style={{ fontSize: 14 }}>{origin.area}</strong><span className="faint" style={{ fontSize: 12 }}>{t('conf_departure')}</span></span>
-            <TierBadge tier={tier.id} size={32} suv={bodyType === 'suv'} />
-          </div>
+          <LigneDepart origin={origin} aConfirmer={departAConfirmer} libelle={t('conf_departure')} onChange={onDepart}
+            droite={<TierBadge tier={tier.id} size={32} suv={bodyType === 'suv'} />} />
           {stops.map((s, i) => (
-            <div key={i}><div className="divider" /><div className="list-row" style={{ padding: '6px 0' }}>
+            <div key={`${s.id}-${i}`}><div className="divider" /><div className="list-row" style={{ padding: '6px 0' }}>
               <span className="list-ico" style={{ color: 'var(--green)', fontSize: 12, fontWeight: 700 }}>{i + 1}</span>
-              <span className="col grow"><strong style={{ fontSize: 14 }}>{s.name}</strong><span className="faint" style={{ fontSize: 12 }}>{t('p_stops')}</span></span>
+              <span className="col grow" style={{ minWidth: 0 }}><strong style={{ fontSize: 14 }}>{s.name}</strong><span className="faint" style={{ fontSize: 12 }}>{s.area || t('p_stops')}</span></span>
+              <button className="icon-btn" style={{ width: 36, height: 36 }} aria-label={t('lieu_retirer_arret')} onClick={() => onRemoveStop(i)}><IconMinus size={16} /></button>
             </div></div>
           ))}
           <div className="divider" />
@@ -1459,7 +1496,11 @@ function ConfirmScreen({ origin, destination, tier, bodyType = 'berline', quote,
           <span className="grow" style={{ textAlign: 'start', fontSize: 13, fontWeight: 600 }}>{t('wifi_free')}</span>
           <span className="badge green" style={{ fontSize: 10 }}>GRATUIT</span>
         </div>
-        <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={onConfirm}>{scheduled ? t('sched_set') : t('conf_confirm')}</button>
+        {departAConfirmer ? (
+          <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={onDepart}><IconPin size={18} /> {t('lieu_confirmer_depart')}</button>
+        ) : (
+          <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={onConfirm}>{scheduled ? t('sched_set') : t('conf_confirm')}</button>
+        )}
         <p className="faint" style={{ textAlign: 'center', fontSize: 12, marginTop: 8 }}>{t('conf_locked')}</p>
       </Sheet>
 
@@ -1695,8 +1736,8 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
 }
 
 /* ------------------------------ Rating ------------------------------- */
-function RatingScreen({ driver, quote, payment, destination, rating, setRating, onDone, livraison = false }: {
-  driver: Driver; quote: Quote | null; payment: string; destination: Place; rating: number; setRating: (n: number) => void; onDone: () => void;
+function RatingScreen({ origin, driver, quote, payment, destination, rating, setRating, onDone, livraison = false }: {
+  origin: Place; driver: Driver; quote: Quote | null; payment: string; destination: Place; rating: number; setRating: (n: number) => void; onDone: () => void;
   /** Livraison à moto : « Livraison terminée » plutôt que « Course terminée ». */
   livraison?: boolean;
 }) {
@@ -1705,7 +1746,7 @@ function RatingScreen({ driver, quote, payment, destination, rating, setRating, 
   const payLabel = PAYMENTS.find((p) => p.method === payment)?.label ?? payment;
   return (
     <div className="screen">
-      <OrionMap origin={DEFAULT_ORIGIN.location} destination={destination.location} />
+      <OrionMap origin={origin.location} destination={destination.location} />
       <TopBar title={t(livraison ? 'rate_done_liv' : 'rate_done')} />
       <div style={{ flex: 1 }} />
       <Sheet>

@@ -235,4 +235,5 @@ export type Screen =
   | 'sosHistory'
   | 'legal'
   | 'assurance'
-  | 'messages';
+  | 'messages'
+  | 'choixLieu';

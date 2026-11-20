@@ -1,18 +1,21 @@
 import { webview } from '@kit.ArkWeb';
 import { abilityAccessCtrl, common } from '@kit.AbilityKit';
+import { call } from '@kit.TelephonyKit';
 
 /**
  * ORION Chauffeur sur HarmonyOS (Huawei).
  *
  * Même application web que sur Android, iPhone et le navigateur, affichée dans le moteur
  * ArkWeb de HarmonyOS. On ne réécrit rien : une correction publiée sur ORION arrive ici au
- * prochain lancement. Les voitures Huawey équipées de HarmonyOS peuvent donc héberger
+ * prochain lancement. Les voitures équipées de HarmonyOS peuvent donc héberger
  * l'app Chauffeur telle quelle (écran embarqué ou mode écran de véhicule).
  *
  * L'adresse par défaut est celle de l'app Chauffeur. Sur un écran embarqué, pointer plutôt
  * vers « vehicule.html » (mode paysage plein écran, appairage par code).
  */
 const ADRESSE: string = 'https://chauffeur.orion.ci/driver.html';
+/** Seule origine autorisée à s'afficher dans l'app et à lire la position. */
+const ORIGINE: string = 'https://chauffeur.orion.ci';
 
 @Entry
 @Component
@@ -27,18 +30,50 @@ struct Index {
       .catch((e: Object) => console.error(`ORION: permission position refusée: ${e}`));
   }
 
+  /** Bouton retour (téléphone, tablette, écran de véhicule) : page précédente de l'app. */
+  onBackPress(): boolean {
+    if (this.controller.accessBackward()) {
+      this.controller.backward();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Liens sortants. « Appeler » ouvre le CLAVIER du système avec le numéro composé (le
+   * chauffeur appuie lui-même sur appeler) ; un lien hors ORION (itinéraire, site externe)
+   * s'ouvre dans l'application du système, jamais dans l'app (pas de page tierce déguisée).
+   */
+  private intercepter(url: string): boolean {
+    if (url.startsWith('tel:')) {
+      const numero = decodeURIComponent(url.substring(4)).replace(/[^0-9+]/g, '');
+      call.makeCall(numero).catch((e: Object) => console.error(`ORION: clavier indisponible: ${e}`));
+      return true;
+    }
+    if (url.startsWith(ORIGINE + '/') || url === ORIGINE) return false;
+    const ctx = getContext(this) as common.UIAbilityContext;
+    ctx.openLink(url, { appLinkingOnly: false })
+      .catch((e: Object) => console.error(`ORION: lien externe non ouvert: ${e}`));
+    return true;
+  }
+
   build() {
     Column() {
       Web({ src: ADRESSE, controller: this.controller })
         .domStorageAccess(true)        // sessions et préférences de l'app web
         .geolocationAccess(true)       // position du chauffeur
+        .fileAccess(false)             // aucun accès aux fichiers de l'appareil
+        .mixedMode(MixedMode.None)     // jamais de contenu HTTP dans une page HTTPS
         .mediaPlayGestureAccess(false)
         .darkMode(WebDarkMode.Auto)    // suit le thème du véhicule / de l'appareil
         .cacheMode(CacheMode.Default)
         .width('100%')
         .height('100%')
-        // L'app web gère ses propres liens ORION ; un lien externe (tel:, carte) part au système.
-        .onGeolocationShow((event) => { event?.geolocation.invoke(event.origin, true, false); })
+        .onLoadIntercept((event) => this.intercepter(event.data.getRequestUrl()))
+        // La position n'est donnée qu'à ORION, pour la durée de la session.
+        .onGeolocationShow((event) => {
+          event?.geolocation.invoke(event.origin, event.origin === ORIGINE, false);
+        })
     }
     .width('100%')
     .height('100%')

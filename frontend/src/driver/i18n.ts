@@ -30,9 +30,12 @@ function table(l: Lang): Map<string, string> {
 
 export type Variables = ReadonlyArray<string | number | null | undefined> | Record<string, string | number | null | undefined>;
 
+/** Typographie française : espace insécable avant « : ; ? ! » (jamais de « : » seul en début de ligne). */
+const typoFr = (s: string): string => s.replace(/ ([:;?!»])/g, '\u00a0$1').replace(/« /g, '«\u00a0');
+
 /** Traduit un texte (écrit en français) dans la langue choisie par le chauffeur. */
 export function tr(fr: string, vars?: Variables): string {
-  const s = courante === 'fr' ? fr : table(courante).get(fr) ?? fr;
+  const s = courante === 'fr' ? typoFr(fr) : table(courante).get(fr) ?? typoFr(fr);
   if (!vars) return s;
   return s.replace(/\{(\w+)\}/g, (m, k: string) => {
     const v = (vars as Record<string, string | number | null | undefined>)[k];

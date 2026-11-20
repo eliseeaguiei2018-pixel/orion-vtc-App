@@ -1,4 +1,6 @@
 import { COMPLEMENTS } from './complements';
+import { COMPLEMENTS_LANGUES } from './complements-langues';
+import { TEXTES_LIEUX } from './lieux';
 /* Traductions ORION — 8 langues. Clés communes à tous les écrans. */
 export type Lang = 'fr' | 'en' | 'es' | 'it' | 'ar' | 'zh' | 'de' | 'ru';
 
@@ -2873,5 +2875,10 @@ const ru: Dict = {
 // Textes d'ORION Assurance et de la messagerie (cf. complements.ts).
 Object.assign(fr, COMPLEMENTS.fr);
 Object.assign(en, COMPLEMENTS.en);
+for (const [code, d] of Object.entries(COMPLEMENTS_LANGUES)) Object.assign({ es, it, de, ar, zh, ru }[code as keyof typeof COMPLEMENTS_LANGUES], d);
+for (const [code, d] of Object.entries(TEXTES_LIEUX)) Object.assign({ fr, en, es, it, de, ar, zh, ru }[code as keyof typeof TEXTES_LIEUX], d);
+// Typographie française : espace insécable avant « : ; ? ! » et à l'intérieur des guillemets,
+// pour qu'un « : » ne se retrouve jamais seul en début de ligne sur un petit écran.
+for (const k of Object.keys(fr)) fr[k] = fr[k]!.replace(/ ([:;?!»])/g, '\u00a0$1').replace(/« /g, '«\u00a0');
 
 export const TRANSLATIONS: Record<Lang, Dict> = { fr, en, es, it, ar, zh, de, ru };

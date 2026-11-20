@@ -498,9 +498,11 @@ export function clientId(): string {
   if (!id) {
     // Identifiant d'un invité : c'est la seule clé de ses courses et locations, il doit
     // être imprévisible (générateur cryptographique, pas Math.random).
-    const alea = typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID().replace(/-/g, '')
-      : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+    // randomUUID n'existe qu'en contexte sécurisé (HTTPS) et sur les WebView récentes.
+    const c = globalThis.crypto as Crypto | undefined;
+    const alea = typeof c?.randomUUID === 'function'
+      ? c.randomUUID().replace(/-/g, '')
+      : Array.from(c!.getRandomValues(new Uint8Array(16)), (b: number) => b.toString(16).padStart(2, '0')).join('');
     id = 'client-' + alea;
     localStorage.setItem('orion.clientId', id);
   }

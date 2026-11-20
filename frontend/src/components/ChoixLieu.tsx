@@ -1,0 +1,192 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Map as CarteML } from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import type { LatLng, Place } from '../types';
+import { useI18n } from '../i18n';
+import { useTheme } from '../theme';
+import { getVectorConfig } from '../mapConfig';
+import { chargerML } from './chargerCarte';
+import { styleOrion } from './styleCarte';
+import { OrionMap } from './OrionMap';
+import { Sheet, TopBar } from './ui';
+import { IconBriefcase, IconHome, IconPin, IconPlane, IconSearch, IconClock, IconCheck } from '../icons';
+import { LIEUX_POPULAIRES, lieuEnregistre, lieuxRecents, quartierDe, rechercherLieux, type EtatPosition } from '../lieux';
+
+export type ModeChoix = 'destination' | 'depart' | 'livraison' | 'arret' | 'domicile' | 'bureau';
+
+const icone = (p: Place) => p.kind === 'home' ? <IconHome size={20} /> : p.kind === 'work' ? <IconBriefcase size={20} />
+  : p.kind === 'hub' ? <IconPlane size={20} /> : <IconPin size={20} />;
+
+/**
+ * CHOIX D'UN LIEU (destination, point de prise en charge, livraison, domicile, bureau).
+ * Recherche d'adresse réelle, position GPS, domicile et bureau du client, récents, lieux
+ * populaires, et en dernier recours le point exact sur la carte.
+ */
+export function ChoixLieu({ mode, centre, etatPosition, onMaPosition, onChoose, onBack }: {
+  mode: ModeChoix; centre: LatLng; etatPosition?: EtatPosition;
+  onMaPosition?: () => void; onChoose: (p: Place) => void; onBack: () => void;
+}) {
+  const { t } = useI18n();
+  const [q, setQ] = useState('');
+  const [resultats, setResultats] = useState<Place[] | null>(null);
+  const [cherche, setCherche] = useState(false);
+  const [surCarte, setSurCarte] = useState(false);
+
+  // Recherche au fil de la frappe (250 ms), la requête précédente est annulée.
+  useEffect(() => {
+    const requete = q.trim();
+    if (requete.length < 2) { setResultats(null); setCherche(false); return; }
+    const ctrl = new AbortController();
+    setCherche(true);
+    const minuteur = window.setTimeout(() => {
+      rechercherLieux(requete, centre, ctrl.signal)
+        .then((r) => { setResultats(r); setCherche(false); })
+        .catch(() => { /* annulée */ });
+    }, 250);
+    return () => { ctrl.abort(); window.clearTimeout(minuteur); };
+  }, [q, centre]);
+
+  const domicile = lieuEnregistre('home');
+  const bureau = lieuEnregistre('work');
+  const recents = useMemo(() => lieuxRecents(), []);
+  const titre = {
+    destination: t('dest_title'), depart: t('lieu_titre_depart'), livraison: t('lieu_titre_livraison'), arret: t('lieu_titre_arret'),
+    domicile: t('lieu_titre_domicile'), bureau: t('lieu_titre_bureau'),
+  }[mode];
+
+  if (surCarte) {
+    return <ChoixSurCarte centre={centre} onBack={() => setSurCarte(false)} onValider={onChoose} />;
+  }
+
+  const ligne = (p: Place) => (
+    <button key={`${p.id}-${p.location.lat}`} className="list-row list-btn" onClick={() => onChoose(p)}>
+      <span className="list-ico" style={{ color: 'var(--green)' }}>{icone(p)}</span>
+      <span className="col grow" style={{ textAlign: 'start', minWidth: 0 }}>
+        <strong style={{ fontSize: 15 }}>{p.name}</strong>
+        {p.area && <span className="faint" style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.area}</span>}
+      </span>
+    </button>
+  );
+  const section = (titreSection: string, lieux: Place[]) => lieux.length > 0 && (
+    <>
+      <span className="eyebrow" style={{ display: 'block', margin: '12px 4px 4px' }}>{titreSection}</span>
+      {lieux.map(ligne)}
+    </>
+  );
+
+  return (
+    <div className="screen">
+      <OrionMap origin={centre} />
+      <TopBar onBack={onBack} title={titre} />
+      <div style={{ flex: 1 }} />
+      <Sheet>
+        <div className="field" style={{ marginBottom: 8 }}>
+          <IconSearch size={20} color="var(--text-faint)" />
+          <input autoFocus placeholder={t('lieu_recherche')} value={q} onChange={(e) => setQ(e.target.value)}
+            aria-label={t('lieu_recherche')} enterKeyHint="search" autoComplete="off" />
+        </div>
+        <div style={{ maxHeight: 'min(46vh, 380px)', overflowY: 'auto', overscrollBehavior: 'contain' }}>
+          {resultats === null ? (
+            <>
+              {mode === 'depart' && onMaPosition && (
+                <button className="list-row list-btn" onClick={onMaPosition}>
+                  <span className="list-ico" style={{ color: 'var(--green)' }}><IconPin size={20} /></span>
+                  <span className="col grow" style={{ textAlign: 'start' }}>
+                    <strong style={{ fontSize: 15 }}>{t('lieu_ma_position')}</strong>
+                    <span className="faint" style={{ fontSize: 13 }}>
+                      {etatPosition === 'attente' ? t('lieu_position_attente')
+                        : etatPosition === 'refus' ? t('lieu_position_refus')
+                          : etatPosition === 'hors_zone' ? t('lieu_position_hors_zone')
+                            : etatPosition === 'indisponible' ? t('lieu_position_indispo') : t('lieu_ma_position_d')}
+                    </span>
+                  </span>
+                </button>
+              )}
+              <button className="list-row list-btn" onClick={() => setSurCarte(true)}>
+                <span className="list-ico" style={{ color: 'var(--green)' }}><IconPin size={20} /></span>
+                <span className="col grow" style={{ textAlign: 'start' }}>
+                  <strong style={{ fontSize: 15 }}>{t('lieu_sur_carte')}</strong>
+                  <span className="faint" style={{ fontSize: 13 }}>{t('lieu_sur_carte_d')}</span>
+                </span>
+              </button>
+              {mode !== 'domicile' && mode !== 'bureau' && section(t('lieu_enregistres'), [domicile, bureau].filter((x): x is Place => Boolean(x)))}
+              {section(t('lieu_recents'), recents)}
+              {section(t('lieu_populaires'), LIEUX_POPULAIRES)}
+            </>
+          ) : (
+            <>
+              {resultats.map(ligne)}
+              {resultats.length === 0 && !cherche && <p className="faint" style={{ padding: 20, textAlign: 'center' }}>{t('lieu_aucun')}</p>}
+            </>
+          )}
+          {cherche && <p className="faint" style={{ padding: 12, textAlign: 'center', fontSize: 13 }}><IconClock size={13} /> {t('lieu_recherche_encours')}</p>}
+        </div>
+      </Sheet>
+    </div>
+  );
+}
+
+/**
+ * Le point exact sur la vraie carte : le client déplace la carte, le repère au centre
+ * marque le point ; le quartier s'affiche à l'arrêt. Utile quand l'adresse n'existe pas
+ * (beaucoup de rues d'Abidjan n'ont ni nom ni numéro).
+ */
+function ChoixSurCarte({ centre, onBack, onValider }: { centre: LatLng; onBack: () => void; onValider: (p: Place) => void }) {
+  const { t } = useI18n();
+  const { resolved } = useTheme();
+  const boite = useRef<HTMLDivElement>(null);
+  const carte = useRef<CarteML | null>(null);
+  const [point, setPoint] = useState<LatLng>(centre);
+  const [quartier, setQuartier] = useState<string>('');
+  const [indispo, setIndispo] = useState(false);
+
+  useEffect(() => {
+    const config = getVectorConfig();
+    if (!config) { setIndispo(true); return; }
+    let annule = false;
+    void chargerML().then((ml) => {
+      if (annule || !boite.current) return;
+      const m = new ml.Map({ container: boite.current, style: styleOrion(resolved === 'light' ? 'light' : 'dark', config), center: [centre.lng, centre.lat], zoom: 15.5, attributionControl: false, dragRotate: false, pitchWithRotate: false });
+      m.addControl(new ml.AttributionControl({ compact: true, customAttribution: config.attribution }), 'top-right');
+      // Le repère est dessiné à 38 % de la hauteur (au-dessus de la feuille) : le « centre »
+      // de la carte y est aligné, sinon le point validé ne serait pas celui que voit le client.
+      const caler = () => m.setPadding({ top: 0, left: 0, right: 0, bottom: Math.round(m.getContainer().clientHeight * 0.24) });
+      caler();
+      m.jumpTo({ center: [centre.lng, centre.lat] });
+      m.on('resize', caler);
+      m.on('moveend', () => { const c = m.getCenter(); setPoint({ lat: c.lat, lng: c.lng }); });
+      m.once('load', () => window.clearTimeout(delai));
+      carte.current = m;
+    }).catch(() => setIndispo(true));
+    // Tuiles injoignables : carte stylisée, le point reste celui de départ (validable).
+    const delai = window.setTimeout(() => { if (!carte.current?.loaded()) setIndispo(true); }, 12_000);
+    return () => { annule = true; window.clearTimeout(delai); carte.current?.remove(); carte.current = null; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolved]);
+
+  useEffect(() => { if (indispo) { carte.current?.remove(); carte.current = null; } }, [indispo]);
+
+  // Quartier du point, à l'arrêt de la carte.
+  useEffect(() => {
+    let actif = true;
+    const minuteur = window.setTimeout(() => { void quartierDe(point).then((q) => { if (actif) setQuartier(q?.nom ?? ''); }); }, 300);
+    return () => { actif = false; window.clearTimeout(minuteur); };
+  }, [point]);
+
+  return (
+    <div className="screen choix-carte">
+      {indispo ? <OrionMap origin={centre} /> : <div ref={boite} className="choix-carte-ml" />}
+      <div className="choix-carte-repere" aria-hidden="true"><IconPin size={38} /></div>
+      <TopBar onBack={onBack} title={t('lieu_sur_carte')} />
+      <div style={{ flex: 1 }} />
+      <Sheet>
+        <p className="faint" style={{ margin: '0 0 6px', fontSize: 13 }}>{t('lieu_sur_carte_d')}</p>
+        <strong style={{ fontSize: 16 }}>{quartier || '…'}</strong>
+        <p className="faint mono" style={{ margin: '2px 0 12px', fontSize: 12 }}>{point.lat.toFixed(5)}, {point.lng.toFixed(5)}</p>
+        <button className="btn btn-primary" onClick={() => onValider({ id: `carte-${point.lat.toFixed(5)},${point.lng.toFixed(5)}`, name: t('lieu_point_choisi'), area: quartier, location: point })}>
+          <IconCheck size={18} /> {t('lieu_valider_point')}
+        </button>
+      </Sheet>
+    </div>
+  );
+}

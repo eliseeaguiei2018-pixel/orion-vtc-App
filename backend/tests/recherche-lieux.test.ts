@@ -14,6 +14,17 @@ test('répertoire : sans accents ni tirets, la commune est trouvée', () => {
   for (const l of g.repertoire('co')) assert.ok(Number.isFinite(l.location.lat) && Number.isFinite(l.location.lng), 'chaque lieu a sa position');
 });
 
+test('répertoire : les quartiers d’Abidjan (OpenStreetMap) sont trouvés hors ligne', () => {
+  const g = new Geocodeur(null);
+  for (const [q, attendu] of [['riviera 2', 'Riviéra 2'], ['angre', 'Angré'], ['zone 4', 'Zone 4'], ['selmer', 'Selmer'], ['deux plateaux', 'Deux Plateaux'], ['bietri', 'Biétri']] as const) {
+    const r = g.repertoire(q, PLATEAU);
+    assert.equal(r[0]?.nom, attendu, `« ${q} » → ${r.map((l) => l.nom).join(', ')}`);
+    assert.ok(r[0]!.location.lat > 5.1 && r[0]!.location.lat < 5.6 && r[0]!.location.lng > -4.3 && r[0]!.location.lng < -3.6, 'dans le Grand Abidjan');
+  }
+  // Aucune commune devinée pour un quartier (un libellé faux serait pire que rien).
+  assert.equal(g.repertoire('angre')[0]?.secteur, 'Quartier · Abidjan');
+});
+
 test('OpenStreetMap : adresses précises en premier, avec coordonnées, hors Côte d’Ivoire écarté', async () => {
   let appel = '';
   const faux = async (url: string) => {

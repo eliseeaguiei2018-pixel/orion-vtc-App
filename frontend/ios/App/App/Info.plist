@@ -73,6 +73,8 @@
 	<string>ORION utilise l’appareil photo pour votre photo de profil : votre chauffeur vous reconnaît à la prise en charge, et la supervision peut vous identifier si vous déclenchez une alerte SOS.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>ORION vous permet de choisir votre photo de profil dans votre galerie.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>ORION utilise votre position, seulement quand l’app est ouverte, pour que le chauffeur vienne vous chercher là où vous êtes. Vous pouvez aussi choisir votre point de départ sur la carte.</string>
 	<!-- Réseau local autorisé (serveur de développement) ; Internet reste en HTTPS. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>

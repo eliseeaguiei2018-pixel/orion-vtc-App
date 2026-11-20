@@ -1,6 +1,7 @@
 import type { LatLng } from '../../core/geo.js';
 import { haversineMeters } from '../../core/geo.js';
 import { ALL_ZONES } from '../geo-ci/zones.js';
+import { QUARTIERS_ABIDJAN } from './quartiers-abidjan.js';
 
 /**
  * RECHERCHE DE LIEUX (adresse de départ ou de destination).
@@ -9,8 +10,9 @@ import { ALL_ZONES } from '../geo-ci/zones.js';
  * adresse réelle (« Riviera Palmeraie », « Pharmacie de la Paix », « Rue des Jardins »)
  * était introuvable. Deux sources, fusionnées :
  *
- *  1. le RÉPERTOIRE ORION (communes d'Abidjan, grandes villes, gares, aéroport), local,
- *     toujours disponible, insensible aux accents (« adjame » trouve « Adjamé ») ;
+ *  1. le RÉPERTOIRE ORION, local et toujours disponible : communes, grandes villes, gares,
+ *     aéroport, et les 458 quartiers du Grand Abidjan extraits d'OpenStreetMap (« Riviera 2 »,
+ *     « Angré », « Zone 4 »…) ; insensible aux accents (« adjame » trouve « Adjamé ») ;
  *  2. OPENSTREETMAP via un service Photon (adresses, rues, commerces, établissements),
  *     limité à la Côte d'Ivoire et classé près de l'utilisateur. Hors ligne ou lent, il
  *     est simplement ignoré : la recherche ne reste jamais vide par sa faute.
@@ -48,23 +50,29 @@ export class Geocodeur {
 
   constructor(private readonly urlPhoton: string | null, private readonly fetcher: Fetcher = fetch) {}
 
-  /** Répertoire local : communes, villes, gares, aéroport. */
+  /** Répertoire local : communes, villes, gares, aéroport, quartiers d'Abidjan. */
   repertoire(q: string, pres?: LatLng): LieuTrouve[] {
     const cle = sansAccents(q);
     if (!cle) return [];
-    const trouves = ALL_ZONES
-      .map((z) => {
-        const n = sansAccents(z.name);
-        const rang = n === cle ? 0 : n.startsWith(cle) ? 1 : n.split(' ').some((m) => m.startsWith(cle)) ? 2 : n.includes(cle) ? 3 : -1;
-        return { z, rang };
-      })
-      .filter((x) => x.rang >= 0)
-      .sort((a, b) => a.rang - b.rang
-        || (pres ? haversineMeters(pres, a.z.center) - haversineMeters(pres, b.z.center) : 0));
-    return trouves.slice(0, 6).map(({ z }) => ({
-      id: `zone:${z.id}`, nom: z.name, secteur: z.kind === 'commune' ? `Commune · ${z.region}` : z.region,
-      location: z.center, source: 'repertoire' as const,
-    }));
+    const rang = (nom: string) => {
+      const n = sansAccents(nom);
+      return n === cle ? 0 : n.startsWith(cle) ? 1 : n.split(' ').some((m) => m.startsWith(cle)) ? 2 : n.includes(cle) ? 3 : -1;
+    };
+    const candidats: Array<LieuTrouve & { rang: number; poids: number }> = [];
+    for (const z of ALL_ZONES) {
+      const r = rang(z.name);
+      if (r >= 0) candidats.push({ id: `zone:${z.id}`, nom: z.name, secteur: z.kind === 'commune' ? `Commune · ${z.region}` : z.region, location: z.center, source: 'repertoire', rang: r, poids: 0 });
+    }
+    for (const [nom, lat, lng, nature] of QUARTIERS_ABIDJAN) {
+      const r = rang(nom);
+      if (r >= 0) candidats.push({ id: `osm-quartier:${sansAccents(nom).replace(/ /g, '-')}:${lat}`, nom, secteur: nature === 'village' ? 'Village · Grand Abidjan' : 'Quartier · Abidjan', location: { lat, lng }, source: 'repertoire', rang: r, poids: 1 });
+    }
+    return candidats
+      // À rang égal : la commune avant le quartier, puis le plus proche de l'utilisateur.
+      .sort((a, b) => a.rang - b.rang || a.poids - b.poids
+        || (pres ? haversineMeters(pres, a.location) - haversineMeters(pres, b.location) : 0))
+      .slice(0, 8)
+      .map(({ rang: _r, poids: _p, ...l }) => l);
   }
 
   /** Recherche complète : OpenStreetMap (précis) puis le répertoire, sans doublon. */

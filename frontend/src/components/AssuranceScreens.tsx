@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '../i18n';
 import { TopBar } from './ui';
-import { IconCheck, IconLock, IconMedical, IconPhone, IconShieldCheck, IconUsers, IconWallet } from '../icons';
+import { IconCheck, IconGlobe, IconLock, IconMedical, IconPhone, IconShieldCheck, IconUsers, IconWallet } from '../icons';
 import {
   ANTECEDENTS, GROUPES_SANGUINS, enregistrerDossierAssurance, lireDossierAssurance, statutAssurance, supprimerDossierAssurance,
   type FicheMedicale, type StatutAssurance,
@@ -107,6 +107,7 @@ function Presentation({ onBack, onContinuer }: { onBack: () => void; onContinuer
           <h2 className="h-title">{t('as_title')}</h2>
           <p className="h-sub">{t('as_tag')}</p>
         </div>
+        <AvisLangue />
         {sections.map(([ico, titre, texte], i) => (
           <section key={titre} className="as-section rise" style={{ animationDelay: `${0.05 * i}s` }}>
             <span className="as-section-ico">{ico}</span>
@@ -194,6 +195,7 @@ function Formulaire({ initiale, onBack, onEnregistre, onToast }: {
         <div className="as-etapes">
           {[1, 2, 3].map((n) => <span key={n} className={n <= etape ? 'on' : ''} />)}
         </div>
+        <AvisLangue />
         <span className="eyebrow">{t('as_etape', { n: etape })}</span>
         <h2 className="h-title" style={{ margin: '6px 0 14px' }}>{t(etape === 1 ? 'as_identite' : etape === 2 ? 'as_sante' : 'as_urgence')}</h2>
 
@@ -311,4 +313,15 @@ function Statut({ statut, onBack, onModifier, onSupprime, onToast }: {
       </div>
     </div>
   );
+}
+
+/**
+ * Textes médicaux et juridiques non encore validés par un traducteur assermenté dans
+ * cette langue : on le dit au client, dans sa langue, plutôt que de le laisser deviner
+ * pourquoi l'écran est en français.
+ */
+function AvisLangue() {
+  const { t, lang } = useI18n();
+  if (lang === 'fr' || lang === 'en') return null;
+  return <p className="as-avis-langue" role="note"><IconGlobe size={14} /> {t('as_langue_note')}</p>;
 }

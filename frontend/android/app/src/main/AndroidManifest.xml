@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -37,6 +39,15 @@
       ajouter le jour où la fonction correspondante est branchée.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      Point de prise en charge : la position du téléphone, UNIQUEMENT app ouverte (pas de
+      localisation en arrière-plan). La WebView la demande au moment où le client commande ;
+      s'il refuse, il choisit son point de départ sur la carte.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
     <!--
       Bouton « Appeler » : un lien tel: ouvre le CLAVIER du téléphone avec le numéro déjà
