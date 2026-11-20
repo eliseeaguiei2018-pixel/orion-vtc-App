@@ -1,0 +1,451 @@
+/* ============================================================
+   ORION Chauffeur — compléments au design system (index.css)
+   Même identité que l'app cliente : sombre premium, accent émeraude.
+   ============================================================ */
+
+.dv-app { position: relative; flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.dv-page { flex: 1; overflow-y: auto; padding: calc(env(safe-area-inset-top) + 14px) 16px 18px; display: flex; flex-direction: column; gap: 14px; scrollbar-width: none; }
+.dv-page::-webkit-scrollbar { display: none; }
+
+/* ---- En-tête ---- */
+.dv-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.dv-header > div:first-child { flex: 1; min-width: 0; }
+.dv-header > div:first-child > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dv-bell { position: relative; }
+.dv-bell-n { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; border-radius: 999px; padding: 0 5px;
+  background: var(--danger); color: #fff; font-size: 10.5px; font-weight: 600; display: grid; place-items: center; }
+
+/* ---- Barre d'onglets ---- */
+.dv-tabs { display: grid; grid-template-columns: repeat(6, 1fr); border-top: 1px solid var(--stroke);
+  background: var(--sheet-grad); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); z-index: 20; }
+.dv-tab { background: none; border: none; color: var(--text-faint); display: flex; flex-direction: column; align-items: center; gap: 3px;
+  font-size: 11px; font-weight: 600; padding: 6px 0; cursor: pointer; font-family: var(--font-body); }
+.dv-tab.on { color: var(--green); }
+.dv-tab-ico { position: relative; display: grid; place-items: center; }
+.dv-dot { position: absolute; top: -2px; right: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+
+/* ---- Bandeaux ---- */
+.dv-banner { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--stroke); font-size: 14px; }
+.dv-banner strong { display: block; font-size: 14px; }
+.dv-banner-body { font-size: 13px; color: var(--text-dim); margin-top: 2px; line-height: 1.4; }
+.dv-banner-ico { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; flex-shrink: 0; background: var(--surface-2); }
+.dv-banner.info { background: var(--surface); }
+.dv-banner.success { background: rgba(0, 224, 138, 0.08); border-color: rgba(0, 224, 138, 0.35); }
+.dv-banner.success .dv-banner-ico { color: var(--green); }
+.dv-banner.warn { background: rgba(245, 196, 81, 0.09); border-color: rgba(245, 196, 81, 0.4); }
+.dv-banner.warn .dv-banner-ico { color: var(--gold); }
+.dv-banner.danger { background: rgba(255, 77, 94, 0.1); border-color: rgba(255, 77, 94, 0.45); }
+.dv-banner.danger .dv-banner-ico { color: var(--danger); }
+
+/* ---- Statistiques ---- */
+.dv-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.dv-stats.three { grid-template-columns: repeat(3, 1fr); }
+.dv-stat { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: 18px; min-width: 0; }
+.dv-stat.accent { background: var(--surface); }
+.dv-stat-label { font-size: 11.5px; color: var(--text-faint); font-weight: 600; letter-spacing: 0; }
+.dv-stat-value { font-family: var(--font-display); font-weight: 600; font-size: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dv-stat-sub { font-size: 12px; color: var(--text-dim); }
+
+.dv-bar { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.dv-bar span { display: block; height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+.dv-bar span.green { background: var(--green); }
+.dv-bar span.gold { background: var(--gold); }
+.dv-bar span.danger { background: var(--danger-deep); }
+
+.dv-section { display: flex; flex-direction: column; gap: 10px; }
+.dv-section-title { font-size: 15px; font-weight: 600; }
+
+/* ---- Accueil : carte + interrupteur En ligne ---- */
+.dv-home-map { position: relative; height: 270px; border-radius: 24px; overflow: hidden; border: 1px solid var(--stroke); flex-shrink: 0; }
+.dv-home-map .map-wrap, .dv-ride-map .map-wrap { position: absolute; inset: 0; }
+.dv-map-chip { position: absolute; left: 12px; top: 12px; z-index: 5; }
+.dv-go { position: relative; width: 100%; border: none; border-radius: 22px; padding: 18px; cursor: pointer; display: flex; align-items: center; gap: 14px;
+  font-family: var(--font-display); text-align: start; color: var(--text); background: var(--surface-2); border: 1px solid var(--stroke); transition: transform 0.15s; }
+.dv-go:active { transform: scale(0.985); }
+.dv-go:disabled { opacity: 0.55; cursor: not-allowed; }
+.dv-go.on { background: var(--green); color: var(--btn-on);  border-color: transparent; }
+.dv-go.paused { background: #d39a1c; color: #1b1200; border-color: transparent; }
+.dv-go-knob { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; background: var(--bg-2); color: var(--text-faint); }
+.dv-go.on .dv-go-knob, .dv-go.paused .dv-go-knob { background: rgba(0, 0, 0, 0.16); color: inherit; }
+.dv-go-title { font-size: 19px; font-weight: 600; display: block; }
+.dv-go-sub { font-size: 13px; opacity: 0.85; font-family: var(--font-body); }
+.dv-pulse { position: absolute; right: 18px; top: 50%; width: 12px; height: 12px; margin-top: -6px; border-radius: 50%; background: currentColor; animation: dv-pulse 1.6s infinite; }
+@keyframes dv-pulse { 0% { box-shadow: 0 0 0 0 rgba(4, 20, 13, 0.45); } 70% { box-shadow: 0 0 0 12px rgba(4, 20, 13, 0); } 100% { box-shadow: 0 0 0 0 rgba(4, 20, 13, 0); } }
+
+.dv-link { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 999px;
+  background: var(--toast-bg); border: 1px solid var(--stroke); color: var(--text-dim); }
+.dv-link i { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); }
+.dv-link.online i { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.dv-link.connecting i { background: var(--gold); }
+.dv-link.offline i { background: var(--danger); }
+
+/* ---- Offre de course (compte à rebours) ---- */
+.dv-offer-back { position: absolute; inset: 0; z-index: 60; background: rgba(2, 8, 6, 0.6); backdrop-filter: blur(6px); display: flex; align-items: flex-end; animation: fade-in 0.2s ease; }
+.dv-offer { width: 100%; background: var(--sheet-grad); border-top-left-radius: 28px; border-top-right-radius: 28px; border: 1px solid var(--stroke-strong);
+  padding: 20px 18px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 14px; animation: rise 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
+.dv-ring { position: relative; width: 74px; height: 74px; flex-shrink: 0; }
+.dv-ring svg { transform: rotate(-90deg); }
+.dv-ring-n { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font-display); font-weight: 600; font-size: 24px; }
+.dv-price { font-family: var(--font-display); font-weight: 600; font-size: 30px; }
+.dv-route { display: flex; flex-direction: column; gap: 8px; position: relative; padding-left: 22px; }
+.dv-route::before { content: ''; position: absolute; left: 6px; top: 9px; bottom: 9px; width: 2px; background: var(--stroke-strong); }
+.dv-route div { position: relative; font-size: 14px; }
+.dv-route div::before { content: ''; position: absolute; left: -21px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--green);  }
+.dv-route div:last-child::before { background: var(--gold); box-shadow: none; border-radius: 3px; }
+
+/* ---- Mission en cours ---- */
+.dv-ride { position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column; background: var(--bg-0); animation: fade-in 0.25s ease; }
+.dv-ride-map { position: relative; flex: 1; min-height: 200px; }
+.dv-ride-sheet { background: var(--sheet-grad); border-top-left-radius: 26px; border-top-right-radius: 26px; border-top: 1px solid var(--stroke-strong);
+  margin-top: -24px; position: relative; z-index: 5; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; max-height: 64%; overflow-y: auto; }
+.dv-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.dv-steps span { height: 5px; border-radius: 999px; background: var(--surface-2); }
+.dv-steps span.done { background: var(--green); }
+.dv-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.dv-act { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 4px; border-radius: 14px; border: 1px solid var(--stroke);
+  background: var(--surface); color: var(--text); font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none; font-family: var(--font-body); }
+.dv-act:active { transform: scale(0.97); }
+.dv-act.danger { color: var(--danger); border-color: rgba(255, 77, 94, 0.4); }
+
+/* ---- Listes ---- */
+.dv-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 18px; }
+.dv-item-ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--surface-2); color: var(--green); flex-shrink: 0; }
+.dv-item-title { font-weight: 600; font-size: 14.5px; }
+.dv-item-sub { font-size: 12.5px; color: var(--text-faint); }
+.dv-amount { font-family: var(--font-display); font-weight: 600; white-space: nowrap; }
+.dv-amount.pos { color: var(--green); }
+.dv-amount.neg { color: var(--danger); }
+
+.dv-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 4px 9px; border-radius: 999px; background: var(--surface-2); color: var(--text-dim); border: 1px solid var(--stroke); white-space: nowrap; }
+a.dv-pill { text-decoration: none; }
+.dv-pill.green { color: var(--green); border-color: rgba(0, 224, 138, 0.4); background: rgba(0, 224, 138, 0.08); }
+.dv-pill.gold { color: var(--gold); border-color: rgba(245, 196, 81, 0.45); background: rgba(245, 196, 81, 0.08); }
+.dv-pill.danger { color: var(--danger); border-color: rgba(255, 77, 94, 0.45); background: rgba(255, 77, 94, 0.08); }
+
+/* ---- Formulaires ---- */
+.dv-form { display: flex; flex-direction: column; gap: 10px; }
+.dv-label { font-size: 12.5px; font-weight: 600; color: var(--text-dim); display: flex; flex-direction: column; gap: 6px; }
+.dv-input, .dv-select { width: 100%; background: var(--surface-2); border: 1px solid var(--stroke); border-radius: 14px; padding: 13px 14px; color: var(--text);
+  font-size: 16px; font-family: var(--font-body); outline: none; }
+.dv-input:focus, .dv-select:focus { border-color: var(--green); }
+.dv-input.code { font-family: var(--font-display); font-size: 26px; letter-spacing: 0.4em; text-align: center; }
+.dv-check { display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
+.dv-check { min-height: 44px; }
+.dv-check input { width: 24px; height: 24px; flex: 0 0 auto; accent-color: var(--green); }
+.dv-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dv-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; padding: 4px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--stroke); }
+.dv-seg button { border: none; background: none; color: var(--text-dim); padding: 9px 6px; border-radius: 10px; font-weight: 600; font-size: 13px; cursor: pointer; font-family: var(--font-body); }
+.dv-seg button.on { background: var(--green); color: var(--btn-on); }
+.dv-range { width: 100%; accent-color: var(--green); }
+
+/* ---- Modale ---- */
+.dv-modal-back { position: absolute; inset: 0; z-index: 70; background: rgba(2, 8, 6, 0.55); backdrop-filter: blur(4px); display: flex; align-items: flex-end; animation: fade-in 0.2s ease; }
+.dv-modal { width: 100%; max-height: 86%; overflow-y: auto; background: var(--sheet-grad); border-top-left-radius: 26px; border-top-right-radius: 26px; border: 1px solid var(--stroke-strong);
+  padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); animation: rise 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
+.dv-x { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--stroke); background: var(--surface-2); color: var(--text); cursor: pointer; }
+
+/* ---- Connexion ---- */
+.dv-login { flex: 1; overflow-y: auto; display: flex; flex-direction: column; justify-content: flex-end; gap: 16px; padding: calc(env(safe-area-inset-top) + 24px) 22px calc(26px + env(safe-area-inset-bottom));
+  background: var(--onb-grad); }
+.dv-login-brand { display: flex; align-items: center; gap: 12px; }
+
+/* ---- Toast de l'app chauffeur ---- */
+.dv-toast { position: absolute; left: 16px; right: 16px; top: calc(env(safe-area-inset-top) + 12px); z-index: 90; padding: 12px 14px; border-radius: 16px;
+  background: var(--toast-bg); border: 1px solid var(--stroke-strong); box-shadow: var(--shadow); font-size: 14px; font-weight: 600; animation: rise 0.3s ease; }
+.dv-toast.success { border-color: rgba(0, 224, 138, 0.5); }
+.dv-toast.danger { border-color: rgba(255, 77, 94, 0.6); color: var(--danger); }
+
+.dv-heat { position: relative; height: 210px; border-radius: 20px; overflow: hidden; border: 1px solid var(--stroke); background: var(--surface); }
+.dv-heat svg { width: 100%; height: 100%; display: block; }
+
+.dv-empty { text-align: center; padding: 28px 12px; color: var(--text-faint); font-size: 14px; }
+.dv-qcm-opt { text-align: start; width: 100%; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--stroke); background: var(--surface); color: var(--text);
+  font-size: 14px; cursor: pointer; font-family: var(--font-body); }
+.dv-qcm-opt.on { border-color: var(--green); background: rgba(0, 224, 138, 0.1); }
+
+/* ---- Code de prise en charge (saisi par le chauffeur) ---- */
+.dv-code { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 18px; border: 1.5px solid var(--green); background: var(--surface); }
+.dv-code-titre { font-size: 14px; font-weight: 600; }
+.dv-code-aide { font-size: 12.5px; color: var(--text-dim); line-height: 1.4; margin: 0; }
+.dv-code-saisie { display: flex; justify-content: center; padding: 4px 0; }
+.dv-code-champ { width: 100%; max-width: 230px; text-align: center; font: 600 34px var(--font-display, 'Sora'), sans-serif; letter-spacing: 0.5em;
+  padding: 10px 0 10px 0.5em; border-radius: 14px; border: 1px solid var(--stroke); background: var(--surface-2); color: var(--text); font-variant-numeric: tabular-nums; }
+.dv-code-champ:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(0, 190, 115, 0.2); }
+.dv-code-champ[aria-invalid='true'] { border-color: var(--danger); }
+.dv-code-erreur { margin: 0; font-size: 13px; font-weight: 600; color: var(--danger); text-align: center; }
+
+/* ============================================================
+   REFONTE GRAPHIQUE — app chauffeur (même signature que l'app cliente)
+   En-têtes en dégradé, véhicules dessinés sur scène lumineuse, relief doux,
+   réactions au toucher. Tout passe par les variables : vert, orange, bleu,
+   sombre comme clair.
+   ============================================================ */
+
+/* ---- En-tête d'onglet : la signature ORION ---- */
+.dv-hero {
+  position: relative; overflow: hidden; isolation: isolate; color: var(--text); flex-shrink: 0;
+  margin: calc(-1 * (env(safe-area-inset-top) + 14px)) -16px 0;
+  padding: calc(env(safe-area-inset-top) + 16px) 18px 22px;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--stroke);
+  border-bottom-left-radius: 24px; border-bottom-right-radius: 24px;
+}
+.dv-hero::after {
+  content: ''; position: absolute; z-index: -1; right: -30px; top: -40px; width: 220px; height: 220px; border-radius: 50%;
+  background:
+    radial-gradient(circle at 60% 30%, color-mix(in srgb, var(--text) 55%, transparent) 0 2px, transparent 3px),
+    radial-gradient(circle at 70% 42%, color-mix(in srgb, var(--text) 45%, transparent) 0 1.6px, transparent 2.6px),
+    radial-gradient(circle at 78% 55%, color-mix(in srgb, var(--text) 35%, transparent) 0 1.3px, transparent 2.3px),
+    none;
+  pointer-events: none;
+}
+.dv-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.dv-hero-brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 600; letter-spacing: 0.06em; font-size: 15px; }
+.dv-hero-brand .hub-logo { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; }
+.dv-hero h1 { font-family: var(--font-display); font-size: 25px; font-weight: 600; letter-spacing: 0; margin: 16px 0 2px;  }
+.dv-hero-sub { font-size: 13px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dv-hero .avatar, .dv-hero .dv-bell { background: var(--surface-2); color: var(--text); border: none; }
+.dv-hero .dv-link { background: var(--surface-2); border-color: var(--stroke); color: var(--text); }
+.dv-hero-actions { display: flex; align-items: center; gap: 8px; }
+.dv-hero-photo { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.55); font-weight: 600; font-family: var(--font-display); cursor: pointer; color: #fff; padding: 0; }
+.dv-hero-photo img { width: 100%; height: 100%; object-fit: cover; }
+.dv-hero-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
+.dv-hero-kpi { background: rgba(255, 255, 255, 0.16); border-radius: 16px; padding: 10px 10px 9px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28); min-width: 0; }
+.dv-hero-kpi strong { display: block; font-family: var(--font-display); font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dv-hero-kpi span { font-size: 11px; opacity: 0.88; }
+
+/* ---- Carte « En service » : le véhicule du chauffeur sur sa scène ---- */
+.dv-go-card { position: relative; z-index: 2; margin-top: -26px; border-radius: 26px; padding: 12px; border: 1px solid var(--stroke);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface)); box-shadow: var(--elev-2); display: grid; gap: 12px;
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+.dv-stage { position: relative; height: 128px; border-radius: 20px; overflow: hidden; display: grid; place-items: center;
+  background: var(--surface-2); }
+.dv-stage.moto { background: var(--surface-2); }
+.dv-stage.off { filter: saturate(0.35); }
+.dv-stage::after { content: ''; position: absolute; left: 10%; right: 10%; bottom: 16px; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent); }
+.dv-stage .vehicule { transform: translateY(12px); }
+.dv-stage.on .vehicule { animation: dv-roule 3.4s var(--ease-out) infinite; }
+@keyframes dv-roule { 0%, 100% { transform: translate(-5px, 12px); } 50% { transform: translate(5px, 12px); } }
+.dv-onde { position: absolute; width: 120px; height: 120px; border-radius: 50%; border: 1.5px solid rgba(var(--accent-rgb), 0.55);
+  animation: radar 2.4s ease-out infinite; pointer-events: none; }
+.dv-onde.b { animation-delay: 0.8s; } .dv-onde.c { animation-delay: 1.6s; }
+.dv-stage-tag { position: absolute; left: 12px; top: 10px; }
+.dv-go-row { display: flex; align-items: center; gap: 12px; padding: 0 4px 2px; }
+.dv-go-row .grow { min-width: 0; }
+.dv-go-titre { font-family: var(--font-display); font-weight: 600; font-size: 20px; letter-spacing: 0; display: block; }
+.dv-go-detail { font-size: 13px; color: var(--text-dim); }
+
+/* Interrupteur En ligne / Hors ligne */
+.dv-switch { position: relative; width: 76px; height: 42px; border-radius: 999px; border: none; cursor: pointer; flex-shrink: 0;
+  background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--stroke-strong); transition: background 0.3s var(--ease-out), box-shadow 0.3s; }
+.dv-switch::after { content: ''; position: absolute; top: 4px; left: 4px; width: 34px; height: 34px; border-radius: 50%; background: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); transition: transform 0.35s var(--ease-out); }
+.dv-switch.on { background: var(--green);  }
+.dv-switch.on::after { transform: translateX(34px); }
+.dv-switch.paused { background: #d39a1c; }
+.dv-switch:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Raccourcis (même tuiles que l'app cliente) */
+.dv-quick { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.dv-quick .feature-card { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 7px; padding: 12px 4px 10px;
+  border-radius: 18px; font-size: 10.5px; line-height: 1.2; color: var(--text-dim); font-weight: 600; cursor: pointer; border: 1px solid var(--stroke);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface)); box-shadow: var(--elev-1); transition: transform 0.18s var(--ease-out); font-family: var(--font-body); }
+.dv-quick .feature-card:active { transform: var(--press); }
+.dv-quick .feature-card i { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; color: var(--green);
+  background: rgba(var(--accent-rgb), 0.12); font-style: normal; }
+.dv-quick .feature-card.danger i { color: var(--danger); background: rgba(255, 77, 94, 0.12); }
+.dv-quick .dv-quick-n { position: absolute; top: 6px; right: 8px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px; background: var(--danger);
+  color: #fff; font-size: 10px; display: grid; place-items: center; }
+
+/* ---- Relief des cartes dans toutes les pages ---- */
+.dv-page .card { background: linear-gradient(180deg, var(--surface-2), var(--surface)); box-shadow: var(--elev-1); border-radius: 20px; }
+.dv-stat { box-shadow: var(--elev-1); }
+.dv-stat.accent { border-color: var(--stroke-strong); }
+.dv-stat.accent strong { color: var(--green); }
+.dv-item-ico { background: rgba(var(--accent-rgb), 0.12); }
+.dv-section-title { font-family: var(--font-display); letter-spacing: 0; }
+.dv-seg { box-shadow: var(--elev-1); }
+.dv-seg button { transition: background 0.25s var(--ease-out), color 0.2s; }
+.dv-seg button.on { background: var(--green); box-shadow: none; }
+.dv-page > * { animation: rise 0.45s var(--ease-out) both; flex-shrink: 0; }
+.dv-page > *:nth-child(2) { animation-delay: 0.04s; } .dv-page > *:nth-child(3) { animation-delay: 0.08s; }
+.dv-page > *:nth-child(4) { animation-delay: 0.12s; } .dv-page > *:nth-child(n+5) { animation-delay: 0.16s; }
+.dv-page > .dv-hero { animation: none; }
+
+/* Solde : grande carte en dégradé */
+.dv-solde { position: relative; overflow: hidden; border-radius: 24px; padding: 18px; color: #fff; display: flex; flex-direction: column; align-items: flex-start;
+  background: var(--green);
+  box-shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.18); }
+.dv-solde .dv-stat-label { color: rgba(255, 255, 255, 0.85); }
+.dv-solde-montant { display: block; font-family: var(--font-display); font-weight: 600; font-size: 34px; letter-spacing: 0; margin: 4px 0; }
+.dv-solde-sub { font-size: 13px; opacity: 0.9; }
+.dv-solde.neg { background: var(--danger-deep); }
+
+/* ---- Barre d'onglets flottante ---- */
+.dv-tabs { margin: 0 10px calc(10px + env(safe-area-inset-bottom)); padding: 6px; border-radius: 24px; border: 1px solid var(--stroke);
+  box-shadow: var(--elev-2); background: var(--toast-bg); }
+.dv-tab { border-radius: 16px; padding: 7px 0 6px; transition: color 0.2s, background 0.25s var(--ease-out); }
+.dv-tab.on { background: rgba(var(--accent-rgb), 0.12); }
+.dv-tab.on .dv-tab-ico { transform: translateY(-1px); }
+.dv-tab-ico { transition: transform 0.25s var(--ease-out); }
+
+/* ---- Offre de course : véhicule sur scène, prix lumineux ---- */
+.dv-offer { box-shadow: 0 -20px 50px -20px rgba(0, 0, 0, 0.6); }
+.dv-offer .dv-stage { height: 104px; }
+.dv-price { color: var(--text); }
+
+/* ---- Mission : fiche passager et étapes nommées ---- */
+.dv-ride-sheet::before { content: ''; display: block; width: 44px; height: 5px; border-radius: 999px; background: var(--stroke-strong); margin: -4px auto 2px; }
+.dv-steps-labels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; font-size: 10.5px; color: var(--text-faint); text-align: center; margin-top: -4px; }
+.dv-steps-labels span.on { color: var(--green); font-weight: 600; }
+.dv-passager-photo { border: 2px solid var(--green); box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.15); }
+
+/* ---- Connexion : feuille posée sur la carte, comme l'app cliente ---- */
+.dv-auth { position: relative; flex: 1; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; }
+.dv-auth > .map-wrap, .dv-auth > .dv-auth-carte { position: absolute; inset: 0; }
+.dv-auth-fond { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 0%, transparent 30%, var(--bg-0) 92%); pointer-events: none; }
+.dv-auth .sheet { position: relative; z-index: 2; max-height: 88%; overflow-y: auto; }
+.dv-auth-icone { margin-bottom: 12px; }
+.dv-auth .field { margin-bottom: 10px; }
+.dv-auth .field input, .dv-auth .field select { flex: 1; background: none; border: none; outline: none; color: var(--text); font-size: 16px; font-family: var(--font-body); min-width: 0; }
+.dv-auth .field select option { color: #10221a; }
+.dv-auth-lang { position: absolute; top: calc(env(safe-area-inset-top) + 14px); right: 16px; z-index: 3; }
+
+/* ---- Profil : grand portrait sur scène ---- */
+.dv-portrait { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; padding: 6px 0 2px; }
+.dv-portrait-photo { width: 96px; height: 96px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; font-family: var(--font-display);
+  font-weight: 600; font-size: 32px; color: var(--btn-on); background: var(--green);
+  border: 3px solid rgba(255, 255, 255, 0.85); box-shadow: 0 14px 30px -14px rgba(0, 0, 0, 0.5); margin-top: -58px; position: relative; z-index: 2; }
+.dv-portrait-photo img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Connexion : véhicule d'accueil et formulaire dans la feuille */
+.dv-auth-veh { opacity: 0.95; filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.25)); }
+.dv-auth .dv-form { gap: 10px; }
+.dv-auth .field { margin-bottom: 0; }
+/* Poignée des feuilles chauffeur (offre, mission) */
+.dv-ride-grab { width: 44px; height: 5px; border-radius: 999px; background: var(--stroke-strong); margin: -6px auto 0; }
+.dv-solde-pose { margin-top: -26px; z-index: 2; }
+.dv-solde .dv-stat-label { display: inline-flex; align-items: center; gap: 6px; }
+/* Profil : carte portrait posée sur l'en-tête */
+.dv-portrait-card { margin-top: 34px; padding: 0 14px 14px; overflow: visible; }
+.dv-portrait-stage { width: 100%; height: 112px; margin-top: 4px; }
+
+/* ---- Langue (8 langues, comme l'app cliente) ---- */
+.dv-langues { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dv-langues .opt { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 14px; font-size: 14px; }
+.dv-langues .opt.active { border-color: var(--green); background: rgba(var(--accent-rgb), 0.1); }
+.dv-langues .opt svg { color: var(--green); }
+.dv-pref-titre { font-size: 12px; color: var(--text-faint); margin-top: 4px; }
+.dv-auth-lang { width: auto; padding: 0 12px; gap: 6px; display: inline-flex; align-items: center; border-radius: 999px; height: 40px;
+  background: var(--toast-bg); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--elev-1); color: var(--text); }
+.dv-auth-drapeau { font-size: 17px; line-height: 1; }
+
+/* ---- Arabe : lecture de droite à gauche ---- */
+[dir='rtl'] .dv-route { padding-inline: 36px 14px !important; }
+[dir='rtl'] .dv-route::before { left: auto; right: 6px; }
+[dir='rtl'] .dv-route div::before { left: auto; right: -21px; }
+[dir='rtl'] .dv-stage .vehicule, [dir='rtl'] .dv-auth-veh { transform: scaleX(-1); }
+[dir='rtl'] .dv-stage.on .vehicule { animation: none; transform: translateY(12px) scaleX(-1); }
+[dir='rtl'] .dv-switch::after { left: auto; right: 4px; }
+[dir='rtl'] .dv-switch.on::after { transform: translateX(-34px); }
+[dir='rtl'] .dv-stage-tag { left: auto; right: 12px; }
+[dir='rtl'] .dv-hero::after { right: auto; left: -30px; }
+
+/* ============================================================
+   NAVIGATION GUIDÉE — bandeau d'instructions sur la vraie carte
+   ============================================================ */
+.dv-nav { position: absolute; left: 10px; right: 10px; top: calc(env(safe-area-inset-top) + 10px); z-index: 6; border-radius: 22px; padding: 12px 14px 10px;
+  color: #fff; background: var(--accent-darker);
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.18); animation: rise 0.35s var(--ease-out); }
+.dv-nav-haut { display: flex; align-items: center; gap: 12px; }
+.dv-nav-picto { flex-shrink: 0; width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; background: rgba(255, 255, 255, 0.14); color: #fff; }
+.dv-nav-picto svg { transition: transform 0.3s var(--ease-out); }
+.dv-nav-distance { font-family: var(--font-display); font-weight: 600; font-size: 26px; line-height: 1.05; letter-spacing: 0; }
+.dv-nav-consigne { font-weight: 600; font-size: 15px; line-height: 1.25; }
+.dv-nav-voie { font-size: 13px; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dv-nav-puis { margin-top: 8px; font-size: 12.5px; padding: 6px 10px; border-radius: 12px; background: rgba(0, 0, 0, 0.22); }
+.dv-nav-bas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.16); font-size: 13px; opacity: 0.95; }
+.dv-nav-recalcul { color: #ffd978; font-weight: 600; }
+.dv-nav-voix { position: relative; flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer; display: grid; place-items: center;
+  color: #fff; background: rgba(255, 255, 255, 0.16); }
+.dv-nav-voix i { position: absolute; width: 24px; height: 2px; background: #fff; transform: rotate(-45deg); border-radius: 2px; }
+.dv-nav-calcul { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 14px; }
+.dv-nav-spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.35); border-top-color: #fff; animation: dv-tourne 0.8s linear infinite; }
+@keyframes dv-tourne { to { transform: rotate(360deg); } }
+.dv-map-chip { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.dv-map-chip.bas { top: auto; bottom: 16px; }
+.dv-vue { cursor: pointer; font-weight: 600; }
+.dv-ride-map .carte-recentrer { bottom: 58px; left: 12px; right: auto; }
+.dv-ride-map .carte-ponts { top: auto; bottom: 112px; }
+/* SOS de la course : en bas à droite de la carte, sous le bandeau de guidage. */
+.dv-ride-map .sos { top: auto; }
+
+/* =======================================================================
+   ÉCRAN DE VÉHICULE — l'app Chauffeur sur l'écran large de la voiture.
+   Plein écran paysage, sans le cadre « téléphone », avec de grandes cibles
+   tactiles. Pensé pour les dalles embarquées (1920×720, 2560×1600) et les
+   tablettes de bord. La navigation guidée et la course en cours occupent tout.
+   ======================================================================= */
+.app-shell.ecran-vehicule { place-items: stretch; }
+.veh-cadre {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  background: var(--phone-grad);
+  overflow: clip;
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+}
+/* Le contenu s'élargit : les écrans de l'app (cartes, listes) se centrent sur une
+   colonne lisible plutôt que de s'étirer sur deux mètres de dalle. */
+.ecran-vehicule .dv-page { max-width: 1100px; margin-inline: auto; width: 100%; }
+/* Course en cours : plein cadre, c'est l'écran principal en voiture. */
+.ecran-vehicule .dv-ride { max-width: none; }
+.ecran-vehicule .dv-ride-map { min-height: 46dvh; }
+
+/* Grandes cibles : conduite = gros boutons, gros texte, peu de gestes fins. */
+.ecran-vehicule { font-size: 17px; }
+.ecran-vehicule .btn { min-height: 60px; font-size: 18px; border-radius: 16px; }
+.ecran-vehicule .dv-tabs { height: 78px; }
+.ecran-vehicule .dv-tab-ico svg { width: 26px; height: 26px; }
+
+/* ---- Appairage de l'écran de véhicule ---- */
+.veh-appairage { min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: var(--shell-grad); }
+.veh-appairage-carte {
+  width: min(560px, 100%); text-align: center; padding: 40px 32px; border-radius: 26px;
+  background: var(--phone-grad); border: 1px solid var(--stroke); box-shadow: var(--shadow);
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+}
+.veh-appairage-carte h1 { font-size: 26px; font-weight: 600; margin: 4px 0 0; }
+.veh-appairage-carte p { color: var(--text-dim); font-size: 15px; line-height: 1.55; margin: 0; max-width: 46ch; }
+.veh-code { display: flex; gap: 10px; justify-content: center; margin: 10px 0; }
+.veh-code-case {
+  width: 58px; height: 72px; text-align: center; font-size: 34px; font-weight: 600;
+  color: var(--text); background: var(--surface, rgba(255,255,255,0.04)); border: 2px solid var(--stroke);
+  border-radius: 14px; outline: none; font-family: var(--font-display, inherit);
+}
+.veh-code-case:focus { border-color: var(--green); box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.18); }
+.veh-grand-bouton { width: 100%; min-height: 64px !important; font-size: 19px !important; }
+.veh-appairage-note { font-size: 12.5px !important; opacity: 0.8; }
+
+/* ---- Fenêtre « Connecter un écran de véhicule » (côté téléphone) ---- */
+.veh-code-affiche { font-size: 44px; font-weight: 600; letter-spacing: 0.22em; text-align: center;
+  font-family: var(--font-display, inherit); color: var(--green); margin: 6px 0; }
+.veh-code-expire { text-align: center; font-size: 13px; color: var(--text-dim); }
+
+/* Suggestion « mode écran de véhicule » sur un écran embarqué (paysage, tactile, bas). */
+.dv-suggestion-veh {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 50; max-width: min(760px, calc(100vw - 32px));
+  display: flex; align-items: center; gap: 14px; padding: 10px 12px 10px 18px; border-radius: 16px;
+  background: var(--surface); color: var(--text); box-shadow: var(--elev-2, 0 10px 30px rgba(0,0,0,.25)); border: 1px solid var(--stroke); font-size: 15px;
+}
+.dv-btn-veh { white-space: nowrap; padding: 12px 18px; min-height: 48px; display: inline-flex; align-items: center; border-radius: 12px;
+  background: var(--green); color: #04140d; font-weight: 600; text-decoration: none; }
+.dv-btn-fermer { width: 48px; height: 48px; border-radius: 12px; border: 1px solid var(--stroke); background: transparent; color: var(--text); font-size: 22px; cursor: pointer; }
+
+/* Arabe : aucun interlettrage, il casse les liaisons. */
+[dir='rtl'] *, [dir='rtl'] *::before, [dir='rtl'] *::after { letter-spacing: 0 !important; }

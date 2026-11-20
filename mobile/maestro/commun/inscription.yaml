@@ -1,0 +1,59 @@
+# Inscription complète d'une nouvelle cliente, de l'écran de bienvenue jusqu'à l'accueil.
+# Commun à Android et iOS. Le serveur de démonstration réserve le numéro 07 08 09 10 11
+# au code 240726 (même mécanisme que le compte de revue Apple / Google).
+appId: ci.orion.app
+---
+- extendedWaitUntil:
+    visible: "Commencer"
+    timeout: 90000
+- waitForAnimationToEnd
+- takeScreenshot: 01-bienvenue
+- tapOn: "Commencer"
+
+# Création du compte : nom, numéro, e-mail.
+- extendedWaitUntil:
+    visible: "Créer votre compte"
+    timeout: 20000
+- tapOn: "Votre nom.*"
+- inputText: "Aya Kouassi"
+# Android : on ferme le clavier puis on touche chaque champ.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - runFlow: fermer-clavier.yaml
+      - tapOn: "Numéro de téléphone.*"
+      - inputText: "0708091011"
+      - runFlow: fermer-clavier.yaml
+      - tapOn: "E-mail.*"
+      - inputText: "aya.kouassi@exemple.ci"
+# iPhone : la touche « Suivant » du clavier passe au champ suivant, comme le ferait une
+# cliente. Retrouver un champ de la page web après fermeture du clavier est instable sur
+# le simulateur (champ du numéro tantôt trouvé, tantôt non, d'un passage à l'autre).
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - pressKey: Enter
+      - inputText: "0708091011"
+      - pressKey: Enter
+      - inputText: "aya.kouassi@exemple.ci"
+- runFlow: fermer-clavier.yaml
+- takeScreenshot: 02-formulaire
+- tapOn: "Recevoir le code"
+
+# Code reçu par SMS (en démonstration, il s'affiche aussi à l'écran).
+- extendedWaitUntil:
+    visible: "Code envoyé.*"
+    timeout: 30000
+- tapOn: "Code à 6 chiffres.*"
+- inputText: "240726"
+- runFlow: fermer-clavier.yaml
+- takeScreenshot: 03-code
+- tapOn: "Vérifier"
+
+# Photo de profil.
+- extendedWaitUntil:
+    visible: "Votre photo de profil"
+    timeout: 30000
+- takeScreenshot: 04-photo

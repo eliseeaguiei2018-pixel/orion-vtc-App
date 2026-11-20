@@ -1,0 +1,84 @@
+name: APK client à installer
+
+# Compile l'application client ORION pour un vrai téléphone Android et la publie dans la
+# release « orion-client-android » du dépôt : un lien de téléchargement direct, à ouvrir
+# sur le téléphone (Paramètres → autoriser l'installation depuis le navigateur).
+#
+# Version AUTONOME : aucun serveur ORION n'est encore hébergé ; l'app répond elle-même
+# (serveurLocal.ts) et seuls les courses et les chauffeurs sont simulés. La carte du
+# district d'Abidjan (OpenStreetMap), l'index de 31 000 lieux et les pictogrammes sont
+# livrés dans l'APK (scripts/carte-hors-ligne), la position GPS est celle du téléphone.
+on:
+  workflow_dispatch:
+  push:
+    branches: ['claude/orion-platform-overview-osgd1u']
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/apk-client.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-client
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: APK client · release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Carte d'Abidjan embarquée (tuiles, polices, index des lieux, pictogrammes)
+        working-directory: frontend
+        run: |
+          npm ci
+          python3 scripts/carte-hors-ligne/telecharger-tuiles.py "$RUNNER_TEMP/carte"
+          node scripts/carte-hors-ligne/indexer-lieux.mjs "$RUNNER_TEMP/carte/tuiles" "$RUNNER_TEMP/carte/carte/lieux-index.json"
+          mkdir -p "$RUNNER_TEMP/carte/carte/sprites"
+          for f in ofm.json ofm.png ofm@2x.json ofm@2x.png; do
+            curl -sSfo "$RUNNER_TEMP/carte/carte/sprites/$f" "https://tiles.openfreemap.org/sprites/ofm_f384/$f"
+          done
+      - name: App autonome (sans serveur)
+        working-directory: frontend
+        run: |
+          scripts/carte-hors-ligne/construire-autonome.sh "$RUNNER_TEMP/carte" dist
+          npx cap sync android
+      - name: Compilation de l'APK
+        working-directory: frontend/android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Publication dans la release « orion-client-android »
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp frontend/android/app/build/outputs/apk/debug/app-debug.apk ORION-client.apk
+          EMPREINTE=$(sha256sum ORION-client.apk | cut -d' ' -f1)
+          cat > notes.md <<EOF
+          Application client ORION pour Android 7 et plus (Samsung Galaxy A55 compris).
+
+          **Installer** : ouvrir ce lien sur le téléphone, télécharger \`ORION-client.apk\`,
+          puis autoriser l'installation quand Android le demande (Paramètres → Applications →
+          votre navigateur → Installer des applis inconnues).
+
+          **Version autonome** : aucun serveur ORION n'est encore hébergé, les courses et les
+          chauffeurs sont donc simulés et aucune alerte SOS n'est transmise (l'app le dit).
+          Tout le reste répond : compte, profil, ORION Assurance, SOS, partage, abonnement,
+          location, mariage, portefeuille, aide. Carte du district d'Abidjan et recherche de
+          31 000 lieux hors connexion. Le code SMS s'affiche à l'écran.
+
+          Compilée depuis le commit ${GITHUB_SHA::7}. Empreinte SHA-256 : \`${EMPREINTE}\`.
+          EOF
+          gh release delete orion-client-android --yes --cleanup-tag 2>/dev/null || true
+          gh release create orion-client-android ORION-client.apk --prerelease \
+            --target "$GITHUB_SHA" --title "ORION client · APK Android (démonstration)" --notes-file notes.md

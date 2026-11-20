@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  BUILDS DE DÉVELOPPEMENT UNIQUEMENT (src/debug) : autorise le serveur ORION local en
+  HTTP (émulateur : `adb reverse tcp:3000 tcp:3000` puis http://localhost:3000).
+  Les builds de publication n'embarquent pas ce fichier : HTTPS obligatoire.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

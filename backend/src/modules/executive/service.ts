@@ -1,0 +1,639 @@
+import type { PaiementsJour, Ride } from '../rides/store.js';
+import type { Container } from '../../container.js';
+import { adminUsers } from '../admin/auth.js';
+
+/**
+ * DIRECTION GÉNÉRALE — poste de travail du PDG.
+ *
+ * Les chiffres d'ORION vivaient éclatés : les courses dans un module, le portefeuille
+ * des chauffeurs dans un autre, les abonnements, les locations, les notes de frais,
+ * les virements et les litiges chacun chez eux. Chaque session savait une partie, et
+ * personne ne voyait le tout.
+ *
+ * Ce module ne stocke rien : il CONSOLIDE. Il parcourt les sources existantes et en
+ * tire un GRAND LIVRE unique — chaque entrée et chaque sortie d'argent, avec sa
+ * contrepartie et sa référence —, puis les agrégats qui en découlent. Aucune donnée
+ * n'est recalculée « à peu près » : tout provient des mêmes enregistrements que les
+ * autres sessions, afin que le PDG et le CFO ne lisent jamais deux vérités.
+ */
+
+export type Sens = 'entree' | 'sortie';
+
+export type CategorieMouvement =
+  | 'course' | 'livraison' | 'abonnement' | 'location' | 'entreprise'
+  | 'reversement_chauffeur' | 'note_de_frais' | 'virement' | 'remboursement'
+  | 'assurance';
+
+/** Une ligne du grand livre consolidé. */
+export interface Mouvement {
+  id: string;
+  at: string;
+  sens: Sens;
+  categorie: CategorieMouvement;
+  libelle: string;
+  /** Toujours positif : le sens porte le signe. */
+  montant: number;
+  /** Identifiant d'origine (course, facture, dossier, virement). */
+  reference?: string;
+  /** Qui est en face : client, chauffeur, société, employé. */
+  contrepartie?: string;
+  /** État au moment de la lecture (payée, en attente, approuvé…). */
+  statut?: string;
+  /**
+   * L'argent a-t-il réellement transité par la caisse ORION ?
+   *
+   * Une course payée EN ESPÈCES est encaissée en main propre par le chauffeur : ORION
+   * ne reçoit rien, le chauffeur lui doit la commission. Compter ces montants comme
+   * des entrées gonflerait la trésorerie d'un argent qui n'est jamais arrivé.
+   */
+  enCaisse: boolean;
+}
+
+export interface ConsolidationFinanciere {
+  currency: 'XOF';
+  /**
+   * Volume d'affaires TOTAL facturé aux clients, toutes activités confondues :
+   * courses, livraisons, locations et abonnements. Ne le confondez pas avec le
+   * revenu : sur une course, l'essentiel revient au chauffeur.
+   */
+  gmv: number;
+  /** Détail du volume d'affaires par activité. */
+  gmvParActivite: { mobilite: number; location: number; abonnement: number };
+  /** Ce qui revient réellement à ORION (commissions + frais + locations + abonnements). */
+  revenu: number;
+  entrees: number;
+  sorties: number;
+  /** Entrées moins sorties sur la période. */
+  solde: number;
+  /** Détail par catégorie, dans les deux sens. */
+  parCategorie: Record<string, { entrees: number; sorties: number; nombre: number }>;
+  /** Revenu récurrent mensuel des abonnements actifs. */
+  mrr: number;
+  /** TVA collectée pour l'État (à reverser — ce n'est pas du revenu). */
+  tvaCollectee: number;
+  /** Argent dû aux chauffeurs et pas encore versé. */
+  dusChauffeurs: number;
+  /** Encaissé en main propre par les chauffeurs (espèces) — jamais passé en caisse. */
+  especesChauffeurs: number;
+  /** Commissions que les chauffeurs doivent à ORION sur ces espèces. */
+  dettesEspeces: number;
+  /** Encours client des comptes entreprise (facturé, pas encore réglé). */
+  encoursEntreprises: number;
+  /**
+   * CAISSES ESPÈCES : ce que les trésorières ont réellement encaissé, compté et
+   * versé en banque. Sans cette ligne, une part réelle des encaissements d'ORION
+   * n'apparaissait nulle part dans les comptes — elle vivait sur un cahier.
+   */
+  caisses: {
+    ouvertes: number;
+    especesEnCaisse: number;
+    encaisse: number;
+    verseEnBanque: number;
+    /** Cumul des écarts constatés aux arrêtés. Négatif = manquants. */
+    ecartCumule: number;
+    arretesNonValides: number;
+  };
+  /** Factures d'abonnement émises et non réglées. */
+  impayesAbonnements: number;
+}
+
+/** Ce qui attend une décision de la direction. */
+export interface DecisionEnAttente {
+  id: string;
+  type: 'virement' | 'note_de_frais' | 'litige' | 'impaye' | 'tarif' | 'securite';
+  libelle: string;
+  montant?: number;
+  /** Plus le nombre est petit, plus c'est urgent. */
+  priorite: number;
+  depuis: string;
+  /** Section de la console où le traiter. */
+  section: string;
+  reference?: string;
+}
+
+/** Un signal qui demande l'attention du PDG. */
+export interface AlerteDirection {
+  id: string;
+  gravite: 'critique' | 'attention' | 'info';
+  titre: string;
+  detail: string;
+  section?: string;
+}
+
+const jour = (iso: string) => iso.slice(0, 10);
+const debutDe = (jours: number) => Date.now() - jours * 86_400_000;
+
+export class ExecutiveService {
+  constructor(private readonly c: Container) {}
+
+  /** Le mouvement de caisse d'une course payée (null si rien n'est entré en caisse). */
+  private mouvementCourse(r: Ride): Mouvement | null {
+    if (r.status !== 'paid' && r.status !== 'rated') return null;
+    const at = r.events.find((e) => e.type === 'paid')?.at ?? r.createdAt;
+    // Montant réellement encaissé : la part prise en charge par un abonnement ORION
+    // n'entre pas en caisse, c'est un effort commercial.
+    const prisEnCharge = (r.subscription?.montantCouvert ?? 0) + (r.subscription?.remise ?? 0);
+    const encaisse = Math.max(0, r.quote.amount - prisEnCharge);
+    if (encaisse <= 0) return null;
+    const especes = r.paymentMethod === 'cash';
+    return {
+      id: `ride-${r.id}`, at, sens: 'entree',
+      categorie: r.serviceType === 'delivery' ? 'livraison' : 'course',
+      libelle: especes
+        ? (r.serviceType === 'delivery' ? 'Livraison payée en espèces (au coursier)' : 'Course payée en espèces (au chauffeur)')
+        : (r.serviceType === 'delivery' ? 'Livraison payée' : 'Course payée'),
+      montant: encaisse, reference: r.id, contrepartie: r.clientId,
+      statut: r.paymentMethod ?? 'payée',
+      enCaisse: !especes,
+    };
+  }
+
+  /**
+   * Tous les mouvements HORS courses (abonnements, locations, retraits, virements, notes
+   * de frais, litiges) : quelques centaines par mois, lus en entier sans difficulté.
+   * Les courses, elles, se comptent en millions : elles passent par leurs index.
+   */
+  private mouvementsHorsCourses(seuil: number): Mouvement[] {
+    const m: Mouvement[] = [];
+    for (const f of this.c.subscriptions.factures('payee')) {
+      if (Date.parse(f.payeeLe ?? f.emiseLe) < seuil) continue;
+      m.push({
+        id: `sub-${f.id}`, at: f.payeeLe ?? f.emiseLe, sens: 'entree', categorie: 'abonnement',
+        libelle: `Abonnement ${f.plan} encaissé`, montant: f.amount,
+        reference: f.id, contrepartie: f.userId, statut: f.method ?? 'réglée', enCaisse: true,
+      });
+    }
+
+    for (const l of this.c.rental.list()) {
+      if (l.status === 'annulee' || l.status === 'devis') continue;
+      if (Date.parse(l.createdAt) < seuil) continue;
+      m.push({
+        id: `loc-${l.id}`, at: l.createdAt, sens: 'entree', categorie: 'location',
+        libelle: `Location ${l.vehicle.name}`, montant: l.total,
+        reference: l.id, contrepartie: l.societe?.nom ?? l.contact?.nom ?? l.userId,
+        statut: l.status, enCaisse: true,
+      });
+    }
+
+    /* --- SORTIES : ce qui quitte la caisse --- */
+    for (const e of this.c.wallet.payoutsSince(seuil)) {
+      const nom = this.c.drivers.get(e.driverId)?.name ?? e.driverId;
+      m.push({
+        id: `pay-${e.id}`, at: e.at, sens: 'sortie', categorie: 'reversement_chauffeur',
+        libelle: 'Retrait chauffeur', montant: Math.abs(e.amount),
+        reference: e.rideId, contrepartie: nom, statut: 'versé', enCaisse: true,
+      });
+    }
+
+    for (const t of this.c.treasury.list()) {
+      if (t.status !== 'approved') continue;
+      const at = t.executedAt ?? t.decidedAt ?? t.createdAt;
+      if (Date.parse(at) < seuil) continue;
+      m.push({
+        id: `vir-${t.id}`, at, sens: 'sortie', categorie: 'virement',
+        libelle: `Virement — ${t.reason}`, montant: t.amount,
+        reference: t.id, contrepartie: t.destination, statut: `approuvé par ${t.decidedBy ?? '—'}`, enCaisse: true,
+      });
+    }
+
+    for (const t of this.c.expenses.list()) {
+      if (!t.cashOut) continue;
+      if (Date.parse(t.cashOut.at) < seuil) continue;
+      m.push({
+        id: `ndf-${t.id}`, at: t.cashOut.at, sens: 'sortie', categorie: 'note_de_frais',
+        libelle: `Note de frais — ${t.category}`, montant: t.cashOut.amount,
+        reference: t.id, contrepartie: t.requesterName, statut: t.cashOut.channel, enCaisse: true,
+      });
+      // Le reliquat rendu revient en caisse : c'est une entrée, pas une sortie négative.
+      if (t.refunded && t.refunded > 0) {
+        m.push({
+          id: `ndf-r-${t.id}`, at: t.cashOut.at, sens: 'entree', categorie: 'note_de_frais',
+          libelle: 'Reliquat de note de frais rendu', montant: t.refunded,
+          reference: t.id, contrepartie: t.requesterName, statut: 'rendu', enCaisse: true,
+        });
+      }
+    }
+
+    for (const d of this.c.disputes.list()) {
+      if (d.status !== 'resolved' || !d.refund) continue;
+      const at = d.decidedAt ?? d.createdAt;
+      if (Date.parse(at) < seuil) continue;
+      m.push({
+        id: `lit-${d.id}`, at, sens: 'sortie', categorie: 'remboursement',
+        libelle: `Remboursement litige — ${d.kind}`, montant: d.refund,
+        reference: d.rideId, contrepartie: d.clientId, statut: `décidé par ${d.decidedBy ?? '—'}`, enCaisse: true,
+      });
+    }
+    return m;
+  }
+
+  /**
+   * GRAND LIVRE : tous les mouvements d'argent de la plateforme, toutes sources
+   * confondues, du plus récent au plus ancien. Matérialise toute la période : réservé
+   * aux exports (le CSV l'écrit par tranches). La console lit `pageLivre`.
+   */
+  grandLivre(options: { depuisJours?: number; sens?: Sens; categorie?: CategorieMouvement } = {}): Mouvement[] {
+    const seuil = options.depuisJours ? debutDe(options.depuisJours) : 0;
+    const m = this.mouvementsHorsCourses(seuil);
+    // VOLUME : l'index des paiements ne lit que la période demandée (une course payée a
+    // toujours son événement « paid » : c'est lui qui la date dans le grand livre).
+    for (const r of this.c.rides.withEventSince('paid', seuil)) {
+      const x = this.mouvementCourse(r);
+      if (x && Date.parse(x.at) >= seuil) m.push(x);
+    }
+    // Dates ISO : la comparaison directe suffit (localeCompare est cent fois plus lent).
+    return m
+      .filter((x) => (!options.sens || x.sens === options.sens) && (!options.categorie || x.categorie === options.categorie))
+      .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+  }
+
+  /**
+   * Paiements de courses depuis `seuil`, additionnés jour par jour : les jours entiers
+   * viennent des cumuls quotidiens du magasin des courses, la journée de départ (entamée)
+   * d'une lecture exacte de ses seuls paiements. Le coût dépend du nombre de jours, plus
+   * du nombre de courses.
+   */
+  private totauxCourses(seuil: number): PaiementsJour {
+    const jourSuivant = Date.parse(`${new Date(seuil).toISOString().slice(0, 10)}T00:00:00Z`) + 86_400_000;
+    const premierJourEntier = new Date(jourSuivant).toISOString().slice(0, 10);
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const t = premierJourEntier <= aujourdhui
+      ? this.c.rides.cumuls.paiementsEntre(premierJourEntier, aujourdhui)
+      : { jour: '', course: { encaisse: 0, especes: 0, nombre: 0 }, livraison: { encaisse: 0, especes: 0, nombre: 0 }, gmv: 0, tva: 0, commission: 0, commissionEspeces: 0 };
+    for (const r of this.c.rides.withEventBetween('paid', seuil, jourSuivant)) {
+      if (r.status !== 'paid' && r.status !== 'rated') continue;
+      const fee = r.quote.breakdown.fee ?? 0;
+      t.gmv += r.quote.amount;
+      t.tva += r.quote.breakdown.tva ?? 0;
+      t.commission += fee;
+      if (r.paymentMethod === 'cash') t.commissionEspeces += fee;
+      const x = this.mouvementCourse(r);
+      if (!x) continue;
+      const k = x.categorie as 'course' | 'livraison';
+      t[k].nombre += 1;
+      if (x.enCaisse) t[k].encaisse += x.montant; else t[k].especes += x.montant;
+    }
+    return t;
+  }
+
+  /**
+   * UNE PAGE du grand livre, avec les totaux de tout le filtre — sans fabriquer les
+   * dizaines de milliers de mouvements de la période : les paiements de courses sont lus
+   * du plus récent au plus ancien dans leur index et fusionnés avec les autres sources.
+   */
+  pageLivre(options: { depuisJours: number; sens?: Sens; categorie?: CategorieMouvement; page: number; limit: number }): {
+    mouvements: Mouvement[]; total: number; page: number; pages: number; entrees: number; sorties: number;
+  } {
+    const seuil = debutDe(options.depuisJours);
+    const garde = (x: Mouvement) => (!options.sens || x.sens === options.sens) && (!options.categorie || x.categorie === options.categorie);
+    const autres = this.mouvementsHorsCourses(seuil).filter(garde).sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+    const avecCourses = (!options.sens || options.sens === 'entree') && (!options.categorie || options.categorie === 'course' || options.categorie === 'livraison');
+    // Totaux du filtre : les mouvements hors courses (quelques centaines) sont comptés un
+    // par un, les paiements de courses viennent des cumuls quotidiens.
+    let total = autres.length;
+    let entrees = autres.filter((x) => x.sens === 'entree' && x.enCaisse).reduce((n, x) => n + x.montant, 0);
+    const sorties = autres.filter((x) => x.sens === 'sortie').reduce((n, x) => n + x.montant, 0);
+    let retenus: Iterable<Ride> = [];
+    // La catégorie (course ou livraison) est filtrée pendant la fusion, au fil de la lecture.
+    const garderCourse = options.categorie
+      ? (x: Mouvement) => x.categorie === options.categorie
+      : undefined;
+    if (avecCourses) {
+      const t = this.totauxCourses(seuil);
+      for (const k of ['course', 'livraison'] as const) {
+        if (options.categorie && options.categorie !== k) continue;
+        total += t[k].nombre;
+        entrees += t[k].encaisse;
+      }
+      retenus = this.c.rides.withEventSinceDesc('paid', seuil);
+    }
+    // Fusion des deux flux triés jusqu'à la page voulue : seuls les mouvements de la page
+    // sont fabriqués.
+    const debut = (options.page - 1) * options.limit;
+    const mouvements: Mouvement[] = [];
+    let k = 0;
+    for (const x of this.fusionner(autres, retenus, garderCourse)) {
+      if (k >= debut) mouvements.push(x);
+      k += 1;
+      if (k >= debut + options.limit) break;
+    }
+    return { mouvements, total, page: options.page, pages: Math.max(1, Math.ceil(total / options.limit)), entrees, sorties };
+  }
+
+  /**
+   * Fusionne les mouvements hors courses avec les courses payées, les deux lus du plus
+   * récent au plus ancien : un mouvement n'est fabriqué qu'au moment où il est lu.
+   */
+  private *fusionner(autres: Mouvement[], courses: Iterable<Ride>, garder?: (x: Mouvement) => boolean): Generator<Mouvement> {
+    let i = 0;
+    const lecteur = courses[Symbol.iterator]();
+    let course: Mouvement | null = null;
+    const suivante = () => {
+      for (let n = lecteur.next(); !n.done; n = lecteur.next()) {
+        const x = this.mouvementCourse(n.value);
+        if (x && (!garder || garder(x))) return x;
+      }
+      return null;
+    };
+    course = suivante();
+    while (i < autres.length || course) {
+      if (i < autres.length && (!course || autres[i]!.at >= course.at)) {
+        yield autres[i++]!;
+      } else {
+        yield course!;
+        course = suivante();
+      }
+    }
+  }
+
+  /**
+   * Tout le grand livre de la période, mouvement par mouvement, du plus récent au plus
+   * ancien : l'export CSV l'écrit par tranches, sans jamais tenir la période en mémoire.
+   */
+  fluxLivre(depuisJours: number): Generator<Mouvement> {
+    const seuil = debutDe(depuisJours);
+    const autres = this.mouvementsHorsCourses(seuil).sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+    return this.fusionner(autres, this.c.rides.withEventSinceDesc('paid', seuil));
+  }
+
+  /**
+   * Agrégats financiers consolidés sur la période demandée.
+   *
+   * VOLUME : les paiements de courses viennent des cumuls quotidiens du magasin des
+   * courses (jours entiers) et d'une lecture exacte de la seule journée de départ, entamée.
+   * Le coût ne dépend plus du nombre de courses, seulement du nombre de jours.
+   */
+  consolidation(depuisJours = 30): ConsolidationFinanciere {
+    const seuil = debutDe(depuisJours);
+    const parCategorie: ConsolidationFinanciere['parCategorie'] = {};
+    let entrees = 0;
+    let sorties = 0;
+    let especesChauffeurs = 0;
+    for (const x of this.mouvementsHorsCourses(seuil)) {
+      const c = (parCategorie[x.categorie] ??= { entrees: 0, sorties: 0, nombre: 0 });
+      c.nombre += 1;
+      if (x.sens === 'entree') {
+        c.entrees += x.montant;
+        if (x.enCaisse) entrees += x.montant; else especesChauffeurs += x.montant;
+      } else {
+        sorties += x.montant; c.sorties += x.montant;
+      }
+    }
+
+    // GMV et revenu plateforme : repris du module Finances pour qu'aucune session ne
+    // montre un chiffre différent d'une autre. Commission due à ORION sur les courses
+    // encaissées EN ESPÈCES : l'argent est dans la poche du chauffeur, ORION doit le
+    // récupérer (se calculer à partir des soldes serait faux : un gain électronique
+    // masquerait la dette).
+    const cumul = this.totauxCourses(seuil);
+    const gmvMobilite = cumul.gmv;
+    const tvaCollectee = cumul.tva;
+    const commission = cumul.commission;
+    const dettesEspeces = cumul.commissionEspeces;
+    for (const k of ['course', 'livraison'] as const) {
+      if (!cumul[k].nombre) continue;
+      const c = (parCategorie[k] ??= { entrees: 0, sorties: 0, nombre: 0 });
+      c.nombre += cumul[k].nombre;
+      c.entrees += cumul[k].encaisse + cumul[k].especes;
+      entrees += cumul[k].encaisse;
+      especesChauffeurs += cumul[k].especes;
+    }
+
+    const caLocation = parCategorie['location']?.entrees ?? 0;
+    const caAbonnement = parCategorie['abonnement']?.entrees ?? 0;
+    const subStats = this.c.subscriptions.stats();
+    // Le volume d'affaires couvre TOUTES les activités. Ne compter que les courses
+    // donnait un revenu supérieur au volume — un chiffre impossible à lire.
+    const gmvTotal = gmvMobilite + caLocation + caAbonnement;
+
+    // Dû aux chauffeurs : somme des soldes positifs non encore retirés.
+    // Soldes tenus à jour par le portefeuille : plus de relecture des écritures.
+    const dusChauffeurs = this.c.wallet.totalPositiveBalances(this.c.drivers.list().map((d) => d.id));
+
+    const encoursEntreprises = this.c.corporate.list().reduce((n, a) => n + a.balanceUsed, 0);
+    const caisses = this.c.caisses.consolidation(depuisJours);
+
+    return {
+      currency: 'XOF',
+      gmv: gmvTotal,
+      gmvParActivite: { mobilite: gmvMobilite, location: caLocation, abonnement: caAbonnement },
+      // Ce qui reste réellement à ORION : la commission sur la mobilité (le reste va au
+      // chauffeur) plus l'intégralité des locations et des abonnements.
+      revenu: commission + caLocation + caAbonnement,
+      entrees, sorties, solde: entrees - sorties,
+      parCategorie,
+      mrr: subStats.mrr,
+      tvaCollectee,
+      dusChauffeurs,
+      especesChauffeurs,
+      dettesEspeces,
+      encoursEntreprises,
+      caisses: {
+        ouvertes: caisses.caissesOuvertes,
+        especesEnCaisse: caisses.especesEnCaisse,
+        encaisse: caisses.encaisseSurPeriode,
+        verseEnBanque: caisses.verseEnBanque,
+        ecartCumule: caisses.ecartCumule,
+        arretesNonValides: caisses.arretesNonValides,
+      },
+      impayesAbonnements: subStats.montantImpaye,
+    };
+  }
+
+  /** Série quotidienne entrées / sorties — le pouls de la trésorerie. */
+  serie(jours = 30): Array<{ date: string; entrees: number; sorties: number; solde: number }> {
+    const parJour = new Map<string, { entrees: number; sorties: number }>();
+    for (let i = jours - 1; i >= 0; i -= 1) {
+      parJour.set(new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10), { entrees: 0, sorties: 0 });
+    }
+    // Courses : cumuls quotidiens des paiements (encaissé hors espèces).
+    for (const [date, d] of parJour) {
+      const p = this.c.rides.cumuls.paiementsParJour.get(date);
+      if (p) d.entrees += p.course.encaisse + p.livraison.encaisse;
+    }
+    const premier = [...parJour.keys()][0]!;
+    for (const m of this.mouvementsHorsCourses(Date.parse(`${premier}T00:00:00Z`))) {
+      const d = parJour.get(jour(m.at));
+      if (!d) continue;
+      if (m.sens === 'entree') { if (m.enCaisse) d.entrees += m.montant; } else d.sorties += m.montant;
+    }
+    return [...parJour.entries()].map(([date, v]) => ({ date, ...v, solde: v.entrees - v.sorties }));
+  }
+
+  /**
+   * CE QUI ATTEND UNE DÉCISION. Le PDG ouvre sa session et voit immédiatement ce qui
+   * est bloqué sur lui, trié par urgence — pas une liste de chiffres à interpréter.
+   */
+  decisions(): DecisionEnAttente[] {
+    const out: DecisionEnAttente[] = [];
+
+    for (const t of this.c.treasury.list()) {
+      if (t.status !== 'pending') continue;
+      out.push({
+        id: t.id, type: 'virement', priorite: 1,
+        libelle: `Virement à approuver — ${t.reason} (demandé par ${t.requestedBy})`,
+        montant: t.amount, depuis: t.createdAt, section: 'treasury', reference: t.id,
+      });
+    }
+
+    for (const t of this.c.expenses.list()) {
+      if (t.status !== 'pending') continue;
+      out.push({
+        id: t.id, type: 'note_de_frais', priorite: t.amount >= 200_000 ? 2 : 4,
+        libelle: `Note de frais — ${t.requesterName} · ${t.category}`,
+        montant: t.amount, depuis: t.createdAt, section: 'finance', reference: t.id,
+      });
+    }
+
+    for (const d of this.c.disputes.list()) {
+      if (d.status === 'resolved' || d.status === 'rejected') continue;
+      if (!d.escalation) continue; // seules les escalades remontent à la direction
+      out.push({
+        id: d.id, type: 'litige', priorite: 2,
+        libelle: `Litige escaladé — ${d.kind} (${d.escalation})`,
+        montant: d.refund, depuis: d.createdAt, section: 'disputes', reference: d.id,
+      });
+    }
+
+    const impayees = this.c.subscriptions.factures('echouee');
+    if (impayees.length > 0) {
+      out.push({
+        id: 'impayes-abonnements', type: 'impaye', priorite: 3,
+        libelle: `${impayees.length} facture(s) d’abonnement en échec de prélèvement`,
+        montant: impayees.reduce((n, f) => n + f.amount, 0),
+        depuis: impayees[impayees.length - 1]!.emiseLe, section: 'subscriptions',
+      });
+    }
+
+    const attaques = this.c.security.list();
+    if (attaques.length > 0) {
+      out.push({
+        id: 'securite', type: 'securite', priorite: 1,
+        libelle: `${attaques.length} tentative(s) d’accès non autorisé à signaler`,
+        depuis: attaques[0]!.at, section: 'security',
+      });
+    }
+
+    return out.sort((a, b) => a.priorite - b.priorite || Date.parse(a.depuis) - Date.parse(b.depuis));
+  }
+
+  /** Signaux à surveiller — formulés en clair, avec la section où agir. */
+  alertes(constatsCritiques: Array<{ titre: string; constat: string; section: string }> = [], consolidation30?: ConsolidationFinanciere): AlerteDirection[] {
+    const out: AlerteDirection[] = [];
+    const cons = consolidation30 ?? this.consolidation(30);
+
+    if (cons.solde < 0) {
+      out.push({
+        id: 'solde-negatif', gravite: 'critique',
+        titre: 'Les sorties dépassent les entrées sur 30 jours',
+        detail: `Solde : ${cons.solde.toLocaleString('fr-FR')} F. Vérifier les reversements chauffeurs et les virements approuvés.`,
+        section: 'treasury',
+      });
+    }
+
+    if (cons.impayesAbonnements > 0) {
+      out.push({
+        id: 'impayes', gravite: 'attention',
+        titre: 'Cotisations d’abonnement impayées',
+        detail: `${cons.impayesAbonnements.toLocaleString('fr-FR')} F non encaissés. Relancer ou suspendre.`,
+        section: 'subscriptions',
+      });
+    }
+
+    if (cons.dusChauffeurs > cons.entrees && cons.entrees > 0) {
+      out.push({
+        id: 'dus-chauffeurs', gravite: 'critique',
+        titre: 'Les sommes dues aux chauffeurs dépassent les entrées du mois',
+        detail: `${cons.dusChauffeurs.toLocaleString('fr-FR')} F dus. La couverture des retraits doit être vérifiée.`,
+        section: 'treasury',
+      });
+    }
+
+    if (cons.encoursEntreprises > 0) {
+      out.push({
+        id: 'encours-b2b', gravite: 'info',
+        titre: 'Encours des comptes entreprise',
+        detail: `${cons.encoursEntreprises.toLocaleString('fr-FR')} F consommés et non encore réglés.`,
+        section: 'b2b',
+      });
+    }
+
+    const securite = this.c.security.count();
+    if (securite > 0) {
+      out.push({
+        id: 'securite', gravite: 'attention',
+        titre: 'Tentatives d’accès non autorisé',
+        detail: `${securite} tentative(s) signalée(s) à la direction (DG, CFO, DAA).`,
+        section: 'security',
+      });
+    }
+
+    const ferme = !this.c.settings.getServices().open;
+    if (ferme) {
+      out.push({
+        id: 'maintenance', gravite: 'critique',
+        titre: 'ORION est actuellement FERMÉ',
+        detail: 'Aucune commande n’est acceptée. Maintenance activée depuis la session Services & ville.',
+        section: 'services',
+      });
+    }
+
+    // Les failles critiques relevées par le moteur de vigilance remontent jusqu'ici :
+    // le PDG n'a pas à ouvrir une autre session pour savoir que la plateforme est en danger.
+    for (const c of constatsCritiques) {
+      out.unshift({ id: `vigilance-${c.titre}`, gravite: 'critique', titre: c.titre, detail: c.constat, section: c.section });
+    }
+    return out;
+  }
+
+  /** Décisions récentes des directeurs : qui a changé quoi (journal d'audit filtré). */
+  decisionsRecentes(limit = 40): Array<{ at: string; actor: string; role: string; action: string; details?: Record<string, unknown> }> {
+    const SENSIBLES = [
+      'pricing', 'rental.tarifs', 'dispatch', 'zones', 'promos', 'services',
+      'treasury', 'expense', 'subscription', 'driver.suspend', 'client.blacklist',
+    ];
+    return this.c.audit.list(300)
+      .filter((e) => SENSIBLES.some((s) => e.action.startsWith(s)))
+      .slice(0, limit)
+      .map((e) => ({ at: e.at, actor: e.actor, role: e.role, action: e.action, details: e.details }));
+  }
+
+  /** Tableau de bord complet du PDG, en un seul appel. */
+  async tableauDeBord(jours = 30): Promise<{
+    consolidation: ConsolidationFinanciere;
+    serie: ReturnType<ExecutiveService['serie']>;
+    decisions: DecisionEnAttente[];
+    alertes: AlerteDirection[];
+    recentes: ReturnType<ExecutiveService['decisionsRecentes']>;
+    effectif: { employes: number; chauffeurs: number; chauffeursEnLigne: number; clients: number; abonnes: number };
+    /** Résultat du moteur de vigilance : le PDG doit voir l'état réel du système. */
+    vigilance: { score: number; etat: string; critiques: number; eleves: number };
+    generatedAt: string;
+  }> {
+    const drivers = this.c.drivers.list();
+    // Effectif interne : les comptes de la console (employés ORION), pas les chauffeurs.
+    const employes = adminUsers().length;
+    const sante = await this.c.vigilance.sante();
+    const consolidation = this.consolidation(jours);
+    const consolidation30 = jours === 30 ? consolidation : this.consolidation(30);
+    return {
+      consolidation,
+      serie: this.serie(Math.min(jours, 90)),
+      decisions: this.decisions(),
+      alertes: this.alertes(sante.constats.filter((c) => c.severite === 'critique'), consolidation30),
+      recentes: this.decisionsRecentes(),
+      effectif: {
+        employes,
+        chauffeurs: drivers.length,
+        chauffeursEnLigne: drivers.filter((d) => d.availability === 'online' || d.availability === 'on_trip').length,
+        clients: this.c.clients.nombre,
+        abonnes: this.c.subscriptions.stats().actifs,
+      },
+      vigilance: {
+        score: sante.score, etat: sante.etat,
+        critiques: sante.parSeverite.critique, eleves: sante.parSeverite.eleve,
+      },
+      generatedAt: new Date().toISOString(),
+    };
+  }
+}

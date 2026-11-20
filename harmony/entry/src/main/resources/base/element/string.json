@@ -1,0 +1,6 @@
+{
+  "string": [
+    { "name": "app_name", "value": "ORION Chauffeur" },
+    { "name": "perm_location", "value": "La position sert au dispatch des courses et à la navigation guidée." }
+  ]
+}

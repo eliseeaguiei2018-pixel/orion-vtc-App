@@ -1,0 +1,44 @@
+# Fin de l'inscription : autorisations (VRAIE demande de position au système), accueil
+# personnalisé, puis le compte dans les paramètres.
+appId: ci.orion.app
+---
+# Le client est à Riviéra 2 (Cocody) : c'est là que le chauffeur doit venir.
+- setLocation:
+    latitude: 5.34646
+    longitude: -3.97476
+- extendedWaitUntil:
+    visible: "Autoriser la localisation"
+    timeout: 30000
+- takeScreenshot: 06-autorisations
+- tapOn: "Autoriser la localisation"
+# Fenêtre système. Android : bouton « pendant l'utilisation de l'appli » repéré par son
+# identifiant (le libellé change selon la version et la langue). iOS : par son texte.
+- tapOn:
+    id: "com.android.permissioncontroller:id/permission_allow_foreground_only_button"
+    optional: true
+- runFlow:
+    when:
+      visible: "(?i)(while using the app|allow while using app|autoriser lorsque l.app est active|lorsque vous utilisez l.app.*|pendant (que vous utilisez|l.utilisation de) l.app.*)"
+    commands:
+      - takeScreenshot: 06b-autorisation-systeme-position
+      - tapOn: "(?i)(while using the app|allow while using app|autoriser lorsque l.app est active|lorsque vous utilisez l.app.*|pendant (que vous utilisez|l.utilisation de) l.app.*)"
+# Position accordée : l'écran propose « Continuer » (ou passe directement à l'accueil).
+- extendedWaitUntil:
+    visible: "Continuer|Où allez-vous.*"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: "Continuer"
+    commands:
+      - tapOn: "Continuer"
+- extendedWaitUntil:
+    visible: "Où allez-vous.*"
+    timeout: 30000
+- waitForAnimationToEnd
+- takeScreenshot: 07-accueil
+- tapOn: "Paramètres"
+- extendedWaitUntil:
+    visible: "Aya Kouassi"
+    timeout: 20000
+- waitForAnimationToEnd
+- takeScreenshot: 08-parametres
