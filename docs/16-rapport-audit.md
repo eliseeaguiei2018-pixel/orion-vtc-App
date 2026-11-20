@@ -201,3 +201,39 @@ de machine (macOS et Windows d'abord, puis Linux) : chaque tâche s'arrête en q
 secondes, sans journal. Cause probable : quota de minutes du compte épuisé (les
 simulateurs iPhone sur macOS comptent dix fois). À vérifier dans les réglages de
 facturation GitHub ; les essais iPhone et Android sont à relancer ensuite.
+
+## 11. APK complet : chaque bouton répond, carte et recherche d'Abidjan (20 novembre, soir)
+
+Retour du client sur le premier APK : carte pauvre (ni commerces, ni banques, ni lieux de
+culte, ni rues précises ; « Riviera Golf » introuvable), profil invisible, ORION Assurance
+inaccessible, SOS et Partager sans effet. Cause commune : sans serveur, l'app court-circuitait
+ces fonctions (« mode démonstration »). Corrigé :
+
+- **Serveur local** (`frontend/src/serveurLocal.ts`) : sans `VITE_API_URL`, l'app répond
+  elle-même aux routes qu'elle appelle, avec les formats du serveur, et garde les données sur
+  le téléphone : compte vérifié par un code affiché à l'écran (aucun SMS sans serveur),
+  profil et photo, historique des courses terminées, alertes SOS, aide, abonnement (forfaits
+  du serveur, facture, paiement, résiliation), locations, messages ORION, dossier ORION
+  Assurance, portefeuille et cotisations. Dès qu'un serveur est configuré, il n'est plus utilisé.
+- **SOS** : le suivi s'ouvre (position, messages, appel direct du 185, 170, 180) avec la
+  mention claire qu'en démonstration aucune alerte n'est transmise ; `delivered` reste faux.
+- **Partager** : vraie feuille de partage du téléphone (`@capacitor/share`), sinon partage du
+  navigateur, sinon copie du texte et du lien de position.
+- **Profil** à côté de l'icône Paramètres ; **Colis** ouvre la livraison moto ; services à
+  venir avec « Me prévenir » ; **portefeuille** réel (il affichait un solde inventé).
+- **Finitions** : pastilles « Bientôt » remplacées par une mention discrète, icônes SVG à la
+  place des symboles façon emoji (drapeaux, ✓, ✕, ★, ⬇), pastilles des raccourcis neutres
+  (plus de filets verts), filigrane décoratif de l'accueil retiré.
+- **Carte** : pictogrammes et noms des commerces, banques, restaurants, maquis, supermarchés,
+  marchés, églises, mosquées, écoles, santé, hôtels, culture et loisirs, colorés par famille ;
+  toutes les rues nommées ; numéros ; quartiers et sous-quartiers. Les 860 tuiles du district
+  (Anyama, Bingerville, Songon, Grand-Bassam compris) sont livrées dans l'APK et servent hors
+  connexion ; au-delà, la carte passe aux tuiles en ligne.
+- **Recherche hors ligne** : 31 341 lieux (25 924 lieux nommés, 5 388 tronçons de rues, 29
+  quartiers d'usage) en plus des 449 quartiers vérifiés. « pharmacie », « mosquée »,
+  « banque »… donnent les plus proches ; chaque résultat indique son quartier et sa commune.
+- **Quartiers d'usage** absents d'OpenStreetMap (Riviéra Golf, Riviéra Palmeraie, Riviéra
+  Faya, Angré Château, Abobo Gare…) : placés à la médiane des lieux qui portent leur nom,
+  retenus seulement si au moins trois concordent à moins de 1,2 km.
+
+Outils : `frontend/scripts/carte-hors-ligne/` (téléchargement, indexation, construction).

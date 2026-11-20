@@ -6,7 +6,7 @@
 #   scripts/carte-hors-ligne/construire-autonome.sh <dossier-donnees> <sortie>
 #
 # <dossier-donnees> contient tuiles/{z}/{x}/{y}.pbf, polices/<police>/<plage>.pbf et
-# carte/ (lieux-index.json, quartiers-usage.geojson, sprites/) — voir README.md.
+# carte/ (lieux-index.json, quartiers-usage.json, sprites/) — voir README.md.
 set -euo pipefail
 DONNEES=$(realpath "$1"); SORTIE=$(realpath -m "$2")
 cd "$(dirname "$0")/../.."

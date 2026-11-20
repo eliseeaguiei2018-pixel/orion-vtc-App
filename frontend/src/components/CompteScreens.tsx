@@ -349,7 +349,7 @@ export function SettingsScreen({
         <div className="grid2" style={{ margin: '8px 0 14px' }}>
           {LANGUAGES.map((l) => (
             <button key={l.code} className={`opt${l.code === lang ? ' active' : ''}`} onClick={() => setLang(l.code as Lang)}>
-              <span style={{ fontSize: 20 }}>{l.flag}</span> <span className="grow" style={{ textAlign: 'start' }}>{l.label}</span>
+              <span className="code-langue">{l.code.toUpperCase()}</span> <span className="grow" style={{ textAlign: 'start' }}>{l.label}</span>
               {l.code === lang && <IconCheck size={16} color="var(--green)" />}
             </button>
           ))}
@@ -358,7 +358,7 @@ export function SettingsScreen({
         <div className="stack" style={{ marginTop: 8 }}>
           {COUNTRIES.map((c) => (
             <div key={c.code} className={`opt${c.status === 'active' ? ' active' : ' muted-opt'}`} style={{ cursor: c.status === 'active' ? 'default' : 'not-allowed' }}>
-              <span style={{ fontSize: 20 }}>{c.flag}</span>
+              <span className="code-langue">{c.code}</span>
               <span className="grow" style={{ textAlign: 'start' }}>{c.name}</span>
               <span className={`badge ${c.status === 'active' ? 'green' : ''}`}>{c.status === 'active' ? t('set_active') : t('set_comingSoon')}</span>
             </div>

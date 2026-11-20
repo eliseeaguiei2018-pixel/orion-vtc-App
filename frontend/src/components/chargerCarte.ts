@@ -24,13 +24,13 @@ export function chargerML(): Promise<ML> {
       if (!reponse.ok) throw new Error(`Tuile absente (${reponse.status})`);
       return { data: decoder(await reponse.text()) };
     });
-    // « paquet:// » : tuiles regroupées par colonne (un fichier JSON par niveau et par x,
-    // tuiles en base64 indexées par y) — pour les hébergements limités en nombre de fichiers.
+    // « paquet:// » : tuiles regroupées par bloc de 8 (un fichier JSON « z-x-(y÷8) », tuiles
+    // en base64 indexées par y) — pour les hébergements limités en nombre de fichiers.
     const paquets = new Map<string, Promise<Record<string, string>>>();
     ml.addProtocol('paquet', async (params) => {
       const m = params.url.slice('paquet://'.length).match(/^(.*)\/(\d+)\/(\d+)\/(\d+)(\.pbf)?$/);
       if (!m) throw new Error('Adresse de tuile invalide');
-      const fichier = `${m[1]}/${m[2]}-${m[3]}.json`;
+      const fichier = `${m[1]}/${m[2]}-${m[3]}-${Number(m[4]) >> 3}.json`;
       let paquet = paquets.get(fichier);
       if (!paquet) {
         paquet = fetch(fichier).then((r) => (r.ok ? r.json() as Promise<Record<string, string>> : {})).catch(() => ({}));

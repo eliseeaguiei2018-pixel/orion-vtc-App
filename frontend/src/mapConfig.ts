@@ -13,7 +13,7 @@
  *    préfixée « b64: », des tuiles encodées en base64 dans des fichiers texte.
  *  - VITE_MAP_TILES_BOUNDS : emprise des tuiles livrées, « ouest,sud,est,nord ».
  *  - VITE_MAP_TILES_MAXZOOM : dernier niveau de zoom livré (au-delà, agrandissement).
- *    Préfixée « paquet: », des tuiles regroupées par colonne dans des fichiers JSON
+ *    Préfixée « paquet: », des tuiles regroupées par blocs dans des fichiers JSON
  *    (hébergements limités en nombre de fichiers) ; préfixée « hybride: », les tuiles
  *    livrées d'abord, puis OpenFreeMap en ligne au-delà de leur emprise (APK).
  *  - VITE_MAP_GLYPHS_URL : polices des libellés, au format « {fontstack}/{range}.pbf ».
@@ -53,7 +53,7 @@ export function getVectorConfig(): VectorConfig | null {
     maxzoom: env.VITE_MAP_TILES_MAXZOOM ? Number(env.VITE_MAP_TILES_MAXZOOM) : undefined,
     policesLocales: /^((b64|paquet|hybride):)?\.\//.test(env.VITE_MAP_GLYPHS_URL ?? ''),
     sprite: donnees ? `${donnees}sprites/ofm` : 'https://tiles.openfreemap.org/sprites/ofm_f384/ofm',
-    quartiersUsage: donnees ? `${donnees}quartiers-usage.geojson` : undefined,
+    quartiersUsage: donnees ? `${donnees}quartiers-usage.json` : undefined,
   };
 }
 

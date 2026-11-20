@@ -241,7 +241,7 @@ const index = {
 fs.mkdirSync(path.dirname(sortie), { recursive: true });
 fs.writeFileSync(sortie, JSON.stringify(index));
 // Les mêmes quartiers d'usage, en GeoJSON, pour leur nom sur la carte.
-fs.writeFileSync(path.join(path.dirname(sortie), 'quartiers-usage.geojson'), JSON.stringify({
+fs.writeFileSync(path.join(path.dirname(sortie), 'quartiers-usage.json'), JSON.stringify({
   type: 'FeatureCollection',
   features: lieux.filter((l) => l[3] === C.quartierUsage).map(([nom, lat, lng]) => ({ type: 'Feature', properties: { nom }, geometry: { type: 'Point', coordinates: [lng, lat] } })),
 }));

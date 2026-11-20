@@ -7,7 +7,7 @@ complète du district d'Abidjan livrée dans l'application. Trois ingrédients :
 |---|---|---|
 | `tuiles/{z}/{x}/{y}.pbf` | 860 tuiles vectorielles OpenStreetMap, niveaux 5 à 14, emprise -4,32 / 5,20 / -3,70 / 5,62 | OpenFreeMap (schéma OpenMapTiles) |
 | `polices/<police>/<plage>.pbf` | Noto Sans Regular, Bold, Italic | OpenFreeMap |
-| `carte/` | `lieux-index.json` (31 000 lieux), `quartiers-usage.geojson`, `sprites/` (pictogrammes) | générés ici |
+| `carte/` | `lieux-index.json` (31 000 lieux), `quartiers-usage.json`, `sprites/` (pictogrammes) | générés ici |
 
 ## Étapes
 
