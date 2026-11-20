@@ -1,26 +1,20 @@
 name: Applications mobiles
 
-# Compile les applications natives ORION et, sur demande, FILME leur installation puis une
-# inscription complète sur un émulateur Android et un simulateur iPhone.
-# - À chaque modification du front : compilation des APK Android ORION et ORION Chauffeur
-#   (runner Linux).
-# - Démonstration filmée : lancement manuel (onglet Actions) ou « [demo-mobile] » dans le
-#   message de commit. L'iPhone utilise un runner macOS : sur un dépôt privé, ses minutes
-#   comptent dix fois, d'où son déclenchement uniquement sur demande.
+# Compile les applications natives ORION et FILME leur installation puis une inscription
+# complète sur un émulateur Android et un simulateur iPhone.
+#
+# À LA DEMANDE SEULEMENT (onglet Actions → Applications mobiles → Run workflow), pour
+# économiser les minutes GitHub Actions : l'APK client à installer est déjà compilé et
+# publié à chaque modification par « APK client à installer » (apk-client.yml), et
+# l'iPhone utilise un runner macOS dont les minutes comptent dix fois.
 # Vidéos, captures et APK : onglet Actions → l'exécution → rubrique Artifacts.
 on:
-  push:
-    branches: ['**']
-    paths:
-      - 'frontend/**'
-      - 'mobile/**'
-      - '.github/workflows/mobile.yml'
   workflow_dispatch:
     inputs:
       ios:
-        description: "Inclure l'iPhone (runner macOS)"
+        description: "Inclure l'iPhone (runner macOS, minutes comptées dix fois)"
         type: boolean
-        default: true
+        default: false
 
 # Une démonstration filmée en cours n'est jamais interrompue : l'exécution suivante attend.
 concurrency:

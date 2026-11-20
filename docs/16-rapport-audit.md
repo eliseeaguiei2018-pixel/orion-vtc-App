@@ -259,3 +259,10 @@ JavaScript.
 
 **Reste à faire côté serveur** : ajouter les quartiers d'usage (Riviéra Golf…) au répertoire
 du serveur (`backend/scripts/lieux-osm`) pour que la recherche en ligne les connaisse aussi.
+
+**Consommation GitHub Actions réduite (20 novembre, nuit).** Chaque push lançait la CI deux
+fois (push et pull request), dont Edge sous Windows (minutes comptées double) et Safari sous
+macOS (comptées dix fois), plus deux compilations Android. Désormais : CI une seule fois par
+modification et sur Linux seulement ; Windows et macOS, applications mobiles et démonstrations
+filmées à la demande (onglet Actions → Run workflow). Les applications Windows et macOS de la
+console restent dans le projet : seuls leurs tests automatiques sont devenus manuels.

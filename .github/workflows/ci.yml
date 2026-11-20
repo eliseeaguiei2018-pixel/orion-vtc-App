@@ -1,12 +1,23 @@
 name: CI
 
 # Vérifications automatiques ORION : typecheck, tests et build des deux packages
-# (backend Fastify + console/app cliente React) à chaque push et pull request.
+# (backend Fastify + console/app cliente React).
+#
+# ÉCONOMIE DE MINUTES GITHUB ACTIONS : une seule exécution par modification (la pull
+# request, ou le push sur main — plus de doublon push + PR), et sur Linux seulement.
+# Edge sous Windows (minutes comptées double) et Safari sous macOS (comptées dix fois)
+# se lancent à la demande : Actions → CI → Run workflow → « toutes les plateformes ».
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      toutes_plateformes:
+        description: 'Ajouter Microsoft Edge (Windows) et Safari (macOS)'
+        type: boolean
+        default: false
 
 jobs:
   backend:
@@ -58,6 +69,7 @@ jobs:
   navigateurs:
     # Les 5 interfaces dans le moteur de chaque plateforme cible : Safari/WebKit (iPhone,
     # iPad, Mac), Microsoft Edge sur Windows (console, tableau de bord), Firefox, Chrome.
+    # Linux à chaque modification ; Windows et macOS seulement à la demande (voir en tête).
     name: Navigateurs · ${{ matrix.nom }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -66,6 +78,48 @@ jobs:
         include:
           - { nom: 'Safari / WebKit (Linux)', os: ubuntu-latest, navigateur: webkit, installer: 'webkit --with-deps' }
           - { nom: 'Firefox', os: ubuntu-latest, navigateur: firefox, installer: 'firefox --with-deps' }
+    defaults:
+      run:
+        working-directory: frontend
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Build (mode démonstration, sans serveur)
+        run: npm run build
+        env:
+          VITE_API_URL: ''
+      - name: Playwright
+        run: |
+          npm i --no-save playwright@1.63.0
+          if [ -n "${{ matrix.installer }}" ]; then npx playwright install ${{ matrix.installer }}; fi
+      - name: Test de fumée des 5 interfaces
+        run: node scripts/fumee-navigateurs.mjs
+        env:
+          NAVIGATEUR: ${{ matrix.navigateur }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fumee-${{ matrix.navigateur }}-${{ matrix.os }}
+          path: frontend/fumee-captures/
+          retention-days: 14
+
+  navigateurs-windows-macos:
+    # Les 5 interfaces dans le moteur de chaque plateforme cible : Safari/WebKit (iPhone,
+    # iPad, Mac), Microsoft Edge sur Windows (console, tableau de bord), Firefox, Chrome.
+    # À la demande seulement : minutes Windows comptées double, macOS dix fois.
+    name: Navigateurs · ${{ matrix.nom }}
+    if: github.event_name == 'workflow_dispatch' && inputs.toutes_plateformes
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
           - { nom: 'Microsoft Edge (Windows)', os: windows-latest, navigateur: msedge, installer: '' }
           - { nom: 'Safari / WebKit (macOS)', os: macos-latest, navigateur: webkit, installer: 'webkit' }
     defaults:
