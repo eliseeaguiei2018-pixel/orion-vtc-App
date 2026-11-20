@@ -9,7 +9,8 @@
  * Variables d'environnement (facultatives) :
  *  - VITE_MAP_TILES_URL : source vectorielle d'un serveur de tuiles ORION : une adresse
  *    TileJSON, ou un modèle « …/{z}/{x}/{y}.pbf ». Une adresse relative (« ./tuiles/… »)
- *    désigne des tuiles livrées avec l'application (carte embarquée, sans Internet).
+ *    désigne des tuiles livrées avec l'application (carte embarquée, sans Internet) ;
+ *    préfixée « b64: », des tuiles encodées en base64 dans des fichiers texte.
  *  - VITE_MAP_TILES_BOUNDS : emprise des tuiles livrées, « ouest,sud,est,nord ».
  *  - VITE_MAP_TILES_MAXZOOM : dernier niveau de zoom livré (au-delà, agrandissement).
  *  - VITE_MAP_GLYPHS_URL : polices des libellés, au format « {fontstack}/{range}.pbf ».
@@ -40,7 +41,7 @@ export function getVectorConfig(): VectorConfig | null {
     attribution: '© OpenStreetMap · OpenFreeMap',
     bounds: bornes.length === 4 && bornes.every(Number.isFinite) ? bornes as [number, number, number, number] : undefined,
     maxzoom: env.VITE_MAP_TILES_MAXZOOM ? Number(env.VITE_MAP_TILES_MAXZOOM) : undefined,
-    policesLocales: (env.VITE_MAP_GLYPHS_URL ?? '').startsWith('./'),
+    policesLocales: /^(b64:)?\.\//.test(env.VITE_MAP_GLYPHS_URL ?? ''),
   };
 }
 
@@ -49,6 +50,7 @@ export function getVectorConfig(): VectorConfig | null {
  * `new URL()` encoderait les accolades des modèles {z}/{x}/{y} et {fontstack}/{range}.
  */
 function absolu(adresse: string): string {
+  if (adresse.startsWith('b64:./')) return `b64://${absolu(adresse.slice(4))}`;
   if (!adresse.startsWith('./')) return adresse;
   return new URL('./', window.location.href).href + adresse.slice(2);
 }

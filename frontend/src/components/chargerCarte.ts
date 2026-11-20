@@ -10,6 +10,16 @@ export function chargerML(): Promise<ML> {
   chargement ??= import('maplibre-gl').then((mod) => {
     const ml = (mod as unknown as { default?: ML }).default ?? mod;
     ml.setWorkerUrl(new URL(urlTravailleur, window.location.href).href);
+    // Carte livrée avec l'app sous forme texte (« b64:// ») : tuiles et polices encodées en
+    // base64, pour les hébergements qui ne servent pas les fichiers binaires .pbf.
+    ml.addProtocol('b64', async (params, abort) => {
+      const reponse = await fetch(params.url.slice('b64://'.length), { signal: abort.signal });
+      if (!reponse.ok) throw new Error(`Tuile absente (${reponse.status})`);
+      const brut = atob((await reponse.text()).trim());
+      const octets = new Uint8Array(brut.length);
+      for (let i = 0; i < brut.length; i++) octets[i] = brut.charCodeAt(i);
+      return { data: octets.buffer };
+    });
     return ml;
   });
   return chargement;
