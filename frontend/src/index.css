@@ -39,7 +39,7 @@
   --shell-grad: #04100b;
   --phone-grad: linear-gradient(180deg, #061b13, #04100b);
   --phone-ring: 0 0 0 10px #0a0f0d, 0 0 0 11px #1b2b23;
-  --sheet-grad: linear-gradient(180deg, rgba(10, 36, 26, 0.85), rgba(4, 16, 11, 0.98));
+  --sheet-grad: linear-gradient(180deg, rgba(10, 36, 26, 0.96), rgba(4, 16, 11, 0.99));
   --map-fade: linear-gradient(180deg, rgba(4,16,11,0.65) 0%, rgba(4,16,11,0) 22%, rgba(4,16,11,0) 55%, rgba(4,16,11,0.9) 100%);
   --splash-grad: #04100b;
   --splash-word-grad: linear-gradient(120deg, #fff, #2bffa6, #fff);
@@ -85,7 +85,7 @@
   --shell-grad: #ffffff;
   --phone-grad: linear-gradient(180deg, #ffffff, #f5faf7);
   --phone-ring: 0 0 0 10px #eef4f1, 0 0 0 11px #dceae3;
-  --sheet-grad: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.97));
+  --sheet-grad: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.99));
   --map-fade: linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 22%, rgba(255,255,255,0) 52%, rgba(255,255,255,0.94) 100%);
   --splash-grad: #ffffff;
   --splash-word-grad: linear-gradient(120deg, #0c2017, #00a865, #0c2017);
@@ -110,7 +110,7 @@
   --shell-grad: #120a04;
   --phone-grad: linear-gradient(180deg, #1b1007, #120a04);
   --phone-ring: 0 0 0 10px #100b07, 0 0 0 11px #2b2017;
-  --sheet-grad: linear-gradient(180deg, rgba(38, 23, 11, 0.85), rgba(18, 10, 4, 0.98));
+  --sheet-grad: linear-gradient(180deg, rgba(38, 23, 11, 0.96), rgba(18, 10, 4, 0.99));
   --map-fade: linear-gradient(180deg, rgba(18,10,4,0.65) 0%, rgba(18,10,4,0) 22%, rgba(18,10,4,0) 55%, rgba(18,10,4,0.9) 100%);
   --splash-grad: #120a04;
   --splash-word-grad: linear-gradient(120deg, #fff, #ffb05a, #fff);
@@ -147,7 +147,7 @@
   --shell-grad: #040a14;
   --phone-grad: linear-gradient(180deg, #07111f, #040a14);
   --phone-ring: 0 0 0 10px #070b12, 0 0 0 11px #18243a;
-  --sheet-grad: linear-gradient(180deg, rgba(11, 26, 46, 0.85), rgba(4, 10, 20, 0.98));
+  --sheet-grad: linear-gradient(180deg, rgba(11, 26, 46, 0.96), rgba(4, 10, 20, 0.99));
   --map-fade: linear-gradient(180deg, rgba(4,10,20,0.65) 0%, rgba(4,10,20,0) 22%, rgba(4,10,20,0) 55%, rgba(4,10,20,0.9) 100%);
   --splash-grad: #040a14;
   --splash-word-grad: linear-gradient(120deg, #fff, #79b8ff, #fff);
@@ -1261,3 +1261,6 @@ body { letter-spacing: 0; text-rendering: optimizeLegibility; }
 /* Code de langue ou de pays (FR, EN, CI…) : sobre, à la place des drapeaux emoji. */
 .code-langue { display: inline-grid; place-items: center; min-width: 30px; height: 22px; padding: 0 6px; border-radius: 6px;
   font-size: 11px; font-weight: 600; color: var(--text-dim); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--stroke); }
+/* Alerte SOS réduite : la bannière reste en haut, l'écran passe dessous (profil, paramètres
+   et messages restent accessibles pendant l'alerte). */
+.phone.sos-reduit > .screen { top: 54px; }

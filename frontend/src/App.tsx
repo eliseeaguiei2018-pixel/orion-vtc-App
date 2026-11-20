@@ -19,12 +19,12 @@ import { authenticateBiometric, isBiometricEnabled } from './security';
 import type { TrustedContact } from './api';
 import { numeroLisible, ouvrirClavier } from './telephone';
 import { lienPosition, partager } from './partage';
-import { enregistrerCourseLocale } from './serveurLocal';
+import { cloreSosLocal, enregistrerCourseLocale } from './serveurLocal';
 import {
   DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { urlApi, contactCourse, lireCodePriseEnCharge, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, modeLocal, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, chargerPortefeuille, resumeCotisations, transfererPortefeuille, type Cotisations, type MouvementPortefeuille, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type PkgSize, type SafeDriver, type SosSuivi, type SupportMessage } from './api';
+import { urlApi, contactCourse, lireCodePriseEnCharge, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, modeLocal, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, reserverMariage, mesMariages, type ReservationMariage, chargerPortefeuille, resumeCotisations, transfererPortefeuille, type Cotisations, type MouvementPortefeuille, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type PkgSize, type SafeDriver, type SosSuivi, type SupportMessage } from './api';
 import { useI18n } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
@@ -562,13 +562,13 @@ export function App() {
 
   return (
     <div className="app-shell">
-      <div className="phone">
+      <div className={`phone${sosLive && !sosOuvert ? ' sos-reduit' : ''}`}>
         {toast && <Toast message={toast.message} danger={toast.danger} />}
         {sosState && <SosOverlay state={sosState} onRetry={() => void triggerSos()} onClose={() => setSosState(null)} />}
         {sosLive && sosOuvert && (
           <SosLive suivi={sosLive} horsLigne={sosHorsLigne} demo={modeLocal()} onMinimize={() => setSosOuvert(false)} onClose={fermerSos} onSend={(x) => void repondreSos(x)} />
         )}
-        {sosLive && !sosOuvert && <SosPill suivi={sosLive} nonLu={sosNonLu} onOpen={() => setSosOuvert(true)} />}
+        {sosLive && !sosOuvert && <SosPill suivi={sosLive} nonLu={sosNonLu} demo={modeLocal()} onOpen={() => setSosOuvert(true)} />}
         {locked && <LockScreen onUnlock={() => setLocked(false)} />}
 
         {screen === 'splash' && <Splash onDone={() => setScreen(profil ? 'home' : 'onboarding')} />}
@@ -723,7 +723,7 @@ export function App() {
           <MyRentalsScreen onBack={() => setScreen('home')} onToast={showToast} />
         )}
         {screen === 'wedding' && (
-          <WeddingScreen onBack={() => setScreen('home')} onReserve={() => { showToast(t('toast_reserved')); setScreen('home'); }} />
+          <WeddingScreen onBack={() => setScreen('home')} onToast={showToast} onLogin={() => setScreen('auth')} />
         )}
       </div>
     </div>
@@ -796,6 +796,8 @@ const heure = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-d
 function SosLive({ suivi, horsLigne, demo, onMinimize, onClose, onSend }: {
   suivi: SosSuivi; horsLigne: boolean; demo?: boolean; onMinimize: () => void; onClose: () => void; onSend: (t: string) => void;
 }) {
+  // Démonstration : aucune supervision ne clôt l'alerte, la personne peut y mettre fin.
+  const terminerDemo = () => { cloreSosLocal(suivi.id); onClose(); };
   const { t } = useI18n();
   const [texte, setTexte] = useState('');
   const finChat = useRef<HTMLDivElement>(null);
@@ -861,7 +863,7 @@ function SosLive({ suivi, horsLigne, demo, onMinimize, onClose, onSend }: {
               </div>
               <div className="sos-input">
                 <input value={texte} onChange={(e) => setTexte(e.target.value)} placeholder={t('sos_chat_placeholder')} onKeyDown={(e) => { if (e.key === 'Enter') envoyer(texte); }} />
-                <button className="btn btn-primary" onClick={() => envoyer(texte)}>{t('sos_send')}</button>
+                <button className="btn btn-primary" disabled={!texte.trim()} onClick={() => envoyer(texte)}>{t('sos_send')}</button>
               </div>
             </>
           )}
@@ -874,15 +876,17 @@ function SosLive({ suivi, horsLigne, demo, onMinimize, onClose, onSend }: {
           ))}
         </div>
         {close && <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={onClose}>{t('sos_live_close')}</button>}
+        {demo && !close && <button className="btn btn-ghost" style={{ marginTop: 14 }} onClick={terminerDemo}>{t('sos_demo_end')}</button>}
       </div>
     </div>
   );
 }
 
 /** Rappel permanent d'une alerte ouverte quand le panneau est réduit. */
-function SosPill({ suivi, nonLu, onOpen }: { suivi: SosSuivi; nonLu: number; onOpen: () => void }) {
+function SosPill({ suivi, nonLu, demo, onOpen }: { suivi: SosSuivi; nonLu: number; demo?: boolean; onOpen: () => void }) {
   const { t } = useI18n();
-  const etape = suivi.clotureeA ? t('sos_step_closed')
+  // Démonstration : rien n'est parti, la bannière ne doit pas laisser croire le contraire.
+  const etape = demo && !suivi.clotureeA ? t('sos_step_local') : suivi.clotureeA ? t('sos_step_closed')
     : suivi.secours.some((s) => s.issue === 'joint') ? t('sos_rescue_joint', { s: suivi.secours.find((s) => s.issue === 'joint')!.service, n: suivi.secours.find((s) => s.issue === 'joint')!.numero })
       : suivi.priseEnCharge ? (suivi.priseEnCharge.agent === AGENT_GENERIQUE ? t('sos_step_agent_team') : t('sos_step_agent', { a: suivi.priseEnCharge.agent })) : t('sos_step_received');
   return (
@@ -1985,12 +1989,30 @@ function SubscriptionScreen({ onBack, onToast }: { onBack: () => void; onToast: 
 }
 
 /* ------------------------------ Wedding ------------------------------ */
-function WeddingScreen({ onBack, onReserve }: { onBack: () => void; onReserve: () => void }) {
+function WeddingScreen({ onBack, onToast, onLogin }: { onBack: () => void; onToast: (m: string, danger?: boolean) => void; onLogin: () => void }) {
   const { t } = useI18n();
   const [tier, setTier] = useState<TierOption>(tierById('or'));
   const [duration, setDuration] = useState<WeddingDuration>('fullday');
   const [decoration, setDecoration] = useState(true);
   const [convoy, setConvoy] = useState(0);
+  // Date du mariage : par défaut dans quinze jours (le temps de préparer le cortège).
+  const [date, setDate] = useState(() => new Date(Date.now() + 15 * 86_400_000).toISOString().slice(0, 10));
+  const [envoi, setEnvoi] = useState(false);
+  const [mesResa, setMesResa] = useState<ReservationMariage[]>([]);
+  useEffect(() => { if (sessionClient()) void mesMariages().then(setMesResa); }, []);
+  /*
+   * Réservation FERME, enregistrée par le serveur (ou par l'app quand elle tourne sans
+   * serveur). Avant, « Réserver » affichait « Réservation confirmée » sans rien enregistrer.
+   */
+  const reserver = async () => {
+    if (!sessionClient()) { onLogin(); return; }
+    setEnvoi(true);
+    const r = await reserverMariage({ tier: tier.id, date, duration, decoration, convoy });
+    setEnvoi(false);
+    if (!r.ok) { onToast(r.error, true); return; }
+    onToast(t('wed_done', { d: new Date(`${r.reservation.date}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'long' }), m: formatXOF(r.reservation.total) }));
+    setMesResa((l) => [r.reservation, ...l]);
+  };
 
   const total = useMemo(() => {
     const vehicle = Math.round(tier.weddingDayPrice * (WEDDING_DURATION_FACTOR[duration] ?? 1));
@@ -2043,8 +2065,24 @@ function WeddingScreen({ onBack, onReserve }: { onBack: () => void; onReserve: (
           </div>
         </div>
 
+        <label className="as-champ" style={{ marginBottom: 14 }}><span>{t('wed_date')}</span>
+          <div className="field"><IconCalendar size={18} /><input type="date" value={date} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setDate(e.target.value)} aria-label={t('wed_date')} /></div>
+        </label>
         <div className="fare-total" style={{ marginBottom: 14 }}><span className="muted">{t('wed_total')}</span><span className="amt">{formatXOF(total)}</span></div>
-        <button className="btn btn-primary" onClick={onReserve}><IconRing size={18} /> {t('wed_reserve')}</button>
+        <button className="btn btn-primary" disabled={envoi || !date} onClick={() => void reserver()}><IconRing size={18} /> {t('wed_reserve')}</button>
+        {mesResa.length > 0 && (
+          <>
+            <span className="eyebrow" style={{ display: 'block', marginTop: 20 }}>{t('wed_mine')}</span>
+            <div className="stack" style={{ marginTop: 10 }}>
+              {mesResa.map((r) => (
+                <div key={r.id} className="fare-line">
+                  <span>{t(TIERS.find((x) => x.id === r.tier)?.key ?? r.tier)} · {new Date(`${r.date}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                  <span style={{ fontWeight: 600 }}>{formatXOF(r.total)}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -2157,7 +2195,7 @@ function SupportChatScreen({ onBack }: { onBack: () => void }) {
         </div>
         <div className="sup-input">
           <input value={text} onChange={(e) => setText(e.target.value)} placeholder={t('sup_placeholder')} onKeyDown={(e) => { if (e.key === 'Enter') void send(); }} />
-          <button className="btn btn-primary" style={{ width: 'auto', padding: '0 18px' }} onClick={() => void send()}>{t('sup_send')}</button>
+          <button className="btn btn-primary" style={{ width: 'auto', padding: '0 18px' }} disabled={!text.trim()} onClick={() => void send()}>{t('sup_send')}</button>
         </div>
         {convId && <p className="faint" style={{ textAlign: 'center', fontSize: 11, marginTop: 6 }}>#{convId} · {t('sup_note')}</p>}
       </div>

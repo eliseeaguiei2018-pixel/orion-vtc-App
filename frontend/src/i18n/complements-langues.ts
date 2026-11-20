@@ -14,6 +14,10 @@
 type D = Record<string, string>;
 
 const es: D = {
+  sos_demo_end: 'Terminar la alerta de demostración',
+  wed_date: 'Fecha de la boda',
+  wed_done: 'Boda del {d} reservada ({m}): ORION le llamará para finalizar.',
+  wed_mine: 'Mis reservas de boda',
   share_title: 'Siga mi trayecto ORION',
   share_text: 'Estoy en un viaje ORION hacia {dest} con {nom} ({car}, matrícula {plaque}). Mi ubicación:',
   share_copied: 'Texto y enlace copiados: péguelos en un mensaje a sus allegados',
@@ -53,6 +57,10 @@ const es: D = {
 };
 
 const it: D = {
+  sos_demo_end: 'Termina l’avviso dimostrativo',
+  wed_date: 'Data del matrimonio',
+  wed_done: 'Matrimonio del {d} prenotato ({m}): ORION la chiamerà per finalizzare.',
+  wed_mine: 'Le mie prenotazioni matrimonio',
   share_title: 'Segui il mio tragitto ORION',
   share_text: 'Sono in corsa ORION verso {dest} con {nom} ({car}, targa {plaque}). La mia posizione:',
   share_copied: 'Testo e link copiati: incollali in un messaggio ai tuoi cari',
@@ -92,6 +100,10 @@ const it: D = {
 };
 
 const de: D = {
+  sos_demo_end: 'Demo-Alarm beenden',
+  wed_date: 'Hochzeitsdatum',
+  wed_done: 'Hochzeit am {d} gebucht ({m}): ORION ruft Sie zur Bestätigung an.',
+  wed_mine: 'Meine Hochzeitsbuchungen',
   share_title: 'Verfolgen Sie meine ORION-Fahrt',
   share_text: 'Ich bin mit ORION unterwegs nach {dest} mit {nom} ({car}, Kennzeichen {plaque}). Mein Standort:',
   share_copied: 'Text und Link kopiert: Fügen Sie sie in eine Nachricht an Ihre Angehörigen ein',
@@ -131,6 +143,10 @@ const de: D = {
 };
 
 const ar: D = {
+  sos_demo_end: 'إنهاء التنبيه التجريبي',
+  wed_date: 'تاريخ الزفاف',
+  wed_done: 'تم حجز زفاف يوم {d} ({m}): سيتصل بك ORION لإتمام الحجز.',
+  wed_mine: 'حجوزات الزفاف الخاصة بي',
   share_title: 'تابع رحلتي مع ORION',
   share_text: 'أنا في رحلة ORION إلى {dest} مع {nom} ({car}، اللوحة {plaque}). موقعي:',
   share_copied: 'تم نسخ النص والرابط: الصقهما في رسالة إلى أقاربك',
@@ -170,6 +186,10 @@ const ar: D = {
 };
 
 const zh: D = {
+  sos_demo_end: '结束演示警报',
+  wed_date: '婚礼日期',
+  wed_done: '{d} 的婚礼已预订（{m}）：ORION 将致电与您确认。',
+  wed_mine: '我的婚礼预订',
   share_title: '关注我的 ORION 行程',
   share_text: '我正乘坐 ORION 前往 {dest}，司机 {nom}（{car}，车牌 {plaque}）。我的位置：',
   share_copied: '文字和链接已复制：粘贴到发给亲友的消息中',
@@ -209,6 +229,10 @@ const zh: D = {
 };
 
 const ru: D = {
+  sos_demo_end: 'Завершить демонстрационную тревогу',
+  wed_date: 'Дата свадьбы',
+  wed_done: 'Свадьба {d} забронирована ({m}): ORION позвонит вам для подтверждения.',
+  wed_mine: 'Мои свадебные бронирования',
   share_title: 'Следите за моей поездкой ORION',
   share_text: 'Я еду с ORION в {dest} с водителем {nom} ({car}, номер {plaque}). Моё местоположение:',
   share_copied: 'Текст и ссылка скопированы: вставьте их в сообщение близким',

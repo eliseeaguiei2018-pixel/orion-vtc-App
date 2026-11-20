@@ -12,6 +12,7 @@
  * le 180). Dès que VITE_API_URL désigne un serveur, ce module n'est plus utilisé.
  */
 import type { SubInvoice, SubPlanInfo, SubState } from './types';
+import { TIERS } from './data';
 
 export interface ReponseLocale { status: number; data: unknown }
 
@@ -105,6 +106,13 @@ const suiviSos = (a: SosLocal) => {
     chat, secours: [], clotureeA: a.clotureeA,
   };
 };
+
+/** Démonstration : la personne met fin elle-même à son alerte (en service, c'est la supervision). */
+export function cloreSosLocal(alerteId: string): void {
+  const liste = lire<SosLocal[]>('sos', []);
+  const a = liste.find((x) => x.id === alerteId);
+  if (a && !a.clotureeA) { a.clotureeA = maintenant(); ecrire('sos', liste); }
+}
 
 /* ------------------------------ Abonnement ------------------------------ */
 const PLANS: Record<string, SubPlanInfo> = {
@@ -200,7 +208,7 @@ export function repondreLocal(chemin: string, init: RequestInit = {}): ReponseLo
     ecrire('profil', maj); return ok({ client: profilAvecStats(maj) });
   }
   if (methode === 'DELETE' && (r = m(/^\/clients\/([^/]+)$/))) {
-    for (const cle of ['profil', 'courses', 'sos', 'support', 'messages', 'assurance', 'locations', 'portefeuille', 'cotisations']) effacer(cle);
+    for (const cle of ['profil', 'courses', 'sos', 'support', 'messages', 'assurance', 'locations', 'portefeuille', 'cotisations', 'mariages']) effacer(cle);
     try { Object.keys(localStorage).filter((k) => k.startsWith(PREFIXE + 'abonnement.')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ }
     return ok({ supprime: true });
   }
@@ -303,6 +311,25 @@ export function repondreLocal(chemin: string, init: RequestInit = {}): ReponseLo
     return ok({ subscription: a.sub });
   }
   if ((r = m(/^\/subscriptions\/([^/]+)$/))) return ok(etatAbonnement(decodeURIComponent(r[1]!)));
+
+  // --- Mariage : même calcul que le serveur (niveau × durée + décoration + cortège)
+  if (methode === 'POST' && path === '/wedding/reserve') {
+    const prixJour = Object.fromEntries(TIERS.map((x) => [x.id, x.weddingDayPrice])) as Record<string, number>;
+    const facteur: Record<string, number> = { halfday: 0.6, fullday: 1, weekend: 1.8 };
+    const niveau = String(corps.tier ?? ''); const duree = String(corps.duration ?? 'fullday');
+    if (!prixJour[niveau] || !facteur[duree]) return erreur(400, 'Niveau ou durée inconnus.');
+    if (!/^\d{4}-\d{2}-\d{2}/.test(String(corps.date ?? '')) || String(corps.date) < maintenant().slice(0, 10)) return erreur(400, 'Choisissez une date à venir.');
+    const opts = (corps.options ?? {}) as { decoration?: boolean; convoy?: number };
+    const breakdown = { vehicle: Math.round(prixJour[niveau]! * facteur[duree]!), decoration: opts.decoration ? 35_000 : 0, convoy: Math.max(0, Number(opts.convoy ?? 0)) * 40_000 };
+    const reservation = {
+      id: id('mariage'), userId: String(corps.userId ?? ''), tier: niveau, date: String(corps.date), duration: duree,
+      options: { decoration: Boolean(opts.decoration), convoy: Math.max(0, Number(opts.convoy ?? 0)), chauffeur: true },
+      breakdown, total: breakdown.vehicle + breakdown.decoration + breakdown.convoy, currency: 'XOF', status: 'reserved', createdAt: maintenant(),
+    };
+    ecrire('mariages', [reservation, ...lire<unknown[]>('mariages', [])].slice(0, 30));
+    return { status: 201, data: { reservation } };
+  }
+  if ((r = m(/^\/wedding\/([^/]+)$/))) return ok({ reservations: lire('mariages', []) });
 
   // --- Locations
   if ((r = m(/^\/rental\/mes-locations\/([^/]+)$/))) return ok({ reservations: lire('locations', []) });

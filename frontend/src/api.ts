@@ -867,6 +867,25 @@ export async function cancelRental(id: string, raison?: string): Promise<{ frais
   return r ?? null;
 }
 
+/* ============================== MARIAGE ============================== */
+export interface ReservationMariage {
+  id: string; userId: string; tier: string; date: string; duration: 'halfday' | 'fullday' | 'weekend';
+  options: { decoration: boolean; convoy: number; chauffeur: boolean };
+  breakdown: { vehicle: number; decoration: number; convoy: number }; total: number; status: string; createdAt: string;
+}
+/** Réservation ferme d'un véhicule de mariage (le serveur calcule et enregistre le devis). */
+export async function reserverMariage(input: { tier: string; date: string; duration: 'halfday' | 'fullday' | 'weekend'; decoration: boolean; convoy: number }): Promise<{ ok: true; reservation: ReservationMariage } | { ok: false; error: string }> {
+  const r = await appel<{ reservation: ReservationMariage }>('/wedding/reserve', {
+    method: 'POST',
+    body: JSON.stringify({ userId: clientId(), tier: input.tier, date: input.date, duration: input.duration, options: { decoration: input.decoration, convoy: input.convoy } }),
+  });
+  return r.ok ? { ok: true, reservation: r.data.reservation } : { ok: false, error: r.error };
+}
+export async function mesMariages(): Promise<ReservationMariage[]> {
+  const r = await appel<{ reservations: ReservationMariage[] }>(`/wedding/${encodeURIComponent(clientId())}`);
+  return r.ok ? r.data.reservations : [];
+}
+
 /* ============================== ABONNEMENT ORION ============================== */
 
 /** Catalogue des forfaits tel que le SERVEUR le définit (plafonds, niveaux, remises). */
