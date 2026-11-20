@@ -237,3 +237,25 @@ ces fonctions (« mode démonstration »). Corrigé :
   retenus seulement si au moins trois concordent à moins de 1,2 km.
 
 Outils : `frontend/scripts/carte-hors-ligne/` (téléchargement, indexation, construction).
+
+**Vérification.** Un robot (Playwright, téléphone 412 × 892) a parcouru 31 écrans de l'app
+autonome en touchant chacun de leurs boutons, à partir d'un même état (compte créé) ; il
+classe l'effet de chaque toucher : navigation, changement à l'écran, ouverture externe
+(téléphone, partage) ou rien. Il a relevé et fait corriger : la réservation mariage qui
+annonçait « confirmée » sans rien enregistrer (désormais `/wedding/reserve`, date du
+mariage, liste des réservations) ; la bannière SOS réduite qui affirmait « reçue par la
+supervision » en démonstration et masquait profil et paramètres ; l'alerte de démonstration
+impossible à clore ; les boutons − et + sans nom ; « Envoyer » actif sur un message vide ;
+la feuille de commande trop transparente sur la carte dense. Les touchers restants « sans
+effet » sont des options déjà sélectionnées. Un parcours de bout en bout (inscription avec
+mauvais puis bon code, profil, messages, recherche « Riviera Golf », course, partage, SOS
+et sa clôture, paiement, note, historique, ORION Assurance, abonnement, portefeuille, aide,
+location, mariage, « Me prévenir », suppression du compte) passe ses 20 étapes sans erreur
+JavaScript.
+
+**APK 1.1.0** (versionCode 2, même certificat que la 1.0.0 : s'installe par-dessus) :
+24,7 Mo, Android 7 et plus, SHA-256
+`bd464e64bcfcc18c00d262353e0656068c1f102361b82520eece2f6ae3a809dc`.
+
+**Reste à faire côté serveur** : ajouter les quartiers d'usage (Riviéra Golf…) au répertoire
+du serveur (`backend/scripts/lieux-osm`) pour que la recherche en ligne les connaisse aussi.
