@@ -10,6 +10,7 @@ import { LIVE, adminGet, fcfa } from '../api';
 import type { Alert, ContactLigne, ContactUrgence, FleetUnit, Overview, SecurityAttempt, SosDossier, Stats } from '../types';
 import { AvatarChauffeur, Drawer, Kpi, statusLabel } from '../ui';
 import { lienTel } from '../../telephone';
+import { Objet, objetUrgence } from '../../components/Vehicules';
 
 export function OverviewSection({ ov, fleet, openAlerts, stats, statsDays, onStatsDays, onAlerte }: { ov: Overview; fleet: FleetUnit[]; openAlerts: Alert[]; stats: Stats | null; statsDays: number; onStatsDays: (d: number) => void; onAlerte?: (id: string) => void }) {
   return (
@@ -186,7 +187,7 @@ function RepertoireUrgence({ contacts, canWrite, onSave, onDelete }: {
         <tbody>
           {contacts.map((c) => (
             <tr key={c.id} style={{ opacity: c.actif ? 1 : 0.55 }}>
-              <td><strong>{c.label}</strong></td>
+              <td><span className="adm-ligne-objet">{c.categorie === 'secours' && <Objet nom={/samu|médic|ambul/i.test(c.label) ? 'samu' : /pompier|gspm|incendie/i.test(c.label) ? 'pompiers' : /police|gendarm/i.test(c.label) ? 'police' : objetUrgence(c.numero)} taille={30} />}<strong>{c.label}</strong></span></td>
               <td><span className="adm-pill">{CAT_REP[c.categorie] ?? c.categorie}</span></td>
               <td className="mono">
                 {canWrite ? (

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { avis, demander } from '../dialogues';
 import { AvatarChauffeur, ContactRapide, Kpi, availLabel, kycLabel } from '../ui';
 import type { ContactHandler, CrewTableau, DossierEquipage, EquipageRow, RequeteChauffeur } from '../types';
 
@@ -175,8 +176,8 @@ function FileRequetes({ attente, droits, onOuvrir, onInstruire, onDecider, onVer
       titre: 'À instruire', aide: 'avis du chef d’équipe', liste: attente.aInstruire, actif: droits.instruire,
       rendu: (r) => (
         <div className="row" style={{ gap: 6 }}>
-          <button className="adm-btn xs solid" onClick={() => onInstruire(r.id, 'favorable', prompt('Avis favorable — motif :') ?? '')}>Favorable</button>
-          <button className="adm-btn xs" onClick={() => onInstruire(r.id, 'defavorable', prompt('Avis défavorable — motif :') ?? '')}>Défavorable</button>
+          <button className="adm-btn xs solid" onClick={async () => onInstruire(r.id, 'favorable', await demander('Avis favorable — motif :') ?? '')}>Favorable</button>
+          <button className="adm-btn xs" onClick={async () => onInstruire(r.id, 'defavorable', await demander('Avis défavorable — motif :') ?? '')}>Défavorable</button>
         </div>
       ),
     },
@@ -186,16 +187,16 @@ function FileRequetes({ attente, droits, onOuvrir, onInstruire, onDecider, onVer
         <div className="row" style={{ gap: 6 }}>
           <button
             className="adm-btn xs solid"
-            onClick={() => {
+            onClick={async () => {
               // Accorder moins que demandé est une décision, pas un refus déguisé.
-              const saisi = prompt(`Montant accordé (demandé : ${r.montant ? fcfa(r.montant) : '—'}) :`, String(r.montant ?? ''));
+              const saisi = await demander(`Montant accordé (demandé : ${r.montant ? fcfa(r.montant) : '—'}) :`, String(r.montant ?? ''));
               if (saisi === null) return;
-              onDecider(r.id, 'accord', saisi ? Number(saisi) : undefined, prompt('Note de décision :') ?? '');
+              onDecider(r.id, 'accord', saisi ? Number(saisi) : undefined, await demander('Note de décision :') ?? '');
             }}
           >
             Accorder
           </button>
-          <button className="adm-btn xs" onClick={() => onDecider(r.id, 'refus', undefined, prompt('Motif du refus :') ?? '')}>Refuser</button>
+          <button className="adm-btn xs" onClick={async () => onDecider(r.id, 'refus', undefined, await demander('Motif du refus :') ?? '')}>Refuser</button>
         </div>
       ),
     },
@@ -204,8 +205,8 @@ function FileRequetes({ attente, droits, onOuvrir, onInstruire, onDecider, onVer
       rendu: (r) => (
         <button
           className="adm-btn xs solid"
-          onClick={() => {
-            const canal = prompt('Canal de versement (espèces, orange_money, wave, mtn_momo, virement) :', 'orange_money');
+          onClick={async () => {
+            const canal = await demander('Canal de versement (espèces, orange_money, wave, mtn_momo, virement) :', 'orange_money');
             if (canal) onVerser(r.id, canal);
           }}
         >
@@ -280,7 +281,7 @@ function DossierChauffeur({ d, droits, onFermer, onContact, onDeposer, onInstrui
   const meta = useMemo(() => TYPES.find((t) => t.id === type) ?? TYPES[0]!, [type]);
 
   const deposer = () => {
-    if (motif.trim().length < 3) { alert('Indiquez le motif de la requête.'); return; }
+    if (motif.trim().length < 3) { avis('Indiquez le motif de la requête.'); return; }
     onDeposer(d.identite.driverId, {
       type,
       montant: meta.montant && montant ? Number(montant) : undefined,
@@ -431,30 +432,30 @@ function DossierChauffeur({ d, droits, onFermer, onContact, onDeposer, onInstrui
                 <div className="row" style={{ gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
                   {r.statut === 'deposee' && droits.instruire && (
                     <>
-                      <button className="adm-btn xs solid" onClick={() => onInstruire(r.id, 'favorable', prompt('Avis favorable — motif :') ?? '')}>Avis favorable</button>
-                      <button className="adm-btn xs" onClick={() => onInstruire(r.id, 'defavorable', prompt('Avis défavorable — motif :') ?? '')}>Avis défavorable</button>
+                      <button className="adm-btn xs solid" onClick={async () => onInstruire(r.id, 'favorable', await demander('Avis favorable — motif :') ?? '')}>Avis favorable</button>
+                      <button className="adm-btn xs" onClick={async () => onInstruire(r.id, 'defavorable', await demander('Avis défavorable — motif :') ?? '')}>Avis défavorable</button>
                     </>
                   )}
                   {r.statut === 'instruite' && droits.decider && (
                     <>
                       <button
                         className="adm-btn xs solid"
-                        onClick={() => {
-                          const saisi = prompt(`Montant accordé (demandé : ${r.montant ? fcfa(r.montant) : '—'}) :`, String(r.montant ?? ''));
+                        onClick={async () => {
+                          const saisi = await demander(`Montant accordé (demandé : ${r.montant ? fcfa(r.montant) : '—'}) :`, String(r.montant ?? ''));
                           if (saisi === null) return;
-                          onDecider(r.id, 'accord', saisi ? Number(saisi) : undefined, prompt('Note de décision :') ?? '');
+                          onDecider(r.id, 'accord', saisi ? Number(saisi) : undefined, await demander('Note de décision :') ?? '');
                         }}
                       >
                         Accorder
                       </button>
-                      <button className="adm-btn xs" onClick={() => onDecider(r.id, 'refus', undefined, prompt('Motif du refus :') ?? '')}>Refuser</button>
+                      <button className="adm-btn xs" onClick={async () => onDecider(r.id, 'refus', undefined, await demander('Motif du refus :') ?? '')}>Refuser</button>
                     </>
                   )}
                   {r.statut === 'accordee' && droits.verser && (
                     <button
                       className="adm-btn xs solid"
-                      onClick={() => {
-                        const canal = prompt('Canal de versement :', 'orange_money');
+                      onClick={async () => {
+                        const canal = await demander('Canal de versement :', 'orange_money');
                         if (canal) onVerser(r.id, canal);
                       }}
                     >
@@ -464,8 +465,8 @@ function DossierChauffeur({ d, droits, onFermer, onContact, onDeposer, onInstrui
                   {r.statut === 'versee' && r.plan && droits.verser && (
                     <button
                       className="adm-btn xs"
-                      onClick={() => {
-                        const m = prompt('Montant remboursé (F) :');
+                      onClick={async () => {
+                        const m = await demander('Montant remboursé (F) :');
                         if (m) onRembourser(r.id, Number(m));
                       }}
                     >

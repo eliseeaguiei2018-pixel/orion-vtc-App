@@ -5,6 +5,7 @@
  * mélangeait types, couche réseau, orchestration et 37 composants.
  */
 import { useEffect, useRef, useState } from 'react';
+import { demander } from '../dialogues';
 import { fcfa } from '../api';
 import type { Amortization, Announcement, AssistantSujet, AuditEntry, CashDebtor, ChurnReport, Client, ContactHandler, Conversation, ConversionCell, CopilotAnswer, CorporateAccount, ElasticityCell, ExpenseTicket, Finance, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, OpsConfig, PredictCell, Pricing, Promo, SearchResults, ServicesConfig, ShadowPricing, SupportStats, Transfer, Triggers, Zone } from '../types';
 import { ContactRapide, Kpi, availLabel, rideStatusLabel } from '../ui';
@@ -12,16 +13,16 @@ import { pct, slugify } from './operations';
 import { ago } from './organisation';
 
 export function ZonesSection({ zones, canWrite, onSave, onToggle, onDelete, onReset, onMatrixCsv }: { zones: Zone[]; canWrite: boolean; onSave: (z: Zone) => void; onToggle: (id: string, active: boolean) => void; onDelete: (id: string) => void; onReset: () => void; onMatrixCsv: () => void }) {
-  const setFlatRate = (z: Zone) => {
-    const to = window.prompt(`Forfait plat depuis « ${z.name} » — id de la zone d'arrivée :`, zones.find((x) => x.id !== z.id)?.id ?? '');
+  const setFlatRate = async (z: Zone) => {
+    const to = await demander(`Forfait plat depuis « ${z.name} » — id de la zone d'arrivée :`, zones.find((x) => x.id !== z.id)?.id ?? '');
     if (!to) return;
-    const price = window.prompt('Prix du forfait (F CFA) :', '15000');
+    const price = await demander('Prix du forfait (F CFA) :', '15000');
     if (!price) return;
     const flatRates = [...(z.flatRates ?? []).filter((f) => f.toZoneId !== to), { toZoneId: to, price: Number(price) }];
     onSave({ ...z, flatRates });
   };
-  const setEmptyReturn = (z: Zone) => {
-    const fee = window.prompt(`Frais de retour à vide vers « ${z.name} » (F CFA, périphérie) :`, String(z.emptyReturnFee ?? 2000));
+  const setEmptyReturn = async (z: Zone) => {
+    const fee = await demander(`Frais de retour à vide vers « ${z.name} » (F CFA, périphérie) :`, String(z.emptyReturnFee ?? 2000));
     if (fee === null) return;
     onSave({ ...z, emptyReturnFee: Number(fee) || 0 });
   };
@@ -89,9 +90,9 @@ export function ZonesSection({ zones, canWrite, onSave, onToggle, onDelete, onRe
                 <td><span className={`adm-pill ${z.active ? 'av-online' : 'kyc-manual_review'}`}>{z.active ? 'Actif' : 'Inactif'}</span></td>
                 {canWrite && (
                   <td><div className="row" style={{ gap: 6 }}>
-                    <button className="adm-btn xs" title="Surge manuel d'urgence (stade, concert…)" onClick={() => {
+                    <button className="adm-btn xs" title="Surge manuel d'urgence (stade, concert…)" onClick={async () => {
                       const cur = z.surgeManual ?? 1;
-                      const input = window.prompt(`Surge manuel pour « ${z.name} » (1 = aucun, max 2.5, plafonné par le cap vert) :`, String(cur));
+                      const input = await demander(`Surge manuel pour « ${z.name} » (1 = aucun, max 2.5, plafonné par le cap vert) :`, String(cur));
                       if (input === null) return;
                       const v = Math.min(2.5, Math.max(1, Number(input) || 1));
                       onSave({ ...z, surgeManual: v });
@@ -1186,13 +1187,13 @@ export function CorporateSection({ accounts, canWrite, canSettle, canBook, onSav
   const [nif, setNif] = useState('');
   const [tel, setTel] = useState('');
   const [kickback, setKickback] = useState(0);
-  const doImport = (id: string) => {
-    const raw = window.prompt('Import de masse — identifiants clients ORION séparés par des virgules :', 'client-1, client-2, client-3');
+  const doImport = async (id: string) => {
+    const raw = await demander('Import de masse — identifiants clients ORION séparés par des virgules :', 'client-1, client-2, client-3');
     if (!raw) return;
     onImport(id, raw.split(',').map((s) => s.trim()).filter(Boolean));
   };
-  const doBook = (id: string) => {
-    const guestName = window.prompt('Web Booker (conciergerie) — prénom du client :', '');
+  const doBook = async (id: string) => {
+    const guestName = await demander('Web Booker (conciergerie) — prénom du client :', '');
     if (!guestName) return;
     onBook(id, { guestName, origin: { lat: 5.3596, lng: -3.9903 }, destination: { lat: 5.2614, lng: -3.9268 }, category: 'or' });
   };

@@ -5,6 +5,7 @@
  * mélangeait types, couche réseau, orchestration et 37 composants.
  */
 import { useState } from 'react';
+import { demander } from '../dialogues';
 import { fcfa } from '../api';
 import type { ActiveSession, ContactHandler, DriverRow, MaintenanceTicket, Me, Shift, SquadPnl, StaffKpi, Team } from '../types';
 import { ContactRapide } from '../ui';
@@ -41,10 +42,10 @@ export function TeamsSection({ teams, allDrivers, staffKpis, shifts, maintenance
     setName(''); setManagerUsername(''); setManagerName(''); setSelected({});
   };
   const showPnl = async (teamId: string) => { const p = await onPnl(teamId); if (p) setPnl((x) => ({ ...x, [teamId]: p })); };
-  const broadcast = (teamId: string) => {
-    const title = window.prompt('Titre du micro-broadcast (flotte de l’équipe) :', 'Inspection propreté');
+  const broadcast = async (teamId: string) => {
+    const title = await demander('Titre du micro-broadcast (flotte de l’équipe) :', 'Inspection propreté');
     if (!title) return;
-    const body = window.prompt('Message :', 'Inspection de propreté obligatoire ce vendredi.');
+    const body = await demander('Message :', 'Inspection de propreté obligatoire ce vendredi.');
     if (!body) return;
     onBroadcast(teamId, title, body);
   };

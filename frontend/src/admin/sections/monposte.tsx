@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { demander } from '../dialogues';
 import { Kpi } from '../ui';
 import type { MonPoste } from '../types';
 import { lienTel } from '../../telephone';
@@ -207,8 +208,8 @@ export function MonPosteSection({ poste, onAller, onLireMessage, onRepondre, onR
                   {m.reponseAttendue && (
                     <button
                       className="adm-btn xs solid"
-                      onClick={() => {
-                        const t = prompt('Votre réponse :');
+                      onClick={async () => {
+                        const t = await demander('Votre réponse :');
                         if (t) onRepondre(m.id, t);
                       }}
                     >
@@ -248,8 +249,8 @@ export function MonPosteSection({ poste, onAller, onLireMessage, onRepondre, onR
                 {(r.statut === 'demande' || r.statut === 'a_revoir') && (
                   <button
                     className="adm-btn xs solid"
-                    onClick={() => {
-                      const t = prompt(`${r.titre}\n\n${r.consigne}\n\nVotre rapport :`, r.rendu?.texte ?? '');
+                    onClick={async () => {
+                      const t = await demander(`${r.titre}\n\n${r.consigne}\n\nVotre rapport :`, r.rendu?.texte ?? '');
                       if (t && t.trim().length >= 3) onRendreRapport(r.id, t.trim());
                     }}
                   >

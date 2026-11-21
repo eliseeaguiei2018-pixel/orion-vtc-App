@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { avis, demander } from '../dialogues';
 import { ContactRapide, Kpi } from '../ui';
 import type { AccountsStats, ContactHandler, RoleOption, StaffAccountRow } from '../types';
 
@@ -81,7 +82,7 @@ export function AnnuaireSection({ comptes, stats, roles, delegables, equipes, pe
             <button
               className="adm-btn solid"
               onClick={() => {
-                if (nom.trim().length < 2) { alert('Indiquez le nom complet.'); return; }
+                if (nom.trim().length < 2) { avis('Indiquez le nom complet.'); return; }
                 onCreer({
                   name: nom.trim(), role,
                   service: service || undefined, phone: tel || undefined,
@@ -144,8 +145,8 @@ export function AnnuaireSection({ comptes, stats, roles, delegables, equipes, pe
                           : <button className="adm-btn xs solid" onClick={() => onActiver(c.username, true)}>Réactiver</button>}
                         <button
                           className="adm-btn xs"
-                          onClick={() => {
-                            const r = prompt(`Nouveau rôle pour ${c.name} :\n${roles.map((x) => x.id).join(', ')}`, c.role);
+                          onClick={async () => {
+                            const r = await demander(`Nouveau rôle pour ${c.name} :\n${roles.map((x) => x.id).join(', ')}`, c.role);
                             if (r && r !== c.role) onModifier(c.username, { role: r });
                           }}
                         >

@@ -5,6 +5,7 @@
  * mélangeait types, couche réseau, orchestration et 37 composants.
  */
 import { type ReactNode } from 'react';
+import { Objet, type Icone3D, type ObjetService } from '../components/Vehicules';
 import { API, fcfa } from './api';
 import type { ClientDetail, DriverDetail, PageMeta } from './types';
 
@@ -49,12 +50,40 @@ export function ContactRapide({ type, id, numero, nom, onContact }: {
   );
 }
 
-export function Kpi({ label, value, sub, tone }: { label: string; value: string; sub: string; tone: string }) {
+/** Objet en volume d'une tuile de chiffre, d'après ce que le chiffre compte. */
+const OBJETS_KPI: Array<[RegExp, ObjetService | Icone3D]> = [
+  [/alerte|sos|sécurité|anomal|incident/i, 'alertes-sos'],
+  [/batter|électri|co2|recharge|soh/i, 'eco'],
+  [/revenu|gmv|commission|chiffre d|tva|mrr|récurrent/i, 'finances'],
+  [/chauffeur|effectif|équipage|flotte|véhicule/i, 'chauffeur'],
+  [/abonn|forfait|pack/i, 'abonnement'],
+  [/message|réponse|ticket|csat|lus\b/i, 'message'],
+  [/client|compte|rôle|désactiv|passager/i, 'clients'],
+  [/course|trajet|dossier|événement/i, 'mes-courses'],
+  [/rapport|demande|requête|arrêté|action/i, 'document'],
+  [/banque|runway|couverture|séquestre|cash on hand/i, 'banque'],
+  [/caisse|espèces|encaiss|sorti|fond de|dû aux|solde/i, 'portefeuille'],
+  [/délai|burn|mot de passe|pouvoir/i, 'historique'],
+  [/revenu|gmv|commission|chiffre|tva|virement|encours|valeur|entrées|sorties|impay|écart/i, 'finances'],
+  [/objectif|taux|ratio|qualité|note/i, 'objectif'],
+];
+export function objetKpi(label: string): ObjetService | Icone3D | null {
+  for (const [motif, objet] of OBJETS_KPI) if (motif.test(label)) return objet;
+  return null;
+}
+
+/**
+ * Tuile de chiffre. L'objet en volume (le même jeu que l'app cliente) montre ce que le
+ * chiffre compte ; `objet={null}` le retire, `objet="…"` l'impose.
+ */
+export function Kpi({ label, value, sub, tone, objet }: { label: string; value: string; sub: string; tone: string; objet?: ObjetService | Icone3D | null }) {
+  const o = objet === undefined ? objetKpi(label) : objet;
   return (
-    <div className={`adm-kpi ${tone}`}>
+    <div className={`adm-kpi ${tone}${o ? ' avec-objet' : ''}`}>
       <span className="adm-kpi-label">{label}</span>
       <span className="adm-kpi-value">{value}</span>
       <span className="adm-kpi-sub">{sub}</span>
+      {o && <span className="adm-kpi-objet" aria-hidden="true"><Objet nom={o} taille={46} /></span>}
     </div>
   );
 }

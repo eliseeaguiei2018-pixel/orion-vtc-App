@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Objet } from '../components/Vehicules';
 import { changerDeCompte, demanderAcces, lireMonAcces, NonConnecte, type MonAcces } from './donnees';
 
 /**
@@ -53,9 +54,7 @@ export function AccesReserve({ onAcces, onConnexion }: { onAcces: () => void; on
   return (
     <div className="tb-connexion">
       <div className="tb-connexion-carte tb-reserve" role="alert" aria-live="polite">
-        <span className="tb-logo grand tb-cadenas" aria-hidden>
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#04140d" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="10" rx="2.5" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
-        </span>
+        <span className="tb-cadenas-volume" aria-hidden><Objet nom="cadenas" taille={64} /></span>
         <h1>Accès réservé</h1>
         <p>
           Le tableau de bord ORION est réservé à la direction générale, à la direction financière, à la

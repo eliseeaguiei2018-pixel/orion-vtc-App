@@ -559,7 +559,8 @@ export const KYC_COLUMNS: { id: string; label: string }[] = [
   { id: 'active', label: 'Actifs' },
   { id: 'suspended', label: 'Suspendus / rejetés' },
 ];
-export const LOYALTY_LABEL: Record<string, string> = { bronze: 'Bronze', silver: 'Silver', gold: 'Gold' };
+// Trois paliers de fidélité, aux noms des gammes (identifiants historiques conservés).
+export const LOYALTY_LABEL: Record<string, string> = { bronze: 'Argent', silver: 'Or', gold: 'Diamant' };
 
 export function DriversSection({ drivers, expiring, canWrite, onAction, onSuspend, onLoyalty, onOpen, meta, onPage, onContract, onFleetCsv, onContact }: {
   drivers: DriverRow[]; expiring: ExpiringDoc[]; canWrite: boolean;

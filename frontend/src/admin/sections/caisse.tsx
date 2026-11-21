@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { avis } from '../dialogues';
 import { Kpi } from '../ui';
 import type { CaisseConsolidation, CaisseEtat, CaisseReferentiel } from '../types';
 
@@ -214,7 +215,7 @@ function MaCaisse({ c, referentiel, onEncaisser, onDecaisser, onArreter }: {
             <button
               className="adm-btn solid"
               onClick={() => {
-                if (!Number(montant)) { alert('Indiquez le montant encaissé.'); return; }
+                if (!Number(montant)) { avis('Indiquez le montant encaissé.'); return; }
                 onEncaisser(c.id, { montant: Number(montant), origine, tiers: tiers || undefined, reference: reference || undefined });
                 setMontant(''); setTiers(''); setReference('');
               }}
@@ -244,7 +245,7 @@ function MaCaisse({ c, referentiel, onEncaisser, onDecaisser, onArreter }: {
             <button
               className="adm-btn"
               onClick={() => {
-                if (!Number(sMontant)) { alert('Indiquez le montant sorti.'); return; }
+                if (!Number(sMontant)) { avis('Indiquez le montant sorti.'); return; }
                 onDecaisser(c.id, { montant: Number(sMontant), sortie: sType, note: sNote || undefined });
                 setSMontant(''); setSNote('');
               }}
@@ -316,7 +317,7 @@ function MaCaisse({ c, referentiel, onEncaisser, onDecaisser, onArreter }: {
             className="adm-btn solid"
             disabled={compte === 0 && c.soldeTheorique !== 0}
             onClick={() => {
-              if (motifObligatoire && !motifEcart.trim()) { alert('Un motif écrit est obligatoire pour cet écart.'); return; }
+              if (motifObligatoire && !motifEcart.trim()) { avis('Un motif écrit est obligatoire pour cet écart.'); return; }
               const payload: Record<string, unknown> = {
                 comptage: Object.fromEntries(coupures.map((k) => [k, Number(comptage[k] ?? 0) || 0]).filter(([, v]) => (v as number) > 0)),
                 motifEcart: motifEcart.trim() || undefined,

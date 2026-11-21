@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { avis, demander, demanderLieu } from './dialogues';
+import { LogoApp } from '../components/Logo';
+import { Objet, type Icone3D, type ObjetService } from '../components/Vehicules';
 import { IconMenu, IconActivity, IconAlarm, IconAlert, IconBank, IconBell, IconBellOff, IconBuilding, IconCar, IconCash, IconChart, IconCompass, IconCrown, IconFile, IconGem, IconGrid, IconIdCard, IconInbox, IconKey, IconLeaf, IconLock, IconMail, IconMap, IconMegaphone, IconMessage, IconMonitor, IconMoon, IconScale, IconShield, IconSignal, IconStar, IconSteering, IconSun, IconTag, IconTarget, IconTicket, IconTrend, IconUsers, IconWallet } from '../icons';
 import { DEMO } from './demo';
 import { API, LIVE, AdminError, H, PAGE_SIZE, adminDel, adminGet, adminPost, adminPut, clearSession, expKey, fcfa, logout, onUnauthorized, setCsrf, setDemoSession, pageSlice, reportResponse, safePost, safePostData, safePut, sessionValid, setAdminErrorSink } from './api';
@@ -173,9 +176,7 @@ function Login({ onDone }: { onDone: () => void }) {
   return (
     <div className="adm-login">
       <form className="adm-login-card" onSubmit={submit}>
-        <span className="adm-logo big" aria-hidden>
-          <svg width="30" height="30" viewBox="0 0 512 512"><path d="M256 92 C 338 150 372 252 318 350 C 300 382 280 404 256 424 C 232 404 212 382 194 350 C 140 252 174 150 256 92 Z" fill="#04140d"/><g fill="#04140d"><circle cx="372" cy="120" r="15"/><circle cx="406" cy="150" r="12"/><circle cx="430" cy="186" r="9"/></g></svg>
-        </span>
+        <LogoApp size={60} className="adm-logo-volume" />
         <h1>ORION Admin</h1>
         <p className="adm-login-sub">Centre de contrôle — accès réservé au personnel ORION.</p>
         {!mfa && (
@@ -206,6 +207,15 @@ function Login({ onDone }: { onDone: () => void }) {
 
 /* ------------------------------ Navigation --------------------------- */
 type Section = 'monPoste' | 'posteEquipe' | 'crew' | 'caisses' | 'telematique' | 'comptes' | 'overview' | 'direction' | 'vigilance' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'clients' | 'support' | 'messagesClients' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles' | 'habilitations';
+/** L'objet en volume de chaque session : le même jeu d'objets que l'app cliente. */
+const OBJET_SESSION: Record<Section, ObjetService | Icone3D> = {
+  monPoste: 'bureau', posteEquipe: 'clients', overview: 'carte', direction: 'pack-or', vigilance: 'assurance', alerts: 'samu',
+  support: 'aide', messagesClients: 'message', notify: 'telephone', rides: 'mes-courses', dispatch: 'destination', quality: 'pack-diamant',
+  green: 'eco', teams: 'clients', crew: 'chauffeur', intel: 'objectif', b2b: 'immeuble', rental: 'location', rentalTarifs: 'abonnement',
+  telematique: 'wifi', subscriptions: 'pack-argent', disputes: 'document', drivers: 'chauffeur', clients: 'clients', finance: 'finances',
+  treasury: 'banque', caisses: 'portefeuille', pricing: 'finances', zones: 'lieu', promos: 'achat', services: 'reglages', audit: 'historique',
+  sessions: 'serveur', security: 'cadenas', comptes: 'clients', habilitations: 'cadenas', roles: 'assurance',
+};
 const NAV: { id: Section; label: string; perm: string; icon: (p: { size?: number; strokeWidth?: number }) => React.JSX.Element }[] = [
   { id: 'monPoste', label: 'Mon poste', perm: '', icon: IconInbox },
   { id: 'posteEquipe', label: 'Mon équipe', perm: 'teams:read', icon: IconCompass },
@@ -659,7 +669,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   /** Téléchargement authentifié d'un fichier serveur (PDF/CSV) via la session JWT. */
   const downloadFile = async (path: string, filename: string) => {
-    if (!LIVE) { alert('Disponible avec le backend connecté — le document est généré côté serveur.'); return; }
+    if (!LIVE) { avis('Disponible avec le backend connecté — le document est généré côté serveur.'); return; }
     try {
       const res = await fetch(API + path, { headers: H(), credentials: 'include' });
       if (res.status === 401) { onUnauthorized(); return; }
@@ -676,22 +686,22 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const claimSos = async (id: string) => {
     if (!LIVE) { setAlerts((xs) => xs.map((a) => (a.id === id ? { ...a, agent: me?.name, status: 'acknowledged' } : a))); return; }
     try { await adminPost(`/admin/sos/${id}/claim`); void refresh(); }
-    catch { alert('Alerte déjà prise en charge par un autre agent (verrou nominatif).'); }
+    catch { avis('Alerte déjà prise en charge par un autre agent (verrou nominatif).'); }
   };
   const openSos = async (id: string) => {
     if (!LIVE) { setSosSel(DEMO.sosDossier(id) as SosDossier); return; }
     try { setSosSel(await adminGet<SosDossier>(`/admin/sos/${id}`)); }
-    catch { alert('Dossier scellé — accès réservé à la direction.'); }
+    catch { avis('Dossier scellé — accès réservé à la direction.'); }
   };
   const sosMessage = async (id: string, text: string) => {
-    if (LIVE) { try { await adminPost(`/admin/sos/${id}/message`, { text }); } catch { alert('Crise gérée par un autre agent.'); return; } }
+    if (LIVE) { try { await adminPost(`/admin/sos/${id}/message`, { text }); } catch { avis('Crise gérée par un autre agent.'); return; } }
     const msg: SosChat = { from: 'agent', author: me?.name, text, at: new Date().toISOString() };
     setSosSel((s) => (s && s.alert.id === id ? { ...s, alert: { ...s.alert, chat: [...(s.alert.chat ?? []), msg] } } : s));
   };
   const closeSos = async (id: string, note: string) => {
     if (LIVE) {
       try { await adminPost(`/admin/sos/${id}/close`, { note }); }
-      catch { alert('Clôture refusée : note de synthèse trop courte, ou vous n’êtes pas l’agent gestionnaire.'); return; }
+      catch { avis('Clôture refusée : note de synthèse trop courte, ou vous n’êtes pas l’agent gestionnaire.'); return; }
     }
     setAlerts((xs) => xs.map((a) => (a.id === id ? { ...a, status: 'resolved', sealed: true, closingNote: note } : a)));
     setSosSel(null);
@@ -780,20 +790,20 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   // Déclencheurs automatisés (batterie < 15 %, win-back 30 j).
   const runTrigger = async (trigger: 'battery' | 'winback') => {
-    if (!LIVE) { alert(trigger === 'battery' ? 'Guidage borne envoyé aux véhicules < 15 % (démo).' : 'Campagne win-back envoyée avec un code RETOUR-XXXX (démo).'); return; }
+    if (!LIVE) { avis(trigger === 'battery' ? 'Guidage borne envoyé aux véhicules < 15 % (démo).' : 'Campagne win-back envoyée avec un code RETOUR-XXXX (démo).'); return; }
     try {
       const r = await adminPost<{ sent: number; code?: string }>('/admin/notify/triggers/run', { trigger });
-      alert(`${r.sent} notification(s) envoyée(s)${r.code ? ` · code ${r.code}` : ''}.`);
+      avis(`${r.sent} notification(s) envoyée(s)${r.code ? ` · code ${r.code}` : ''}.`);
       void refresh();
     } catch { /* */ }
   };
 
   // Code promotionnel personnalisé de dédommagement (support).
   const compensate = async (clientId: string, percent: number) => {
-    if (!LIVE) { alert(`Code DESOLE-${Math.random().toString(36).slice(2, 6).toUpperCase()} (-${percent} %) envoyé à ${clientId} (démo).`); return; }
+    if (!LIVE) { avis(`Code DESOLE-${Math.random().toString(36).slice(2, 6).toUpperCase()} (-${percent} %) envoyé à ${clientId} (démo).`); return; }
     try {
       const { promo } = await adminPost<{ promo: { id: string } }>('/admin/promos/compensation', { clientId, percent, days: 7 });
-      alert(`Code ${promo.id} (-${percent} %, 7 jours) envoyé dans l’app de ${clientId}.`);
+      avis(`Code ${promo.id} (-${percent} %, 7 jours) envoyé dans l’app de ${clientId}.`);
     } catch { /* */ }
   };
 
@@ -803,23 +813,24 @@ function Console({ onLogout }: { onLogout: () => void }) {
     try { await adminPost(`/admin/rides/${id}/force`, { action }); void refresh(); } catch { /* déjà terminée */ }
   };
   const changeDestination = async (id: string) => {
-    const input = window.prompt('Nouvelle destination — latitude, longitude :', '5.3600, -3.9850');
-    if (!input) return;
-    const [lat, lng] = input.split(',').map((s) => Number(s.trim()));
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) { alert('Coordonnées invalides.'); return; }
-    if (!LIVE) { alert('Destination mise à jour, devis recalculé (démo).'); return; }
+    // Un lieu choisi dans les 48 924 lieux de la carte (les mêmes que dans l'app cliente),
+    // au lieu de coordonnées à taper à la main.
+    const lieu = await demanderLieu('Nouvelle destination de la course');
+    if (!lieu) return;
+    const { lat, lng } = lieu.location;
+    if (!LIVE) { avis(`Destination mise à jour : ${lieu.name}. Devis recalculé (démo).`); return; }
     try {
       const r = await adminPut<{ ride: { amount: number } }>(`/admin/rides/${id}/destination`, { lat, lng });
-      alert(`Destination mise à jour — nouveau prix fixe : ${fcfa(r.ride.amount)}.`);
+      avis(`Destination mise à jour : ${lieu.name} — nouveau prix fixe : ${fcfa(r.ride.amount)}.`);
       void refresh();
-    } catch { alert('Destination modifiable uniquement en course active.'); }
+    } catch { avis('Destination modifiable uniquement en course active.'); }
   };
 
   // Réservations à l'avance : assignation / annulation.
   const assignReservation = async (id: string) => {
     if (!LIVE) { setReservations((xs) => xs.map((r) => (r.id === id ? { ...r, status: 'assignee', driverName: 'Serge Aka', punctualityAlert: false } : r))); return; }
     try { await adminPost(`/admin/reservations/${id}/assign`); void refresh(); }
-    catch { alert('Aucun chauffeur disponible pour cette réservation.'); }
+    catch { avis('Aucun chauffeur disponible pour cette réservation.'); }
   };
   const cancelReservation = async (id: string) => {
     if (LIVE && !(await safePost(`/admin/reservations/${id}/cancel`))) return;
@@ -983,8 +994,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setMaintenance((xs) => xs.map((t) => (t.id === id ? { ...t, status: 'resolu' } : t)));
   };
   const microBroadcast = async (teamId: string, title: string, body: string) => {
-    if (!LIVE) { alert(`Micro-broadcast envoyé à la flotte de l'équipe (démo).`); return; }
-    try { const r = await adminPost<{ sent: number }>(`/admin/teams/${teamId}/broadcast`, { title, body }); alert(`${r.sent} chauffeur(s) de la flotte notifié(s).`); }
+    if (!LIVE) { avis(`Micro-broadcast envoyé à la flotte de l'équipe (démo).`); return; }
+    try { const r = await adminPost<{ sent: number }>(`/admin/teams/${teamId}/broadcast`, { title, body }); avis(`${r.sent} chauffeur(s) de la flotte notifié(s).`); }
     catch { /* */ }
   };
   const loadSquadPnl = async (teamId: string): Promise<SquadPnl | null> => {
@@ -1024,84 +1035,84 @@ function Console({ onLogout }: { onLogout: () => void }) {
     void refresh();
   };
   const deposerRequete = async (driverId: string, p: Record<string, unknown>) => {
-    if (!LIVE) { alert('Requête déposée (démo).'); return; }
+    if (!LIVE) { avis('Requête déposée (démo).'); return; }
     if (await safePost(`/admin/crew/${driverId}/requetes`, p)) void rafraichirDossier();
   };
-  const instruireRequete = async (id: string, avis: 'favorable' | 'defavorable', note: string) => {
-    if (!LIVE) { alert(`Avis ${avis} enregistré (démo).`); return; }
-    if (await safePost(`/admin/crew/requetes/${id}/instruire`, { avis, note: note || undefined })) void rafraichirDossier();
+  const instruireRequete = async (id: string, sens: 'favorable' | 'defavorable', note: string) => {
+    if (!LIVE) { avis(`Avis ${sens} enregistré (démo).`); return; }
+    if (await safePost(`/admin/crew/requetes/${id}/instruire`, { avis: sens, note: note || undefined })) void rafraichirDossier();
   };
   const deciderRequete = async (id: string, decision: 'accord' | 'refus', montantAccorde: number | undefined, note: string) => {
-    if (!LIVE) { alert(`Requête ${decision === 'accord' ? 'accordée' : 'refusée'} (démo).`); return; }
+    if (!LIVE) { avis(`Requête ${decision === 'accord' ? 'accordée' : 'refusée'} (démo).`); return; }
     if (await safePost(`/admin/crew/requetes/${id}/decider`, { decision, montantAccorde, note: note || undefined })) void rafraichirDossier();
   };
   const verserRequete = async (id: string, canal: string) => {
-    if (!LIVE) { alert('Versement enregistré (démo).'); return; }
+    if (!LIVE) { avis('Versement enregistré (démo).'); return; }
     if (await safePost(`/admin/crew/requetes/${id}/verser`, { canal })) void rafraichirDossier();
   };
   const rembourserRequete = async (id: string, montant: number) => {
-    if (!LIVE) { alert('Remboursement enregistré (démo).'); return; }
+    if (!LIVE) { avis('Remboursement enregistré (démo).'); return; }
     if (await safePost(`/admin/crew/requetes/${id}/rembourser`, { montant })) void rafraichirDossier();
   };
 
   /* ====================== Annuaire du personnel ====================== */
   /** Le mot de passe provisoire ne s'affiche qu'une fois : on le montre clairement. */
   const annoncerMotDePasse = (nom: string, username: string, mdp: string) => {
-    alert(`Accès créé pour ${nom}.\n\nIdentifiant : ${username}\nMot de passe provisoire : ${mdp}\n\nCommuniquez-le à l'intéressé : il ne sera plus affiché, et devra être changé à la première connexion.`);
+    avis(`Accès créé pour ${nom}.\n\nIdentifiant : ${username}\nMot de passe provisoire : ${mdp}\n\nCommuniquez-le à l'intéressé : il ne sera plus affiché, et devra être changé à la première connexion.`);
   };
   const creerCompte = async (p: Record<string, unknown>) => {
-    if (!LIVE) { alert('Compte créé (démo).'); return; }
+    if (!LIVE) { avis('Compte créé (démo).'); return; }
     const r = await safePostData<{ account: StaffAccountRow; motDePasseProvisoire: string }>('/admin/accounts', p);
     if (r) { annoncerMotDePasse(r.account.name, r.account.username, r.motDePasseProvisoire); void refresh(); }
   };
   const creerAccesChauffeur = async (driverId: string, nom: string, matricule: string) => {
-    if (!LIVE) { alert('Accès chauffeur créé (démo).'); return; }
+    if (!LIVE) { avis('Accès chauffeur créé (démo).'); return; }
     const r = await safePostData<{ account: StaffAccountRow; motDePasseProvisoire: string }>('/admin/accounts', { name: nom, role: 'chauffeur', driverId, matricule });
     if (r) { annoncerMotDePasse(nom, r.account.username, r.motDePasseProvisoire); void refresh(); }
   };
   const modifierCompte = async (username: string, p: Record<string, unknown>) => {
-    if (!LIVE) { alert('Compte modifié (démo).'); return; }
+    if (!LIVE) { avis('Compte modifié (démo).'); return; }
     if (await safePut(`/admin/accounts/${username}`, p)) void refresh();
   };
   const reinitialiserCompte = async (username: string) => {
-    if (!LIVE) { alert('Mot de passe réinitialisé (démo).'); return; }
+    if (!LIVE) { avis('Mot de passe réinitialisé (démo).'); return; }
     const r = await safePostData<{ account: StaffAccountRow; motDePasseProvisoire: string }>(`/admin/accounts/${username}/reset`, {});
     if (r) { annoncerMotDePasse(r.account.name, r.account.username, r.motDePasseProvisoire); void refresh(); }
   };
   const activerCompte = async (username: string, active: boolean) => {
-    const reason = active ? undefined : prompt('Motif de la désactivation (départ, suspension…) :') ?? undefined;
+    const reason = active ? undefined : await demander('Motif de la désactivation (départ, suspension…) :') ?? undefined;
     if (!active && !reason) return;
-    if (!LIVE) { alert('Compte mis à jour (démo).'); return; }
+    if (!LIVE) { avis('Compte mis à jour (démo).'); return; }
     if (await safePost(`/admin/accounts/${username}/active`, { active, reason })) void refresh();
   };
   const changerMotDePasse = async (ancien: string, nouveau: string) => {
-    if (!LIVE) { setMdpOuvert(false); alert('Mot de passe changé (démo).'); return; }
+    if (!LIVE) { setMdpOuvert(false); avis('Mot de passe changé (démo).'); return; }
     if (await safePost('/admin/password', { ancien, nouveau })) {
       setMdpOuvert(false);
-      alert('Mot de passe changé.');
+      avis('Mot de passe changé.');
       void refresh();
     }
   };
 
   /* ====================== Caisse nominative ====================== */
   const ouvrirCaisse = async (fondDeCaisse: number, emplacement: string) => {
-    if (!LIVE) { alert('Caisse ouverte (démo).'); return; }
+    if (!LIVE) { avis('Caisse ouverte (démo).'); return; }
     if (await safePost('/admin/caisses', { fondDeCaisse, emplacement: emplacement || undefined })) void refresh();
   };
   const encaisser = async (id: string, p: Record<string, unknown>) => {
-    if (!LIVE) { alert('Encaissement enregistré (démo).'); return; }
+    if (!LIVE) { avis('Encaissement enregistré (démo).'); return; }
     if (await safePost(`/admin/caisses/${id}/encaisser`, p)) void refresh();
   };
   const decaisser = async (id: string, p: Record<string, unknown>) => {
-    if (!LIVE) { alert('Sortie enregistrée (démo).'); return; }
+    if (!LIVE) { avis('Sortie enregistrée (démo).'); return; }
     if (await safePost(`/admin/caisses/${id}/decaisser`, p)) void refresh();
   };
   const arreterCaisse = async (id: string, p: Record<string, unknown>) => {
-    if (!LIVE) { alert('Caisse arrêtée (démo).'); return; }
+    if (!LIVE) { avis('Caisse arrêtée (démo).'); return; }
     if (await safePost(`/admin/caisses/${id}/arreter`, p)) void refresh();
   };
   const validerCaisse = async (id: string) => {
-    if (!LIVE) { alert('Arrêté validé (démo).'); return; }
+    if (!LIVE) { avis('Arrêté validé (démo).'); return; }
     if (await safePost(`/admin/caisses/${id}/valider`, {})) void refresh();
   };
 
@@ -1113,15 +1124,15 @@ function Console({ onLogout }: { onLogout: () => void }) {
     catch { setPosteEquipe(null); }
   };
   const ecrireMembre = async (teamId: string, a: string, sujet: string, texte: string, urgent: boolean) => {
-    if (!LIVE) { alert('Message envoyé (démo).'); return; }
+    if (!LIVE) { avis('Message envoyé (démo).'); return; }
     if (await safePost(`/admin/teams/${teamId}/messages`, { a, sujet: sujet || undefined, texte, urgent, reponseAttendue: true })) void choisirEquipe(teamId);
   };
   const demanderRapport = async (teamId: string, destinataire: string, titre: string, consigne: string, echeance: string) => {
-    if (!LIVE) { alert('Rapport demandé (démo).'); return; }
+    if (!LIVE) { avis('Rapport demandé (démo).'); return; }
     if (await safePost(`/admin/teams/${teamId}/rapports`, { destinataire, titre, consigne, echeance })) void choisirEquipe(teamId);
   };
   const statuerRapport = async (id: string, decision: 'accepte' | 'a_revoir', texte: string) => {
-    if (!LIVE) { alert('Rapport traité (démo).'); return; }
+    if (!LIVE) { avis('Rapport traité (démo).'); return; }
     if (await safePost(`/admin/rapports/${id}/statuer`, { decision, texte: texte || undefined })) void choisirEquipe(equipeSel);
   };
   const lireMessage = async (id: string) => {
@@ -1129,11 +1140,11 @@ function Console({ onLogout }: { onLogout: () => void }) {
     if (await safePost(`/admin/messages/${id}/lu`, {})) void refresh();
   };
   const repondreMessage = async (id: string, texte: string) => {
-    if (!LIVE) { alert('Réponse envoyée (démo).'); return; }
+    if (!LIVE) { avis('Réponse envoyée (démo).'); return; }
     if (await safePost(`/admin/messages/${id}/repondre`, { texte })) void refresh();
   };
   const rendreRapport = async (id: string, texte: string) => {
-    if (!LIVE) { alert('Rapport rendu (démo).'); return; }
+    if (!LIVE) { avis('Rapport rendu (démo).'); return; }
     if (await safePost(`/admin/rapports/${id}/rendre`, { texte })) void refresh();
   };
 
@@ -1144,33 +1155,33 @@ function Console({ onLogout }: { onLogout: () => void }) {
     catch { /* ignoré */ }
   };
   const declarerVol = async (reservationId: string, circonstances: string) => {
-    if (!LIVE) { alert('Vol déclaré (démo).'); return; }
+    if (!LIVE) { avis('Vol déclaré (démo).'); return; }
     if (await safePost(`/admin/rental/${reservationId}/vol`, { circonstances })) void rafraichirSuivi();
   };
   const immobiliser = async (vehiculeId: string, motif: string, commentaire: string, reservationId?: string) => {
-    if (!LIVE) { alert('Coupure armée (démo).'); return; }
+    if (!LIVE) { avis('Coupure armée (démo).'); return; }
     const r = await safePostData<{ avertissement: string }>(`/admin/rental/vehicules/${vehiculeId}/immobiliser`, { motif, commentaire, reservationId });
-    if (r) { alert(r.avertissement); void rafraichirSuivi(); }
+    if (r) { avis(r.avertissement); void rafraichirSuivi(); }
   };
   const confirmerImmobilisation = async (id: string) => {
-    if (!LIVE) { alert('Immobilisation confirmée (démo).'); return; }
+    if (!LIVE) { avis('Immobilisation confirmée (démo).'); return; }
     const r = await safePostData<{ avertissement: string }>(`/admin/rental/immobilisations/${id}/confirmer`, {});
-    if (r) { alert(r.avertissement); void rafraichirSuivi(); }
+    if (r) { avis(r.avertissement); void rafraichirSuivi(); }
   };
   const leverImmobilisation = async (id: string, motif: string) => {
-    if (!LIVE) { alert('Immobilisation levée (démo).'); return; }
+    if (!LIVE) { avis('Immobilisation levée (démo).'); return; }
     if (await safePost(`/admin/rental/immobilisations/${id}/lever`, { motif })) void rafraichirSuivi();
   };
   const volTransmis = async (volId: string, a: string, reference: string) => {
-    if (!LIVE) { alert('Transmission enregistrée (démo).'); return; }
+    if (!LIVE) { avis('Transmission enregistrée (démo).'); return; }
     if (await safePost(`/admin/rental/vol/${volId}/transmis`, { a, referencePlainte: reference || undefined })) void rafraichirSuivi();
   };
   const cloreVol = async (volId: string, statut: 'retrouve' | 'clos', note: string) => {
-    if (!LIVE) { alert('Dossier clos (démo).'); return; }
+    if (!LIVE) { avis('Dossier clos (démo).'); return; }
     if (await safePost(`/admin/rental/vol/${volId}/clore`, { statut, note: note || undefined })) void rafraichirSuivi();
   };
   const telechargerSignalement = (volId: string) => {
-    if (!LIVE) { alert('Fiche de signalement (démo).'); return; }
+    if (!LIVE) { avis('Fiche de signalement (démo).'); return; }
     window.open(`${API}/admin/rental/vol/${volId}/signalement.pdf`, '_blank');
   };
 
@@ -1188,19 +1199,19 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   /* --- S10 B2B : import de masse, web booker --- */
   const importMembers = async (id: string, memberIds: string[]) => {
-    if (!LIVE) { alert(`${memberIds.length} collaborateur(s) importé(s) (démo).`); return; }
-    try { const r = await adminPost<{ added: number }>(`/admin/corporate/${id}/members`, { memberIds }); alert(`${r.added} nouveau(x) collaborateur(s) rattaché(s).`); void refresh(); }
+    if (!LIVE) { avis(`${memberIds.length} collaborateur(s) importé(s) (démo).`); return; }
+    try { const r = await adminPost<{ added: number }>(`/admin/corporate/${id}/members`, { memberIds }); avis(`${r.added} nouveau(x) collaborateur(s) rattaché(s).`); void refresh(); }
     catch { /* */ }
   };
   const webBook = async (id: string, input: { guestName: string; origin: { lat: number; lng: number }; destination: { lat: number; lng: number }; category: string }) => {
-    if (!LIVE) { alert(`Course conciergerie réservée pour ${input.guestName} (démo). SMS de suivi GPS + plaque envoyé.`); return; }
-    try { const r = await adminPost<{ booking: { amount: number } }>(`/admin/corporate/${id}/book`, input); alert(`Course réservée pour ${input.guestName} — ${fcfa(r.booking.amount)}. SMS de suivi envoyé.`); void refresh(); }
-    catch { alert('Réservation refusée (politique entreprise ou crédit dépassé).'); }
+    if (!LIVE) { avis(`Course conciergerie réservée pour ${input.guestName} (démo). SMS de suivi GPS + plaque envoyé.`); return; }
+    try { const r = await adminPost<{ booking: { amount: number } }>(`/admin/corporate/${id}/book`, input); avis(`Course réservée pour ${input.guestName} — ${fcfa(r.booking.amount)}. SMS de suivi envoyé.`); void refresh(); }
+    catch { avis('Réservation refusée (politique entreprise ou crédit dépassé).'); }
   };
 
   /* --- S11 Litiges : escalade, quarantaine, notes --- */
   const escalateDispute = async (id: string, kind: string) => {
-    if (LIVE) { try { await adminPost(`/admin/disputes/${id}/escalate`, { kind }); void refresh(); return; } catch { alert('Dossier déjà verrouillé par un autre expert.'); return; } }
+    if (LIVE) { try { await adminPost(`/admin/disputes/${id}/escalate`, { kind }); void refresh(); return; } catch { avis('Dossier déjà verrouillé par un autre expert.'); return; } }
     setDisputes((xs) => xs.map((d) => (d.id === id ? { ...d, escalation: kind, lockedBy: me?.name, status: 'investigating' } : d)));
   };
   const quarantineDispute = async (id: string, on: boolean) => {
@@ -1208,19 +1219,19 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setDisputes((xs) => xs.map((d) => (d.id === id ? { ...d, quarantined: on } : d)));
   };
   const noteDispute = async (id: string, text: string) => {
-    if (LIVE) { try { await adminPost(`/admin/disputes/${id}/note`, { text }); void refresh(); return; } catch { alert('Note réservée à l’expert gestionnaire.'); return; } }
+    if (LIVE) { try { await adminPost(`/admin/disputes/${id}/note`, { text }); void refresh(); return; } catch { avis('Note réservée à l’expert gestionnaire.'); return; } }
     setDisputes((xs) => xs.map((d) => (d.id === id ? { ...d, notes: [...(d.notes ?? []), { author: me?.name ?? 'Expert', text, at: new Date().toISOString() }] } : d)));
   };
 
   /* --- S12 Chauffeur : suspension motivée, fidélité --- */
   const suspendDriver = async (id: string) => {
-    const reason = window.prompt('Motif de suspension (obligatoire — trace légale) :', '');
+    const reason = await demander('Motif de suspension (obligatoire — trace légale) :', '');
     if (!reason?.trim()) return;
     if (LIVE) { if (!(await safePost(`/admin/drivers/${id}/kyc`, { status: 'suspended', reason: reason.trim() }))) return; void refresh(); return; }
     setDrivers((xs) => xs.map((d) => (d.id === id ? { ...d, kycStatus: 'suspended', availability: 'offline', suspensionReason: reason.trim() } : d)));
   };
   const setLoyalty = async (id: string, tier: string) => {
-    const pct = window.prompt('Commission personnalisée (%) — laisser vide pour aucune :', '10');
+    const pct = await demander('Commission personnalisée (%) — laisser vide pour aucune :', '10');
     const override = pct?.trim() ? Number(pct) / 100 : null;
     if (LIVE) { if (!(await safePost(`/admin/drivers/${id}/loyalty`, { loyaltyTier: tier, commissionOverride: override }))) return; void refresh(); return; }
     setDrivers((xs) => xs.map((d) => (d.id === id ? { ...d, loyaltyTier: tier } : d)));
@@ -1229,20 +1240,20 @@ function Console({ onLogout }: { onLogout: () => void }) {
   /* --- S13 Client : VIP, blacklist, no-show --- */
   const setClientVip = async (id: string, tier: string, noSurgeLock: boolean) => {
     if (LIVE && !(await safePost(`/admin/clients/${id}/vip`, { vipTier: tier, noSurgeLock }))) return;
-    alert(`Client ${id} → ${tier}${noSurgeLock ? ' · no-surge verrouillé' : ''}.`);
+    avis(`Client ${id} → ${tier}${noSurgeLock ? ' · no-surge verrouillé' : ''}.`);
   };
   const blacklistClient = async (id: string) => {
-    const imei = window.prompt('Liste noire — IMEI de l’appareil (bloque la réinscription) :', '');
+    const imei = await demander('Liste noire — IMEI de l’appareil (bloque la réinscription) :', '');
     if (imei === null) return;
     if (LIVE && !(await safePost(`/admin/clients/${id}/blacklist`, { imei, reason: 'Bannissement manuel' }))) return;
     setClients((xs) => xs.map((c) => (c.id === id ? { ...c, status: 'blocked' } : c)));
     setClientSel((c) => (c && c.id === id ? { ...c, status: 'blocked' } : c));
   };
   const noShowFee = async (id: string) => {
-    const fee = window.prompt('Frais de no-show à prélever (F CFA) — vérifiés au GPS :', '1000');
+    const fee = await demander('Frais de no-show à prélever (F CFA) — vérifiés au GPS :', '1000');
     if (!fee) return;
     if (LIVE && !(await safePost(`/admin/clients/${id}/noshow`, { fee: Number(fee) }))) return;
-    alert(`Frais de no-show de ${fcfa(Number(fee))} prélevés sur ${id}.`);
+    avis(`Frais de no-show de ${fcfa(Number(fee))} prélevés sur ${id}.`);
   };
 
   /* --- S16 Tarification : shadow pricing --- */
@@ -1261,11 +1272,11 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setExpenses((xs) => xs.map((t) => (t.id === id ? { ...t, status: decision === 'approve' ? 'approved' : decision === 'reject' ? 'rejected' : 'info_requested', credited: decision === 'approve' } : t)));
   };
   const newExpense = async () => {
-    const amount = window.prompt('Montant de l’avance demandée (F CFA) :', '50000');
+    const amount = await demander('Montant de l’avance demandée (F CFA) :', '50000');
     if (!amount) return;
-    const description = window.prompt('Justification :', 'Campagne marketing terrain');
+    const description = await demander('Justification :', 'Campagne marketing terrain');
     if (!description) return;
-    if (LIVE) { try { await adminPost('/admin/expenses', { amount: Number(amount), category: 'marketing', neededDate: new Date().toISOString(), description }); void refresh(); return; } catch { alert('Compte gelé (justificatif en retard) ou non autorisé.'); return; } }
+    if (LIVE) { try { await adminPost('/admin/expenses', { amount: Number(amount), category: 'marketing', neededDate: new Date().toISOString(), description }); void refresh(); return; } catch { avis('Compte gelé (justificatif en retard) ou non autorisé.'); return; } }
     setExpenses((xs) => [{ id: Math.random().toString(36).slice(2, 8), requesterType: 'employee', requesterId: me?.name ?? 'moi', requesterName: me?.name ?? 'Moi', amount: Number(amount), category: 'marketing', neededDate: new Date().toISOString(), description, status: 'pending', createdAt: new Date().toISOString() }, ...xs]);
   };
 
@@ -1431,7 +1442,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   // Bilan carbone PDF (via session JWT).
   const downloadCarbonPdf = async () => {
-    if (!LIVE) { alert('Disponible avec le backend connecté — le PDF est généré côté serveur.'); return; }
+    if (!LIVE) { avis('Disponible avec le backend connecté — le PDF est généré côté serveur.'); return; }
     try {
       const res = await fetch(`${API}/admin/green/report.pdf`, { headers: H(), credentials: 'include' });
       if (res.status === 401) { onUnauthorized(); return; }
@@ -1475,9 +1486,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
       <button type="button" className="adm-voile" aria-label="Fermer le menu" tabIndex={menuOuvert ? 0 : -1} onClick={() => setMenuOuvert(false)} />
       <aside className="adm-side" id="adm-menu">
         <div className="adm-brand">
-          <span className="adm-logo" aria-hidden>
-            <svg width="20" height="20" viewBox="0 0 512 512"><path d="M256 92 C 338 150 372 252 318 350 C 300 382 280 404 256 424 C 232 404 212 382 194 350 C 140 252 174 150 256 92 Z" fill="#04140d"/><g fill="#04140d"><circle cx="372" cy="120" r="15"/><circle cx="406" cy="150" r="12"/><circle cx="430" cy="186" r="9"/></g></svg>
-          </span>
+          <LogoApp size={40} className="adm-logo-volume" />
           <div><strong>ORION</strong><span className="adm-sub">Centre de contrôle</span></div>
         </div>
         <nav className="adm-nav">
@@ -1493,7 +1502,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
                 title={allowed ? undefined : 'Session non autorisée pour votre rôle'}
                 onClick={() => { setMenuOuvert(false); if (allowed) setSection(n.id); else void openLocked(n.id, n.label); }}
               >
-                <span className="adm-navi-ico" aria-hidden="true"><n.icon size={18} strokeWidth={1.5} /></span> {n.label}
+                <span className="adm-navi-ico" aria-hidden="true"><Objet nom={OBJET_SESSION[n.id]} taille={24} /></span> {n.label}
                 {allowed && n.id === 'alerts' && openAlerts.length > 0 && <span className="adm-navi-badge">{openAlerts.length}</span>}
                 {allowed && n.id === 'security' && security.length > 0 && <span className="adm-navi-badge">{security.length}</span>}
                 {!allowed && <span className="adm-navi-lock" aria-hidden><IconLock size={14} strokeWidth={1.5} /></span>}
@@ -1522,7 +1531,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
         )}
         <header className="adm-mhead">
           <button type="button" className="adm-menu-btn" aria-label="Ouvrir le menu des sessions" aria-controls="adm-menu" aria-expanded={menuOuvert} onClick={() => setMenuOuvert(true)}><IconMenu size={20} strokeWidth={1.5} /></button>
-          <h2>{NAV.find((n) => n.id === section)?.label}</h2>
+          <h2><span className="adm-titre-objet" aria-hidden="true"><Objet nom={OBJET_SESSION[section]} taille={34} /></span>{NAV.find((n) => n.id === section)?.label}</h2>
           {can('search:read') && (
             <GlobalSearch
               onSearch={runSearch}

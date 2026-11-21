@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { Map as CarteML } from 'maplibre-gl';
 import type { LatLng, Place } from './types';
 import { ABIDJAN_PLACES, DEFAULT_ORIGIN } from './data';
 import { isLiveBackend, urlApi } from './api';
@@ -113,6 +114,25 @@ export function lieuxPourCarte(): GeoJSON.FeatureCollection<GeoJSON.Point> | nul
 }
 
 /**
+ * CARTE « COMBLÉE » — la même dans l'app cliente, l'app chauffeur, la console et le tableau
+ * de bord. Dès que l'index est chargé, la carte affiche tous ses lieux (banques, sièges,
+ * écoles, commerces, immeubles nommés…) et masque ceux des tuiles, qui n'en sont qu'un
+ * sous-ensemble. Sans index livré, rien ne change : les lieux des tuiles restent affichés.
+ */
+export function comblerCarte(m: CarteML, estAnnule: () => boolean = () => false): void {
+  void chargerIndexLieux().then(() => {
+    if (estAnnule()) return;
+    const lieux = lieuxPourCarte();
+    let source: { setData?: (d: unknown) => void } | undefined;
+    try { source = m.getSource('index') as { setData?: (d: unknown) => void } | undefined; } catch { return; /* carte déjà retirée */ }
+    if (!lieux || !source?.setData) return;
+    source.setData(lieux);
+    for (const id of ['index-reperes', 'index-lieux', 'index-detail', 'index-immeubles']) if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', 'visible');
+    for (const id of ['lieux', 'lieux-reperes']) if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', 'none');
+  });
+}
+
+/**
  * RECHERCHE SANS SERVEUR : les 449 lieux du Grand Abidjan vérifiés (OpenStreetMap,
  * dédoublonnés, avec niveau et commune), et l'index détaillé quand il est livré. Sert
  * quand le serveur ne répond pas (réseau faible) et en démonstration.
@@ -187,25 +207,39 @@ export function rechercheLocale(q: string, pres?: LatLng): Place[] {
   });
 }
 
-/** Recherche d'adresse : serveur (répertoire ORION + OpenStreetMap), sinon répertoire livré. */
+/**
+ * Recherche d'adresse. L'index livré avec l'application (48 924 lieux du district d'Abidjan)
+ * répond toujours, connecté ou non, dans les quatre interfaces. Relié au serveur, on y
+ * ajoute ce que lui seul connaît : les adresses hors du district (géocodage), sans doublon.
+ */
 export async function rechercherLieux(q: string, pres?: LatLng, signal?: AbortSignal): Promise<Place[]> {
   const requete = q.trim();
   if (requete.length < 2) return [];
-  if (isLiveBackend()) {
+  const duServeur = async (): Promise<Place[]> => {
+    if (!isLiveBackend()) return [];
     try {
       const params = new URLSearchParams({ q: requete });
       if (pres) { params.set('lat', String(pres.lat)); params.set('lng', String(pres.lng)); }
       const res = await fetch(urlApi(`/maps/recherche?${params}`)!, { signal });
-      if (res.ok) {
-        const json = await res.json() as { lieux: Array<{ id: string; nom: string; secteur: string; location: LatLng }> };
-        if (json.lieux.length) return json.lieux.map((l) => ({ id: l.id, name: l.nom, area: l.secteur, location: l.location }));
-      }
+      if (!res.ok) return [];
+      const json = await res.json() as { lieux: Array<{ id: string; nom: string; secteur: string; location: LatLng }> };
+      return json.lieux.map((l) => ({ id: l.id, name: l.nom, area: l.secteur, location: l.location }));
     } catch (e) {
       if ((e as Error).name === 'AbortError') throw e;
+      return [];
     }
+  };
+  const [serveur] = await Promise.all([duServeur(), chargerIndexLieux()]);
+  const locaux = rechercheLocale(requete, pres);
+  if (!serveur.length) return locaux;
+  if (!locaux.length) return serveur;
+  const fusion = [...locaux];
+  for (const l of serveur) {
+    if (fusion.length >= 12) break;
+    if (fusion.some((r) => sansAccents(r.name) === sansAccents(l.name) && distanceM(r.location, l.location) < 300)) continue;
+    fusion.push(l);
   }
-  await chargerIndexLieux();
-  return rechercheLocale(requete, pres);
+  return fusion;
 }
 
 /** Lieu le plus proche (quartier, village…) à moins de 1,2 km, d'après le répertoire livré. */

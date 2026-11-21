@@ -7,7 +7,7 @@ import { useTheme } from '../theme';
 import type { VectorConfig } from '../mapConfig';
 import { itineraire, type ItineraireRoute } from '../api';
 import { styleOrion } from './styleCarte';
-import { chargerIndexLieux, lieuxPourCarte } from '../lieux';
+import { comblerCarte } from '../lieux';
 import { rendu } from './Vehicules';
 
 /**
@@ -126,16 +126,7 @@ export function CarteReelle({ origin, destination, stops = [], car, vehicle = 'c
         m.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 4.5, 16, 8.5], 'line-gradient': ['interpolate', ['linear'], ['line-progress'], 0, couleur('--green-bright', '#2bffa6'), 1, couleur('--green-deep', '#00b46e')] } });
         // Carte « comblée » : dès que l'index des lieux est chargé, la carte affiche tous ses
         // lieux et masque ceux des tuiles (un sous-ensemble du même répertoire).
-        if (config.lieuxIndex) {
-          void chargerIndexLieux().then(() => {
-            const lieux = lieuxPourCarte();
-            const source = annule ? undefined : m.getSource('index') as { setData?: (d: unknown) => void } | undefined;
-            if (!lieux || !source?.setData) return;
-            source.setData(lieux);
-            for (const id of ['index-reperes', 'index-lieux', 'index-detail', 'index-immeubles']) if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', 'visible');
-            for (const id of ['lieux', 'lieux-reperes']) if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', 'none');
-          });
-        }
+        if (config.lieuxIndex) comblerCarte(m, () => annule);
         // Un geste de l'utilisateur (pas un mouvement programmé) suspend le suivi.
         m.on('dragstart', (e) => { if ((e as { originalEvent?: unknown }).originalEvent) setLibre(true); });
         carte.current = m;

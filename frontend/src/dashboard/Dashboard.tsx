@@ -3,6 +3,9 @@ import type { GeoJSONSource, Map as CarteML, Marker } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { chargerML } from '../components/chargerCarte';
 import { styleOrion } from '../components/styleCarte';
+import { comblerCarte } from '../lieux';
+import { LogoApp } from '../components/Logo';
+import { Objet, Scooter, Voiture, type Icone3D, type ObjetService } from '../components/Vehicules';
 import { getVectorConfig } from '../mapConfig';
 import { LIVE } from '../admin/api';
 import { AccesRefuse, NonConnecte, ecouter, lireEtat, seConnecter } from './donnees';
@@ -249,9 +252,7 @@ function Entete({ direct, maintenant, vue, setVue, defilement, setDefilement, ch
   return (
     <header className="tb-entete">
       <div className="tb-marque">
-        <span className="tb-logo" aria-hidden>
-          <svg width="22" height="22" viewBox="0 0 512 512"><path d="M256 92 C 338 150 372 252 318 350 C 300 382 280 404 256 424 C 232 404 212 382 194 350 C 140 252 174 150 256 92 Z" fill="#04140d"/><g fill="#04140d"><circle cx="372" cy="120" r="15"/><circle cx="406" cy="150" r="12"/><circle cx="430" cy="186" r="9"/></g></svg>
-        </span>
+        <LogoApp size={42} className="tb-logo-volume" />
         <div>
           <strong>ORION</strong>
           <span>Tableau de bord</span>
@@ -284,10 +285,16 @@ function Entete({ direct, maintenant, vue, setVue, defilement, setDefilement, ch
 
 /* --------------------------------- Tuiles --------------------------------- */
 
-function Tuile({ libelle, valeur, detail, ton, icone }: { libelle: string; valeur: string; detail: string; ton?: 'alerte' | 'calme'; icone: React.ReactNode }) {
+/** Tuile de chiffre. `objet` : l'objet en volume de ce que le chiffre compte (comme l'app cliente). */
+function Tuile({ libelle, valeur, detail, ton, icone, objet }: {
+  libelle: string; valeur: string; detail: string; ton?: 'alerte' | 'calme'; icone: React.ReactNode;
+  objet?: 'voiture' | 'scooter' | ObjetService | Icone3D;
+}) {
   return (
     <div className={`tb-tuile${ton ? ` ${ton}` : ''}`}>
-      <span className="tb-tuile-ico" aria-hidden>{icone}</span>
+      <span className={`tb-tuile-ico${objet ? ' volume' : ''}`} aria-hidden>
+        {objet === 'voiture' ? <Voiture largeur={44} /> : objet === 'scooter' ? <Scooter largeur={44} /> : objet ? <Objet nom={objet} taille={38} /> : icone}
+      </span>
       <span className="tb-tuile-lib">{libelle}</span>
       <span className="tb-tuile-val">{valeur}</span>
       <span className="tb-tuile-det">{detail}</span>
@@ -300,17 +307,17 @@ function Tuiles({ e }: { e: EtatTableau }) {
   const s = e.securite;
   return (
     <div className="tb-tuiles">
-      <Tuile icone={<IcoVoiture />} libelle="Courses en cours" valeur={String(e.enDirect.courses)}
+      <Tuile objet="voiture" icone={<IcoVoiture />} libelle="Courses en cours" valeur={String(e.enDirect.courses)}
         detail={e.enDirect.enRecherche ? `${e.enDirect.enRecherche} en recherche de chauffeur` : 'VTC électrique, en direct'} />
-      <Tuile icone={<IcoScooter />} libelle="Livraisons moto en cours" valeur={String(e.enDirect.livraisons)}
+      <Tuile objet="scooter" icone={<IcoScooter />} libelle="Livraisons moto en cours" valeur={String(e.enDirect.livraisons)}
         detail={`${pl(e.conducteurs.coursiers, 'coursier')} en service`} />
-      <Tuile icone={<IcoVolant />} libelle="Conducteurs en ligne" valeur={String(e.conducteurs.enLigne)}
+      <Tuile objet="chauffeur" icone={<IcoVolant />} libelle="Conducteurs en ligne" valeur={String(e.conducteurs.enLigne)}
         detail={`${e.conducteurs.enCourse} en course · ${pl(e.conducteurs.enLigne - e.conducteurs.enCourse, 'disponible')}`} />
-      <Tuile icone={<IcoCaisse />} libelle="Chiffre d’affaires du jour" valeur={fcfa(a.chiffreAffaires)}
+      <Tuile objet="finances" icone={<IcoCaisse />} libelle="Chiffre d’affaires du jour" valeur={fcfa(a.chiffreAffaires)}
         detail={a.panierMoyen ? `panier moyen ${fcfa(a.panierMoyen)}` : 'aucune course terminée'} />
-      <Tuile icone={<IcoDrapeau />} libelle="Terminées aujourd’hui" valeur={String(a.courses + a.livraisons)}
+      <Tuile objet="destination" icone={<IcoDrapeau />} libelle="Terminées aujourd’hui" valeur={String(a.courses + a.livraisons)}
         detail={`${pl(a.courses, 'course')} · ${pl(a.livraisons, 'livraison')}${a.noteMoyenne ? ` · ${a.noteMoyenne.toLocaleString('fr-FR')} ★` : ''}`} />
-      <Tuile icone={<IcoBouclier />} libelle="Sécurité" ton={s.alertesOuvertes ? 'alerte' : 'calme'}
+      <Tuile objet="assurance" icone={<IcoBouclier />} libelle="Sécurité" ton={s.alertesOuvertes ? 'alerte' : 'calme'}
         valeur={s.alertesOuvertes ? pl(s.alertesOuvertes, 'alerte') : 'RAS'}
         detail={`${pl(s.controles, 'contrôle')} · ${pl(e.assurance.inscrits, 'assuré')} ORION`} />
     </div>
@@ -352,8 +359,8 @@ function arriveesGeoJSON(courses: CourseActive[]) {
 
 /** Couleurs des tracés sur la carte, par thème (mêmes séries que les graphiques). */
 const TRACES: Record<Theme, { course: string; livraison: string; halo: string; bord: string; libre: string; enCourse: string }> = {
-  dark: { course: '#18a571', livraison: '#3987e5', halo: '#04110b', bord: '#0b1a14', libre: '#2bffa6', enCourse: '#f5c451' },
-  light: { course: '#13976a', livraison: '#2a78d6', halo: '#ffffff', bord: '#ffffff', libre: '#0f9d63', enCourse: '#c27c0e' },
+  dark: { course: '#18a571', livraison: '#8f6bff', halo: '#0c0d0f', bord: '#0c0d0f', libre: '#2fd67b', enCourse: '#e8b84a' },
+  light: { course: '#00a352', livraison: '#6a35f0', halo: '#ffffff', bord: '#ffffff', libre: '#00a352', enCourse: '#b7791f' },
 };
 
 type Masse = { libres: Array<[number, number]>; enCourse: Array<[number, number, number]> };
@@ -404,8 +411,8 @@ function CarteFlotte({ flotte, courses, theme, masse, enService, enCoursTotal }:
           'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 14, 1.2],
           'heatmap-opacity': theme === 'light' ? 0.5 : 0.6,
           'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'],
-            0, 'rgba(0,0,0,0)', 0.2, theme === 'light' ? 'rgba(16,168,104,0.35)' : 'rgba(43,255,166,0.3)',
-            0.5, theme === 'light' ? '#e8b021' : '#f5c451', 0.85, theme === 'light' ? '#e36a3a' : '#ff8a4c', 1, theme === 'light' ? '#d23a4a' : '#ff5468'],
+            0, 'rgba(0,0,0,0)', 0.2, theme === 'light' ? 'rgba(0,163,82,0.35)' : 'rgba(47,214,123,0.3)',
+            0.5, theme === 'light' ? '#e8b021' : '#e8b84a', 0.85, theme === 'light' ? '#e36a3a' : '#ff8a4c', 1, theme === 'light' ? '#d92d3a' : '#ff5c6a'],
         } } as never, 'trajets-halo');
         m.addLayer({ id: 'libres', type: 'circle', source: 'libres', paint: {
           'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.4, 14, 3.5], 'circle-color': T.libre, 'circle-opacity': 0.7,
@@ -414,6 +421,8 @@ function CarteFlotte({ flotte, courses, theme, masse, enService, enCoursTotal }:
           'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.8, 14, 4.2],
           'circle-color': ['match', ['get', 'livraison'], 1, T.livraison, T.enCourse] as unknown as string, 'circle-opacity': 0.9,
         } });
+        // Mêmes lieux que l'app cliente : banques, sièges, écoles, commerces, immeubles nommés.
+        if (config.lieuxIndex) comblerCarte(m, () => annule);
         carte.current = m;
         setPrete(true);
       });
@@ -633,9 +642,7 @@ function Connexion({ onOk }: { onOk: () => void }) {
   return (
     <div className="tb-connexion">
       <form onSubmit={valider} className="tb-connexion-carte">
-        <span className="tb-logo grand" aria-hidden>
-          <svg width="30" height="30" viewBox="0 0 512 512"><path d="M256 92 C 338 150 372 252 318 350 C 300 382 280 404 256 424 C 232 404 212 382 194 350 C 140 252 174 150 256 92 Z" fill="#04140d"/></svg>
-        </span>
+        <LogoApp size={60} className="tb-logo-volume grand" />
         <h1>Tableau de bord ORION</h1>
         <p>Accès réservé au personnel ORION, avec les identifiants de la console.</p>
         {!deuxFacteurs ? (

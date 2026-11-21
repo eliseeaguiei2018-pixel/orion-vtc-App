@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { avis, demander } from '../dialogues';
 import { Kpi } from '../ui';
 import type { SuiviFlotte, VehiculeSuivi } from '../types';
 import { lienTel } from '../../telephone';
@@ -99,17 +100,17 @@ export function TelematiqueSection({ suivi, onRafraichir, onDeclarerVol, onImmob
                     {peutAgir && v.statut === 'declare' && (
                       <button
                         className="adm-btn xs"
-                        onClick={() => {
-                          const a = prompt('Transmis à quel service ?', 'Commissariat du 1er arrondissement, Plateau');
+                        onClick={async () => {
+                          const a = await demander('Transmis à quel service ?', 'Commissariat du 1er arrondissement, Plateau');
                           if (!a) return;
-                          onTransmis(v.id, a, prompt('Référence de plainte (si connue) :') ?? '');
+                          onTransmis(v.id, a, await demander('Référence de plainte (si connue) :') ?? '');
                         }}
                       >
                         Marquer transmis
                       </button>
                     )}
                     {peutAgir && (v.statut === 'declare' || v.statut === 'transmis') && (
-                      <button className="adm-btn xs" onClick={() => onClore(v.id, 'retrouve', prompt('Note de clôture :') ?? '')}>Véhicule retrouvé</button>
+                      <button className="adm-btn xs" onClick={async () => onClore(v.id, 'retrouve', await demander('Note de clôture :') ?? '')}>Véhicule retrouvé</button>
                     )}
                   </div>
                 </div>
@@ -274,10 +275,10 @@ function VehiculeLigne({ v, ouvert, onBasculer, motifs, vitesseCoupureMax, peutA
             <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <button
                 className="adm-btn xs"
-                onClick={() => {
-                  const c = prompt('Circonstances du vol (au moins une phrase complète) :');
+                onClick={async () => {
+                  const c = await demander('Circonstances du vol (au moins une phrase complète) :');
                   if (c && c.trim().length >= 10) onDeclarerVol(v.reservationId, c.trim());
-                  else if (c !== null) alert('Décrivez les circonstances : le commissariat en a besoin.');
+                  else if (c !== null) avis('Décrivez les circonstances : le commissariat en a besoin.');
                 }}
               >
                 Déclarer un vol
@@ -299,8 +300,8 @@ function VehiculeLigne({ v, ouvert, onBasculer, motifs, vitesseCoupureMax, peutA
               )}
               <button
                 className="adm-btn xs"
-                onClick={() => {
-                  const m = prompt('Motif de la levée :');
+                onClick={async () => {
+                  const m = await demander('Motif de la levée :');
                   if (m) onLever(v.immobilisation!.id, m);
                 }}
               >
@@ -322,7 +323,7 @@ function VehiculeLigne({ v, ouvert, onBasculer, motifs, vitesseCoupureMax, peutA
               <button
                 className="adm-btn"
                 onClick={() => {
-                  if (commentaire.trim().length < 10) { alert('Justifiez l’immobilisation : elle laisse quelqu’un à pied.'); return; }
+                  if (commentaire.trim().length < 10) { avis('Justifiez l’immobilisation : elle laisse quelqu’un à pied.'); return; }
                   onImmobiliser(v.vehiculeId, motif, commentaire.trim(), v.reservationId);
                   setCommentaire('');
                 }}

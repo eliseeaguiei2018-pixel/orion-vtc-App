@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { avis, demander } from '../dialogues';
 import { AvatarChauffeur, ContactRapide, Kpi, availLabel } from '../ui';
 import { actionLisible } from './monposte';
 import type { ContactHandler, PosteEquipe } from '../types';
@@ -137,7 +138,7 @@ export function PosteEquipeSection({ poste, equipes, equipeId, onChoisir, onCont
                   <button
                     className="adm-btn solid"
                     onClick={() => {
-                      if (!cible || texte.trim().length < 2) { alert('Choisissez un destinataire et écrivez le message.'); return; }
+                      if (!cible || texte.trim().length < 2) { avis('Choisissez un destinataire et écrivez le message.'); return; }
                       onEcrire(poste.equipe.id, cible, sujet, texte.trim(), urgent);
                       setSujet(''); setTexte(''); setUrgent(false);
                     }}
@@ -168,7 +169,7 @@ export function PosteEquipeSection({ poste, equipes, equipeId, onChoisir, onCont
                     className="adm-btn solid"
                     onClick={() => {
                       if (!cible || rTitre.trim().length < 3 || rConsigne.trim().length < 3 || !rEcheance) {
-                        alert('Destinataire, titre, consigne et échéance sont nécessaires — sans consigne, on reçoit n’importe quoi.');
+                        avis('Destinataire, titre, consigne et échéance sont nécessaires — sans consigne, on reçoit n’importe quoi.');
                         return;
                       }
                       onDemanderRapport(poste.equipe.id, cible, rTitre.trim(), rConsigne.trim(), rEcheance);
@@ -208,7 +209,7 @@ export function PosteEquipeSection({ poste, equipes, equipeId, onChoisir, onCont
                       {r.statut === 'rendu' && (
                         <div className="row" style={{ gap: 6, marginTop: 6 }}>
                           <button className="adm-btn xs solid" onClick={() => onStatuerRapport(r.id, 'accepte', '')}>Accepter</button>
-                          <button className="adm-btn xs" onClick={() => onStatuerRapport(r.id, 'a_revoir', prompt('Que faut-il reprendre ?') ?? '')}>À revoir</button>
+                          <button className="adm-btn xs" onClick={async () => onStatuerRapport(r.id, 'a_revoir', await demander('Que faut-il reprendre ?') ?? '')}>À revoir</button>
                         </div>
                       )}
                     </div>

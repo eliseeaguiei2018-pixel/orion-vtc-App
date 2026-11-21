@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { fcfa } from '../api';
 import { ContactRapide, Kpi } from '../ui';
+import { Objet, objetPack } from '../../components/Vehicules';
 import type {
   ContactHandler, DriverRow, PrestigeUnit, RentalAvailabilityRow, RentalRow, RentalStats,
   RentalTarif, RentalTarifEtat, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow,
@@ -266,7 +267,7 @@ export function SubscriptionsSection({ plans, subscriptions, invoices, stats, ca
           <tbody>
             {plans.map((p) => (
               <tr key={p.id}>
-                <td><strong>{p.label}</strong></td>
+                <td><span className="adm-ligne-objet"><Objet nom={objetPack(p.id)} taille={30} /><strong>{p.label}</strong></span></td>
                 <td className="r">{p.ridesPerDay}</td>
                 <td className="r">{fcfa(p.perRideCap)}</td>
                 <td className="r">{fcfa(p.monthlyPrice)}</td>

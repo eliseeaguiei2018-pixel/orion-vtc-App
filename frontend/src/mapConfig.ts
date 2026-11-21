@@ -17,8 +17,9 @@
  *    (hébergements limités en nombre de fichiers) ; préfixée « hybride: », les tuiles
  *    livrées d'abord, puis OpenFreeMap en ligne au-delà de leur emprise (APK).
  *  - VITE_MAP_GLYPHS_URL : polices des libellés, au format « {fontstack}/{range}.pbf ».
- *  - VITE_MAP_DONNEES_URL : dossier livré avec l'app (« ./carte/ ») contenant les
- *    pictogrammes de la carte (sprites/), les quartiers d'usage et l'index de recherche.
+ *  - VITE_MAP_DONNEES_URL : dossier livré avec l'app (« ./carte/ » par défaut, présent dans
+ *    public/carte) contenant les pictogrammes de la carte (sprites/), les quartiers d'usage
+ *    et l'index des 48 924 lieux. « aucun » pour s'en passer.
  *  - VITE_MAP_PROVIDER=stylise : force la carte stylisée hors-ligne (démo sans réseau).
  *
  * Sans réseau, ou si les tuiles ne répondent pas, l'app bascule d'elle-même sur la carte
@@ -49,7 +50,10 @@ const env = import.meta.env as Record<string, string | undefined>;
 export function getVectorConfig(): VectorConfig | null {
   if ((env.VITE_MAP_PROVIDER ?? '').toLowerCase() === 'stylise') return null;
   const bornes = (env.VITE_MAP_TILES_BOUNDS ?? '').split(',').map(Number);
-  const donnees = env.VITE_MAP_DONNEES_URL ? absolu(env.VITE_MAP_DONNEES_URL.replace(/\/?$/, '/')) : null;
+  // Le dossier « carte/ » (index des lieux, pictogrammes, quartiers d'usage) est livré avec
+  // chaque version, pour les quatre interfaces. « aucun » le désactive (tuiles seules).
+  const dossier = env.VITE_MAP_DONNEES_URL || './carte/';
+  const donnees = dossier.toLowerCase() === 'aucun' ? null : absolu(dossier.replace(/\/?$/, '/'));
   return {
     tiles: absolu(env.VITE_MAP_TILES_URL ?? 'https://tiles.openfreemap.org/planet'),
     glyphs: absolu(env.VITE_MAP_GLYPHS_URL ?? 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf'),

@@ -4,6 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { chargerML } from '../components/chargerCarte';
 import { styleOrion } from '../components/styleCarte';
 import { getVectorConfig } from '../mapConfig';
+import { comblerCarte } from '../lieux';
 import type { FleetUnit, Alert, SosDossier } from './types';
 
 /**
@@ -35,8 +36,8 @@ export function useThemeConsole(): Theme {
 
 const ABIDJAN: [number, number] = [-4.0, 5.335];
 const COULEURS = {
-  dark: { libre: '#2bffa6', enCourse: '#f5c451', bord: '#04140d', alerte: '#ff5468' },
-  light: { libre: '#10a868', enCourse: '#d99a12', bord: '#ffffff', alerte: '#d8263c' },
+  dark: { libre: '#2fd67b', enCourse: '#e8b84a', bord: '#0c0d0f', alerte: '#ff5c6a' },
+  light: { libre: '#00a352', enCourse: '#b7791f', bord: '#ffffff', alerte: '#d92d3a' },
 };
 const ALERTES_ANIMEES = 12;
 const RECENTRER_SI_MOINS_DE = 6;
@@ -87,6 +88,8 @@ export function useCarteReelle(boite: React.RefObject<HTMLDivElement | null>, th
         chargee = true; window.clearTimeout(delai); setIndispo(false);
         boite.current?.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');
         initRef.current(m);
+        // Mêmes lieux que l'app cliente : banques, sièges, écoles, commerces, immeubles nommés.
+        if (config.lieuxIndex) comblerCarte(m, () => annule);
         carte.current = m;
         setPret(true);
       });
@@ -215,11 +218,11 @@ export function SosCarte({ ride, alerte, repli }: { ride: NonNullable<SosDossier
       { type: 'Feature', properties: { r: 'b' }, geometry: { type: 'Point', coordinates: [ride.destination.lng, ride.destination.lat] } },
       { type: 'Feature', properties: { r: 'sos' }, geometry: { type: 'Point', coordinates: [alerte.lng, alerte.lat] } },
     ] } });
-    m.addLayer({ id: 'theorique', type: 'line', source: 'theorique', paint: { 'line-color': '#8a9a92', 'line-width': 2.5, 'line-dasharray': [2, 2] } });
+    m.addLayer({ id: 'theorique', type: 'line', source: 'theorique', paint: { 'line-color': '#8a8e98', 'line-width': 2.5, 'line-dasharray': [2, 2] } });
     m.addLayer({ id: 'reel', type: 'line', source: 'reel', paint: { 'line-color': '#ff5468', 'line-width': 4 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
     m.addLayer({ id: 'points', type: 'circle', source: 'points', paint: {
       'circle-radius': ['match', ['get', 'r'], 'sos', 8, 6] as unknown as number,
-      'circle-color': ['match', ['get', 'r'], 'a', '#2bffa6', 'b', '#4aa3ff', '#ff5468'] as unknown as string,
+      'circle-color': ['match', ['get', 'r'], 'a', '#1fcf73', 'b', '#8f6bff', '#ff5c6a'] as unknown as string,
       'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2,
     } });
   });
@@ -344,17 +347,17 @@ function CarteSchematique({ fleet, alerts, repli }: { fleet: FleetUnit[]; alerts
   return (
     <div className="adm-map">
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice">
-        <rect width={W} height={H} fill="#08160f" />
-        <g stroke="#123b2a" strokeWidth="1" fill="none">{grille().map((d, i) => <path key={i} d={d} />)}</g>
-        <path d="M 0 250 C 180 232 320 268 460 250 C 560 236 640 262 720 248 L 720 330 C 600 350 520 320 440 332 C 300 350 160 322 0 352 Z" fill="#0a2b3c" opacity="0.85" />
-        <g stroke="#1f4a34" strokeWidth="4" fill="none" strokeLinecap="round">
+        <rect width={W} height={H} fill="var(--a-panel2)" />
+        <g stroke="var(--a-stroke)" strokeWidth="1" fill="none">{grille().map((d, i) => <path key={i} d={d} />)}</g>
+        <path d="M 0 250 C 180 232 320 268 460 250 C 560 236 640 262 720 248 L 720 330 C 600 350 520 320 440 332 C 300 350 160 322 0 352 Z" fill="var(--a-stroke)" opacity="0.7" />
+        <g stroke="var(--a-muted)" strokeOpacity="0.45" strokeWidth="4" fill="none" strokeLinecap="round">
           <path d="M 0 150 C 220 140 460 180 720 150" />
           <path d="M 160 0 C 200 160 180 300 250 420" />
           <path d="M 520 0 C 560 160 590 300 560 420" />
         </g>
         <g fill="none" strokeLinecap="round">
-          <path d={libres} stroke="#2bffa6" strokeWidth="5" opacity="0.8" />
-          <path d={enCourse} stroke="#f5c451" strokeWidth="5.5" opacity="0.9" />
+          <path d={libres} stroke="var(--a-green)" strokeWidth="5" opacity="0.9" />
+          <path d={enCourse} stroke="var(--a-amber)" strokeWidth="5.5" opacity="0.9" />
         </g>
         {alerts.map((a, i) => (
           <g key={a.id} transform={`translate(${px(a.location.lng)} ${py(a.location.lat)})`}>
