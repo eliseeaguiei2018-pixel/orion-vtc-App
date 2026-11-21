@@ -857,3 +857,21 @@ Six services, un besoin chacun : voir `deploy/gcp/README.md`. Code serveur dans
 exécuté sur un projet Google réel (aucun accès depuis l'atelier) : les scripts sont à lancer sur
 un projet d'essai avant la production.
 
+### APK 1.5.3 et vérifications
+
+`ORION-client-1.5.3.apk` : version 1.5.3, code 10, 11,1 Mo, même signature que les précédentes,
+SHA-256 `ee2760d68a99e85c572f97f5b42f5b58502ceeb9ea7f58abad1ce3d8162198c7`. Ses 167 fichiers web
+sont identiques, un à un, au contenu sur lequel les parcours ont tourné.
+
+| Parcours (navigateur automatisé, vraie clé Google) | Résultat |
+|---|---|
+| Services Google, mode clair | 9 étapes sur 9 |
+| Services Google, mode sombre | 9 étapes sur 9 |
+| Application en « Google seul », clair puis sombre | 7 sur 7, deux fois |
+| Parcours complet d'une course et des services | 20 sur 20 |
+| Parcours client | 9 sur 9 |
+| Fluidité de la carte | 1 carte créée, 1 recentrage, 14 recadrages (inchangé depuis la 1.5.2) |
+
+Aucune erreur JavaScript. Serveur : 412 tests réussis, 2 ignorés (SQLite). Rien n'est testé sur
+un téléphone réel.
+
