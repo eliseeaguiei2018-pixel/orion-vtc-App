@@ -1048,16 +1048,17 @@ body { letter-spacing: 0; text-rendering: optimizeLegibility; }
    ============================================================ */
 .carte-reelle, .carte-ml { position: absolute; inset: 0; }
 .carte-ml { background: var(--bg-0); }
-.carte-reelle .maplibregl-ctrl-top-left, .carte-reelle .maplibregl-ctrl-bottom-left {
+.carte-reelle .maplibregl-ctrl-top-left, .carte-reelle .maplibregl-ctrl-bottom-left,
+.choix-carte-ml .maplibregl-ctrl-top-left {
   top: calc(max(18px, env(safe-area-inset-top)) + 64px); bottom: auto;
 }
-.carte-reelle .maplibregl-ctrl-attrib {
+.carte-reelle .maplibregl-ctrl-attrib, .choix-carte-ml .maplibregl-ctrl-attrib {
   background: color-mix(in srgb, var(--bg-1) 78%, transparent); color: var(--text-dim);
   font: 500 10px var(--font-body); border-radius: 10px; backdrop-filter: blur(8px);
 }
-.carte-reelle .maplibregl-ctrl-attrib a { color: var(--text-dim); }
-.carte-reelle .maplibregl-ctrl-attrib-button { filter: invert(var(--attrib-invert, 1)); }
-[data-theme='light'] .carte-reelle { --attrib-invert: 0; }
+.carte-reelle .maplibregl-ctrl-attrib a, .choix-carte-ml .maplibregl-ctrl-attrib a { color: var(--text-dim); }
+.carte-reelle .maplibregl-ctrl-attrib-button, .choix-carte-ml .maplibregl-ctrl-attrib-button { filter: invert(var(--attrib-invert, 1)); }
+[data-theme='light'] .carte-reelle, [data-theme='light'] .choix-carte-ml { --attrib-invert: 0; }
 
 .carte-depart span {
   display: block; width: 18px; height: 18px; border-radius: 50%;
@@ -1724,6 +1725,9 @@ button.menu-texte { cursor: pointer; }
 :root .sans-couleur .btn-primary { background: var(--text); color: var(--bg-0); }
 :root .sans-couleur .field:focus-within { border-color: var(--text); box-shadow: 0 0 0 3px var(--surface-2); }
 :root .sans-couleur .list-ico { background: none; }
+/* Choix de la couleur : la pastille garde sa teinte (c'est elle qu'on choisit), le cadre choisi reste neutre. */
+:root .sans-couleur .accent-option.active { border-color: var(--text); background: var(--surface); }
+:root .sans-couleur .accent-option.active .accent-pastille { box-shadow: 0 0 0 3px var(--bg-0), 0 0 0 5px var(--text); }
 
 /* ---- Menu → Carte : aperçu de la vraie carte Google ---- */
 .carte-apercu { position: relative; height: 210px; border-radius: 22px; overflow: hidden; background: var(--surface); border: 1px solid var(--stroke); margin: 4px 0 6px; }

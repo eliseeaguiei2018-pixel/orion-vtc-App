@@ -35,6 +35,8 @@ export function CarteFondScreen({ onBack }: { onBack: () => void }) {
   const [refus, setRefus] = useState(cleRefusee);
   const [motif, setMotif] = useState(motifRefus);
   const [apercuPret, setApercuPret] = useState(false);
+  /** Le service de Google n'a pas répondu (pas de connexion) : ce n'est pas la clé qui est en cause. */
+  const [injoignable, setInjoignable] = useState(false);
   const apercu = useRef<HTMLDivElement>(null);
   useEffect(() => suivreFondCarte(() => { setFond(fondCarte()); setRefus(cleRefusee()); setMotif(motifRefus()); }), []);
 
@@ -44,11 +46,15 @@ export function CarteFondScreen({ onBack }: { onBack: () => void }) {
     if (!google || !apercu.current) { setApercuPret(false); return; }
     let annule = false;
     const boite = apercu.current;
+    setInjoignable(false);
     void chargerGoogle().then((g) => {
       if (annule) return;
       const m = new g.Map(boite, optionsCarte(g, resolved !== 'light', { lat: 5.3236, lng: -4.0217 }, 15));
       g.event.addListenerOnce(m, 'tilesloaded', () => { if (!annule) { setApercuPret(true); fermerAvisSansCle(boite); } });
-    }).catch(() => { if (!annule) { setRefus(true); setMotif(motifRefus()); } });
+    }).catch((e: Error) => {
+      if (annule) return;
+      if (e.message === 'cle-refusee') { setRefus(true); setMotif(motifRefus()); } else setInjoignable(true);
+    });
     return () => { annule = true; boite.innerHTML = ''; };
   }, [google, resolved]);
 
@@ -84,12 +90,13 @@ export function CarteFondScreen({ onBack }: { onBack: () => void }) {
         {google && (
           <div className="carte-apercu" aria-label={t('carte_apercu')}>
             <div ref={apercu} className="carte-apercu-carte" />
-            {!apercuPret && <span className="carte-apercu-attente">{t('carte_apercu_attente')}</span>}
+            {!apercuPret && !injoignable && <span className="carte-apercu-attente">{t('carte_apercu_attente')}</span>}
           </div>
         )}
-        <p className={refus || motif ? 'carte-etat refus' : 'carte-etat'} role="status" aria-live="polite">
+        <p className={refus || motif || injoignable ? 'carte-etat refus' : 'carte-etat'} role="status" aria-live="polite">
           {refus || motif
             ? `${t('carte_etat_refus')}${motif ? ` ${t(CAUSES[motif] ?? 'carte_motif_autre', { m: motif })}` : ''}`
+            : google && injoignable ? t('carte_etat_reseau')
             : google ? (essaiSansCle() && !avecCle ? t('carte_essai') : apercuPret ? t('carte_etat_ok') : t('carte_apercu_attente')) : t('carte_etat_sans')}
         </p>
 

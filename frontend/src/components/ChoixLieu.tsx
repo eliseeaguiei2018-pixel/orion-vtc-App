@@ -254,7 +254,9 @@ function ChoixSurCarteOrion({ centre, onBack, onValider }: { centre: LatLng; onB
     void chargerML().then((ml) => {
       if (annule || !boite.current) return;
       const m = new ml.Map({ container: boite.current, style: styleOrion(resolved === 'light' ? 'light' : 'dark', config), center: [centre.lng, centre.lat], zoom: 15.5, attributionControl: false, dragRotate: false, pitchWithRotate: false });
-      m.addControl(new ml.AttributionControl({ compact: true, customAttribution: config.attribution }), 'top-right');
+      // Mention OpenStreetMap sous l'en-tête, repliée sur son bouton « i » : elle ne passe plus sous le titre.
+      m.addControl(new ml.AttributionControl({ compact: true, customAttribution: config.attribution }), 'top-left');
+      m.once('load', () => boite.current?.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));
       // Le repère est dessiné à 38 % de la hauteur (au-dessus de la feuille) : le « centre »
       // de la carte y est aligné, sinon le point validé ne serait pas celui que voit le client.
       const caler = () => m.setPadding({ top: 0, left: 0, right: 0, bottom: Math.round(m.getContainer().clientHeight * 0.24) });

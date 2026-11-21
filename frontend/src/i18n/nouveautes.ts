@@ -715,6 +715,16 @@ const TEXTES: Record<string, Huit> = {
     'Google 给出的原因：{m}。',
     'Причина, указанная Google: {m}.',
   ],
+  carte_etat_reseau: [
+    'Google Maps est injoignable : vérifiez la connexion Internet. En attendant, l’application affiche la carte ORION.',
+    'Google Maps cannot be reached: check the Internet connection. Meanwhile, the app shows the ORION map.',
+    'No se puede acceder a Google Maps: compruebe la conexión a Internet. Mientras tanto, la aplicación muestra el mapa ORION.',
+    'Google Maps non è raggiungibile: controlla la connessione Internet. Nel frattempo l’app mostra la mappa ORION.',
+    'Google Maps ist nicht erreichbar: Prüfen Sie die Internetverbindung. Bis dahin zeigt die App die ORION-Karte.',
+    'تعذّر الوصول إلى خرائط Google: تحقق من اتصال الإنترنت. في الأثناء يعرض التطبيق خريطة ORION.',
+    '无法连接 Google 地图：请检查网络连接。在此期间，应用显示 ORION 地图。',
+    'Google Карты недоступны: проверьте подключение к Интернету. Пока приложение показывает карту ORION.',
+  ],
 };
 
 export const NOUVEAUTES = Object.fromEntries(
