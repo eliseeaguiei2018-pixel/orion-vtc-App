@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Sheet, TopBar } from './ui';
 import {
-  IconCamera, IconCheck, IconChevron, IconClock, IconGlobe, IconImage, IconLock,
-  IconPin, IconShield, IconShieldCheck, IconPhone, IconStar,
+  IconAlarm, IconArrowLeft, IconBriefcase, IconCamera, IconCheck, IconChevron, IconClock, IconCrown, IconGlobe, IconHeadset, IconHome, IconImage,
+  IconInfo, IconLock, IconMap, IconMessage, IconMonitor, IconPin, IconPlus, IconSettings, IconShield, IconShieldCheck, IconPhone, IconStar, IconUser, IconWallet,
 } from '../icons';
 import { useI18n, LANGUAGES, type Lang } from '../i18n';
 import { Drapeau } from './Drapeau';
-import { Objet, Tuile } from './Vehicules';
+import { Objet } from './Vehicules';
+import { lieuEnregistre, lieuxRecents } from '../lieux';
+import type { Place } from '../types';
 import { ACCENTS, useTheme, type ThemeMode } from '../theme';
 import { COUNTRIES, formatXOF } from '../data';
 import { isBiometricEnabled, setBiometricEnabled } from '../security';
@@ -222,122 +224,126 @@ export function ProfileScreen({ profil, onBack, onSaved, onToast }: {
 
 /* =============================== PARAMÈTRES =============================== */
 
-const VERSION = '1.0';
+const VERSION = '1.3.0';
+
+/* ============================ MENU (trois traits) ============================ */
+
+/** Épaisseur du trait des icônes du menu : nettes et sobres, comme des pictogrammes d'interface. */
+const T = 1.9;
 
 /**
- * Les paramètres : le compte en tête, puis l'activité (historique, annulations,
- * alertes, portefeuille, abonnement), la sécurité, les préférences, l'aide, et la
- * gestion du compte. Avant, on n'y trouvait ni profil, ni historique.
+ * LE MENU — ouvert par les trois traits de l'accueil.
+ *
+ * Tout ce qui concerne le client et l'application au même endroit : son portrait, son nom
+ * et son numéro ; quatre raccourcis en bulles (courses, aide, adresses, paramètres) ; puis
+ * des groupes de lignes à chevron. Ici, pas de couleur : des icônes noires au trait, sans
+ * fond, sans ombre ni dégradé, sur le gris clair des bulles et des groupes. Les objets en
+ * volume restent sur l'accueil et les services.
  */
 export function SettingsScreen({
-  profil, onBack, onProfile, onHistory, onSos, onWallet, onSubscription, onHelp, onLegal, onCreate, onLogout, onDelete,
-  trusted, setTrusted, shareRides, setShareRides, onAssurance, assuranceActive = false, onServeur,
+  profil, onBack, onProfile, onHistory, onSos, onWallet, onSubscription, onHelp, onLegal, onCreate,
+  onAssurance, assuranceActive = false, onServeur, onMessages, nonLus = 0, onAdresses, onPreferences, onSecurite, onCarte, carteGoogle = false,
 }: {
-  /** Liaison avec le serveur ORION (adresse réglable sans réinstaller l'application). */
-  onServeur?: () => void;
-  /** ORION Assurance : dossier de premiers secours (inscription gratuite). */
-  onAssurance?: () => void; assuranceActive?: boolean;
   profil: ProfilClient | null; onBack: () => void; onProfile: () => void; onHistory: () => void; onSos: () => void;
   onWallet: () => void; onSubscription: () => void; onHelp: () => void; onLegal: () => void; onCreate: () => void;
-  onLogout: () => void; onDelete: () => void;
-  trusted: TrustedContact | null; setTrusted: (c: TrustedContact) => void;
-  shareRides: boolean; setShareRides: (v: boolean) => void;
+  /** ORION Assurance : dossier de premiers secours (inscription gratuite). */
+  onAssurance?: () => void; assuranceActive?: boolean;
+  /** Liaison avec le serveur ORION (adresse réglable sans réinstaller l'application). */
+  onServeur?: () => void;
+  /** Messages du centre ORION (absent quand la messagerie n'est pas active). */
+  onMessages?: () => void; nonLus?: number;
+  onAdresses: () => void; onPreferences: () => void; onSecurite: () => void;
+  /** Fond de carte (ORION ou Google Maps). */
+  onCarte?: () => void; carteGoogle?: boolean;
 }) {
-  const { t, lang, setLang } = useI18n();
-  const { mode, setMode, accent, setAccent } = useTheme();
-  const [bio, setBio] = useState(isBiometricEnabled());
-  const [name, setName] = useState(trusted?.name ?? '');
-  const [phone, setPhone] = useState(trusted?.phone ?? '');
-  const [confirmerSuppression, setConfirmerSuppression] = useState(false);
-  const themeOpts: Array<{ m: ThemeMode; k: string }> = [
-    { m: 'system', k: 'theme_auto' }, { m: 'light', k: 'theme_light' }, { m: 'dark', k: 'theme_dark' },
-  ];
-  const saveContact = (nm: string, ph: string) => { if (nm && ph) setTrusted({ name: nm, phone: ph }); };
+  const { t } = useI18n();
   const serveur = etatServeur();
   const hoteServeur = (() => { try { return new URL(serveur.url).host; } catch { return serveur.url; } })();
-  const ligne = (icone: ReactNode, titre: string, sous: string | null, onClick: () => void, classe = '') => (
-    <button className={`opt list-btn set-ligne ${classe}`} onClick={onClick}>
-      <span className="list-ico">{icone}</span>
-      <span className="col grow" style={{ textAlign: 'start' }}>
-        <strong style={{ fontSize: 14 }}>{titre}</strong>
-        {sous && <span className="faint" style={{ fontSize: 12 }}>{sous}</span>}
-      </span>
-      <IconChevron size={18} color="var(--text-faint)" />
+  const bulle = (icone: ReactNode, nom: string, onClick: () => void) => (
+    <button className="menu-bulle" onClick={onClick}>
+      <span>{icone}</span>
+      {nom}
+    </button>
+  );
+  const ligne = (icone: ReactNode, titre: string, sous: string | null, onClick: () => void, droite?: ReactNode) => (
+    <button className="menu-ligne" onClick={onClick}>
+      <span className="menu-ico">{icone}</span>
+      <span className="menu-texte"><strong>{titre}</strong>{sous && <small>{sous}</small>}</span>
+      {droite}
+      <IconChevron size={20} strokeWidth={2.2} />
     </button>
   );
 
   return (
-    <div className="screen page">
-      <TopBar onBack={onBack} title={t('set_title')} />
-      <div className="page-body">
-        {/* Le compte */}
-        {profil ? (
-          <div className="card set-profil">
-            <div className="row gap-sm">
-              <Avatar photo={profil.photo} name={profil.name} size={62} />
-              <span className="col grow" style={{ textAlign: 'start' }}>
-                <strong style={{ fontSize: 17 }}>{profil.name}</strong>
-                <span className="faint" style={{ fontSize: 13 }}>{profil.phone}{profil.phoneVerifiedAt && <IconCheck size={13} />}</span>
-                <span className="faint" style={{ fontSize: 12 }}>{profil.email ?? t('prof_no_email')}</span>
-              </span>
-            </div>
-            <div className="set-stats">
-              <span><strong>{profil.stats.courses}</strong>{t('stat_rides')}</span>
-              <span><strong>{profil.stats.annulations}</strong>{t('stat_cancel')}</span>
-              <span><strong>{profil.stats.pointsCarbone}</strong>{t('stat_points')}</span>
-            </div>
-            <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={onProfile}>{t('set_profile_edit')}</button>
-          </div>
-        ) : (
-          <div className="card set-profil">
-            <p className="faint" style={{ margin: '0 0 10px' }}>{t('set_no_account')}</p>
-            <button className="btn btn-primary" onClick={onCreate}>{t('set_create_account')}</button>
+    <div className="screen page menu sans-couleur">
+      <div className="menu-haut">
+        <button className="bulle" onClick={onBack} aria-label="Retour"><IconArrowLeft size={22} /></button>
+      </div>
+      <div className="page-body menu-corps">
+        <button className="menu-profil" onClick={profil ? onProfile : onCreate} aria-label={profil ? t('set_profile_edit') : t('set_create_account')}>
+          <span className="menu-avatar">{profil ? <Avatar photo={profil.photo} name={profil.name} size={124} /> : <IconUser size={56} strokeWidth={1.4} />}</span>
+          <span className="menu-nom">
+            {profil ? profil.name : t('set_create_account')}
+            {profil?.phoneVerifiedAt && <span className="menu-verifie" role="img" aria-label={t('menu_verifie')}><IconCheck size={13} strokeWidth={3.2} /></span>}
+          </span>
+          <span className="menu-tel">{profil ? profil.phone : t('set_no_account')}</span>
+        </button>
+
+        <div className="menu-bulles">
+          {bulle(<IconClock size={28} strokeWidth={T} />, t('menu_history'), onHistory)}
+          {bulle(<IconHeadset size={28} strokeWidth={T} />, t('menu_help'), onHelp)}
+          {bulle(<IconPin size={28} strokeWidth={T} />, t('menu_adresses'), onAdresses)}
+          {bulle(<IconSettings size={28} strokeWidth={T} />, t('set_title'), onPreferences)}
+        </div>
+
+        <div className="menu-groupe">
+          {onMessages && ligne(<IconMessage size={27} strokeWidth={T} />, t('msg_titre'), nonLus > 0 ? t('menu_messages_n', { n: nonLus }) : t('menu_messages_d'), onMessages,
+            nonLus > 0 ? <span className="menu-pastille">{nonLus > 9 ? '9+' : nonLus}</span> : undefined)}
+          {ligne(<IconWallet size={27} strokeWidth={T} />, t('wal_title'), t('menu_wallet_d'), onWallet)}
+          {ligne(<IconCrown size={27} strokeWidth={T} />, t('set_subscription'), t('menu_sub_d'), onSubscription)}
+        </div>
+
+        <div className="menu-groupe">
+          {profil && onAssurance && ligne(<IconShieldCheck size={27} strokeWidth={T} />, t('as_title'), t(assuranceActive ? 'set_assurance_d_on' : 'set_assurance_d_off'), onAssurance)}
+          {ligne(<IconAlarm size={27} strokeWidth={T} />, t('set_sos'), t('set_sos_d'), onSos)}
+          {ligne(<IconLock size={27} strokeWidth={T} />, t('sec_title'), t('menu_securite_d'), onSecurite)}
+        </div>
+
+        <div className="menu-groupe">
+          {ligne(<IconInfo size={27} strokeWidth={T} />, t('menu_infos'), t('menu_infos_d'), onLegal)}
+          {onCarte && ligne(<IconMap size={27} strokeWidth={T} />, t('carte_titre'), t(carteGoogle ? 'carte_d_google' : 'carte_d_orion'), onCarte)}
+          {onServeur && ligne(<IconMonitor size={27} strokeWidth={T} />, t('srv_title'), serveur.url ? t('srv_d_relie', { h: hoteServeur }) : t('srv_d_autonome'), onServeur)}
+        </div>
+
+        {profil && (
+          <div className="set-stats menu-stats">
+            <span><strong>{profil.stats.courses}</strong>{t('stat_rides')}</span>
+            <span><strong>{profil.stats.annulations}</strong>{t('stat_cancel')}</span>
+            <span><strong>{profil.stats.pointsCarbone}</strong>{t('stat_points')}</span>
           </div>
         )}
+        <p className="faint" style={{ textAlign: 'center', fontSize: 11, margin: '18px 0 6px' }}>{t('set_version', { v: VERSION })}</p>
+      </div>
+    </div>
+  );
+}
 
-        {/* Mes courses et Aide : les deux tuiles venues de l'accueil, au même format. */}
-        <div className="tuiles-duo set-tuiles">
-          <Tuile grande rang={0} objet={<Objet nom="mes-courses" />} label={t('menu_history')} note={t('set_history_d')} onClick={onHistory} />
-          <Tuile grande rang={1} objet={<Objet nom="aide" />} label={t('menu_help')} note={t('set_help_d')} onClick={onHelp} />
-        </div>
+/* ============================== PARAMÈTRES ============================== */
 
-        {/* Mon activité */}
-        <span className="eyebrow set-titre"><IconClock size={13} /> {t('set_activity')}</span>
-        <div className="stack">
-          {profil && onAssurance && ligne(<Objet nom="assurance" taille={34} />, t('as_title'), t(assuranceActive ? 'set_assurance_d_on' : 'set_assurance_d_off'), onAssurance)}
-          {ligne(<Objet nom="alertes-sos" taille={34} />, t('set_sos'), t('set_sos_d'), onSos)}
-          {ligne(<Objet nom="portefeuille" taille={34} />, t('wal_title'), null, onWallet)}
-          {ligne(<Objet nom="abonnement" taille={34} />, t('set_subscription'), null, onSubscription)}
-        </div>
-
-        {/* Sécurité & confidentialité */}
-        <span className="eyebrow set-titre"><IconShieldCheck size={13} /> {t('sec_title')}</span>
-        <div className="opt" style={{ marginBottom: 8 }}>
-          <span className="list-ico"><Objet nom="cadenas" taille={34} /></span>
-          <span className="col grow" style={{ textAlign: 'start' }}>
-            <strong style={{ fontSize: 14 }}>{t('sec_biometric')}</strong>
-            <span className="faint" style={{ fontSize: 12 }}>{t('sec_biometric_d')}</span>
-          </span>
-          <button className={`toggle${bio ? ' on' : ''}`} role="switch" aria-checked={bio} aria-label={t('sec_biometric')} onClick={() => { const v = !bio; setBio(v); setBiometricEnabled(v); }}><span /></button>
-        </div>
-        <span className="faint" style={{ display: 'block', fontSize: 12, margin: '10px 2px 6px' }}><IconShield size={12} /> {t('tc_title')}</span>
-        <div className="field" style={{ marginBottom: 8 }}>
-          <input placeholder={t('tc_name')} value={name} onChange={(e) => { setName(e.target.value); saveContact(e.target.value, phone); }} />
-        </div>
-        <div className="field" style={{ marginBottom: 8 }}>
-          <span className="dialcode">+225</span>
-          <input inputMode="tel" placeholder={t('tc_phone')} value={phone} onChange={(e) => { setPhone(e.target.value); saveContact(name, e.target.value); }} />
-        </div>
-        <div className="opt">
-          <span className="col grow" style={{ textAlign: 'start' }}>
-            <strong style={{ fontSize: 14 }}>{t('tc_share')}</strong>
-            <span className="faint" style={{ fontSize: 12 }}>{t('tc_share_d')}</span>
-          </span>
-          <button className={`toggle${shareRides ? ' on' : ''}`} role="switch" aria-checked={shareRides} aria-label={t('tc_share')} onClick={() => setShareRides(!shareRides)}><span /></button>
-        </div>
-        <p className="faint" style={{ fontSize: 11, margin: '8px 2px 0' }}><IconLock size={11} /> {t('sec_privacy')}</p>
-
-        {/* Préférences */}
+/** Apparence, langue, pays, et la fin du compte (déconnexion, suppression). */
+export function PreferencesScreen({ profil, onBack, onLogout, onDelete }: {
+  profil: ProfilClient | null; onBack: () => void; onLogout: () => void; onDelete: () => void;
+}) {
+  const { t, lang, setLang } = useI18n();
+  const { mode, setMode, accent, setAccent } = useTheme();
+  const [confirmerSuppression, setConfirmerSuppression] = useState(false);
+  const themeOpts: Array<{ m: ThemeMode; k: string }> = [
+    { m: 'system', k: 'theme_auto' }, { m: 'light', k: 'theme_light' }, { m: 'dark', k: 'theme_dark' },
+  ];
+  return (
+    <div className="screen page sans-couleur">
+      <TopBar onBack={onBack} title={t('set_title')} />
+      <div className="page-body">
         <span className="eyebrow set-titre">{t('set_prefs')}</span>
         <span className="faint" style={{ fontSize: 12 }}>{t('set_theme')}</span>
         <div className="chips" style={{ margin: '8px 0 14px' }}>
@@ -361,7 +367,7 @@ export function SettingsScreen({
           {LANGUAGES.map((l) => (
             <button key={l.code} className={`opt${l.code === lang ? ' active' : ''}`} onClick={() => setLang(l.code as Lang)}>
               <Drapeau code={l.code} /> <span className="grow" style={{ textAlign: 'start' }}>{l.label}</span>
-              {l.code === lang && <IconCheck size={16} color="var(--green)" />}
+              {l.code === lang && <IconCheck size={16} />}
             </button>
           ))}
         </div>
@@ -376,14 +382,6 @@ export function SettingsScreen({
           ))}
         </div>
 
-        {/* Aide et informations */}
-        <span className="eyebrow set-titre">{t('set_info')}</span>
-        <div className="stack">
-          {ligne(<Objet nom="document" taille={34} />, t('set_legal'), null, onLegal)}
-          {onServeur && ligne(<Objet nom="serveur" taille={34} />, t('srv_title'), serveur.url ? t('srv_d_relie', { h: hoteServeur }) : t('srv_d_autonome'), onServeur)}
-        </div>
-
-        {/* Mon compte */}
         {profil && (
           <>
             <span className="eyebrow set-titre">{t('set_account')}</span>
@@ -400,6 +398,93 @@ export function SettingsScreen({
           </>
         )}
         <p className="faint" style={{ textAlign: 'center', fontSize: 11, margin: '22px 0 6px' }}>{t('set_version', { v: VERSION })}</p>
+      </div>
+    </div>
+  );
+}
+
+/* =============================== SÉCURITÉ =============================== */
+
+/** Verrouillage de l'application, contact de confiance, partage automatique des courses. */
+export function SecuriteScreen({ onBack, trusted, setTrusted, shareRides, setShareRides }: {
+  onBack: () => void;
+  trusted: TrustedContact | null; setTrusted: (c: TrustedContact) => void;
+  shareRides: boolean; setShareRides: (v: boolean) => void;
+}) {
+  const { t } = useI18n();
+  const [bio, setBio] = useState(isBiometricEnabled());
+  const [name, setName] = useState(trusted?.name ?? '');
+  const [phone, setPhone] = useState(trusted?.phone ?? '');
+  const saveContact = (nm: string, ph: string) => { if (nm && ph) setTrusted({ name: nm, phone: ph }); };
+  return (
+    <div className="screen page sans-couleur">
+      <TopBar onBack={onBack} title={t('sec_title')} />
+      <div className="page-body">
+        <div className="opt" style={{ marginBottom: 8 }}>
+          <span className="list-ico"><IconLock size={24} strokeWidth={T} /></span>
+          <span className="col grow" style={{ textAlign: 'start' }}>
+            <strong style={{ fontSize: 14 }}>{t('sec_biometric')}</strong>
+            <span className="faint" style={{ fontSize: 12 }}>{t('sec_biometric_d')}</span>
+          </span>
+          <button className={`toggle${bio ? ' on' : ''}`} role="switch" aria-checked={bio} aria-label={t('sec_biometric')} onClick={() => { const v = !bio; setBio(v); setBiometricEnabled(v); }}><span /></button>
+        </div>
+        <span className="faint" style={{ display: 'block', fontSize: 12, margin: '14px 2px 6px' }}><IconShield size={12} /> {t('tc_title')}</span>
+        <div className="field" style={{ marginBottom: 8 }}>
+          <input placeholder={t('tc_name')} value={name} onChange={(e) => { setName(e.target.value); saveContact(e.target.value, phone); }} />
+        </div>
+        <div className="field" style={{ marginBottom: 8 }}>
+          <span className="dialcode">+225</span>
+          <input inputMode="tel" placeholder={t('tc_phone')} value={phone} onChange={(e) => { setPhone(e.target.value); saveContact(name, e.target.value); }} />
+        </div>
+        <div className="opt">
+          <span className="col grow" style={{ textAlign: 'start' }}>
+            <strong style={{ fontSize: 14 }}>{t('tc_share')}</strong>
+            <span className="faint" style={{ fontSize: 12 }}>{t('tc_share_d')}</span>
+          </span>
+          <button className={`toggle${shareRides ? ' on' : ''}`} role="switch" aria-checked={shareRides} aria-label={t('tc_share')} onClick={() => setShareRides(!shareRides)}><span /></button>
+        </div>
+        <p className="faint" style={{ fontSize: 11, margin: '10px 2px 0' }}><IconLock size={11} /> {t('sec_privacy')}</p>
+      </div>
+    </div>
+  );
+}
+
+/* =============================== ADRESSES =============================== */
+
+/** Domicile, bureau et lieux récents : on les définit ici, on y va d'un geste. */
+export function AdressesScreen({ onBack, onDefinir, onAller }: {
+  onBack: () => void; onDefinir: (quel: 'domicile' | 'bureau') => void; onAller: (p: Place) => void;
+}) {
+  const { t } = useI18n();
+  const recents = lieuxRecents();
+  return (
+    <div className="screen page sans-couleur">
+      <TopBar onBack={onBack} title={t('menu_adresses_t')} />
+      <div className="page-body">
+        <div className="menu-groupe">
+          {([['domicile', lieuEnregistre('home')], ['bureau', lieuEnregistre('work')]] as const).map(([quel, lieu]) => (
+            <div key={quel} className="menu-ligne statique">
+              <span className="menu-ico">{quel === 'domicile' ? <IconHome size={27} strokeWidth={T} /> : <IconBriefcase size={27} strokeWidth={T} />}</span>
+              <button className="menu-texte" onClick={() => (lieu ? onAller(lieu) : onDefinir(quel))}>
+                <strong>{t(quel === 'domicile' ? 'lieu_domicile' : 'lieu_bureau')}</strong>
+                <small>{lieu ? lieu.area || lieu.name : t(quel === 'domicile' ? 'lieu_ajouter_domicile' : 'lieu_ajouter_bureau')}</small>
+              </button>
+              <button className="menu-action" onClick={() => onDefinir(quel)}>{lieu ? t('menu_modifier') : <IconPlus size={20} />}</button>
+            </div>
+          ))}
+        </div>
+        <span className="eyebrow set-titre">{t('menu_recents')}</span>
+        {recents.length === 0 ? <p className="faint" style={{ fontSize: 13.5 }}>{t('menu_recents_vide')}</p> : (
+          <div className="menu-groupe">
+            {recents.map((p) => (
+              <button key={p.id} className="menu-ligne" onClick={() => onAller(p)}>
+                <span className="menu-ico"><IconPin size={27} strokeWidth={T} /></span>
+                <span className="menu-texte"><strong>{p.name}</strong>{p.area && <small>{p.area}</small>}</span>
+                <IconChevron size={20} strokeWidth={2.2} />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

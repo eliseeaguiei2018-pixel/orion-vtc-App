@@ -259,3 +259,21 @@ export const IconCarburant = ({ size, strokeWidth }: P) => (
 export const IconBus = ({ size, strokeWidth }: P) => (
   <svg {...base(size, strokeWidth)}><rect x="4" y="3" width="16" height="15" rx="3" /><path d="M4 11h16M8 21v-3M16 21v-3" /><circle cx="8" cy="14.5" r=".6" /><circle cx="16" cy="14.5" r=".6" /></svg>
 );
+
+/** Ma position : un réticule (cercle et quatre repères). */
+export const IconLocate = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><circle cx="12" cy="12" r="6.5" /><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" /><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" /></svg>
+);
+/** Actualisation en cours : une flèche qui tourne. */
+export const IconRefresh = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M20 11a8 8 0 1 0-2.3 6.3" /><path d="M20 4.5V11h-6.5" /></svg>
+);
+
+/** Assistance : un casque d'écoute. */
+export const IconHeadset = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M4.5 13.5v-2a7.5 7.5 0 0 1 15 0v2" /><rect x="3" y="13" width="4.5" height="6.5" rx="2" /><rect x="16.5" y="13" width="4.5" height="6.5" rx="2" /><path d="M19 19.5c0 1.4-1.6 2-4 2h-2" /></svg>
+);
+/** Informations : un « i » dans un cercle. */
+export const IconInfo = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><circle cx="12" cy="12" r="9" /><path d="M12 11v5.5" /><circle cx="12" cy="7.6" r="0.9" fill="currentColor" stroke="none" /></svg>
+);

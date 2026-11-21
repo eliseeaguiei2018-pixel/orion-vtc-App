@@ -41,6 +41,8 @@ interface Props {
   suivi?: boolean;
   /** Libellé du bouton qui reprend le suivi après un déplacement manuel de la carte. */
   libelleRecentrer?: string;
+  /** Position réelle du téléphone (« vous êtes ici »), après une actualisation du GPS. */
+  moi?: LatLng | null;
 }
 
 
@@ -67,11 +69,11 @@ const cap = (a: LatLng, b: LatLng) => {
   return (Math.atan2(y, x) * 180) / Math.PI;
 };
 
-export function CarteReelle({ origin, destination, stops = [], car, vehicle = 'car', approche = false, config, onEchec, basCouvert = 0.46, trace, ponts, suivi = false, libelleRecentrer = 'Recentrer' }: Props) {
+export function CarteReelle({ origin, destination, stops = [], car, vehicle = 'car', approche = false, config, onEchec, basCouvert = 0.46, trace, ponts, suivi = false, libelleRecentrer = 'Recentrer', moi }: Props) {
   const { resolved, accent } = useTheme();
   const boite = useRef<HTMLDivElement>(null);
   const carte = useRef<CarteML | null>(null);
-  const marqueurs = useRef<{ depart?: Marker; arrivee?: Marker; arrets: Marker[]; vehicule?: Marker }>({ arrets: [] });
+  const marqueurs = useRef<{ depart?: Marker; arrivee?: Marker; arrets: Marker[]; vehicule?: Marker; moi?: Marker }>({ arrets: [] });
   const [prete, setPrete] = useState(false);
   const [route, setRoute] = useState<ItineraireRoute | null>(null);
   const [routeApproche, setRouteApproche] = useState<LatLng[] | null>(null);
@@ -188,7 +190,8 @@ export function CarteReelle({ origin, destination, stops = [], car, vehicle = 'c
       type: 'FeatureCollection',
       features: routeApproche && routeApproche.length > 1 ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: routeApproche.map((p) => [p.lng, p.lat]) } }] : [],
     });
-    const tous = [...geo, ...(routeApproche ?? []), origin];
+    // La position réelle du client entre dans le cadre : il se voit sur la carte avec son trajet.
+    const tous = [...geo, ...(routeApproche ?? []), origin, ...(moi ? [moi] : [])];
     const h = boite.current?.clientHeight ?? 800;
     // La feuille du bas masque une partie de la carte : on cadre le trajet au-dessus d'elle.
     const feuille = boite.current?.closest('.screen')?.querySelector('.sheet')?.getBoundingClientRect();
@@ -205,7 +208,7 @@ export function CarteReelle({ origin, destination, stops = [], car, vehicle = 'c
       m.easeTo({ center: [origin.lng, origin.lat], zoom: 14.2, padding: { top: 60, bottom: Math.min(h - 200, couvert), left: 0, right: 0 }, duration: 700 });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prete, route, routeApproche, cleTrajet, traceExterne ? trace : null, suit]);
+  }, [prete, route, routeApproche, cleTrajet, traceExterne ? trace : null, suit, moi?.lat, moi?.lng]);
 
   // 6. Repères : départ, arrêts, arrivée.
   useEffect(() => {
@@ -222,6 +225,19 @@ export function CarteReelle({ origin, destination, stops = [], car, vehicle = 'c
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prete, cleTrajet, origin.lat, origin.lng]);
+
+  // 6 bis. Position réelle du client : un point bleu, sur lequel la carte se recentre.
+  useEffect(() => {
+    const m = carte.current;
+    if (!prete || !m) return;
+    const M = marqueurs.current;
+    if (!moi) { M.moi?.remove(); M.moi = undefined; return; }
+    void chargerML().then((ml) => {
+      if (M.moi) M.moi.setLngLat([moi.lng, moi.lat]);
+      else M.moi = new ml.Marker({ element: element('carte-moi', '<span></span>') }).setLngLat([moi.lng, moi.lat]).addTo(m);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prete, moi?.lat, moi?.lng]);
 
   // 7. Véhicule : glisse d'une position à la suivante et s'oriente dans le sens de la marche.
   useEffect(() => {

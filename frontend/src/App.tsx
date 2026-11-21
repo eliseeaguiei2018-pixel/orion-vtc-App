@@ -4,7 +4,7 @@ import { App as AppNative } from '@capacitor/app';
 import { OrionMap } from './components/OrionMap';
 import { Sheet, TopBar, Toast } from './components/ui';
 import {
-  IconBell, IconClose, IconUser, IconBolt, IconCalendar, IconCamera, IconCar, IconCheck, IconChevron, IconClock, IconCrown,
+  IconBell, IconClose, IconBolt, IconCalendar, IconCamera, IconCar, IconCheck, IconChevron, IconClock, IconCrown,
   IconFingerprint, IconGem, IconGlobe, IconLeaf, IconLock, IconMinus,
   IconPhone, IconPin, IconPlus, IconRing, IconSearch, IconShare,
   IconShield, IconShieldCheck, IconMedical, IconStar, IconTraffic, IconWallet, } from './icons';
@@ -28,8 +28,11 @@ import { useI18n } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
 import { ChoixLieu, iconeLieu, type ModeChoix } from './components/ChoixLieu';
-import { LIEUX_POPULAIRES, enregistrerLieu, lieuEnregistre, lieuxRecents, memoriserRecent, quartierDe, useDepart, type EtatPosition } from './lieux';
-import { Avatar, CancelSheet, HistoryScreen, LegalScreen, PhotoScreen, ProfileScreen, SettingsScreen, SosHistoryScreen } from './components/CompteScreens';
+import { LIEUX_POPULAIRES, enregistrerLieu, lieuEnregistre, lieuxRecents, lirePositionGps, memoriserRecent, quartierDe, useDepart, type EtatPosition } from './lieux';
+import { AdressesScreen, CancelSheet, HistoryScreen, LegalScreen, PhotoScreen, PreferencesScreen, ProfileScreen, SecuriteScreen, SettingsScreen, SosHistoryScreen } from './components/CompteScreens';
+import { CarteFondScreen } from './components/CarteFondScreen';
+import { fondCarte, suivreFondCarte } from './carteGoogle';
+import { GpsCarte, type GpsCarteValeur } from './components/gpsCarte';
 
 const PAYMENTS = [
   { method: 'orange_money', label: 'Orange Money' },
@@ -117,6 +120,15 @@ export function App() {
   // Messagerie ORION : messages de la supervision, contrôle de sécurité en course.
   const messagerie = useMessagerie();
   const [retourMessages, setRetourMessages] = useState<Screen>('home');
+  /** Écran d'où l'on a ouvert le portefeuille, l'aide ou l'abonnement : l'accueil ou le menu. */
+  const [retourService, setRetourService] = useState<Screen>('home');
+  const [retourPreferences, setRetourPreferences] = useState<Screen>('settings');
+  /** Fond de carte courant (ORION ou Google Maps) : relu quand le client le change. */
+  const [fond, setFond] = useState(fondCarte);
+  useEffect(() => suivreFondCarte(() => setFond(fondCarte())), []);
+  /** Position réelle du téléphone (bulle « actualiser ma position » de la carte). */
+  const [maPosition, setMaPosition] = useState<LatLng | null>(null);
+  const [gpsOccupe, setGpsOccupe] = useState(false);
   const [payment, setPayment] = useState<string>('orange_money');
   const [quote, setQuote] = useState<Quote | null>(null);
   /** Nom saisi à l'inscription — enregistré côté serveur après vérification du numéro. */
@@ -497,6 +509,7 @@ export function App() {
     const PARENT: Partial<Record<Screen, Screen>> = {
       auth: 'onboarding', otp: 'auth', destination: 'home', delivery: 'home', estimate: 'home', confirm: 'estimate',
       settings: 'home', profile: 'settings', sosHistory: 'settings', legal: 'settings', history: 'settings',
+      preferences: 'settings', securite: 'settings', adresses: 'settings', carteFond: 'settings', serveur: 'settings',
       wallet: 'home', help: 'home', support: 'help', subscription: 'home', rental: 'home', myRentals: 'home', wedding: 'home', assurance: 'settings', messages: 'home', choixLieu: 'home',
     };
     const ecoute = AppNative.addListener('backButton', () => {
@@ -597,7 +610,31 @@ export function App() {
     setScreen('home');
   };
 
+  /**
+   * Bulle « actualiser ma position » de la carte. Avant la commande, le point de prise en
+   * charge suit la position relue. Une fois la course demandée, le point de prise en charge
+   * ne bouge plus : on montre seulement où se trouve le client (repère « vous êtes ici »).
+   */
+  const actualiserPosition = async () => {
+    if (gpsOccupe) return;
+    setGpsOccupe(true);
+    try {
+      if (screen === 'searching' || screen === 'tracking') {
+        try { setMaPosition(await lirePositionGps()); showToast(t('gps_ok_course')); }
+        catch (e) { showToast(t((e as { code?: number }).code === 1 ? 'gps_refus' : 'gps_indispo'), true); }
+      } else {
+        const r = await position.actualiser();
+        if (r.etat === 'ok' && r.place) { setMaPosition(r.place.location); showToast(t('gps_ok', { q: r.place.area || t('lieu_ma_position') })); }
+        else showToast(t(r.etat === 'refus' ? 'gps_refus' : r.etat === 'hors_zone' ? 'gps_hors_zone' : 'gps_indispo'), true);
+      }
+    } finally { setGpsOccupe(false); }
+  };
+  const ECRANS_GPS: Screen[] = ['delivery', 'estimate', 'confirm', 'searching', 'tracking'];
+  const gps: GpsCarteValeur | null = ECRANS_GPS.includes(screen)
+    ? { moi: maPosition, occupe: gpsOccupe, actualiser: () => void actualiserPosition(), libelle: t('gps_actualiser') } : null;
+
   return (
+    <GpsCarte.Provider value={gps}>
     <div className="app-shell">
       <div className={`phone${sosLive && !sosOuvert ? ' sos-reduit' : ''}`}>
         {toast && <Toast message={toast.message} danger={toast.danger} />}
@@ -609,7 +646,7 @@ export function App() {
         {locked && <LockScreen onUnlock={() => setLocked(false)} />}
 
         {screen === 'splash' && <Splash onDone={() => setScreen(profil ? 'home' : 'onboarding')} />}
-        {screen === 'onboarding' && <Onboarding onStart={() => setScreen('auth')} onLang={() => setScreen('settings')} />}
+        {screen === 'onboarding' && <Onboarding onStart={() => setScreen('auth')} onLang={() => { setRetourPreferences('onboarding'); setScreen('preferences'); }} />}
         {screen === 'auth' && <AuthScreen phone={phone} setPhone={setPhone} name={clientName} setName={setClientName} email={email} setEmail={setEmail} erreur={erreurInscription} onBack={() => setScreen('onboarding')} onNext={() => void envoyerCode()} onWhatsApp={(msg) => { showToast(msg); void envoyerCode(); }} />}
         {screen === 'otp' && (
           <OtpScreen
@@ -624,14 +661,14 @@ export function App() {
         {screen === 'permissions' && <PermissionsScreen etat={position.etat} onLocaliser={position.localiser} onDone={() => setScreen('home')} />}
 
         {screen === 'home' && (
-          <HomeScreen announce={announce} closed={closed} deliveryOff={deliveryOff} city={appConfig?.city ?? null} profil={profil}
+          <HomeScreen announce={announce} closed={closed} deliveryOff={deliveryOff} city={appConfig?.city ?? null}
             onSearch={() => { if (guardOpen()) { setMode('ride'); ouvrirChoix('destination', 'home'); } }}
             onCourse={() => { if (guardOpen()) { setMode('ride'); ouvrirChoix('destination', 'home'); } }}
             onDelivery={() => { if (guardOpen()) { setMode('delivery'); if (position.etat === 'inconnue') position.localiser(); setScreen('delivery'); } }}
             onQuick={(p) => { if (guardOpen()) { setMode('ride'); if (position.etat === 'inconnue') position.localiser(); chooseDestination(p); } }}
             onAjouterLieu={(quel) => ouvrirChoix(quel, 'home')}
-            onNav={(s) => { if (s === 'profile') setRetourProfil('home'); setScreen(s); }}
-            nonLus={messagerie.nonLus} onMessages={messagerie.actif ? () => { setRetourMessages('home'); setScreen('messages'); } : undefined}
+            onNav={(s) => { if (s === 'profile') setRetourProfil('home'); setRetourService('home'); setScreen(s); }}
+            nonLus={messagerie.actif ? messagerie.nonLus : 0}
             onSoon={setBientot} />
         )}
 
@@ -738,27 +775,43 @@ export function App() {
         )}
         {screen === 'messages' && <MessagesScreen messagerie={messagerie} onBack={() => setScreen(retourMessages)} />}
         {screen === 'settings' && (
-          <SettingsScreen profil={profil} onBack={() => setScreen(profil ? 'home' : 'onboarding')}
+          <SettingsScreen profil={profil} onBack={() => setScreen('home')}
             assuranceActive={assuranceInscrite} onAssurance={() => { setRetourAssurance('settings'); setScreen('assurance'); }}
             onProfile={() => { setRetourProfil('settings'); setScreen('profile'); }} onHistory={() => setScreen('history')} onSos={() => setScreen('sosHistory')}
-            onWallet={() => setScreen('wallet')} onSubscription={() => setScreen('subscription')}
-            onHelp={() => setScreen('help')} onLegal={() => setScreen('legal')} onCreate={() => setScreen('auth')}
+            onWallet={() => { setRetourService('settings'); setScreen('wallet'); }} onSubscription={() => { setRetourService('settings'); setScreen('subscription'); }}
+            onHelp={() => { setRetourService('settings'); setScreen('help'); }} onLegal={() => setScreen('legal')} onCreate={() => setScreen('auth')}
             onServeur={() => setScreen('serveur')}
+            nonLus={messagerie.nonLus} onMessages={messagerie.actif ? () => { setRetourMessages('settings'); setScreen('messages'); } : undefined}
+            onAdresses={() => setScreen('adresses')} onSecurite={() => setScreen('securite')}
+            onPreferences={() => { setRetourPreferences('settings'); setScreen('preferences'); }}
+            onCarte={() => setScreen('carteFond')} carteGoogle={fond === 'google'} />
+        )}
+        {screen === 'preferences' && (
+          <PreferencesScreen profil={profil} onBack={() => setScreen(retourPreferences)}
             onLogout={() => quitterCompte(t('set_logged_out'))}
-            onDelete={() => void supprimerCompte().then((r) => (r.ok ? quitterCompte(t('set_deleted')) : showToast(r.error, true)))}
+            onDelete={() => void supprimerCompte().then((r) => (r.ok ? quitterCompte(t('set_deleted')) : showToast(r.error, true)))} />
+        )}
+        {screen === 'securite' && (
+          <SecuriteScreen onBack={() => setScreen('settings')}
             trusted={trusted} setTrusted={(c) => { setTrusted(c); localStorage.setItem('orion.trusted', JSON.stringify(c)); }}
             shareRides={shareRides} setShareRides={(v) => { setShareRides(v); localStorage.setItem('orion.share', v ? '1' : '0'); }} />
         )}
+        {screen === 'adresses' && (
+          <AdressesScreen onBack={() => setScreen('settings')}
+            onDefinir={(quel) => ouvrirChoix(quel, 'adresses')}
+            onAller={(p) => { if (guardOpen()) { setMode('ride'); if (position.etat === 'inconnue') position.localiser(); chooseDestination(p); } }} />
+        )}
+        {screen === 'carteFond' && <CarteFondScreen onBack={() => setScreen('settings')} />}
         {screen === 'profile' && <ProfileScreen profil={profil} onBack={() => setScreen(retourProfil)} onSaved={setProfil} onToast={showToast} />}
         {screen === 'serveur' && <ServeurScreen onBack={() => setScreen('settings')} />}
         {screen === 'sosHistory' && <SosHistoryScreen onBack={() => setScreen('settings')} />}
         {screen === 'legal' && <LegalScreen onBack={() => setScreen('settings')} />}
-        {screen === 'wallet' && <WalletScreen onBack={() => setScreen('home')} onToast={showToast} onCommander={() => setScreen('destination')} onLogin={() => setScreen('auth')} />}
-        {screen === 'history' && <HistoryScreen onBack={() => setScreen(profil ? 'settings' : 'home')} onLogin={() => setScreen('auth')} />}
-        {screen === 'help' && <HelpScreen onBack={() => setScreen('home')} onSupport={() => setScreen('support')} />}
+        {screen === 'wallet' && <WalletScreen onBack={() => setScreen(retourService)} onToast={showToast} onCommander={() => setScreen('destination')} onLogin={() => setScreen('auth')} />}
+        {screen === 'history' && <HistoryScreen onBack={() => setScreen('settings')} onLogin={() => setScreen('auth')} />}
+        {screen === 'help' && <HelpScreen onBack={() => setScreen(retourService)} onSupport={() => setScreen('support')} />}
         {screen === 'support' && <SupportChatScreen onBack={() => setScreen('help')} />}
         {screen === 'subscription' && (
-          <SubscriptionScreen onBack={() => setScreen('home')} onToast={showToast} />
+          <SubscriptionScreen onBack={() => setScreen(retourService)} onToast={showToast} />
         )}
         {screen === 'rental' && (
           <RentalScreen onBack={() => setScreen('home')} onToast={showToast}
@@ -772,6 +825,7 @@ export function App() {
         )}
       </div>
     </div>
+    </GpsCarte.Provider>
   );
 }
 
@@ -1247,12 +1301,11 @@ function OtpScreen({ phone, devCode, onBack, onResend, onVerify }: {
 
 /* ------------------------------- Home -------------------------------- */
 
-function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onCourse, onDelivery, onQuick, onAjouterLieu, onNav, onSoon, nonLus = 0, onMessages }: {
+function HomeScreen({ announce, closed, deliveryOff, city, onSearch, onCourse, onDelivery, onQuick, onAjouterLieu, onNav, onSoon, nonLus = 0 }: {
   /** Enregistrer le domicile ou le bureau du client. */
   onAjouterLieu: (quel: 'domicile' | 'bureau') => void;
-  profil: ProfilClient | null;
-  /** Messagerie ORION : bouton message (absent sans compte ni serveur). */
-  nonLus?: number; onMessages?: () => void;
+  /** Messages du centre ORION non lus : pastille sur les trois traits du menu. */
+  nonLus?: number;
   announce: Announcement | null; closed: boolean; deliveryOff: boolean; city: string | null;
   onSearch: () => void; onCourse: () => void; onDelivery: () => void;
   onQuick: (p: Place) => void; onNav: (s: Screen) => void; onSoon: (name: string) => void;
@@ -1275,16 +1328,12 @@ function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onC
       <div className="hub-hero">
         <div className="hub-top">
           <span className="hub-brand"><LogoApp size={32} className="hub-logo-volume" /> ORION</span>
-          <span className="hub-actions">
-            {onMessages && <BoutonMessages nonLus={nonLus} onClick={onMessages} clair />}
-            {/* Le profil du client, à côté des paramètres : sans compte, il ouvre l'inscription. */}
-            <button className="avatar hub-avatar" onClick={() => onNav(profil ? 'profile' : 'auth')} aria-label={profil ? t('set_profile_edit') : t('set_create_account')}>
-              {profil ? <Avatar photo={profil.photo} name={profil.name} size={40} /> : <IconUser size={20} />}
-            </button>
-            <button className="avatar hub-avatar" onClick={() => onNav('settings')} aria-label={t('set_title')}>
-              <Objet nom="reglages" taille={28} />
-            </button>
-          </span>
+          {/* Trois traits : le menu (profil, messages, paramètres, tout le reste). La pastille
+              compte les messages du centre ORION qui n'ont pas été lus. */}
+          <button className="hub-menu" onClick={() => onNav('settings')} aria-label={nonLus > 0 ? `${t('menu_ouvrir')} · ${t('menu_messages_n', { n: nonLus })}` : t('menu_ouvrir')}>
+            <i /><i /><i />
+            {nonLus > 0 && <span className="hub-menu-n">{nonLus > 9 ? '9+' : nonLus}</span>}
+          </button>
         </div>
         <h2 className="hub-greet rise">{t('home_whereTo')}</h2>
         <button className="hub-search rise rise-2" onClick={onSearch}>

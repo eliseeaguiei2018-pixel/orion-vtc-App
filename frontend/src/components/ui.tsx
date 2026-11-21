@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { IconArrowLeft, IconLeaf } from '../icons';
+import { IconArrowLeft } from '../icons';
 
 export function TopBar({ onBack, title, right }: { onBack?: () => void; title?: string; right?: ReactNode }) {
   return (
@@ -15,7 +15,7 @@ export function TopBar({ onBack, title, right }: { onBack?: () => void; title?: 
         </div>
       )}
       {title && <div className="h-title" style={{ fontSize: 17 }}>{title}</div>}
-      {right ?? <div className="avatar"><IconLeaf size={20} /></div>}
+      {right ?? <span className="topbar-vide" aria-hidden="true" />}
     </div>
   );
 }

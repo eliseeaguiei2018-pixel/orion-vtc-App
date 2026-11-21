@@ -1583,3 +1583,149 @@ body { letter-spacing: 0; text-rendering: optimizeLegibility; }
 .hub-logo-volume { box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16); }
 .splash-logo.volume { width: auto; height: auto; background: none; box-shadow: none; border-radius: 0; }
 .splash-logo.volume .logo-app { box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22); }
+
+/* ==========================================================================================
+   VERSION 1.3 — MENU À TROIS TRAITS, BULLES TRANSLUCIDES, ICÔNES EN TRAITS NOIRS
+
+   Le menu reprend la mise en page d'un écran de profil : portrait, nom, numéro ; quatre
+   raccourcis en bulles ; des groupes de lignes à chevron. Les objets gardent leur rendu en
+   volume. Les icônes secondaires (retour, fermer, position, cloche…) sont de simples traits
+   à la couleur du texte, sans fond, sans ombre, sans dégradé, posées dans une bulle de
+   verre : c'est la seule surface translucide de l'application.
+   ========================================================================================== */
+:root {
+  --bulle-fond: rgba(22, 23, 26, 0.5); --bulle-bord: rgba(255, 255, 255, 0.16);
+}
+[data-theme='light'] {
+  --bulle-fond: rgba(255, 255, 255, 0.55); --bulle-bord: rgba(18, 19, 21, 0.1);
+}
+
+/* ---- Bulle : rond de verre, trait fin, icône à la couleur du texte ---- */
+:root .bulle, :root .avatar, :root .topbar .avatar, :root .topbar button.avatar, :root .dv-hero .avatar {
+  width: 44px; height: 44px; border-radius: 50%; padding: 0; flex: none;
+  display: grid; place-items: center; cursor: pointer;
+  color: var(--text); background: var(--bulle-fond); border: 1px solid var(--bulle-bord); box-shadow: none;
+  -webkit-backdrop-filter: blur(16px) saturate(1.7) !important; backdrop-filter: blur(16px) saturate(1.7) !important;
+  transition: transform 0.16s var(--ease-out);
+}
+:root .bulle:active, :root button.avatar:active { transform: scale(0.94); }
+:root div.avatar { cursor: default; }
+/* Un portrait ou un objet en volume remplit sa bulle : pas de verre par-dessus. */
+:root .avatar:has(.profil-avatar), :root .avatar:has(.objet) { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+
+/* ---- Icônes secondaires : des traits, à la couleur du texte ---- */
+.screen svg { filter: none; }
+:root .list-btn > svg, :root .opt > svg, :root .list-row > svg, :root .set-ligne > svg { color: var(--text) !important; }
+:root .list-ico:not(:has(.objet)) { background: none; border: 0; color: var(--text); }
+:root .eyebrow svg, :root .faint svg { color: currentColor; }
+
+/* ---- Accueil : trois traits ---- */
+.hub-menu {
+  position: relative; display: inline-flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 5px;
+  width: 44px; height: 44px; margin-inline-end: -6px; padding: 0 8px; background: none; border: 0; color: var(--text); cursor: pointer;
+  transition: transform 0.16s var(--ease-out);
+}
+.hub-menu:active { transform: scale(0.92); }
+.hub-menu i { display: block; width: 22px; height: 2.4px; border-radius: 2px; background: currentColor; }
+.hub-menu-n {
+  position: absolute; top: 3px; inset-inline-end: 0; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px;
+  background: var(--danger); color: #fff; font: 600 10.5px/17px var(--font-body); text-align: center;
+}
+.hub-menu:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; border-radius: 12px; }
+
+/* ---- Menu : portrait, bulles, groupes ---- */
+.menu { background: var(--bg-0); }
+.menu-haut { position: relative; z-index: 2; padding: max(14px, env(safe-area-inset-top)) 14px 0; height: 0; overflow: visible; }
+.menu-corps { padding-top: max(18px, env(safe-area-inset-top)); }
+.page > .menu-corps.page-body { padding-top: max(18px, env(safe-area-inset-top)); }
+.menu-profil {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%; padding: 0; margin: 0 0 22px;
+  background: none; border: 0; color: var(--text); cursor: pointer; font: inherit;
+}
+.menu-avatar {
+  display: grid; place-items: center; width: 124px; height: 124px; border-radius: 50%; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--stroke); color: var(--text-faint);
+}
+.menu-avatar .profil-avatar { border: 0; }
+.menu-nom {
+  display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; max-width: 100%;
+  font: 600 25px/1.2 var(--font-display); letter-spacing: -0.01em; text-align: center; overflow-wrap: anywhere;
+}
+.menu-verifie { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; flex: none; background: var(--accent-fill); color: var(--btn-on); }
+.menu-tel { font-size: 15px; color: var(--text-faint); }
+
+.menu-bulles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 0 -4px 24px; }
+.menu-bulle {
+  display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 0; min-width: 0;
+  background: none; border: 0; color: var(--text); cursor: pointer; font: 500 13.5px/1.2 var(--font-body); text-align: center; overflow-wrap: anywhere;
+}
+.menu-bulle > span { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%; background: var(--surface); transition: transform 0.16s var(--ease-out); }
+.menu-bulle:active > span { transform: scale(0.94); }
+.menu-bulle .objet { filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.12)); }
+
+.menu-groupe { background: var(--surface); border-radius: 26px; margin-bottom: 20px; overflow: hidden; }
+.menu-ligne {
+  position: relative; display: flex; align-items: center; gap: 16px; width: 100%; min-height: 78px; padding: 14px 18px 14px 20px;
+  background: none; border: 0; color: var(--text); text-align: start; font: inherit; cursor: pointer;
+}
+button.menu-ligne:active { background: var(--surface-2); }
+.menu-ligne + .menu-ligne::before { content: ''; position: absolute; top: 0; inset-inline: 84px 20px; height: 1px; background: var(--stroke-strong); opacity: 0.7; }
+.menu-ico { display: grid; place-items: center; width: 48px; flex: none; }
+.topbar-vide { display: block; width: 44px; height: 44px; flex: none; }
+.menu-ico .objet { filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.12)); }
+.menu-texte { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; text-align: start; background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: inherit; }
+button.menu-texte { cursor: pointer; }
+.menu-texte strong { font: 500 17px/1.3 var(--font-body); color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.menu-texte small { font-size: 13.5px; line-height: 1.35; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.menu-ligne > svg { flex: none; color: var(--text); }
+.menu-pastille { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--danger); color: #fff; font: 600 12px/22px var(--font-body); text-align: center; flex: none; }
+.menu-action { flex: none; display: inline-grid; place-items: center; min-width: 44px; min-height: 44px; padding: 0 12px; border-radius: 999px; border: 0; background: var(--plein); color: var(--text); font: 600 13px var(--font-body); cursor: pointer; }
+.menu-stats { margin: 4px 0 0; }
+.carte-etat { margin: 12px 2px; font-size: 13.5px; line-height: 1.45; color: var(--text-dim); }
+.carte-etat.refus { color: var(--danger-ink); font-weight: 600; }
+
+/* ---- Carte : bulle d'actualisation de la position, repère « vous êtes ici » ---- */
+/* Sous la barre du haut, à droite. Pendant la course, le bouton SOS occupe cette place :
+   la bulle se range juste en dessous de lui. */
+.carte-gps { position: absolute; z-index: 24; inset-inline-end: 23px; top: calc(max(18px, env(safe-area-inset-top)) + 128px); }
+@supports selector(:has(a)) {
+  .screen:not(:has(.sos)) > .carte-gps { inset-inline-end: 16px; top: calc(max(18px, env(safe-area-inset-top)) + 62px); }
+}
+.carte-gps.occupe svg { animation: carte-gps-tourne 1s linear infinite; }
+@keyframes carte-gps-tourne { to { transform: rotate(360deg); } }
+.carte-moi { position: relative; width: 22px; height: 22px; }
+.carte-moi::before { content: ''; position: absolute; inset: -9px; border-radius: 50%; background: rgba(20, 99, 255, 0.18); }
+.carte-moi span { position: absolute; inset: 3px; border-radius: 50%; background: #1463ff; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); }
+@media (prefers-reduced-motion: reduce) { .carte-gps.occupe svg { animation: none; } }
+
+/* ---- Carte Google : mêmes repères que la carte ORION, posés par une surcouche ---- */
+.carte-google .carte-ml { inset: 0; }
+.gm-repere { position: absolute; left: 0; top: 0; will-change: transform; pointer-events: none; }
+.carte-google .carte-ponts { top: calc(max(18px, env(safe-area-inset-top)) + 62px); }
+.choix-carte-google { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 0; }
+.choix-carte-google .choix-carte-ml { position: absolute; inset: 0; }
+.choix-carte-google .choix-carte-repere { top: 50%; }
+
+
+/* ---- Menu et paramètres : aucune couleur. Des icônes noires au trait sur gris clair,
+   comme l'écran de profil pris pour modèle ; ni ombre, ni dégradé, ni objet en volume. ---- */
+.menu-bulle > span, .menu-ico { color: var(--text); }
+.menu-bulle svg, .menu-ico svg, .menu-ligne > svg { filter: none; }
+.menu-ico { width: 34px; }
+.menu-ligne + .menu-ligne::before { inset-inline: 70px 20px; }
+.menu-avatar .profil-avatar.initiales { background: var(--surface); color: var(--text); font-family: var(--font-display); font-weight: 600; }
+:root .menu-verifie { background: var(--text); color: var(--bg-0); }
+:root .menu-pastille { background: var(--text); color: var(--bg-0); }
+.menu-stats span { background: var(--surface); }
+/* Paramètres, sécurité, adresses, carte : sélection en noir et gris, sans vert. */
+:root .sans-couleur .chip.active, :root .sans-couleur .opt.active { background: var(--surface); border-color: var(--text); color: var(--text); }
+:root .sans-couleur .badge.green { background: var(--surface-2); color: var(--text); }
+:root .sans-couleur .toggle.on { background: var(--text); }
+:root .sans-couleur .btn-primary { background: var(--text); color: var(--bg-0); }
+:root .sans-couleur .field:focus-within { border-color: var(--text); box-shadow: 0 0 0 3px var(--surface-2); }
+:root .sans-couleur .list-ico { background: none; }
+
+/* ---- Menu → Carte : aperçu de la vraie carte Google ---- */
+.carte-apercu { position: relative; height: 210px; border-radius: 22px; overflow: hidden; background: var(--surface); border: 1px solid var(--stroke); margin: 4px 0 6px; }
+.carte-apercu-carte { position: absolute; inset: 0; }
+.carte-apercu-attente { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13.5px; color: var(--text-faint); pointer-events: none; }

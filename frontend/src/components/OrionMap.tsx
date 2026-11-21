@@ -1,9 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 import type { LatLng } from '../types';
 import { rendu } from './Vehicules';
 import { useTheme, type Accent } from '../theme';
 import { getVectorConfig } from '../mapConfig';
 import { CarteReelle } from './CarteReelle';
+import { CarteGoogle } from './CarteGoogle';
+import { fondCarte, suivreFondCarte } from '../carteGoogle';
+import { GpsCarte } from './gpsCarte';
+import { IconLocate, IconRefresh } from '../icons';
 
 /**
  * Carte ORION façon navigation (style Google/Waze) projetant de vraies coordonnées
@@ -89,13 +93,30 @@ const ACCENT_CARTE: Record<Accent, Record<'dark' | 'light', Partial<Palette>>> =
 export function OrionMap(props: Props) {
   // Vraie carte de Côte d'Ivoire par défaut ; carte stylisée si elle ne se charge pas.
   const [repli, setRepli] = useState(false);
+  // Fond Google Maps (clé saisie par le client ou intégrée) ; s'il échoue, la carte ORION reprend.
+  const [fond, setFond] = useState(fondCarte);
+  const [googleEchec, setGoogleEchec] = useState(false);
+  useEffect(() => suivreFondCarte(() => { setFond(fondCarte()); setGoogleEchec(false); }), []);
+  const gps = useContext(GpsCarte);
   const config = getVectorConfig();
-  if (config && !repli) {
-    const { origin, destination, stops, car, vehicle, approche, trace, ponts, suivi, basCouvert, libelleRecentrer } = props;
-    return <CarteReelle origin={origin} destination={destination} stops={stops} car={car} vehicle={vehicle} approche={approche} config={config} onEchec={() => setRepli(true)}
-      trace={trace} ponts={ponts} suivi={suivi} basCouvert={basCouvert} libelleRecentrer={libelleRecentrer} />;
-  }
-  return <CarteStylisee {...props} />;
+  const { origin, destination, stops, car, vehicle, approche, trace, ponts, suivi, basCouvert, libelleRecentrer } = props;
+  const carte = fond === 'google' && !googleEchec
+    ? <CarteGoogle origin={origin} destination={destination} stops={stops} car={car} vehicle={vehicle} approche={approche} moi={gps?.moi}
+        trace={trace} basCouvert={basCouvert} onEchec={() => setGoogleEchec(true)} />
+    : config && !repli
+      ? <CarteReelle origin={origin} destination={destination} stops={stops} car={car} vehicle={vehicle} approche={approche} config={config} onEchec={() => setRepli(true)}
+          trace={trace} ponts={ponts} suivi={suivi} basCouvert={basCouvert} libelleRecentrer={libelleRecentrer} moi={gps?.moi} />
+      : <CarteStylisee {...props} />;
+  return (
+    <>
+      {carte}
+      {gps && (
+        <button type="button" className={`bulle carte-gps${gps.occupe ? ' occupe' : ''}`} onClick={gps.actualiser} disabled={gps.occupe} aria-label={gps.libelle} title={gps.libelle}>
+          {gps.occupe ? <IconRefresh size={22} /> : <IconLocate size={22} />}
+        </button>
+      )}
+    </>
+  );
 }
 
 /** Carte stylisée hors-ligne (démonstration sans réseau, repli). */

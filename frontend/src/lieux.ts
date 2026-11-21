@@ -222,8 +222,8 @@ export async function rechercherLieux(q: string, pres?: LatLng, signal?: AbortSi
       if (pres) { params.set('lat', String(pres.lat)); params.set('lng', String(pres.lng)); }
       const res = await fetch(urlApi(`/maps/recherche?${params}`)!, { signal });
       if (!res.ok) return [];
-      const json = await res.json() as { lieux: Array<{ id: string; nom: string; secteur: string; location: LatLng }> };
-      return json.lieux.map((l) => ({ id: l.id, name: l.nom, area: l.secteur, location: l.location }));
+      const json = await res.json() as { lieux: Array<{ id: string; nom: string; secteur: string; location: LatLng; categorie?: string }> };
+      return json.lieux.map((l) => ({ id: l.id, name: l.nom, area: l.secteur, location: l.location, ...(l.categorie ? { categorie: l.categorie } : {}) }));
     } catch (e) {
       if ((e as Error).name === 'AbortError') throw e;
       return [];
@@ -271,6 +271,18 @@ export async function quartierDe(p: LatLng): Promise<{ nom: string; enZone: bool
   }
 }
 
+/** Lecture fraîche du GPS du téléphone (rien de mémorisé). Rejette avec l'erreur du navigateur (code 1 = refus). */
+export function lirePositionGps(): Promise<LatLng> {
+  return new Promise((ok, ko) => {
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) { ko({ code: 2 }); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => ok({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (err) => ko(err),
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 },
+    );
+  });
+}
+
 /**
  * POINT DE PRISE EN CHARGE. La position du téléphone si elle est disponible et en Côte
  * d'Ivoire ; sinon un point par défaut MARQUÉ « à confirmer » (le client doit le choisir
@@ -308,5 +320,27 @@ export function useDepart(libelles: { maPosition: string }) {
   const choisir = useCallback((place: Place) => { manuel.current = true; setDepart({ place, source: 'manuel' }); }, []);
   const revenirAuGps = useCallback(() => { manuel.current = false; localiser(); }, [localiser]);
 
-  return { depart, etat, localiser, choisir, revenirAuGps };
+  /**
+   * Le client demande à ACTUALISER sa position (bulle sur la carte) : une lecture fraîche du
+   * GPS, qui remplace le point de prise en charge même s'il avait été choisi à la main.
+   */
+  const actualiser = useCallback(async (): Promise<{ etat: EtatPosition; place?: Place }> => {
+    setEtat('attente');
+    try {
+      const p = await lirePositionGps();
+      const q = await quartierDe(p);
+      if (q && !q.enZone) { setEtat('hors_zone'); return { etat: 'hors_zone' }; }
+      const place: Place = { id: 'gps', name: libelles.maPosition, area: q?.nom ?? '', location: p };
+      manuel.current = false;
+      setEtat('ok');
+      setDepart({ place, source: 'gps' });
+      return { etat: 'ok', place };
+    } catch (e) {
+      const etatEchec: EtatPosition = (e as { code?: number }).code === 1 ? 'refus' : 'indisponible';
+      setEtat(etatEchec);
+      return { etat: etatEchec };
+    }
+  }, [libelles.maPosition]);
+
+  return { depart, etat, localiser, choisir, revenirAuGps, actualiser };
 }

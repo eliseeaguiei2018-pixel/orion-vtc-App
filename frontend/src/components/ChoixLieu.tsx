@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { chargerGoogle, fondCarte } from '../carteGoogle';
+import { fermerAvisSansCle, optionsCarte } from './CarteGoogle';
 import type { Map as CarteML } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { LatLng, Place } from '../types';
@@ -163,7 +165,80 @@ export function ChoixLieu({ mode, centre, etatPosition, onMaPosition, onChoose, 
  * marque le point ; le quartier s'affiche à l'arrêt. Utile quand l'adresse n'existe pas
  * (beaucoup de rues d'Abidjan n'ont ni nom ni numéro).
  */
-function ChoixSurCarte({ centre, onBack, onValider }: { centre: LatLng; onBack: () => void; onValider: (p: Place) => void }) {
+function ChoixSurCarte(props: { centre: LatLng; onBack: () => void; onValider: (p: Place) => void }) {
+  // Fond Google Maps si le client l'a activé ; s'il échoue (clé refusée, hors connexion), carte ORION.
+  const [googleEchec, setGoogleEchec] = useState(false);
+  return fondCarte() === 'google' && !googleEchec
+    ? <ChoixSurCarteGoogle {...props} onEchec={() => setGoogleEchec(true)} />
+    : <ChoixSurCarteOrion {...props} />;
+}
+
+/** Le même choix de point, sur le fond Google Maps : le repère est au centre de la carte. */
+function ChoixSurCarteGoogle({ centre, onBack, onValider, onEchec }: { centre: LatLng; onBack: () => void; onValider: (p: Place) => void; onEchec: () => void }) {
+  const { t } = useI18n();
+  const { resolved } = useTheme();
+  const zone = useRef<HTMLDivElement>(null);
+  const boite = useRef<HTMLDivElement>(null);
+  const [point, setPoint] = useState<LatLng>(centre);
+  const [quartier, setQuartier] = useState<string>('');
+
+  useEffect(() => {
+    let annule = false;
+    let ecoute: { remove(): void } | undefined;
+    void chargerGoogle().then((g) => {
+      if (annule || !boite.current) return;
+      const m = new g.Map(boite.current, optionsCarte(g, resolved !== 'light', centre, 17));
+      g.event.addListenerOnce(m, 'tilesloaded', () => fermerAvisSansCle(boite.current));
+      ecoute = g.event.addListener(m, 'idle', () => { const c = m.getCenter(); setPoint({ lat: c.lat(), lng: c.lng() }); });
+    }).catch(() => { if (!annule) onEchec(); });
+    return () => { annule = true; ecoute?.remove(); if (boite.current) boite.current.innerHTML = ''; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolved]);
+
+  // La carte s'arrête au-dessus de la feuille : le repère, au centre de la carte, reste visible,
+  // et les mentions de Google aussi.
+  useEffect(() => {
+    const ecran = zone.current?.closest('.screen');
+    if (!zone.current || !ecran) return;
+    const caler = () => {
+      const feuille = ecran.querySelector('.sheet')?.getBoundingClientRect();
+      const cadre = ecran.getBoundingClientRect();
+      if (zone.current) zone.current.style.bottom = `${feuille ? Math.max(0, cadre.bottom - feuille.top - 26) : 0}px`;
+    };
+    caler();
+    const obs = new ResizeObserver(caler);
+    obs.observe(ecran);
+    const id = window.setInterval(caler, 700);
+    return () => { obs.disconnect(); window.clearInterval(id); };
+  }, []);
+
+  useEffect(() => {
+    let actif = true;
+    const minuteur = window.setTimeout(() => { void quartierDe(point).then((q) => { if (actif) setQuartier(q?.nom ?? ''); }); }, 300);
+    return () => { actif = false; window.clearTimeout(minuteur); };
+  }, [point]);
+
+  return (
+    <div className="screen choix-carte">
+      <div ref={zone} className="choix-carte-google">
+        <div ref={boite} className="choix-carte-ml" />
+        <div className="choix-carte-repere" aria-hidden="true"><IconPin size={38} /></div>
+      </div>
+      <TopBar onBack={onBack} title={t('lieu_sur_carte')} />
+      <div style={{ flex: 1 }} />
+      <Sheet>
+        <p className="faint" style={{ margin: '0 0 6px', fontSize: 13 }}>{t('lieu_sur_carte_d')}</p>
+        <strong style={{ fontSize: 16 }}>{quartier || '…'}</strong>
+        <p className="faint mono" style={{ margin: '2px 0 12px', fontSize: 12 }}>{point.lat.toFixed(5)}, {point.lng.toFixed(5)}</p>
+        <button className="btn btn-primary" onClick={() => onValider({ id: `carte-${point.lat.toFixed(5)},${point.lng.toFixed(5)}`, name: t('lieu_point_choisi'), area: quartier, location: point })}>
+          <IconCheck size={18} /> {t('lieu_valider_point')}
+        </button>
+      </Sheet>
+    </div>
+  );
+}
+
+function ChoixSurCarteOrion({ centre, onBack, onValider }: { centre: LatLng; onBack: () => void; onValider: (p: Place) => void }) {
   const { t } = useI18n();
   const { resolved } = useTheme();
   const boite = useRef<HTMLDivElement>(null);

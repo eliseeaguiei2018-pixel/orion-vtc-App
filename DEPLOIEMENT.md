@@ -414,12 +414,25 @@ l'avancement réel — « le centre le prévient », « appel en cours », « jo
 - Les numéros 185 / 170 / 180 ne s'affichent côté client qu'en dernier recours : alerte
   non transmise, ou centre resté muet trois minutes.
 
-## Activer Google Maps côté itinéraires (optionnel)
+## Activer Google Maps (optionnel)
 1. Obtiens une clé sur Google Cloud (APIs : Directions, Places, Maps JavaScript).
-2. Backend : variable `GOOGLE_MAPS_API_KEY` (Render → Environment).
-3. Frontend : variable `VITE_GOOGLE_MAPS_API_KEY` (Vercel → Environment).
+2. Backend : variable `GOOGLE_MAPS_API_KEY` (Render → Environment) — itinéraires.
+3. Frontend : variable `VITE_GOOGLE_MAPS_API_KEY` (Vercel → Environment, ou à la
+   construction de l'APK) — fond de carte Google dans l'app cliente.
 
-Sans clé, ORION fonctionne avec sa carte stylisée et son calcul d'itinéraire interne.
+Sans clé, ORION fonctionne avec sa propre carte (OpenStreetMap, livrée avec l'application)
+et son calcul d'itinéraire interne.
+
+**Dans l'app cliente, sans reconstruire** : Menu (trois traits) → Carte → coller la clé →
+« Enregistrer et afficher Google Maps ». La clé reste sur le téléphone. Un aperçu affiche
+aussitôt la vraie carte Google ; si Google refuse la clé, l'écran en donne le motif
+(clé inconnue, service « Maps JavaScript API » non activé, restriction de site, facturation
+non activée) et l'application garde la carte ORION.
+
+Restriction de la clé : l'application Android charge la carte depuis `https://localhost/`.
+Une clé limitée par « sites web » doit donc autoriser `https://localhost/*` ; une clé
+sans restriction d'application fonctionne aussi (à réserver aux essais). Ne jamais écrire
+une clé dans le dépôt.
 
 ---
 

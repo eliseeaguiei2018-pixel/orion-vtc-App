@@ -1,0 +1,110 @@
+import { useEffect, useRef, useState } from 'react';
+import { TopBar } from './ui';
+import { IconCheck, IconMap, IconPin } from '../icons';
+import { useI18n } from '../i18n';
+import { useTheme } from '../theme';
+import { fermerAvisSansCle, optionsCarte } from './CarteGoogle';
+import {
+  chargerGoogle, choisirFond, cleGoogleIntegree, cleGoogleSaisie, cleRefusee, definirCleGoogle, essaiSansCle, fondCarte, googleDejaCharge,
+  motifRefus, suivreFondCarte,
+} from '../carteGoogle';
+
+/** Ce que Google reproche à la clé, et ce qu'il faut faire. */
+const CAUSES: Record<string, string> = {
+  InvalidKeyMapError: 'carte_motif_invalide',
+  ExpiredKeyMapError: 'carte_motif_invalide',
+  ApiNotActivatedMapError: 'carte_motif_service',
+  ApiProjectMapError: 'carte_motif_service',
+  RefererNotAllowedMapError: 'carte_motif_restriction',
+  BillingNotEnabledMapError: 'carte_motif_facturation',
+};
+
+/**
+ * FOND DE CARTE — carte ORION (OpenStreetMap, livrée avec l'application) ou Google Maps.
+ *
+ * Google Maps demande une clé d'API : le client la colle ici, elle reste sur son téléphone.
+ * Dès qu'elle est enregistrée, un APERÇU affiche la vraie carte Google : si elle apparaît
+ * nette, tout est bon ; si Google la refuse, son motif est affiché avec la correction à
+ * faire, et la carte ORION reste en service.
+ */
+export function CarteFondScreen({ onBack }: { onBack: () => void }) {
+  const { t } = useI18n();
+  const { resolved } = useTheme();
+  const [fond, setFond] = useState(fondCarte);
+  const [cle, setCle] = useState(cleGoogleSaisie);
+  const [refus, setRefus] = useState(cleRefusee);
+  const [motif, setMotif] = useState(motifRefus);
+  const [apercuPret, setApercuPret] = useState(false);
+  const apercu = useRef<HTMLDivElement>(null);
+  useEffect(() => suivreFondCarte(() => { setFond(fondCarte()); setRefus(cleRefusee()); setMotif(motifRefus()); }), []);
+
+  // Aperçu : la vraie carte Google, centrée sur le Plateau.
+  const google = fond === 'google';
+  useEffect(() => {
+    if (!google || !apercu.current) { setApercuPret(false); return; }
+    let annule = false;
+    const boite = apercu.current;
+    void chargerGoogle().then((g) => {
+      if (annule) return;
+      const m = new g.Map(boite, optionsCarte(g, resolved !== 'light', { lat: 5.3236, lng: -4.0217 }, 15));
+      g.event.addListenerOnce(m, 'tilesloaded', () => { if (!annule) { setApercuPret(true); fermerAvisSansCle(boite); } });
+    }).catch(() => { if (!annule) { setRefus(true); setMotif(motifRefus()); } });
+    return () => { annule = true; boite.innerHTML = ''; };
+  }, [google, resolved]);
+
+  const enregistrer = () => {
+    const c = cle.trim();
+    if (!c) return;
+    const dejaCharge = googleDejaCharge();
+    definirCleGoogle(c);
+    // L'API de Google ne se recharge pas avec une autre clé dans la même page : on relance l'application.
+    if (dejaCharge) window.location.reload();
+  };
+  const integree = cleGoogleIntegree();
+  const avecCle = integree || Boolean(cleGoogleSaisie());
+
+  return (
+    <div className="screen page sans-couleur">
+      <TopBar onBack={onBack} title={t('carte_titre')} />
+      <div className="page-body">
+        <span className="eyebrow set-titre">{t('carte_fond')}</span>
+        <div className="menu-groupe">
+          <button className="menu-ligne" onClick={() => choisirFond('orion')} aria-pressed={fond === 'orion'}>
+            <span className="menu-ico"><IconMap size={27} strokeWidth={1.9} /></span>
+            <span className="menu-texte"><strong>{t('carte_orion')}</strong><small>OpenStreetMap · Overture Maps</small></span>
+            {fond === 'orion' && <IconCheck size={20} strokeWidth={2.4} />}
+          </button>
+          <button className="menu-ligne" onClick={() => choisirFond(avecCle ? 'google' : 'google-essai')} aria-pressed={fond === 'google'}>
+            <span className="menu-ico"><IconPin size={27} strokeWidth={1.9} /></span>
+            <span className="menu-texte"><strong>{t('carte_d_google')}</strong><small>{avecCle ? t('carte_avec_cle') : t('carte_essai')}</small></span>
+            {fond === 'google' && <IconCheck size={20} strokeWidth={2.4} />}
+          </button>
+        </div>
+
+        {google && (
+          <div className="carte-apercu" aria-label={t('carte_apercu')}>
+            <div ref={apercu} className="carte-apercu-carte" />
+            {!apercuPret && <span className="carte-apercu-attente">{t('carte_apercu_attente')}</span>}
+          </div>
+        )}
+        <p className={refus || motif ? 'carte-etat refus' : 'carte-etat'} role="status" aria-live="polite">
+          {refus || motif
+            ? `${t('carte_etat_refus')}${motif ? ` ${t(CAUSES[motif] ?? 'carte_motif_autre', { m: motif })}` : ''}`
+            : google ? (essaiSansCle() && !avecCle ? t('carte_essai') : apercuPret ? t('carte_etat_ok') : t('carte_apercu_attente')) : t('carte_etat_sans')}
+        </p>
+
+        <span className="eyebrow set-titre">{t('carte_cle')}</span>
+        <p className="faint" style={{ fontSize: 13, lineHeight: 1.5, margin: '0 0 10px' }}>{t('carte_cle_aide')}</p>
+        <div className="field" style={{ marginBottom: 10 }}>
+          <input value={cle} onChange={(e) => setCle(e.target.value)} placeholder="AIza…" aria-label={t('carte_cle')}
+            autoCapitalize="off" autoCorrect="off" spellCheck={false} inputMode="text" />
+        </div>
+        <button className="btn btn-primary" disabled={!cle.trim() || cle.trim() === cleGoogleSaisie()} onClick={enregistrer}>{t('carte_enregistrer')}</button>
+        {cleGoogleSaisie() && (
+          <button className="btn btn-ghost" style={{ marginTop: 8 }} onClick={() => { const recharger = googleDejaCharge(); definirCleGoogle(''); setCle(''); if (recharger) window.location.reload(); }}>{t('carte_retirer')}</button>
+        )}
+        <p className="faint" style={{ fontSize: 11.5, lineHeight: 1.5, marginTop: 14 }}>{t('carte_legal_google')}</p>
+      </div>
+    </div>
+  );
+}
