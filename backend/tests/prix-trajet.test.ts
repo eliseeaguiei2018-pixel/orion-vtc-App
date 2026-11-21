@@ -47,14 +47,14 @@ test('le prix suit la distance par la route, arrêts compris', () => {
   assert.ok(direct.amount > ancien.amount, `${direct.amount} F sur la route, ${ancien.amount} F à vol d’oiseau`);
 });
 
-test('supplément fixe par course : 700 F de plus sur chaque gamme, écarts entre gammes inchangés', () => {
-  assert.equal(DEFAULT_PRICING.rideFee, 700);
+test('supplément fixe par course : 300 F de plus sur chaque gamme, écarts entre gammes inchangés', () => {
+  assert.equal(DEFAULT_PRICING.rideFee, 300);
   const sansSupplement = { ...DEFAULT_PRICING, rideFee: 0 };
   const prix: Record<string, number> = {};
   for (const gamme of ['argent', 'or', 'diamant']) {
     const avec = estimatePrice({ origin: RIVIERA, destination: MARCORY, category: gamme });
     const sans = estimatePrice({ origin: RIVIERA, destination: MARCORY, category: gamme }, { settings: sansSupplement });
-    assert.equal(avec.amount - sans.amount, 700, `${gamme} : exactement 700 F de plus`);
+    assert.equal(avec.amount - sans.amount, 300, `${gamme} : exactement 300 F de plus`);
     // Le détail reste juste : sous-total, TVA et frais retombent sur le montant affiché.
     const b = avec.breakdown;
     assert.ok(Math.abs(b.subtotal + b.tva + b.fee - avec.amount) <= 2, `${gamme} : détail cohérent avec ${avec.amount} F`);
@@ -62,8 +62,8 @@ test('supplément fixe par course : 700 F de plus sur chaque gamme, écarts entr
   }
   assert.equal(prix.or! - prix.argent!, 700);
   assert.equal(prix.diamant! - prix.argent!, 1700);
-  // La console peut le régler : à 1 000 F, chaque course monte de 300 F de plus.
+  // La console peut le régler : à 1 000 F, chaque course monte de 700 F de plus.
   const regle = estimatePrice({ origin: RIVIERA, destination: MARCORY, category: 'argent' }, { settings: { ...DEFAULT_PRICING, rideFee: 1000 } });
-  assert.equal(regle.amount - prix.argent!, 300);
+  assert.equal(regle.amount - prix.argent!, 700);
 });
 

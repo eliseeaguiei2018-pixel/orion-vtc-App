@@ -50,7 +50,7 @@ export const DEFAULT_PRICING: PricingSettings = {
   tvaRate: TVA_RATE, feeRate: APP_FEE_RATE, insuranceRate: INSURANCE_RATE, trafficWeight: 0.6, stopFee: 250,
   multipliers: { argent: FLEET.argent.multiplier, or: FLEET.or.multiplier, diamant: FLEET.diamant.multiplier },
   supplements: { argent: FLEET.argent.supplement, or: FLEET.or.supplement, diamant: FLEET.diamant.supplement },
-  rideFee: 700,
+  rideFee: 300,
   bodySurcharge: { berline: 1.0, suv: 1.08 },
   freeWaitMinutes: 5, cancelGraceMinutes: 2, cancelFee: 500,
   cleaningLight: 10_000, cleaningMajor: 50_000,

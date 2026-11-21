@@ -893,3 +893,23 @@ Après cette construction, le client d'exemple de la console « Ambassade du Gha
 de démonstration de la console, non affichées dans l'application cliente). Les noms de lieux
 d'Abidjan qui citent un pays (ambassades, restaurants) sont conservés : ce sont des destinations.
 
+### APK 1.5.5 : supplément fixe de 300 F par course
+
+À la demande du fondateur, chaque course coûte 300 F TTC de plus (un premier réglage à 700 F a
+été ramené à 300 F le même jour, sans changer de numéro de version). Le supplément s'ajoute après
+l'arrondi, sur les trois gammes ; les écarts entre gammes ne changent pas (Or = Argent + 700 F,
+Diamant = Argent + 1 700 F) et les livraisons à moto ne sont pas concernées. C'est un réglage de
+tarification (`rideFee`), modifiable dans la console (Tarification, « Supplément par course »),
+recopié dans le calcul de l'application : le test de parité application/serveur reste exact et
+`backend/tests/prix-trajet.test.ts` vérifie les 300 F sur chaque gamme.
+
+Repère, 20,5 km au départ de Yopougon : Argent 4 000 F la nuit, 4 350 F en journée (Or 4 700 et
+5 050 F, Diamant 5 700 et 6 050 F), contre 6 600 à 8 900 F sur la capture Yango fournie.
+Limite connue : l'écran « Pourquoi ce prix » n'a pas de ligne pour ce supplément, il est compris
+dans le sous-total.
+
+`ORION-client-1.5.5.apk` (construction à 300 F) : version 1.5.5, code 12, même signature, SHA-256
+`273c5c057c05933aa3b14da73eaa5f81bfc3327d6bdfe8e9b1147c300b7c5765`, 167 fichiers web identiques au
+contenu construit. Le client d'exemple renommé de la console y est aussi : plus aucune mention
+d'un autre pays hors des noms de lieux d'Abidjan.
+

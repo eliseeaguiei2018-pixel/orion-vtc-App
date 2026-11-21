@@ -41,7 +41,7 @@ export const BAREME = {
   baseFare: 300, perKm: 130, perMinute: 18, minFare: 600, avgSpeedKmh: 24,
   tvaRate: 0.05, feeRate: 0.1, insuranceRate: 0.02, trafficWeight: 0.6, stopFee: 250,
   /** Supplément fixe ajouté à chaque course, toutes gammes (F CFA TTC). Pas sur les livraisons. */
-  rideFee: 700,
+  rideFee: 300,
   bodySurcharge: { berline: 1, suv: 1.08 } as Record<string, number>,
 } as const;
 
