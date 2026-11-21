@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App as AppNative } from '@capacitor/app';
-import { LogoIcon } from '../components/Logo';
+import { LogoApp } from '../components/Logo';
 import { useDriver, type DriverApp } from './useDriver';
 import { BottomNav, Modal, type Tab } from './ui';
 import { dateTime } from './format';
@@ -91,7 +91,7 @@ function Shell({ app, vehicule = false }: { app: DriverApp; vehicule?: boolean }
   if (app.booting) {
     return (
       <div className="dv-login" style={{ justifyContent: 'center', alignItems: 'center' }}>
-        <LogoIcon size={84} />
+        <LogoApp size={84} />
         <div className="eyebrow" style={{ marginTop: 14 }}>{tr('ORION Chauffeur')}</div>
       </div>
     );

@@ -1,5 +1,6 @@
+import { Objet } from '../../components/Vehicules';
 import { useEffect, useState } from 'react';
-import { IconPhone, IconShield, IconUsers } from '../../icons';
+import { IconPhone, IconShield } from '../../icons';
 import { lienTel, numeroLisible } from '../../telephone';
 import type { ScreenProps } from '../Driver';
 import type { MessagesChef, Poste as PosteData, RequeteVue } from '../types';
@@ -71,7 +72,7 @@ function Activite({ app, poste }: { app: ScreenProps['app']; poste: PosteData })
       <Section title={tr('Mon équipe')}>
         {poste.equipe ? (
           <div className="card dv-item">
-            <div className="dv-item-ico"><IconUsers size={20} /></div>
+            <div className="dv-item-ico"><Objet nom="clients" taille={34} /></div>
             <div className="grow">
               <div className="dv-item-title">{poste.equipe.name}</div>
               <div className="dv-item-sub">{poste.equipe.mission ?? tr('Équipe ORION')}{poste.equipe.chef ? tr(' · chef : {0}', [poste.equipe.chef]) : ''}</div>

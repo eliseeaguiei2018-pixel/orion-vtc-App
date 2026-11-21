@@ -1,5 +1,6 @@
+import { Objet } from '../../components/Vehicules';
 import { useEffect, useState } from 'react';
-import { IconCar, IconLeaf, IconWallet } from '../../icons';
+import { IconLeaf, IconWallet } from '../../icons';
 import type { ScreenProps } from '../Driver';
 import type { LedgerEntry, RideHistory, Wallet } from '../types';
 import { Banner, BellButton, PageHeader, Progress, Section, Stat } from '../ui';
@@ -149,7 +150,7 @@ export function Earnings({ app, unread, openNotices }: ScreenProps) {
         <div className="col" style={{ gap: 8 }}>
           {wallet?.history.slice(0, 40).map((e) => (
             <div key={e.id} className="card dv-item">
-              <div className="dv-item-ico">{e.type === 'ride_earning' ? <IconCar size={18} /> : <IconWallet size={18} />}</div>
+              <div className="dv-item-ico"><Objet nom={e.type === 'ride_earning' ? 'mes-courses' : 'portefeuille'} taille={34} /></div>
               <div className="grow">
                 <div className="dv-item-title">{LEDGER_LABEL[e.type] ?? e.type}</div>
                 <div className="dv-item-sub">{e.note ?? ''}{e.note ? ' · ' : ''}{dateTime(e.at)}</div>

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { OrionMap } from '../../components/OrionMap';
-import { IconBolt, IconBriefcase, IconCalendar, IconCar, IconClock, IconLeaf, IconPin, IconShield, IconWallet } from '../../icons';
+import { IconBolt, IconCar, IconClock, IconLeaf, IconPin, IconShield } from '../../icons';
+import { Objet, type Icone3D, type ObjetService } from '../../components/Vehicules';
 import type { ScreenProps } from '../Driver';
 import type { DemandCell, QueueInfo, RideHistory } from '../types';
 import { BellButton, Banner, PageHeader, Section, Stat, VehiculeChauffeur, type Tab } from '../ui';
@@ -104,15 +105,13 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
 
       <Alerts app={app} onFixDossier={() => onTab('profile')} />
 
-      <div className="dv-quick">
-        <button className="feature-card" onClick={() => onTab('rides')}>
-          <i><IconCalendar size={19} /></i><span>{tr('Locations')}</span>
-          {locations > 0 && <span className="dv-quick-n">{locations}</span>}
-        </button>
-        <button className="feature-card" onClick={() => onTab('poste')}><i><IconBriefcase size={19} /></i><span>{tr('Mon poste')}</span></button>
-        <button className="feature-card" onClick={() => onTab('earnings')}><i><IconWallet size={19} /></i><span>{tr('Gains')}</span></button>
-        <button className="feature-card" onClick={() => onTab('green')}><i><IconLeaf size={19} /></i><span>{tr('Éco')}</span></button>
-        <button className="feature-card danger" onClick={() => setConfirmSos(true)}><i><IconShield size={19} /></i><span>{tr('SOS')}</span></button>
+      {/* Raccourcis : les mêmes tuiles que l'accueil de l'app cliente, objets en volume. */}
+      <div className="tuiles cinq">
+        <Raccourci objet="location" rang={0} label={tr('Locations')} n={locations} onClick={() => onTab('rides')} />
+        <Raccourci objet="bureau" rang={1} label={tr('Mon poste')} onClick={() => onTab('poste')} />
+        <Raccourci objet="portefeuille" rang={2} label={tr('Gains')} onClick={() => onTab('earnings')} />
+        <Raccourci objet="eco" rang={3} label={tr('Éco')} onClick={() => onTab('green')} />
+        <Raccourci objet="alertes-sos" rang={4} label={tr('SOS')} onClick={() => setConfirmSos(true)} />
       </div>
 
       <div className="dv-home-map">
@@ -125,7 +124,7 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
       {lockedZone && <Banner tone="info" icon={<IconPin size={18} />} title={tr('Cantonné au secteur {0}', [lockedZone.name])}>{tr('Décision ORION : vous ne recevez que des courses de ce secteur.')}</Banner>}
       {zone && (zone.driverBonus > 0 || zone.minStandard || zone.surgeManual) && (
         <div className="card dv-item">
-          <div className="dv-item-ico"><IconPin size={20} /></div>
+          <div className="dv-item-ico"><Objet nom="lieu" taille={34} /></div>
           <div className="grow">
             <div className="dv-item-title">{tr('Secteur {0}', [zone.name])}</div>
             <div className="dv-item-sub">
@@ -179,6 +178,16 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
         }>{tr('Votre position part à la supervision ORION ; vous suivrez en direct la prise en charge.')}</Banner>
       )}
     </div>
+  );
+}
+
+/** Raccourci de l'accueil : objet en volume sur son carré, nom dessous, pastille de compte. */
+function Raccourci({ objet, label, n = 0, rang, onClick }: { objet: ObjetService | Icone3D; label: string; n?: number; rang: number; onClick: () => void }) {
+  return (
+    <button className="tuile" style={{ '--i': rang } as CSSProperties} onClick={onClick}>
+      <span className="tuile-fond"><Objet nom={objet} taille={64} />{n > 0 && <span className="dv-quick-n">{n}</span>}</span>
+      <strong className="tuile-nom">{label}</strong>
+    </button>
   );
 }
 

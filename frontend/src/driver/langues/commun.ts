@@ -85,7 +85,6 @@ export const COMMUN: Ligne[] = [
   ['Validé', 'Approved', 'Validado', 'Approvata', 'مُعتمد', '已通过', 'Bestätigt', 'Одобрено'],
   ['Actif', 'Active', 'Activo', 'Attivo', 'نشط', '已激活', 'Aktiv', 'Активен'],
   ['Suspendu', 'Suspended', 'Suspendido', 'Sospeso', 'موقوف', '已暂停', 'Gesperrt', 'Приостановлен'],
-  ['Bronze', 'Bronze', 'Bronce', 'Bronzo', 'برونزي', '青铜', 'Bronze', 'Бронза'],
   ['Argent', 'Silver', 'Plata', 'Argento', 'فضي', '白银', 'Silber', 'Серебро'],
   ['Or', 'Gold', 'Oro', 'Oro', 'ذهبي', '黄金', 'Gold', 'Золото'],
   ['Diamant', 'Diamond', 'Diamante', 'Diamante', 'ماسي', '钻石', 'Diamant', 'Бриллиант'],

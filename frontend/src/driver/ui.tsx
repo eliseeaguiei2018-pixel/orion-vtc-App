@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { LogoGlyph } from '../components/Logo';
+import { LogoApp } from '../components/Logo';
 import { Scooter, Voiture, vehiculeDeGamme } from '../components/Vehicules';
 import { IconBell, IconBriefcase, IconCar, IconCheck, IconGlobe, IconHome, IconLeaf, IconSettings, IconWallet } from '../icons';
 import { tr } from './i18n';
@@ -38,7 +38,7 @@ export function PageHeader({ title, sub, right, children }: { title: string; sub
   return (
     <header className="dv-hero">
       <div className="dv-hero-top">
-        <span className="dv-hero-brand"><span className="hub-logo"><LogoGlyph size={17} /></span> ORION</span>
+        <span className="dv-hero-brand"><LogoApp size={28} className="hub-logo-volume" /> ORION</span>
         <span className="dv-hero-actions">{right}</span>
       </div>
       <h1>{title}</h1>

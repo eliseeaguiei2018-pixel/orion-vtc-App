@@ -595,7 +595,7 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: 0; }
 .step:disabled { opacity: 0.35; cursor: default; transform: none; }
 
 /* ---- Inscription / OTP ---- */
-.dialcode { font-weight: 600; font-size: 15px; color: var(--text); white-space: nowrap; padding-inline-end: 6px; border-inline-end: 1px solid var(--stroke); }
+.dialcode { display: inline-flex; align-items: center; gap: 7px; flex: none; font-weight: 600; font-size: 15px; color: var(--text); white-space: nowrap; padding-inline-end: 10px; border-inline-end: 1px solid var(--stroke); }
 .otp-row { position: relative; display: flex; gap: 12px; justify-content: center; cursor: text; }
 .otp-box {
   display: grid; place-items: center; width: 60px; height: 70px; font-family: var(--font-display); font-weight: 600;
@@ -1315,6 +1315,9 @@ body { letter-spacing: 0; text-rendering: optimizeLegibility; }
   --accent-fill: var(--green);
   --accent-soft: var(--accent-shade);
   --violet: #8f6bff;
+  /* États (attention, danger) : un aplat plein. En sombre il reste neutre, la couleur
+     ne passe que par le filet et le pictogramme. */
+  --warn-soft: #24262b; --danger-soft: #24262b;
 }
 
 /* ---- Mode sombre : un graphite neutre, le même quel que soit l'accent. Ni vert, ni bleu,
@@ -1372,6 +1375,7 @@ body { letter-spacing: 0; text-rendering: optimizeLegibility; }
   --violet: #6a35f0;
   --gold: #b7791f; --warn-ink: #8a5a00;
   --danger: #d92d3a; --danger-deep: #c21f2d; --danger-ink: #c21f2d;
+  --warn-soft: #fff4d6; --danger-soft: #fdebed;
 
   /* Aucune surface translucide : les feuilles, les messages et les fonds sont pleins. */
   --shell-grad: #ffffff; --phone-grad: #ffffff; --sheet-grad: #ffffff; --toast-bg: #ffffff;

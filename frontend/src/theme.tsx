@@ -102,6 +102,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   return <ThemeContext.Provider value={{ mode, resolved, setMode, accent, setAccent }}>{children}</ThemeContext.Provider>;
 }
 
+/** Accent courant, y compris hors de ThemeProvider (console, tableau de bord) : vert par défaut. */
+export function useAccentSur(): Accent {
+  return useContext(ThemeContext)?.accent ?? 'vert';
+}
+
 export function useTheme(): ThemeValue {
   const ctx = useContext(ThemeContext);
   if (!ctx) throw new Error('useTheme hors de ThemeProvider');

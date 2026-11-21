@@ -23,7 +23,6 @@ export const CONDUITE: Ligne[] = [
   ['Nom complet', 'Full name', 'Nombre completo', 'Nome completo', 'الاسم الكامل', '姓名', 'Vollständiger Name', 'Полное имя'],
   ['Nom complet (ex. Konan Yao)', 'Full name (e.g. Konan Yao)', 'Nombre completo (p. ej. Konan Yao)', 'Nome completo (es. Konan Yao)', 'الاسم الكامل (مثال: Konan Yao)', '姓名（例如 Konan Yao）', 'Vollständiger Name (z. B. Konan Yao)', 'Полное имя (напр. Konan Yao)'],
   ['Gamme de véhicule', 'Vehicle class', 'Gama de vehículo', 'Categoria del veicolo', 'فئة المركبة', '车型档次', 'Fahrzeugklasse', 'Класс автомобиля'],
-  ['Bronze — citadine électrique', 'Bronze — electric city car', 'Bronce: urbano eléctrico', 'Bronzo — citycar elettrica', 'برونزي — سيارة مدينة كهربائية', '青铜——电动小型车', 'Bronze – E-Kleinwagen', 'Бронза — городской электромобиль'],
   ['Argent — berline confort', 'Silver — comfort saloon', 'Plata: berlina confort', 'Argento — berlina comfort', 'فضي — سيدان مريحة', '白银——舒适轿车', 'Silber – Komfortlimousine', 'Серебро — комфортный седан'],
   ['Or — berline premium', 'Gold — premium saloon', 'Oro: berlina premium', 'Oro — berlina premium', 'ذهبي — سيدان فاخرة', '黄金——高端轿车', 'Gold – Premiumlimousine', 'Золото — премиум-седан'],
   ['Diamant — prestige', 'Diamond — prestige', 'Diamante: prestigio', 'Diamante — prestigio', 'ماسي — فخامة', '钻石——尊享', 'Diamant – Prestige', 'Бриллиант — престиж'],

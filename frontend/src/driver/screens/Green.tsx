@@ -1,5 +1,6 @@
+import { Objet } from '../../components/Vehicules';
 import { useEffect, useState } from 'react';
-import { IconBolt, IconCheck, IconLeaf } from '../../icons';
+import { IconBolt, IconCheck } from '../../icons';
 import type { ScreenProps } from '../Driver';
 import type { RideHistory, Training, TrainingResult } from '../types';
 import { Banner, BellButton, PageHeader, Progress, Section, Stat } from '../ui';
@@ -121,7 +122,7 @@ export function Green({ app, unread, openNotices }: ScreenProps) {
         ) : !training ? (
           <div className="card" style={{ padding: 14 }}>
             <div className="row" style={{ gap: 10 }}>
-              <div className="dv-item-ico"><IconLeaf size={20} /></div>
+              <div className="dv-item-ico"><Objet nom="eco" taille={34} /></div>
               <div className="grow muted" style={{ fontSize: 13.5 }}>{tr('Regardez la vidéo des standards ORION puis répondez au QCM (3 bonnes réponses sur 4).')}</div>
             </div>
             <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => void startTraining()}>{tr('Commencer')}</button>

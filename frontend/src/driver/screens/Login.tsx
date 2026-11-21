@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { LogoGlyph } from '../../components/Logo';
+import { LogoApp } from '../../components/Logo';
+import { Drapeau } from '../../components/Drapeau';
 import { OrionMap } from '../../components/OrionMap';
 import { DEFAULT_ORIGIN } from '../../data';
 import type { DriverApp } from '../useDriver';
@@ -51,7 +52,7 @@ export function Login({ app }: { app: DriverApp }) {
       <div className="sheet">
         <div className="grabber" />
         <div className="row between dv-auth-icone">
-          <div className="logo-mark" style={{ width: 56, height: 56, color: 'var(--btn-on)' }}><LogoGlyph size={32} /></div>
+          <LogoApp size={56} />
           <div className="dv-auth-veh" aria-hidden="true"><VehiculeChauffeur category={category} largeur={120} /></div>
         </div>
         <div className="eyebrow">{tr('ORION Chauffeur · {0}', [app.appConfig?.city ?? 'Abidjan'])}</div>
@@ -69,7 +70,7 @@ export function Login({ app }: { app: DriverApp }) {
       {step === 'phone' ? (
         <form className="dv-form" onSubmit={(e) => { e.preventDefault(); void sendCode(); }}>
           <div className="field">
-            <span className="dialcode">🇨🇮 +225</span>
+            <span className="dialcode"><Drapeau code="CI" taille={18} /> +225</span>
             <input type="tel" inputMode="tel" autoComplete="tel-national" aria-label={tr('Numéro de téléphone')} placeholder="07 08 09 10 11"
               value={phone} onChange={(e) => setPhone(e.target.value)} />
           </div>

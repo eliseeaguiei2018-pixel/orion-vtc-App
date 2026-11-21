@@ -78,7 +78,7 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
             <span className={`dv-pill ${driver.kycStatus === 'suspended' ? 'danger' : driver.kycStatus === 'active' || driver.kycStatus === 'approved' ? 'green' : 'gold'}`}>{KYC_LABEL[driver.kycStatus]}</span>
             <span className="dv-pill">{tr('Gamme {0}', [TIER_LABEL[driver.category] ?? driver.category])}</span>
             {driver.vip && <span className="dv-pill gold">{tr('Top Driver')}</span>}
-            {driver.loyaltyTier && <span className="dv-pill green">{tr('Fidélité {0}', [driver.loyaltyTier === 'gold' ? tr('Or') : driver.loyaltyTier === 'silver' ? tr('Argent') : tr('Bronze')])}</span>}
+            {driver.loyaltyTier && <span className="dv-pill green">{tr('Fidélité {0}', [driver.loyaltyTier === 'gold' ? tr('Diamant') : driver.loyaltyTier === 'silver' ? tr('Or') : tr('Argent')])}</span>}
           </div>
           {(driver.vehicleModel || driver.vehiclePlate) && (
             <div className={`dv-stage dv-portrait-stage${driver.category === 'moto' ? ' moto' : ''}`}>

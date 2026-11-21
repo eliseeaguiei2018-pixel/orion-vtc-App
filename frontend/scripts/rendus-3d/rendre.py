@@ -515,6 +515,74 @@ def parc():
     o3.sphere('feuillage', 0.20, (0.22, 0.04, 0.52), t['vert'])
 
 
+# ---- Outils de travail : app chauffeur, console, tableau de bord ----
+def _or(): return M('or', (0.80, 0.58, 0.22), rugosite=0.26, metal=0.9)
+
+@rendu('eco', azimut=108, elevation=14, **ICONE)
+def eco():
+    # Une batterie pleine : la mobilité électrique.
+    t = _teintes()
+    o3.boite('pile', (0.58, 0.30, 0.78), (0, 0, 0.39), t['vert'], rayon=0.08)
+    o3.boite('socle', (0.60, 0.32, 0.16), (0, 0, 0.09), t['violet'], rayon=0.06)
+    o3.boite('borne', (0.24, 0.16, 0.09), (0, 0, 0.82), t['metal'], rayon=0.02)
+    _adoucir(_prisme('éclair', [(0.08, 0.72), (-0.15, 0.44), (-0.02, 0.44), (-0.08, 0.24), (0.15, 0.52), (0.02, 0.52)], -0.185, -0.145, t['blanc']), 0.008)
+
+@rendu('chauffeur', azimut=104, elevation=10, **ICONE)
+def chauffeur():
+    # Un volant : les chauffeurs, la conduite.
+    t = _teintes()
+    o3.tore('jante', 0.40, 0.068, (0, 0, 0.5), t['violet'], rot=FACE)
+    o3.boite('branche', (0.74, 0.07, 0.09), (0, 0, 0.5), t['violet_clair'], rayon=0.03)
+    o3.boite('branche', (0.09, 0.07, 0.37), (0, 0, 0.30), t['violet_clair'], rayon=0.03)
+    o3.cylindre('moyeu', 0.15, 0.12, (0, 0, 0.5), t['blanc'], rot=FACE, arrondi=0.03)
+    o3.cylindre('feuille', 0.06, 0.14, (0, 0, 0.5), t['vert'], rot=FACE, arrondi=0.02)
+
+def _personne(x, y, mat, k=1.0):
+    o3.cylindre('corps', 0.25 * k, 0.42 * k, (x, y, 0.21 * k), mat, arrondi=0.13 * k)
+    o3.sphere('tête', 0.165 * k, (x, y, 0.63 * k), mat)
+
+@rendu('clients', azimut=104, elevation=14, **ICONE)
+def clients():
+    # Deux personnes : les clients, une équipe.
+    t = _teintes()
+    _personne(0.21, 0.16, t['violet'], 1.0)
+    _personne(-0.19, -0.10, t['vert'], 0.92)
+
+@rendu('finances', azimut=112, elevation=16, **ICONE)
+def finances():
+    # Trois colonnes qui montent et une pièce : les recettes.
+    t = _teintes(); metal_or = _or()
+    for x, h, mat in ((-0.30, 0.34, t['violet_clair']), (-0.04, 0.56, t['violet']), (0.22, 0.82, t['vert'])):
+        o3.boite('colonne', (0.21, 0.21, h), (x, 0.04, h / 2), mat, rayon=0.035)
+    o3.cylindre('pièce', 0.20, 0.055, (-0.30, -0.24, 0.20), metal_or, rot=FACE, arrondi=0.02)
+    o3.cylindre('frappe', 0.13, 0.065, (-0.30, -0.24, 0.20), M('or pâle', (0.90, 0.72, 0.36), rugosite=0.3, metal=0.9), rot=FACE, arrondi=0.01)
+
+@rendu('objectif', azimut=112, elevation=14, **ICONE)
+def objectif():
+    # Une cible et sa flèche au centre : les objectifs.
+    t = _teintes()
+    o3.cylindre('cible', 0.45, 0.08, (0, 0, 0.5), t['blanc'], rot=FACE, arrondi=0.03)
+    o3.cylindre('anneau', 0.35, 0.10, (0, 0, 0.5), t['violet'], rot=FACE, arrondi=0.008)
+    o3.cylindre('anneau', 0.24, 0.12, (0, 0, 0.5), t['blanc'], rot=FACE, arrondi=0.008)
+    o3.cylindre('centre', 0.13, 0.14, (0, 0, 0.5), t['vert'], rot=FACE, arrondi=0.008)
+    o3.tube('flèche', [(0, -0.07, 0.5), (0.13, -0.26, 0.60), (0.26, -0.46, 0.70)], 0.022, t['metal'])
+    for dz in (-0.05, 0.05):
+        o3.boite('empennage', (0.03, 0.14, 0.05), (0.27, -0.47, 0.70 + dz), t['violet'], rayon=0.01, rot=(0, 0, -0.55))
+
+@rendu('carte', azimut=112, elevation=30, **ICONE)
+def carte():
+    # Une carte dépliée et son repère : la supervision, les zones.
+    t = _teintes(); gris = M('gris carte', o3.hexa('#E4E6EA'), rugosite=0.6)
+    o3.boite('dos', (1.00, 0.80, 0.03), (0, 0, 0.018), t['violet'], rayon=0.012)
+    for k, x in enumerate((-0.31, 0, 0.31)):
+        o3.boite('volet', (0.30, 0.72, 0.03), (x, 0, 0.06 + (0.035 if k != 1 else 0)), t['blanc'] if k != 1 else gris, rayon=0.01, rot=(0, 0.20 * (1 - k), 0))
+    o3.boite('route', (0.86, 0.05, 0.012), (0, -0.12, 0.095), t['violet_clair'], rayon=0.005, rot=(0, 0, 0.28))
+    o3.boite('route', (0.05, 0.60, 0.012), (-0.16, 0.02, 0.095), t['vert_clair'], rayon=0.005)
+    o3.cylindre('pointe', 0.010, 0.34, (0.14, 0.06, 0.26), t['vert'], rayon_haut=0.16, cotes=48)
+    o3.sphere('tête', 0.19, (0.14, 0.06, 0.50), t['vert'])
+    o3.sphere('cœur', 0.075, (0.14, -0.09, 0.51), t['blanc'], echelle=(1, 0.5, 1))
+
+
 if __name__ == '__main__':
     # Sans nom donné : tout, dans l'ordre de la liste. Avec des noms : ceux-là, dans l'ordre demandé.
     for nom in (sys.argv[2:] or list(RENDUS)):

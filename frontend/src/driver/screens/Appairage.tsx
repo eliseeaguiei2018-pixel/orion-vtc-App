@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { LogoIcon } from '../../components/Logo';
+import { LogoApp } from '../../components/Logo';
 import { tr } from '../i18n';
 import type { DriverApp } from '../useDriver';
 
@@ -42,7 +42,7 @@ export function Appairage({ app }: { app: DriverApp }) {
   return (
     <div className="veh-appairage">
       <div className="veh-appairage-carte">
-        <LogoIcon size={64} />
+        <LogoApp size={72} />
         <h1>{tr('Écran de véhicule ORION')}</h1>
         <p>
           {tr('Sur votre téléphone, ouvrez l’app ORION Chauffeur, puis « Connecter un écran de véhicule ». Saisissez ici le code à 6 chiffres affiché.')}

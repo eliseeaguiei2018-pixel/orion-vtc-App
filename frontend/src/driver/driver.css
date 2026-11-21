@@ -449,3 +449,122 @@ a.dv-pill { text-decoration: none; }
 
 /* Arabe : aucun interlettrage, il casse les liaisons. */
 [dir='rtl'] *, [dir='rtl'] *::before, [dir='rtl'] *::after { letter-spacing: 0 !important; }
+
+
+/* ==========================================================================================
+   VERSION 1.2 — L'APP CHAUFFEUR SUIT L'APP CLIENTE
+
+   Même direction : fond blanc plein en clair, graphite neutre en sombre, aucune surface
+   translucide, aucun dégradé, aucun halo. La couleur reste sur l'action (bouton, interrupteur
+   En ligne, solde), sur l'itinéraire et sur les objets en volume. Les sélecteurs commencent
+   par `:root` pour passer devant les règles d'origine de ce fichier.
+   ========================================================================================== */
+
+/* ---- En-tête : un bandeau plein, sans décor ---- */
+:root .dv-hero { background: var(--plein); border-bottom: 1px solid var(--stroke); }
+:root .dv-hero::after { display: none; }
+:root .dv-hero-brand .logo-app { border-radius: 8px; }
+:root .dv-hero-photo { background: var(--surface); border: 1px solid var(--stroke); color: var(--text); }
+:root .dv-hero-kpi { background: var(--surface); box-shadow: none; }
+:root .dv-hero-kpi span { opacity: 1; color: var(--text-faint); }
+:root .dv-hero .avatar, :root .dv-hero .dv-bell { background: var(--surface); border: 1px solid transparent; }
+:root .dv-hero .dv-link, :root .dv-link { background: var(--surface); border-color: transparent; color: var(--text-dim); }
+:root .dv-link.online i { box-shadow: none; }
+
+/* ---- Cartes, tuiles de chiffres, listes : blanc plein et un filet ---- */
+:root .dv-page .card, :root .dv-stat, :root .dv-go-card, :root .dv-heat, :root .dv-code, :root .dv-qcm-opt, :root .dv-act {
+  background: var(--plein); border: 1px solid var(--stroke); box-shadow: none;
+}
+:root .dv-go-card { margin-top: -22px; }
+:root .dv-stat.accent { border-color: var(--stroke); }
+:root .dv-stat.accent strong { color: var(--text); }
+:root .dv-stage, :root .dv-stage.moto { background: var(--surface); }
+:root .dv-stage::after { display: none; }
+:root .dv-stage.off { filter: none; }
+:root .dv-stage.off .vehicule { opacity: 0.55; }
+:root .dv-item-ico { background: var(--surface); color: var(--text); overflow: visible; }
+:root .dv-item-ico .objet { display: block; flex: none; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.12)); }
+:root .dv-bar, :root .dv-steps span { background: var(--surface-2); }
+:root .dv-seg { background: var(--surface); border-color: transparent; box-shadow: none; }
+:root .dv-seg button.on { background: var(--accent-fill); color: var(--btn-on); }
+:root .dv-input, :root .dv-select, :root .dv-code-champ { background: var(--plein); border-color: var(--stroke-strong); }
+:root .dv-input:focus, :root .dv-select:focus, :root .dv-code-champ:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--accent-soft); }
+:root .dv-code { border: 1px solid var(--green); }
+:root .dv-qcm-opt.on, :root .dv-langues .opt.active { background: var(--accent-soft); border-color: var(--green); }
+:root .dv-x { background: var(--surface); border-color: transparent; }
+
+/* ---- Interrupteur En ligne ---- */
+:root .dv-switch { background: var(--stroke-strong); box-shadow: none; }
+:root .dv-switch::after { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); }
+:root .dv-switch.on { background: var(--accent-fill); }
+:root .dv-onde { border-color: var(--stroke-strong); }
+
+/* ---- Bandeaux et pastilles : aplats pleins ---- */
+:root .dv-banner { background: var(--plein); border-color: var(--stroke); }
+:root .dv-banner-ico { background: var(--surface); }
+:root .dv-banner.info { background: var(--surface); border-color: transparent; }
+:root .dv-banner.info .dv-banner-ico { background: var(--plein); }
+:root .dv-banner.success { background: var(--accent-soft); border-color: transparent; }
+:root .dv-banner.success .dv-banner-ico { background: var(--plein); color: var(--accent-ink, var(--green-deep)); }
+:root .dv-banner.warn { background: var(--warn-soft); border-color: transparent; }
+:root .dv-banner.warn .dv-banner-ico { background: var(--plein); color: var(--warn-ink); }
+:root .dv-banner.danger { background: var(--danger-soft); border-color: transparent; }
+:root .dv-banner.danger .dv-banner-ico { background: var(--plein); color: var(--danger-ink); }
+:root:not([data-theme='light']) .dv-banner.warn { border-color: var(--warn-ink); }
+:root:not([data-theme='light']) .dv-banner.danger { border-color: var(--danger-ink); }
+:root:not([data-theme='light']) .dv-banner.success { border-color: var(--stroke-strong); }
+:root .dv-pill { background: var(--surface); border-color: transparent; }
+:root .dv-pill.green { background: var(--accent-soft); border-color: transparent; color: var(--accent-ink, var(--green-deep)); }
+:root .dv-pill.gold { background: var(--warn-soft); border-color: transparent; color: var(--warn-ink); }
+:root .dv-pill.danger { background: var(--danger-soft); border-color: transparent; color: var(--danger-ink); }
+:root:not([data-theme='light']) .dv-pill.green { border-color: var(--stroke-strong); color: var(--green); }
+:root:not([data-theme='light']) .dv-pill.gold { border-color: var(--warn-ink); }
+:root:not([data-theme='light']) .dv-pill.danger { border-color: var(--danger-ink); }
+:root .dv-act.danger { color: var(--danger-ink); border-color: var(--stroke-strong); }
+:root .dv-amount.pos { color: var(--accent-ink, var(--green)); }
+:root .dv-amount.neg { color: var(--danger-ink); }
+:root .dv-toast { background: var(--plein); border-color: var(--stroke-strong); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
+:root .dv-toast.success { border-color: var(--green); }
+:root .dv-toast.danger { border-color: var(--danger-ink); color: var(--danger-ink); }
+
+/* ---- Solde : l'aplat d'accent des boutons, texte lisible dessus dans les deux thèmes ---- */
+:root .dv-solde { background: var(--accent-fill); color: var(--btn-on); box-shadow: none; }
+:root .dv-solde .dv-stat-label { color: inherit; opacity: 0.8; }
+:root .dv-solde.neg { background: var(--danger-deep); color: #fff; }
+
+/* ---- Raccourcis de l'accueil : cinq tuiles, objets en volume (comme l'app cliente) ---- */
+.tuiles.cinq { grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 0; }
+.tuiles.cinq .tuile-fond { aspect-ratio: 1 / 0.92; border-radius: 16px; margin-bottom: 6px; }
+.tuiles.cinq .tuile-fond .objet { width: 84%; bottom: 6%; }
+.tuiles.cinq .tuile-nom { font-size: 11px; line-height: 1.2; }
+.tuiles.cinq .dv-quick-n { position: absolute; top: 5px; right: 5px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+  background: var(--danger); color: #fff; font: 600 10.5px/18px var(--font-body); text-align: center; z-index: 1; }
+
+/* ---- Barre d'onglets : pleine, sélection en aplat pâle (neutre en sombre) ---- */
+:root .dv-tabs { background: var(--plein); border: 1px solid var(--stroke); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08); }
+:root .dv-tab.on { background: var(--accent-soft); color: var(--accent-ink, var(--green)); }
+
+/* ---- Feuilles : offre, mission, modale, connexion ---- */
+:root .dv-offer-back, :root .dv-modal-back { background: rgba(18, 19, 21, 0.5); }
+:root .dv-offer, :root .dv-modal, :root .dv-ride-sheet { background: var(--plein); border-color: var(--stroke); box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.08); }
+:root .dv-ride { background: var(--bg-0); }
+:root .dv-auth-fond { display: none; }
+:root .dv-auth-lang { background: var(--plein); border: 1px solid var(--stroke); box-shadow: var(--elev-1); }
+:root .dv-auth-veh { filter: none; opacity: 1; }
+:root .dv-login { background: var(--bg-0); }
+:root .dv-route div::before { background: var(--green); }
+:root .dv-route div:last-child::before { background: var(--violet); }
+:root .dv-passager-photo { border-color: var(--green); box-shadow: none; }
+:root .dv-portrait-photo { background: var(--accent-fill); border-color: var(--plein); box-shadow: none; }
+
+/* ---- Guidage : bandeau plein, sans reflet ---- */
+:root .dv-nav { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); }
+
+/* ---- Écran de véhicule ---- */
+:root .veh-cadre, :root .veh-appairage { background: var(--bg-0); }
+:root .veh-appairage-carte { background: var(--plein); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08); }
+:root .veh-code-case { background: var(--plein); border-color: var(--stroke-strong); }
+:root .veh-code-case:focus { box-shadow: 0 0 0 4px var(--accent-soft); }
+:root .veh-code-affiche { color: var(--accent-ink, var(--green)); }
+:root .dv-suggestion-veh { background: var(--plein); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
+:root .dv-btn-veh { background: var(--accent-fill); color: var(--btn-on); }

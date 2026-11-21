@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { useTheme } from '../theme';
+import { useAccentSur } from '../theme';
 
 /**
  * VÉHICULES ET OBJETS D'ORION — des rendus en volume, pas des dessins.
@@ -24,7 +24,9 @@ export type Icone3D =
   | 'pack-argent' | 'pack-or' | 'pack-diamant' | 'samu' | 'police' | 'pompiers'
   | 'reglages' | 'assurance' | 'historique' | 'alertes-sos' | 'portefeuille' | 'cadenas' | 'document' | 'serveur'
   | 'telephone' | 'message' | 'wifi' | 'lieu' | 'destination' | 'domicile' | 'bureau' | 'banque' | 'aeroport'
-  | 'ecole' | 'eglise' | 'mosquee' | 'hotel' | 'carburant' | 'bus' | 'loisirs' | 'immeuble' | 'parc';
+  | 'ecole' | 'eglise' | 'mosquee' | 'hotel' | 'carburant' | 'bus' | 'loisirs' | 'immeuble' | 'parc'
+  // Outils de travail : app chauffeur, console, tableau de bord.
+  | 'eco' | 'chauffeur' | 'clients' | 'finances' | 'objectif' | 'carte';
 
 /** Numéro d'urgence → son objet (185 SAMU, 170 police, 180 pompiers). */
 export const objetUrgence = (numero: string): Icone3D => (numero === '185' ? 'samu' : numero === '180' ? 'pompiers' : 'police');
@@ -65,7 +67,7 @@ function Rendu({ nom, largeur, ratio, classe = '' }: { nom: string; largeur: num
 export function Voiture({ modele = 'berline', peinture = 'accent', largeur = 120 }: {
   modele?: Modele; peinture?: Peinture; largeur?: number; phares?: boolean;
 }) {
-  const { accent } = useTheme();
+  const accent = useAccentSur();
   return <Rendu nom={fichierVoiture(modele, peinture, accent)} largeur={largeur} ratio={0.58} />;
 }
 
@@ -81,7 +83,7 @@ export function Objet({ nom, taille = 96 }: { nom: ObjetService | Icone3D; taill
 
 /** Vue de dessus, pour le repère du véhicule sur la carte. */
 export function VoitureDessus({ taille = 26 }: { taille?: number }) {
-  const { accent } = useTheme();
+  const accent = useAccentSur();
   return <Rendu nom={accent === 'vert' ? 'voiture-dessus' : `voiture-dessus-${accent}`} largeur={taille} ratio={2} />;
 }
 
