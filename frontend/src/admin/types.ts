@@ -158,6 +158,8 @@ export interface Pricing {
   baseFare: number; perKm: number; perMinute: number; minFare: number; avgSpeedKmh: number;
   tvaRate: number; feeRate: number; insuranceRate: number; trafficWeight: number; stopFee: number;
   multipliers: Record<string, number>; supplements?: Record<string, number>; bodySurcharge: Record<string, number>;
+  /** Supplément fixe ajouté à chaque course, toutes gammes (F CFA TTC). */
+  rideFee?: number;
   freeWaitMinutes?: number; cancelGraceMinutes?: number; cancelFee?: number;
   cleaningLight?: number; cleaningMajor?: number; longPickupPerKm?: number; longPickupThresholdKm?: number;
 }

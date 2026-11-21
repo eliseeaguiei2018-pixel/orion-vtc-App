@@ -575,7 +575,7 @@ export function PricingEditor({ pricing, canWrite, onSave, onShadow, onMatrixCsv
         baseFare: form.baseFare, perKm: form.perKm, perMinute: form.perMinute, minFare: form.minFare,
         avgSpeedKmh: form.avgSpeedKmh, tvaRate: form.tvaRate, feeRate: form.feeRate,
         insuranceRate: form.insuranceRate, trafficWeight: form.trafficWeight, stopFee: form.stopFee,
-        multipliers: form.multipliers, supplements: form.supplements,
+        multipliers: form.multipliers, supplements: form.supplements, rideFee: form.rideFee,
         freeWaitMinutes: form.freeWaitMinutes, cancelGraceMinutes: form.cancelGraceMinutes, cancelFee: form.cancelFee,
         cleaningLight: form.cleaningLight, cleaningMajor: form.cleaningMajor,
         longPickupPerKm: form.longPickupPerKm, longPickupThresholdKm: form.longPickupThresholdKm,
@@ -601,6 +601,7 @@ export function PricingEditor({ pricing, canWrite, onSave, onShadow, onMatrixCsv
           <F label="Course minimum (F)" k="minFare" />
           <F label="Vitesse moyenne (km/h)" k="avgSpeedKmh" step={1} />
           <F label="Forfait arrêt (F)" k="stopFee" />
+          <F label="Supplément par course (F TTC)" k="rideFee" step={50} />
           <label className="price-field"><span>TVA (%)</span><input type="number" step={1} value={Math.round(form.tvaRate * 100)} onChange={(e) => setForm((f) => ({ ...f, tvaRate: Number(e.target.value) / 100 }))} disabled={!canWrite} /></label>
           <label className="price-field"><span>Frais ORION (%)</span><input type="number" step={1} value={Math.round(form.feeRate * 100)} onChange={(e) => setForm((f) => ({ ...f, feeRate: Number(e.target.value) / 100 }))} disabled={!canWrite} /></label>
           <label className="price-field"><span>Poids trafic (0–1)</span><input type="number" step={0.1} value={form.trafficWeight} onChange={num('trafficWeight')} disabled={!canWrite} /></label>

@@ -1271,6 +1271,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
           multipliers: z.object({
             argent: num.optional(), or: num.optional(), diamant: num.optional(),
           }).partial().optional(),
+          // Supplément fixe ajouté à chaque course, toutes gammes (F CFA TTC).
+          rideFee: z.number().min(0).max(100_000).optional(),
           // Écart fixe de chaque gamme par rapport à l'Argent (F CFA TTC).
           supplements: z.object({
             argent: z.number().min(0).max(100_000).optional(), or: z.number().min(0).max(100_000).optional(),

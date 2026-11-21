@@ -182,7 +182,8 @@ export function createDemoBackend(): DriverBackend {
       const destination = pick(PLACES.filter((p) => haversine(p, origin) > 2500)) ?? PLACES[0]!;
       const meters = Math.round(haversine(origin, destination) * 1.3);
       const km = meters / 1000;
-      const amount = Math.max(1000, round50((300 + km * 130 + (km / 24) * 60 * 18) * 1.15 * 1.15));
+      // Barème de démonstration, supplément fixe de 700 F par course compris.
+      const amount = Math.max(1000, round50((300 + km * 130 + (km / 24) * 60 * 18) * 1.15 * 1.15)) + 700;
       const ride: DemoRide = {
         id: `demo-${uid()}`, status: 'accepted', serviceType: 'ride', category: d.category, origin, destination, stops: [],
         distanceMeters: meters, etaSeconds: Math.round((km / 24) * 3600), amount, waitMinutes: 0,
