@@ -1701,6 +1701,10 @@ button.menu-texte { cursor: pointer; }
 
 /* ---- Carte Google : mêmes repères que la carte ORION, posés par une surcouche ---- */
 .carte-google .carte-ml { inset: 0; }
+/* La carte Google s'arrête au bord de la feuille (son logo et ses mentions restent visibles) :
+   derrière les coins arrondis de la feuille, on voit la couleur du sol de la carte. */
+.carte-google, .screen.choix-carte:has(.choix-carte-google) { background: var(--sol-google, #f5f3f3); }
+[data-theme='dark'] .carte-google, [data-theme='dark'] .screen.choix-carte:has(.choix-carte-google) { --sol-google: #1b1c20; }
 .gm-repere { position: absolute; left: 0; top: 0; will-change: transform; pointer-events: none; }
 .carte-google .carte-ponts { top: calc(max(18px, env(safe-area-inset-top)) + 62px); }
 .choix-carte-google { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 0; }
@@ -1733,3 +1737,10 @@ button.menu-texte { cursor: pointer; }
 .carte-apercu { position: relative; height: 210px; border-radius: 22px; overflow: hidden; background: var(--surface); border: 1px solid var(--stroke); margin: 4px 0 6px; }
 .carte-apercu-carte { position: absolute; inset: 0; }
 .carte-apercu-attente { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13.5px; color: var(--text-faint); pointer-events: none; }
+
+/* ---- Construction « Google seul » : Google ne répond pas, il n'y a pas d'autre carte ---- */
+.carte-indispo { position: absolute; inset: 0; z-index: 0; background: var(--bg-1); display: grid; align-items: start; justify-items: center; padding: calc(max(18px, env(safe-area-inset-top)) + 96px) 24px 0; }
+.carte-indispo-boite { display: grid; justify-items: center; gap: 8px; max-width: 300px; text-align: center; color: var(--text); }
+.carte-indispo-boite strong { font-size: 17px; }
+.carte-indispo-boite p { margin: 0 0 6px; font-size: 13.5px; line-height: 1.5; color: var(--text-dim); }
+.carte-indispo-boite .btn { width: auto; padding-inline: 20px; }

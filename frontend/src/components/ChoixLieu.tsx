@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { chargerGoogle, fondCarte } from '../carteGoogle';
-import { fermerAvisSansCle, optionsCarte } from './CarteGoogle';
+import { chargerGoogle, cleRefusee, fondCarte, googleSeul, suivreFondCarte } from '../carteGoogle';
+import { fermerAvisSansCle, GoogleIndisponible, optionsCarte } from './CarteGoogle';
 import type { Map as CarteML } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { LatLng, Place } from '../types';
@@ -167,10 +167,21 @@ export function ChoixLieu({ mode, centre, etatPosition, onMaPosition, onChoose, 
  */
 function ChoixSurCarte(props: { centre: LatLng; onBack: () => void; onValider: (p: Place) => void }) {
   // Fond Google Maps si le client l'a activé ; s'il échoue (clé refusée, hors connexion), carte ORION.
+  const { t } = useI18n();
   const [googleEchec, setGoogleEchec] = useState(false);
-  return fondCarte() === 'google' && !googleEchec
-    ? <ChoixSurCarteGoogle {...props} onEchec={() => setGoogleEchec(true)} />
-    : <ChoixSurCarteOrion {...props} />;
+  const [, relancer] = useState(0);
+  useEffect(() => suivreFondCarte(() => { setGoogleEchec(false); relancer((n) => n + 1); }), []);
+  if (fondCarte() === 'google' && !googleEchec && !(googleSeul() && cleRefusee())) return <ChoixSurCarteGoogle {...props} onEchec={() => setGoogleEchec(true)} />;
+  // Construction « Google seul » : pas d'autre carte ; l'écran dit pourquoi et propose de réessayer.
+  if (googleSeul()) {
+    return (
+      <div className="screen choix-carte">
+        <GoogleIndisponible />
+        <TopBar onBack={props.onBack} title={t('lieu_sur_carte')} />
+      </div>
+    );
+  }
+  return <ChoixSurCarteOrion {...props} />;
 }
 
 /** Le même choix de point, sur le fond Google Maps : le repère est au centre de la carte. */
@@ -203,7 +214,7 @@ function ChoixSurCarteGoogle({ centre, onBack, onValider, onEchec }: { centre: L
     const caler = () => {
       const feuille = ecran.querySelector('.sheet')?.getBoundingClientRect();
       const cadre = ecran.getBoundingClientRect();
-      if (zone.current) zone.current.style.bottom = `${feuille ? Math.max(0, cadre.bottom - feuille.top - 26) : 0}px`;
+      if (zone.current) zone.current.style.bottom = `${feuille ? Math.max(0, cadre.bottom - feuille.top) : 0}px`;
     };
     caler();
     const obs = new ResizeObserver(caler);

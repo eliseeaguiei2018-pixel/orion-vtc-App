@@ -4,20 +4,11 @@ import { IconCheck, IconMap, IconPin } from '../icons';
 import { useI18n } from '../i18n';
 import { useTheme } from '../theme';
 import { fermerAvisSansCle, optionsCarte } from './CarteGoogle';
+import { IconRefresh } from '../icons';
 import {
-  chargerGoogle, choisirFond, cleGoogleIntegree, cleGoogleSaisie, cleRefusee, definirCleGoogle, essaiSansCle, fondCarte, googleDejaCharge,
-  motifRefus, suivreFondCarte,
+  causeRefus, chargerGoogle, choisirFond, cleGoogleIntegree, cleGoogleSaisie, cleRefusee, definirCleGoogle, essaiSansCle, fondCarte, googleDejaCharge,
+  googleSeul, motifRefus, reessayerGoogle, suivreFondCarte,
 } from '../carteGoogle';
-
-/** Ce que Google reproche à la clé, et ce qu'il faut faire. */
-const CAUSES: Record<string, string> = {
-  InvalidKeyMapError: 'carte_motif_invalide',
-  ExpiredKeyMapError: 'carte_motif_invalide',
-  ApiNotActivatedMapError: 'carte_motif_service',
-  ApiProjectMapError: 'carte_motif_service',
-  RefererNotAllowedMapError: 'carte_motif_restriction',
-  BillingNotEnabledMapError: 'carte_motif_facturation',
-};
 
 /**
  * FOND DE CARTE — carte ORION (OpenStreetMap, livrée avec l'application) ou Google Maps.
@@ -26,6 +17,9 @@ const CAUSES: Record<string, string> = {
  * Dès qu'elle est enregistrée, un APERÇU affiche la vraie carte Google : si elle apparaît
  * nette, tout est bon ; si Google la refuse, son motif est affiché avec la correction à
  * faire, et la carte ORION reste en service.
+ *
+ * Construction « Google seul » : l'écran ne propose ni choix ni clé. Il montre la carte
+ * Google en service et, si elle manque, pourquoi.
  */
 export function CarteFondScreen({ onBack }: { onBack: () => void }) {
   const { t } = useI18n();
@@ -38,7 +32,8 @@ export function CarteFondScreen({ onBack }: { onBack: () => void }) {
   /** Le service de Google n'a pas répondu (pas de connexion) : ce n'est pas la clé qui est en cause. */
   const [injoignable, setInjoignable] = useState(false);
   const apercu = useRef<HTMLDivElement>(null);
-  useEffect(() => suivreFondCarte(() => { setFond(fondCarte()); setRefus(cleRefusee()); setMotif(motifRefus()); }), []);
+  const [essai, setEssai] = useState(0);
+  useEffect(() => suivreFondCarte(() => { setFond(fondCarte()); setRefus(cleRefusee()); setMotif(motifRefus()); setEssai((n) => n + 1); }), []);
 
   // Aperçu : la vraie carte Google, centrée sur le Plateau.
   const google = fond === 'google';
@@ -56,7 +51,7 @@ export function CarteFondScreen({ onBack }: { onBack: () => void }) {
       if (e.message === 'cle-refusee') { setRefus(true); setMotif(motifRefus()); } else setInjoignable(true);
     });
     return () => { annule = true; boite.innerHTML = ''; };
-  }, [google, resolved]);
+  }, [google, resolved, essai]);
 
   const enregistrer = () => {
     const c = cle.trim();
@@ -68,6 +63,39 @@ export function CarteFondScreen({ onBack }: { onBack: () => void }) {
   };
   const integree = cleGoogleIntegree();
   const avecCle = integree || Boolean(cleGoogleSaisie());
+  const etat = refus || motif
+    ? `${t('carte_etat_refus')}${motif ? ` ${t(causeRefus(motif), { m: motif })}` : ''}`
+    : google && injoignable ? t(googleSeul() ? 'carte_indispo_reseau' : 'carte_etat_reseau')
+    : google ? (essaiSansCle() && !avecCle ? t('carte_essai') : apercuPret ? t('carte_etat_ok') : t('carte_apercu_attente')) : t('carte_etat_sans');
+
+  if (googleSeul()) {
+    return (
+      <div className="screen page sans-couleur">
+        <TopBar onBack={onBack} title={t('carte_titre')} />
+        <div className="page-body">
+          <span className="eyebrow set-titre">{t('carte_fond')}</span>
+          <div className="menu-groupe">
+            <div className="menu-ligne" role="group">
+              <span className="menu-ico"><IconPin size={27} strokeWidth={1.9} /></span>
+              <span className="menu-texte"><strong>{t('carte_d_google')}</strong><small>{t('carte_google_seule')}</small></span>
+              <IconCheck size={20} strokeWidth={2.4} />
+            </div>
+          </div>
+          {!refus && !motif && (
+            <div className="carte-apercu" aria-label={t('carte_apercu')}>
+              <div ref={apercu} className="carte-apercu-carte" />
+              {!apercuPret && !injoignable && <span className="carte-apercu-attente">{t('carte_apercu_attente')}</span>}
+            </div>
+          )}
+          <p className={refus || motif || injoignable ? 'carte-etat refus' : 'carte-etat'} role="status" aria-live="polite">{etat}</p>
+          {(refus || motif || injoignable) && (
+            <button className="btn btn-ghost" onClick={reessayerGoogle}><IconRefresh size={17} /> {t('carte_reessayer')}</button>
+          )}
+          <p className="faint" style={{ fontSize: 11.5, lineHeight: 1.5, marginTop: 14 }}>{t('carte_legal_google')}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="screen page sans-couleur">
@@ -93,12 +121,7 @@ export function CarteFondScreen({ onBack }: { onBack: () => void }) {
             {!apercuPret && !injoignable && <span className="carte-apercu-attente">{t('carte_apercu_attente')}</span>}
           </div>
         )}
-        <p className={refus || motif || injoignable ? 'carte-etat refus' : 'carte-etat'} role="status" aria-live="polite">
-          {refus || motif
-            ? `${t('carte_etat_refus')}${motif ? ` ${t(CAUSES[motif] ?? 'carte_motif_autre', { m: motif })}` : ''}`
-            : google && injoignable ? t('carte_etat_reseau')
-            : google ? (essaiSansCle() && !avecCle ? t('carte_essai') : apercuPret ? t('carte_etat_ok') : t('carte_apercu_attente')) : t('carte_etat_sans')}
-        </p>
+        <p className={refus || motif || injoignable ? 'carte-etat refus' : 'carte-etat'} role="status" aria-live="polite">{etat}</p>
 
         <span className="eyebrow set-titre">{t('carte_cle')}</span>
         <p className="faint" style={{ fontSize: 13, lineHeight: 1.5, margin: '0 0 10px' }}>{t('carte_cle_aide')}</p>

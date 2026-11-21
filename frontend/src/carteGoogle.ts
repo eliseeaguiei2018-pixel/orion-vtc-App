@@ -8,10 +8,18 @@
  *
  * Sans clé, ou si Google refuse la clé, l'application affiche la carte ORION : la course
  * n'est jamais bloquée par le fond de carte.
+ *
+ * Construction « GOOGLE SEUL » (VITE_MAP_GOOGLE_SEUL=1, avec une clé) : Google Maps est LA
+ * carte de l'application cliente. Plus de choix du fond, plus de saisie de clé, plus de
+ * carte ORION en repli : si Google ne répond pas, l'écran le dit et propose de réessayer.
  */
 const CLE = 'orion.carte.cleGoogle';
 const CHOIX = 'orion.carte.fond';
 const ENV = import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim() || '';
+const SEUL = ENV.length > 0 && import.meta.env.VITE_MAP_GOOGLE_SEUL === '1';
+
+/** Google Maps est-il la seule carte de cette construction ? */
+export const googleSeul = (): boolean => SEUL;
 
 export type FondCarte = 'orion' | 'google';
 
@@ -19,12 +27,12 @@ const lire = (k: string): string => { try { return localStorage.getItem(k) ?? ''
 const ecrire = (k: string, v: string | null): void => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* stockage indisponible */ } };
 
 /** Clé saisie par le client, sinon celle de la construction ; chaîne vide s'il n'y en a pas. */
-export const cleGoogle = (): string => lire(CLE).trim() || ENV;
+export const cleGoogle = (): string => (SEUL ? ENV : lire(CLE).trim() || ENV);
 export const cleGoogleSaisie = (): string => lire(CLE).trim();
 export const cleGoogleIntegree = (): boolean => ENV.length > 0;
 
 /** Aperçu sans clé : la carte Google « de développement » (assombrie, avec filigrane). */
-export const essaiSansCle = (): boolean => lire(CHOIX) === 'google-essai';
+export const essaiSansCle = (): boolean => !SEUL && lire(CHOIX) === 'google-essai';
 
 /** Google a refusé la clé pendant cette session : on n'insiste pas, la carte ORION s'affiche. */
 let refusee = false;
@@ -58,6 +66,7 @@ export const googleDejaCharge = (): boolean => Boolean((window as unknown as { g
 
 /** Fond de carte à afficher maintenant. */
 export function fondCarte(): FondCarte {
+  if (SEUL) return 'google';
   if (refusee) return 'orion';
   const choix = lire(CHOIX);
   if (choix === 'orion') return 'orion';
@@ -78,6 +87,28 @@ export function definirCleGoogle(cle: string): void {
 export function choisirFond(fond: FondCarte | 'google-essai'): void {
   ecrire(CHOIX, fond);
   if (fond !== 'orion') { refusee = false; }
+  prevenir();
+}
+
+/** Ce que Google reproche à la clé (nom de son erreur) → texte à afficher (clé de traduction). */
+const CAUSES: Record<string, string> = {
+  InvalidKeyMapError: 'carte_motif_invalide',
+  ExpiredKeyMapError: 'carte_motif_invalide',
+  ApiNotActivatedMapError: 'carte_motif_service',
+  ApiProjectMapError: 'carte_motif_service',
+  RefererNotAllowedMapError: 'carte_motif_restriction',
+  BillingNotEnabledMapError: 'carte_motif_facturation',
+};
+export const causeRefus = (m: string): string => CAUSES[m] ?? 'carte_motif_autre';
+
+/**
+ * Nouvel essai après un échec. Hors connexion, le script de Google n'est jamais arrivé : on
+ * le redemande. S'il est déjà chargé (clé refusée), il ne se recharge pas dans la même page :
+ * l'application est relancée.
+ */
+export function reessayerGoogle(): void {
+  if (googleDejaCharge()) { window.location.reload(); return; }
+  refusee = false; chargement = null; motif = '';
   prevenir();
 }
 

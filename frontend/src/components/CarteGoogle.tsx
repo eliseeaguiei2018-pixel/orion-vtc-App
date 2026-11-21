@@ -3,7 +3,9 @@ import type { LatLng } from '../types';
 import { useTheme } from '../theme';
 import { itineraire, type ItineraireRoute } from '../api';
 import { rendu } from './Vehicules';
-import { chargerGoogle, essaiSansCle, type GMap, type GoogleMaps, type GPolyline } from '../carteGoogle';
+import { causeRefus, chargerGoogle, cleRefusee, essaiSansCle, motifRefus, reessayerGoogle, type GMap, type GoogleMaps, type GPolyline } from '../carteGoogle';
+import { useI18n } from '../i18n';
+import { IconMap, IconRefresh } from '../icons';
 
 /**
  * CARTE GOOGLE MAPS (API officielle Maps JavaScript) — même rôle que la carte ORION :
@@ -83,6 +85,27 @@ export function fermerAvisSansCle(boite: HTMLElement | null): void {
   window.setTimeout(() => (boite.querySelector('.dismissButton') as HTMLElement | null)?.click(), 1200);
 }
 
+/**
+ * Construction « Google seul » : Google ne répond pas (pas de connexion) ou refuse la clé.
+ * Il n'y a pas d'autre carte à afficher : on le dit, avec le motif, et on propose de réessayer.
+ * Le reste de l'écran (recherche, prix, commande) continue de fonctionner.
+ */
+export function GoogleIndisponible() {
+  const { t } = useI18n();
+  const motif = motifRefus();
+  const refus = cleRefusee() || Boolean(motif);
+  return (
+    <div className="carte-indispo" role="status" aria-live="polite">
+      <div className="carte-indispo-boite">
+        <IconMap size={30} strokeWidth={1.8} />
+        <strong>{t('carte_indispo_titre')}</strong>
+        <p>{refus ? `${t('carte_indispo_cle')}${motif ? ` ${t(causeRefus(motif), { m: motif })}` : ''}` : t('carte_indispo_reseau')}</p>
+        <button type="button" className="btn btn-ghost" onClick={reessayerGoogle}><IconRefresh size={17} /> {t('carte_reessayer')}</button>
+      </div>
+    </div>
+  );
+}
+
 export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'car', approche = false, moi, trace, basCouvert = 0.46, onEchec }: Props) {
   const { resolved, accent } = useTheme();
   const enveloppe = useRef<HTMLDivElement>(null);
@@ -126,7 +149,9 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolved]);
 
-  // 2. La carte s'arrête au-dessus de la feuille du bas (logo et mentions de Google visibles).
+  // 2. La carte s'arrête exactement au bord de la feuille du bas : le logo et les mentions de
+  //    Google, posés tout en bas de la carte, restent entièrement visibles (ses conditions
+  //    l'exigent). Derrière les coins arrondis de la feuille, l'enveloppe a la couleur du sol.
   useEffect(() => {
     const env = enveloppe.current;
     const ecran = env?.closest('.screen');
@@ -134,7 +159,7 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
     const caler = () => {
       const feuille = ecran.querySelector('.sheet')?.getBoundingClientRect();
       const cadre = ecran.getBoundingClientRect();
-      const bas = feuille ? Math.max(0, cadre.bottom - feuille.top - 26) : 0;
+      const bas = feuille ? Math.max(0, cadre.bottom - feuille.top) : 0;
       if (boite.current && boite.current.style.bottom !== `${bas}px`) {
         boite.current.style.bottom = `${bas}px`;
         if (api.current && carte.current) api.current.event.trigger(carte.current, 'resize');

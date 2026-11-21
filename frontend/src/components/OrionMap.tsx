@@ -4,8 +4,8 @@ import { rendu } from './Vehicules';
 import { useTheme, type Accent } from '../theme';
 import { getVectorConfig } from '../mapConfig';
 import { CarteReelle } from './CarteReelle';
-import { CarteGoogle } from './CarteGoogle';
-import { fondCarte, suivreFondCarte } from '../carteGoogle';
+import { CarteGoogle, GoogleIndisponible } from './CarteGoogle';
+import { cleRefusee, fondCarte, googleSeul, suivreFondCarte } from '../carteGoogle';
 import { GpsCarte } from './gpsCarte';
 import { IconLocate, IconRefresh } from '../icons';
 
@@ -96,13 +96,17 @@ export function OrionMap(props: Props) {
   // Fond Google Maps (clé saisie par le client ou intégrée) ; s'il échoue, la carte ORION reprend.
   const [fond, setFond] = useState(fondCarte);
   const [googleEchec, setGoogleEchec] = useState(false);
-  useEffect(() => suivreFondCarte(() => { setFond(fondCarte()); setGoogleEchec(false); }), []);
+  const [refus, setRefus] = useState(cleRefusee);
+  useEffect(() => suivreFondCarte(() => { setFond(fondCarte()); setGoogleEchec(false); setRefus(cleRefusee()); }), []);
+  // Construction « Google seul » : pas d'autre carte ; si Google manque, l'écran le dit.
+  const seul = googleSeul();
   const gps = useContext(GpsCarte);
   const config = getVectorConfig();
   const { origin, destination, stops, car, vehicle, approche, trace, ponts, suivi, basCouvert, libelleRecentrer } = props;
-  const carte = fond === 'google' && !googleEchec
+  const carte = fond === 'google' && !googleEchec && !(seul && refus)
     ? <CarteGoogle origin={origin} destination={destination} stops={stops} car={car} vehicle={vehicle} approche={approche} moi={gps?.moi}
         trace={trace} basCouvert={basCouvert} onEchec={() => setGoogleEchec(true)} />
+    : seul ? <GoogleIndisponible />
     : config && !repli
       ? <CarteReelle origin={origin} destination={destination} stops={stops} car={car} vehicle={vehicle} approche={approche} config={config} onEchec={() => setRepli(true)}
           trace={trace} ponts={ponts} suivi={suivi} basCouvert={basCouvert} libelleRecentrer={libelleRecentrer} moi={gps?.moi} />

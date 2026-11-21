@@ -5,6 +5,8 @@ interface ImportMetaEnv {
   /** Adresses de secours du serveur, séparées par des virgules (console et tableau de bord). */
   readonly VITE_API_URLS_SECOURS?: string;
   readonly VITE_GOOGLE_MAPS_API_KEY?: string;
+  /** '1' : Google Maps est la seule carte de l'app cliente (exige VITE_GOOGLE_MAPS_API_KEY). */
+  readonly VITE_MAP_GOOGLE_SEUL?: string;
   /** Fond de carte réel : 'osm' | 'maptiler' | 'google' (sinon carte stylisée). */
   readonly VITE_MAP_PROVIDER?: string;
   /** Gabarit de tuiles générique « {z}/{x}/{y} » (prioritaire sur VITE_MAP_PROVIDER). */

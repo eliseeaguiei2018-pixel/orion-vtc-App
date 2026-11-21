@@ -429,6 +429,26 @@ aussitôt la vraie carte Google ; si Google refuse la clé, l'écran en donne le
 (clé inconnue, service « Maps JavaScript API » non activé, restriction de site, facturation
 non activée) et l'application garde la carte ORION.
 
+**Google Maps comme seule carte (APK cliente).** `scripts/construire-client-google.sh`
+construit l'app cliente avec `VITE_MAP_GOOGLE_SEUL=1` : plus de choix du fond, plus de
+saisie de clé, plus de carte ORION (ses tuiles ne sont pas livrées, l'APK passe de 27 à
+11 Mo). Si Google ne répond pas, l'écran le dit et propose de réessayer ; la recherche et
+la commande restent possibles. La clé vient de l'environnement de construction :
+
+```bash
+cd frontend
+VITE_GOOGLE_MAPS_API_KEY=<clé> scripts/construire-client-google.sh dist
+npx cap sync android && (cd android && ./gradlew assembleDebug)
+```
+
+Pour l'APK compilé par GitHub (workflow « APK client à installer »), ajouter la clé comme
+secret du dépôt nommé `GOOGLE_MAPS_API_KEY` ; sans ce secret, l'APK garde la carte ORION.
+
+Seul le service « Maps JavaScript API » est nécessaire pour afficher la carte. La
+recherche d'adresses reste celle d'ORION (48 924 lieux) et l'itinéraire celui du calcul
+ORION tant que « Places API (New) », « Routes API » et « Geocoding API » ne sont pas
+activés sur le projet Google Cloud.
+
 Restriction de la clé : l'application Android charge la carte depuis `https://localhost/`.
 Une clé limitée par « sites web » doit donc autoriser `https://localhost/*` ; une clé
 sans restriction d'application fonctionne aussi (à réserver aux essais). Ne jamais écrire

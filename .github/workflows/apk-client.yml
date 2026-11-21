@@ -56,8 +56,16 @@ jobs:
           done
       - name: App autonome (sans serveur)
         working-directory: frontend
+        env:
+          # Secret facultatif du dépôt (Settings → Secrets → Actions). S'il existe, Google Maps
+          # devient la seule carte de l'application ; sinon l'APK garde la carte ORION embarquée.
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
         run: |
-          scripts/carte-hors-ligne/construire-autonome.sh "$RUNNER_TEMP/carte" dist
+          if [ -n "$VITE_GOOGLE_MAPS_API_KEY" ]; then
+            scripts/construire-client-google.sh dist
+          else
+            scripts/carte-hors-ligne/construire-autonome.sh "$RUNNER_TEMP/carte" dist
+          fi
           npx cap sync android
       - name: Compilation de l'APK
         working-directory: frontend/android
