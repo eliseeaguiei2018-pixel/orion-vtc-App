@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Sheet, TopBar } from './ui';
 import {
-  IconAlarm, IconArrowLeft, IconBriefcase, IconCamera, IconCheck, IconChevron, IconClock, IconCrown, IconGlobe, IconHeadset, IconHome, IconImage,
+  IconAlarm, IconArrowLeft, IconBriefcase, IconCalendar, IconCamera, IconCheck, IconChevron, IconClock, IconClose, IconCrown, IconFingerprint, IconGlobe, IconHeadset, IconHome, IconImage,
   IconInfo, IconLock, IconMap, IconMessage, IconMonitor, IconPin, IconPlus, IconSettings, IconShield, IconShieldCheck, IconPhone, IconStar, IconUser, IconWallet,
 } from '../icons';
 import { useI18n, LANGUAGES, type Lang } from '../i18n';
@@ -11,7 +12,11 @@ import { lieuEnregistre, lieuxRecents } from '../lieux';
 import type { Place } from '../types';
 import { ACCENTS, useTheme, type ThemeMode } from '../theme';
 import { COUNTRIES, formatXOF } from '../data';
-import { isBiometricEnabled, setBiometricEnabled } from '../security';
+import {
+  biometrieLieeDepuis, etatBiometrie, isBiometricEnabled, setBiometricEnabled, verifierBiometrie,
+  type EtatBio, type ResultatBio,
+} from '../security';
+import { annulerProgrammee, coursesProgrammees, libelleQuand } from '../programmees';
 import {
   AGENT_GENERIQUE, MOTIFS_ANNULATION, etatServeur, annulerCourse, apercuAnnulation, chargerHistorique, envoyerPhoto, mesAlertesSos,
   modifierProfil, retirerPhoto, sessionClient,
@@ -224,7 +229,7 @@ export function ProfileScreen({ profil, onBack, onSaved, onToast }: {
 
 /* =============================== PARAMÈTRES =============================== */
 
-const VERSION = '1.5.6';
+const VERSION = '1.5.7';
 
 /* ============================ MENU (trois traits) ============================ */
 
@@ -362,6 +367,10 @@ export function PreferencesScreen({ profil, onBack, onLogout, onDelete }: {
           ))}
         </div>
         <p className="faint" style={{ fontSize: 11, margin: '-6px 2px 14px' }}>{t('accent_hint')}</p>
+        {/* Empreinte ou visage : s'active ici, dans les paramètres (et dans Sécurité). */}
+        <span className="faint" style={{ display: 'block', fontSize: 12, marginBottom: 8 }}><IconLock size={12} /> {t('lock_hint')}</span>
+        <BlocBiometrie />
+        <div style={{ height: 14 }} />
         <span className="faint" style={{ fontSize: 12 }}><IconGlobe size={12} /> {t('set_language')}</span>
         <div className="grid2" style={{ margin: '8px 0 14px' }}>
           {LANGUAGES.map((l) => (
@@ -405,6 +414,104 @@ export function PreferencesScreen({ profil, onBack, onLogout, onDelete }: {
 
 /* =============================== SÉCURITÉ =============================== */
 
+/**
+ * Liaison de l'empreinte ou du visage du téléphone.
+ *
+ * Trois temps, tous réels : (1) l'application demande au téléphone ce qu'il sait faire ;
+ * (2) la personne donne son autorisation, puis la fenêtre du téléphone demande l'empreinte
+ * ou le visage — la liaison n'est enregistrée que si le téléphone répond « reconnu » ;
+ * (3) « Tester maintenant » redemande le capteur et affiche sa réponse avec l'heure.
+ */
+function BlocBiometrie() {
+  const { t, lang } = useI18n();
+  const [etat, setEtat] = useState<EtatBio | null>(null);
+  const [liee, setLiee] = useState(isBiometricEnabled());
+  const [depuis, setDepuis] = useState(biometrieLieeDepuis());
+  const [demande, setDemande] = useState(false);
+  const [enCours, setEnCours] = useState(false);
+  const [essai, setEssai] = useState<ResultatBio | null>(null);
+  /* La fenêtre d'autorisation se pose sur l'écran entier, pas dans la zone qui défile. */
+  const racine = useRef<HTMLDivElement>(null);
+
+  const delier = () => { setBiometricEnabled(false); setLiee(false); setDepuis(null); setEssai(null); };
+  /* On relit l'état du téléphone à l'ouverture et à chaque retour dans l'application : la
+     personne vient peut-être d'enregistrer une empreinte dans les réglages. */
+  const relire = useCallback(() => {
+    void etatBiometrie().then((e) => {
+      setEtat(e);
+      // Hors de l'application installée, rien ne peut vérifier : une liaison héritée d'une
+      // ancienne version (où l'interrupteur était décoratif) est retirée.
+      if (!e.dispo && e.raison === 'web' && isBiometricEnabled()) { setBiometricEnabled(false); setLiee(false); setDepuis(null); }
+    });
+  }, []);
+  useEffect(() => {
+    relire();
+    const retour = () => { if (!document.hidden) relire(); };
+    document.addEventListener('visibilitychange', retour);
+    return () => document.removeEventListener('visibilitychange', retour);
+  }, [relire]);
+
+  const demander = async (sousTitre: string) => {
+    setEnCours(true);
+    const r = await verifierBiometrie({ titre: t('bio_sys_titre'), sousTitre, annuler: t('bio_annuler') });
+    setEnCours(false); setEssai(r); relire();
+    return r;
+  };
+  const autoriser = async () => {
+    const r = await demander(t('bio_sys_lier'));
+    if (r.ok) { setBiometricEnabled(true); setLiee(true); setDepuis(biometrieLieeDepuis()); setDemande(false); }
+  };
+
+  const heure = (ms: number) => new Date(ms).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const resultat = essai && (
+    <p className={`bio-resultat ${essai.ok ? 'ok' : 'ko'}`} role="status">
+      {essai.ok ? <IconCheck size={16} /> : <IconClose size={16} />}
+      <span>{essai.ok ? t('bio_reconnu', { heure: heure(essai.a) }) : `${t(`bio_motif_${essai.motif}`)} · ${heure(essai.a)}`}</span>
+    </p>
+  );
+  const sousTitre = liee
+    ? (depuis ? t('bio_liee_depuis', { date: new Date(depuis).toLocaleDateString(lang, { day: 'numeric', month: 'long', year: 'numeric' }) }) : t('bio_liee'))
+    : etat === null ? '…' : etat.dispo ? t(`bio_capteur_${etat.capteur}`) : t('sec_biometric_d');
+  return (
+    <div className="bio" ref={racine}>
+      <div className="opt">
+        <span className="list-ico"><IconFingerprint size={24} strokeWidth={T} /></span>
+        <span className="col grow" style={{ textAlign: 'start', minWidth: 0 }}>
+          <strong style={{ fontSize: 14 }}>{t('sec_biometric')}</strong>
+          <span className="faint" style={{ fontSize: 12 }}>{sousTitre}</span>
+        </span>
+        <button className={`toggle${liee ? ' on' : ''}`} role="switch" aria-checked={liee} aria-label={t('sec_biometric')}
+          disabled={!liee && !etat?.dispo} onClick={() => { if (liee) delier(); else { setEssai(null); setDemande(true); } }}><span /></button>
+      </div>
+      {etat && !etat.dispo && <p className="bio-aide" role="note"><IconInfo size={14} /> <span>{t(`bio_raison_${etat.raison}`)}</span></p>}
+      {liee && (
+        <div className="bio-test">
+          <button className="btn btn-ghost" disabled={enCours || !etat?.dispo} onClick={() => void demander(t('bio_sys_test'))}>
+            <IconFingerprint size={18} /> {t('bio_tester')}
+          </button>
+          {resultat}
+        </div>
+      )}
+      {demande && createPortal(
+        <div className="modal-backdrop" onClick={() => !enCours && setDemande(false)}>
+          <div className="modal" role="dialog" aria-modal="true" aria-label={t('bio_aut_titre')} onClick={(e) => e.stopPropagation()}>
+            <div className="logo-mark" style={{ width: 52, height: 52, color: 'var(--btn-on)', marginBottom: 12 }}><IconFingerprint size={26} /></div>
+            <h2 className="h-title">{t('bio_aut_titre')}</h2>
+            <ul className="bio-points">
+              <li>{t('bio_aut_1')}</li>
+              <li>{t('bio_aut_2')}</li>
+              <li>{t('bio_aut_3')}</li>
+            </ul>
+            {resultat}
+            <button className="btn btn-primary" style={{ marginTop: 16 }} disabled={enCours} onClick={() => void autoriser()}>{t('bio_autoriser')}</button>
+            <button className="btn btn-ghost" style={{ marginTop: 8 }} disabled={enCours} onClick={() => setDemande(false)}>{t('bio_refuser')}</button>
+          </div>
+        </div>
+      , racine.current?.closest('.screen') ?? document.body)}
+    </div>
+  );
+}
+
 /** Verrouillage de l'application, contact de confiance, partage automatique des courses. */
 export function SecuriteScreen({ onBack, trusted, setTrusted, shareRides, setShareRides }: {
   onBack: () => void;
@@ -412,7 +519,6 @@ export function SecuriteScreen({ onBack, trusted, setTrusted, shareRides, setSha
   shareRides: boolean; setShareRides: (v: boolean) => void;
 }) {
   const { t } = useI18n();
-  const [bio, setBio] = useState(isBiometricEnabled());
   const [name, setName] = useState(trusted?.name ?? '');
   const [phone, setPhone] = useState(trusted?.phone ?? '');
   const saveContact = (nm: string, ph: string) => { if (nm && ph) setTrusted({ name: nm, phone: ph }); };
@@ -420,14 +526,7 @@ export function SecuriteScreen({ onBack, trusted, setTrusted, shareRides, setSha
     <div className="screen page sans-couleur">
       <TopBar onBack={onBack} title={t('sec_title')} />
       <div className="page-body">
-        <div className="opt" style={{ marginBottom: 8 }}>
-          <span className="list-ico"><IconLock size={24} strokeWidth={T} /></span>
-          <span className="col grow" style={{ textAlign: 'start' }}>
-            <strong style={{ fontSize: 14 }}>{t('sec_biometric')}</strong>
-            <span className="faint" style={{ fontSize: 12 }}>{t('sec_biometric_d')}</span>
-          </span>
-          <button className={`toggle${bio ? ' on' : ''}`} role="switch" aria-checked={bio} aria-label={t('sec_biometric')} onClick={() => { const v = !bio; setBio(v); setBiometricEnabled(v); }}><span /></button>
-        </div>
+        <BlocBiometrie />
         <span className="faint" style={{ display: 'block', fontSize: 12, margin: '14px 2px 6px' }}><IconShield size={12} /> {t('tc_title')}</span>
         <div className="field" style={{ marginBottom: 8 }}>
           <input placeholder={t('tc_name')} value={name} onChange={(e) => { setName(e.target.value); saveContact(e.target.value, phone); }} />
@@ -501,10 +600,11 @@ const MOYEN: Record<string, string> = {
  * chauffeur, paiement, note, et alerte SOS éventuelle.
  */
 export function HistoryScreen({ onBack, onLogin }: { onBack: () => void; onLogin: () => void }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [h, setH] = useState<Historique | null | 'connexion'>(null);
   const [filtre, setFiltre] = useState<'toutes' | 'terminees' | 'annulees'>('toutes');
   const [ouvert, setOuvert] = useState<string | null>(null);
+  const [programmees, setProgrammees] = useState(coursesProgrammees);
 
   useEffect(() => {
     if (!sessionClient()) { setH('connexion'); return; }
@@ -518,6 +618,25 @@ export function HistoryScreen({ onBack, onLogin }: { onBack: () => void; onLogin
     <div className="screen page">
       <TopBar onBack={onBack} title={t('hist_title')} />
       <div className="page-body">
+        {/* Courses programmées (« Plus tard ») : à venir, la plus proche d'abord. */}
+        {programmees.length > 0 && (
+          <div className="prog">
+            <span className="eyebrow"><IconCalendar size={13} /> {t('prog_titre')}</span>
+            <div className="stack" style={{ margin: '10px 0 16px' }}>
+              {programmees.map((c) => (
+                <div key={c.id} className="card prog-carte">
+                  <span className="col grow" style={{ minWidth: 0, textAlign: 'start' }}>
+                    <strong style={{ fontSize: 15 }}>{libelleQuand(c.quand, lang)}</strong>
+                    <span className="faint" style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.origine.nom} → {c.destination.nom}</span>
+                    {c.montant !== null && <span className="faint" style={{ fontSize: 12 }}>{formatXOF(c.montant)}</span>}
+                  </span>
+                  <button className="btn btn-ghost" style={{ width: 'auto', flex: 'none', padding: '10px 14px', fontSize: 13 }}
+                    onClick={() => { annulerProgrammee(c.id); setProgrammees(coursesProgrammees()); }}>{t('prog_annuler')}</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {h === null && <p className="faint">…</p>}
         {h === 'connexion' && (
           <div className="card" style={{ textAlign: 'center' }}>

@@ -43,6 +43,9 @@ export const IconBolt = ({ size, strokeWidth }: P) => (
 export const IconChevron = ({ size, strokeWidth }: P) => (
   <svg {...base(size, strokeWidth)}><path d="m9 6 6 6-6 6" /></svg>
 );
+export const IconChevronDown = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="m6 9 6 6 6-6" /></svg>
+);
 export const IconArrowLeft = ({ size, strokeWidth }: P) => (
   <svg {...base(size, strokeWidth)}><path d="M19 12H5" /><path d="m12 19-7-7 7-7" /></svg>
 );

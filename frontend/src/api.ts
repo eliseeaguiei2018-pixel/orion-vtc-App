@@ -637,6 +637,19 @@ export interface TrustedContact {
 }
 
 /**
+ * Course programmée : enregistrée sur le serveur ORION quand il est joint (route
+ * /reservations, suivie par la console). Renvoie l'identifiant, ou null sans serveur —
+ * l'application la garde alors sur le téléphone (voir programmees.ts).
+ */
+export async function reserverCourse(input: { origin: LatLng; destination: LatLng; category: string; scheduledFor: string }): Promise<string | null> {
+  if (!API) return null;
+  const r = await tryFetch<{ reservation: { id: string } }>('/reservations', {
+    method: 'POST', body: JSON.stringify({ clientId: clientId(), ...input }),
+  }, 6000);
+  return r?.reservation?.id ?? null;
+}
+
+/**
  * Identité client stable, mémorisée sur l'appareil (à remplacer par l'identité
  * authentifiée — JWT — en production). Permet de rattacher les courses au bon client
  * et d'afficher l'historique personnel.

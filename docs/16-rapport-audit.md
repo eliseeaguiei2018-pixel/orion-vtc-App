@@ -931,3 +931,84 @@ Diamant 5 400 et 5 750 F). Le test de parité application/serveur reste exact.
 `f2066b569c0a742ee703b6ec6f7c4e1bab40c10e43e957a74cfdd22e338a8fa6`, 167 fichiers web identiques au
 contenu construit, aucune trace du supplément.
 
+
+## 20. Version 1.5.7 : accueil réagencé, confirmation sous le pouce, empreinte ou visage réels (21 novembre)
+
+Quatre demandes du fondateur, livrées ensemble. La 1.5.6 reste la version de repli.
+
+### Accueil
+
+- **En-tête refait sur le modèle fourni** (capture d'une application de transport) : en haut à
+  gauche le point de départ (« Localisation actuelle » quand le téléphone est localisé, le nom
+  du lieu s'il a été choisi à la main, « Point de départ » sinon ; un appui ouvre le choix du
+  départ), en haut à droite la « Boîte de réception » (messages du centre ORION, avec le nombre
+  de non lus). Dessous, le nom « Orion » en grand, centré ; les trois traits du menu restent à
+  droite de cette ligne, sinon le profil et les paramètres ne seraient plus accessibles.
+  Puis la recherche : une pilule blanche « Où allez-vous ? » avec, à droite, « Plus tard ».
+- **« Plus tard » programme réellement une course** : la destination se choisit comme d'habitude,
+  l'écran de confirmation demande la date et l'heure (au moins 15 minutes plus tard, règle du
+  serveur). La course est envoyée à la route `/reservations` du serveur quand il est joint
+  (la console suit ce calendrier), et dans tous les cas gardée sur le téléphone : elle apparaît
+  dans « Mes courses », d'où on peut l'annuler (`frontend/src/programmees.ts`). Avant, le bouton
+  « Programmer » affichait « Course programmée » sans rien enregistrer et promettait un rappel
+  qui n'existait pas ; ce texte est remplacé.
+- **Food, Achat & Vente et Supermarché ne sont plus affichés.** Rien n'est retiré du serveur :
+  le réglage `services` (`food`, `shop`, `market`) et les neuf objets en volume restent en place.
+  Il reste deux grands services (Course, Livraison) et une rangée de quatre (Colis, Abonnement,
+  Location Signature, Mariage). Un nom de service ne se coupe plus au milieu d'un mot sur un
+  petit écran.
+
+### Confirmer sans faire défiler
+
+Sur l'écran de confirmation, le prix et le bouton « Confirmer la course » sont dans un pied
+collé en bas de la feuille : le reste (arrêts, assurance, paiement, code promo, détail du prix)
+défile au-dessus. Mesuré sur un écran de 360 × 700 : la feuille contient 824 px pour 617 px
+visibles, et le bouton est à l'écran sans aucun défilement. Le composant `Sheet` accepte pour
+cela un `pied` ; le total n'est plus écrit deux fois.
+
+### Empreinte digitale ou visage
+
+Avant cette version, l'interrupteur « Déverrouillage biométrique » était décoratif : il
+s'activait partout et le « déverrouillage » réussissait toujours, même sans capteur. Il est
+remplacé par une vraie liaison avec le téléphone (module natif
+`@capgo/capacitor-native-biometric`, fenêtre système `BiometricPrompt` sur Android, Touch ID et
+Face ID sur iOS) :
+
+1. Paramètres, ou Menu › Sécurité & confidentialité : l'application demande au téléphone ce
+   qu'il sait faire (empreinte, visage, les deux, rien d'enregistré, pas de capteur) et l'écrit.
+2. L'interrupteur ouvre une demande d'autorisation qui dit ce qui sera fait et ce qu'ORION ne
+   reçoit pas (ni l'empreinte ni le visage : seulement « reconnu » ou non). « Autoriser » ouvre
+   la fenêtre du téléphone ; la liaison n'est enregistrée que si le téléphone répond « reconnu ».
+3. « Tester maintenant » redemande le capteur et affiche sa réponse avec l'heure à la seconde :
+   reconnu, non reconnu, annulé, capteur bloqué après trop d'essais.
+4. Une fois liée, l'empreinte ou le visage est demandé à chaque ouverture de l'application.
+   Après un échec, le code du téléphone est proposé ; si le téléphone n'a plus ni capteur
+   utilisable ni code, la liaison est levée plutôt que d'enfermer la personne dehors.
+
+Côté Android, `USE_BIOMETRIC` est une permission « normale », accordée à l'installation : il n'y
+a pas de fenêtre système d'autorisation, l'accord se donne dans l'application puis sur le
+capteur. Côté iOS, le texte `NSFaceIDUsageDescription` est ajouté. Dans un navigateur (page de
+démonstration), la liaison est annoncée comme indisponible : rien n'est simulé.
+
+Limites à connaître : sur beaucoup de téléphones Android, le déverrouillage par le visage est
+classé « confort » par le constructeur et n'est pas ouvert aux applications ; seule l'empreinte
+est alors proposée. La liaison protège l'ouverture de l'application sur ce téléphone, elle
+n'est pas encore une preuve d'identité envoyée au serveur. Aucun essai n'a pu être fait ici sur
+un vrai capteur : le module, la permission et l'écran sont vérifiés dans l'APK, la
+reconnaissance elle-même se constate sur le téléphone.
+
+### APK 1.5.7 et vérifications
+
+`ORION-client-1.5.7.apk` : version 1.5.7, code 14, même signature, SHA-256
+`669257ce046dec24b694afb21a87f098d28a71de49f2232c3b3c5ae19938cc72`, 14,1 Mo (le module
+d'empreinte et ses bibliothèques Android en ajoutent 3). 168 fichiers web identiques au contenu
+construit ; les classes `ee.forgr.biometric.*`, l'activité `AuthActivity` et les permissions
+`USE_BIOMETRIC` et `USE_FINGERPRINT` (Android 9 et antérieurs) sont dans l'APK. 847 textes
+couverts dans les huit langues (40 nouveaux).
+
+Parcours rejoués sur le contenu de cette APK, tous réussis et sans erreur JavaScript : services
+Google 9 sur 9 (clair et sombre), « Google seul » 7 sur 7 (clair et sombre), parcours complet
+20 sur 20, parcours client 9 sur 9, fluidité inchangée (1 carte, 1 recentrage, 14 recadrages).
+Le contrôle « Service à venir : Me prévenir » est remplacé par celui du nouvel accueil : six
+services, plus aucun « Bientôt », « Localisation actuelle », « Boîte de réception », « Plus tard ».
+Essai de « Plus tard » : course programmée, enregistrée, relue puis annulable dans « Mes courses ».

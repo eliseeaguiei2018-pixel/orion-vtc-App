@@ -4,17 +4,18 @@ import { App as AppNative } from '@capacitor/app';
 import { OrionMap } from './components/OrionMap';
 import { Sheet, TopBar, Toast } from './components/ui';
 import {
-  IconBell, IconClose, IconBolt, IconCalendar, IconCamera, IconCar, IconCheck, IconChevron, IconClock, IconCrown,
+  IconBell, IconClose, IconBolt, IconCalendar, IconCamera, IconCar, IconCheck, IconChevron, IconChevronDown, IconClock, IconCrown,
   IconFingerprint, IconGem, IconGlobe, IconLeaf, IconLock, IconMinus,
   IconPhone, IconPin, IconPlus, IconRing, IconSearch, IconShare,
   IconShield, IconShieldCheck, IconMedical, IconStar, IconTraffic, IconWallet, } from './icons';
 import { LogoApp } from './components/Logo';
+import { heureLocale, libelleQuand, programmerCourse } from './programmees';
 import { Objet, Tuile, Voiture, Scooter, objetPack, objetUrgence, vehiculeDeGamme } from './components/Vehicules';
 import { AssuranceScreen } from './components/AssuranceScreens';
 import { BoutonMessages, ControleSecurite, MessagesScreen, useMessagerie } from './components/MessagesOrion';
 import { ServeurScreen } from './components/ServeurScreen';
 import type { MessageOrion } from './api';
-import { authenticateBiometric, isBiometricEnabled } from './security';
+import { etatBiometrie, isBiometricEnabled, setBiometricEnabled, verifierBiometrie, verifierCodeTelephone, type MotifEchec, type ResultatBio } from './security';
 import type { TrustedContact } from './api';
 import { NUMERO_DEMONSTRATION, numeroLisible, ouvrirClavier } from './telephone';
 import { lienPosition, partager } from './partage';
@@ -676,8 +677,12 @@ export function App() {
 
         {screen === 'home' && (
           <HomeScreen announce={announce} closed={closed} deliveryOff={deliveryOff} city={appConfig?.city ?? null}
-            onSearch={() => { if (guardOpen()) { setMode('ride'); ouvrirChoix('destination', 'home'); } }}
-            onCourse={() => { if (guardOpen()) { setMode('ride'); ouvrirChoix('destination', 'home'); } }}
+            depart={{ source: position.depart.source, nom: origin.name }}
+            onPosition={() => ouvrirChoix('depart', 'home')}
+            onBoite={() => { if (messagerie.actif) { setRetourMessages('home'); setScreen('messages'); } else { setRetourService('home'); setScreen('settings'); } }}
+            onPlusTard={() => { if (guardOpen()) { setMode('ride'); setScheduled(true); ouvrirChoix('destination', 'home'); } }}
+            onSearch={() => { if (guardOpen()) { setMode('ride'); setScheduled(false); ouvrirChoix('destination', 'home'); } }}
+            onCourse={() => { if (guardOpen()) { setMode('ride'); setScheduled(false); ouvrirChoix('destination', 'home'); } }}
             onDelivery={() => { if (guardOpen()) { setMode('delivery'); if (position.etat === 'inconnue') position.localiser(); setScreen('delivery'); } }}
             onQuick={(p) => { if (guardOpen()) { setMode('ride'); if (position.etat === 'inconnue') position.localiser(); chooseDestination(p); } }}
             onAjouterLieu={(quel) => ouvrirChoix(quel, 'home')}
@@ -710,7 +715,13 @@ export function App() {
             stops={stops} onAddStop={() => ouvrirChoix('arret', 'confirm')} onRemoveStop={(i) => setStops((s) => s.filter((_, j) => j !== i))}
             scheduled={scheduled} onSchedule={setScheduled} insurance={insurance} onInsurance={(v) => { if (v && !assuranceInscrite) { setAssuranceRequise(true); return; } setInsurance(v); }}
             onPayment={setPayment} onBack={() => setScreen('estimate')}
-            onConfirm={() => { if (scheduled) { showToast(t('toast_scheduled')); reset(); } else confirmRide(); }} />
+            onConfirm={(quand) => {
+              if (!scheduled || !quand) { confirmRide(); return; }
+              /* Course programmée : enregistrée (serveur ORION s'il est joint, sinon sur le
+                 téléphone) et visible dans « Mes courses », d'où on peut l'annuler. */
+              void programmerCourse({ origine: origin, destination, gamme: tier.id, quand, montant: quote?.amount ?? null });
+              showToast(`${t('toast_scheduled')} · ${libelleQuand(quand)}`); reset();
+            }} />
         )}
 
         {screen === 'searching' && destination && (
@@ -1095,28 +1106,43 @@ function Splash({ onDone }: { onDone: () => void }) {
 }
 
 /* --------------------------- Verrou biométrique ---------------------- */
+/**
+ * Verrou à l'ouverture : la fenêtre du téléphone demande l'empreinte ou le visage. Rien
+ * n'est simulé — l'application ne s'ouvre que si le téléphone répond « reconnu ».
+ * Pour ne jamais enfermer quelqu'un dehors : après un échec, le code du téléphone est
+ * proposé ; et si le téléphone n'a plus ni capteur utilisable ni code, la liaison est levée.
+ */
 function LockScreen({ onUnlock }: { onUnlock: () => void }) {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
+  const [echec, setEchec] = useState<MotifEchec | null>(null);
+  const [code, setCode] = useState(false);
+  const textes = { titre: t('lock_title'), sousTitre: t('lock_hint'), annuler: t('bio_annuler') };
+  const conclure = (r: ResultatBio) => { setBusy(false); if (r.ok) onUnlock(); else setEchec(r.motif); };
   const unlock = async () => {
-    setBusy(true);
-    const ok = await authenticateBiometric();
-    setBusy(false);
-    if (ok) onUnlock();
+    setBusy(true); setEchec(null);
+    const etat = await etatBiometrie();
+    if (!etat.dispo && (etat.raison === 'web' || !etat.codeTelephone)) { setBiometricEnabled(false); onUnlock(); return; }
+    setCode(etat.codeTelephone);
+    conclure(etat.dispo ? await verifierBiometrie(textes) : await verifierCodeTelephone(textes));
   };
+  const parCode = async () => { setBusy(true); setEchec(null); conclure(await verifierCodeTelephone(textes)); };
   useEffect(() => { void unlock(); /* tente automatiquement à l'ouverture */ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return (
     <div className="lock-screen">
       <LogoApp size={72} />
-      <div className="lock-fp" onClick={unlock} role="button">
+      <div className="lock-fp" onClick={() => { if (!busy) void unlock(); }} role="button">
         <IconFingerprint size={56} />
       </div>
       <h2 className="h-title">{t('lock_title')}</h2>
-      <p className="h-sub" style={{ textAlign: 'center' }}>{t('lock_hint')}</p>
-      <button className="btn btn-primary" style={{ maxWidth: 240, marginTop: 18 }} disabled={busy} onClick={unlock}>
+      <p className="h-sub" style={{ textAlign: 'center' }}>{echec ? t(`bio_motif_${echec}`) : t('lock_hint')}</p>
+      <button className="btn btn-primary" style={{ maxWidth: 280, marginTop: 18 }} disabled={busy} onClick={() => void unlock()}>
         <IconLock size={18} /> {t('lock_unlock')}
       </button>
+      {echec && code && (
+        <button className="btn btn-ghost" style={{ maxWidth: 280, marginTop: 10 }} disabled={busy} onClick={() => void parCode()}>{t('lock_code')}</button>
+      )}
     </div>
   );
 }
@@ -1315,11 +1341,15 @@ function OtpScreen({ phone, devCode, onBack, onResend, onVerify }: {
 
 /* ------------------------------- Home -------------------------------- */
 
-function HomeScreen({ announce, closed, deliveryOff, city, onSearch, onCourse, onDelivery, onQuick, onAjouterLieu, onNav, onSoon, nonLus = 0 }: {
+function HomeScreen({ announce, closed, deliveryOff, city, depart, onPosition, onBoite, onPlusTard, onSearch, onCourse, onDelivery, onQuick, onAjouterLieu, onNav, onSoon, nonLus = 0 }: {
   /** Enregistrer le domicile ou le bureau du client. */
   onAjouterLieu: (quel: 'domicile' | 'bureau') => void;
-  /** Messages du centre ORION non lus : pastille sur les trois traits du menu. */
+  /** Messages du centre ORION non lus : pastille sur la boîte de réception. */
   nonLus?: number;
+  /** Point de départ courant : la position du téléphone, un lieu choisi, ou rien encore. */
+  depart: { source: 'defaut' | 'gps' | 'manuel'; nom: string };
+  /** Changer le point de départ ; ouvrir les messages ; commander pour plus tard. */
+  onPosition: () => void; onBoite: () => void; onPlusTard: () => void;
   announce: Announcement | null; closed: boolean; deliveryOff: boolean; city: string | null;
   onSearch: () => void; onCourse: () => void; onDelivery: () => void;
   onQuick: (p: Place) => void; onNav: (s: Screen) => void; onSoon: (name: string) => void;
@@ -1337,22 +1367,39 @@ function HomeScreen({ announce, closed, deliveryOff, city, onSearch, onCourse, o
     ...LIEUX_POPULAIRES.filter((p) => p.kind === 'hub').slice(0, 1),
   ];
   const [showAnnounce, setShowAnnounce] = useState(true);
+  const libelleDepart = depart.source === 'gps' ? t('acc_position') : depart.source === 'manuel' ? depart.nom : t('acc_depart');
   return (
     <div className="screen page hub">
       <div className="hub-hero">
-        <div className="hub-top">
-          <span className="hub-brand"><LogoApp size={32} className="hub-logo-volume" /> ORION</span>
-          {/* Trois traits : le menu (profil, messages, paramètres, tout le reste). La pastille
-              compte les messages du centre ORION qui n'ont pas été lus. */}
-          <button className="hub-menu" onClick={() => onNav('settings')} aria-label={nonLus > 0 ? `${t('menu_ouvrir')} · ${t('menu_messages_n', { n: nonLus })}` : t('menu_ouvrir')}>
-            <i /><i /><i />
-            {nonLus > 0 && <span className="hub-menu-n">{nonLus > 9 ? '9+' : nonLus}</span>}
+        {/* Première ligne : d'où l'on part (à gauche), les messages du centre ORION (à droite). */}
+        <div className="hub-ligne">
+          <button className="hub-lieu" onClick={onPosition} aria-label={`${t('conf_departure')} · ${libelleDepart}`}>
+            <i className={`hub-point${depart.source === 'defaut' ? ' vide' : ''}`} aria-hidden="true" />
+            <span>{libelleDepart}</span>
+            <IconChevronDown size={16} />
+          </button>
+          <button className="hub-boite" onClick={onBoite} aria-label={nonLus > 0 ? `${t('acc_boite')} · ${t('menu_messages_n', { n: nonLus })}` : t('acc_boite')}>
+            <span className="hub-cloche"><IconBell size={18} />{nonLus > 0 && <b>{nonLus > 9 ? '9+' : nonLus}</b>}</span>
+            <span>{t('acc_boite')}</span>
           </button>
         </div>
-        <h2 className="hub-greet rise">{t('home_whereTo')}</h2>
-        <button className="hub-search rise rise-2" onClick={onSearch}>
-          <IconSearch size={20} /> <span>{t('home_search')}</span>
-        </button>
+        {/* Le nom, centré au-dessus de la recherche ; les trois traits ouvrent le menu
+            (profil, paramètres, tout le reste). */}
+        <div className="hub-titre rise">
+          <span className="hub-mot">Orion</span>
+          <button className="hub-menu" onClick={() => onNav('settings')} aria-label={t('menu_ouvrir')}>
+            <i /><i /><i />
+          </button>
+        </div>
+        {/* La recherche : une pilule, la destination à gauche, « Plus tard » à droite. */}
+        <div className="hub-barre rise rise-2">
+          <button className="hub-search" onClick={onSearch}>
+            <IconSearch size={22} /> <span>{t('acc_ou')}</span>
+          </button>
+          <button className="hub-tard" onClick={onPlusTard}>
+            <IconCalendar size={17} /> {t('acc_plus_tard')}
+          </button>
+        </div>
         {/* Maintenance pilotée depuis la console : ORION momentanément fermé. */}
         {closed && (
           <div className="hub-closed rise rise-2" role="alert">
@@ -1385,19 +1432,15 @@ function HomeScreen({ announce, closed, deliveryOff, city, onSearch, onCourse, o
           )}
         </div>
 
-        {/* Sept services, sur deux rangées pleines : trois qui arrivent bientôt (on peut demander
-            à être prévenu), puis quatre déjà ouverts. « Mes courses » et « Aide » sont dans les
-            paramètres, au même format. */}
-        <div className="tuiles rise rise-3">
-          <Tuile rang={2} objet={<Objet nom="food" volume />} label={t('svc_food')} note={t('soon_badge')} onClick={() => onSoon(t('svc_food'))} />
-          <Tuile rang={3} objet={<Objet nom="achat" volume />} label={t('svc_shop')} note={t('soon_badge')} onClick={() => onSoon(t('svc_shop'))} />
-          <Tuile rang={4} objet={<Objet nom="supermarche" volume />} label={t('svc_market')} note={t('soon_badge')} onClick={() => onSoon(t('svc_market'))} />
-        </div>
+        {/* Quatre services ouverts, sur une rangée pleine sous les deux principaux. Food,
+            Achat & Vente et Supermarché ne sont plus montrés tant qu'ils ne sont pas ouverts :
+            ils restent déclarés côté serveur (réglage « services ») et reviendront d'un geste
+            depuis la console. « Mes courses » et « Aide » sont dans les paramètres. */}
         <div className="tuiles quatre rise rise-3">
-          <Tuile rang={5} objet={<Objet nom="colis" volume />} label={t('svc_colis')} onClick={() => (deliveryOff || closed ? onSoon(t('svc_colis')) : onDelivery())} />
-          <Tuile rang={6} objet={<Objet nom="abonnement" volume />} label={t('menu_subscription')} onClick={() => onNav('subscription')} />
-          <Tuile rang={7} objet={<Objet nom="location" volume />} label={t('rent_entry')} onClick={() => onNav('rental')} />
-          <Tuile rang={8} objet={<Objet nom="mariage" volume />} label={t('menu_wedding')} onClick={() => onNav('wedding')} />
+          <Tuile rang={2} objet={<Objet nom="colis" volume />} label={t('svc_colis')} onClick={() => (deliveryOff || closed ? onSoon(t('svc_colis')) : onDelivery())} />
+          <Tuile rang={3} objet={<Objet nom="abonnement" volume />} label={t('menu_subscription')} onClick={() => onNav('subscription')} />
+          <Tuile rang={4} objet={<Objet nom="location" volume />} label={t('rent_entry')} onClick={() => onNav('rental')} />
+          <Tuile rang={5} objet={<Objet nom="mariage" volume />} label={t('menu_wedding')} onClick={() => onNav('wedding')} />
         </div>
 
         <span className="eyebrow" style={{ marginTop: 4 }}><IconPin size={13} /> {t('lieu_vos_lieux')}</span>
@@ -1603,19 +1646,39 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
   payments: { method: string; label: string }[]; promo: string; onPromo: (v: string) => void;
   stops: Place[]; onAddStop: () => void; scheduled: boolean; onSchedule: (v: boolean) => void;
   insurance: boolean; onInsurance: (v: boolean) => void;
-  onPayment: (m: string) => void; onBack: () => void; onConfirm: () => void;
+  /** `quand` : date et heure choisies quand la course est programmée (ISO). */
+  onPayment: (m: string) => void; onBack: () => void; onConfirm: (quand?: string) => void;
 }) {
   const { t } = useI18n();
   const [showWhy, setShowWhy] = useState(false);
   const [showIns, setShowIns] = useState(false);
   const [promoDraft, setPromoDraft] = useState(promo);
   const discount = quote?.breakdown.discount ?? 0;
+  /* Course programmée : au plus tôt dans 20 minutes (le serveur en demande 15), 30 par défaut. */
+  const [quand, setQuand] = useState(() => heureLocale(Date.now() + 30 * 60_000));
+  const auPlusTot = heureLocale(Date.now() + 20 * 60_000);
+  const quandValide = !scheduled || (Boolean(quand) && new Date(quand).getTime() >= Date.now() + 15 * 60_000);
+  const total = quote ? Math.max(0, quote.amount - (coverage?.montantCouvert ?? 0) - (coverage?.remise ?? 0)) : 0;
   return (
     <div className="screen">
       <OrionMap origin={origin.location} destination={destination.location} stops={stops.map((s) => s.location)} />
       <TopBar onBack={onBack} title={t('conf_title')} />
       <div style={{ flex: 1 }} />
-      <Sheet>
+      <Sheet pied={
+        <>
+          {quote && (
+            <div className="fare-total">
+              <span className="badge green" style={{ fontSize: 10.5 }}><IconShieldCheck size={11} /> {t('fixed_badge')}</span>
+              <span className="amt">{formatXOF(total)}</span>
+            </div>
+          )}
+          {departAConfirmer ? (
+            <button className="btn btn-primary" onClick={onDepart}><IconPin size={18} /> {t('lieu_confirmer_depart')}</button>
+          ) : (
+            <button className="btn btn-primary" disabled={!quandValide} onClick={() => onConfirm(scheduled ? new Date(quand).toISOString() : undefined)}>{scheduled ? t('sched_set') : t('conf_confirm')}</button>
+          )}
+        </>
+      }>
         <div className="card" style={{ padding: 14, marginBottom: 12 }}>
           <LigneDepart origin={origin} aConfirmer={departAConfirmer} libelle={t('conf_departure')} onChange={onDepart}
             droite={<TierBadge tier={tier.id} size={40} suv={bodyType === 'suv'} />} />
@@ -1639,7 +1702,17 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
             <IconCalendar size={16} /> {t('sched_later')}
           </button>
         </div>
-        {scheduled && <p className="faint" style={{ fontSize: 12, marginBottom: 12 }}>{t('sched_note')}</p>}
+        {scheduled && (
+          <>
+            <label className="field" style={{ padding: '10px 14px', marginBottom: 6 }}>
+              <IconCalendar size={16} />
+              <span className="faint" style={{ fontSize: 13, flex: 'none' }}>{t('sched_depart')}</span>
+              <input type="datetime-local" className="quand" value={quand} min={auPlusTot} aria-label={t('sched_when')}
+                onChange={(e) => setQuand(e.target.value)} style={{ fontSize: 15, minWidth: 0, textAlign: 'end' }} />
+            </label>
+            <p className="faint" style={{ fontSize: 12, marginBottom: 12 }}>{quandValide ? t('sched_info') : t('sched_trop_tot')}</p>
+          </>
+        )}
 
         {/* ORION Assurance (optionnelle, +2%) */}
         <div className="opt" style={{ marginBottom: 14, ...(insurance ? { borderColor: 'var(--green)', background: 'rgba(var(--accent-rgb),0.06)' } : {}) }}>
@@ -1700,12 +1773,12 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
                 {quote.breakdown.insurance > 0 && <div className="fare-line"><span>{t('ins_line')}</span><span>{formatXOF(quote.breakdown.insurance)}</span></div>}
               </div>
             )}
-            <div className="divider" style={{ margin: '8px 0' }} />
             {/* ABONNEMENT ORION : ce que le forfait prend en charge sur CETTE course.
                 Affiché avant la commande, pour que le client sache ce qu'il paiera —
-                le quota, lui, n'est débité qu'à la confirmation. */}
+                le quota, lui, n'est débité qu'à la confirmation. Le total à payer est
+                dans le pied de la feuille, avec le bouton. */}
             {coverage?.covered && (
-              <div className="fare-line" style={{ color: 'var(--green)' }}>
+              <div className="fare-line" style={{ color: 'var(--green)', marginTop: 8 }}>
                 <span><IconCrown size={12} /> {coverage.aPayer > 0
                   ? t('sub_coveredPartial', { amount: formatXOF(coverage.montantCouvert), rest: formatXOF(coverage.aPayer) })
                   : t('sub_covered')}</span>
@@ -1713,18 +1786,11 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
               </div>
             )}
             {!coverage?.covered && coverage && coverage.remise > 0 && (
-              <div className="fare-line" style={{ color: 'var(--green)' }}>
+              <div className="fare-line" style={{ color: 'var(--green)', marginTop: 8 }}>
                 <span><IconCrown size={12} /> {t('sub_memberDiscount', { amount: formatXOF(coverage.remise) })}</span>
                 <span>-{formatXOF(coverage.remise)}</span>
               </div>
             )}
-            <div className="fare-total">
-              <span className="col" style={{ alignItems: 'flex-start' }}>
-                <span className="muted">{t('conf_total')}</span>
-                <span className="badge green" style={{ fontSize: 10, marginTop: 4 }}><IconShieldCheck size={11} /> {t('fixed_badge')}</span>
-              </span>
-              <span className="amt">{formatXOF(Math.max(0, quote.amount - (coverage?.montantCouvert ?? 0) - (coverage?.remise ?? 0)))}</span>
-            </div>
           </>
         )}
         {/* Avantage à bord : Wi-Fi gratuit illimité */}
@@ -1733,12 +1799,7 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
           <span className="grow" style={{ textAlign: 'start', fontSize: 13, fontWeight: 600 }}>{t('wifi_free')}</span>
           <span className="badge green">{t('badge_gratuit')}</span>
         </div>
-        {departAConfirmer ? (
-          <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={onDepart}><IconPin size={18} /> {t('lieu_confirmer_depart')}</button>
-        ) : (
-          <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={onConfirm}>{scheduled ? t('sched_set') : t('conf_confirm')}</button>
-        )}
-        <p className="faint" style={{ textAlign: 'center', fontSize: 12, marginTop: 8 }}>{t('conf_locked')}</p>
+        <p className="faint" style={{ textAlign: 'center', fontSize: 12, margin: '10px 0 12px' }}>{t('conf_locked')}</p>
       </Sheet>
 
       {showIns && (

@@ -24,11 +24,16 @@ export function Toast({ message, danger }: { message: string; danger?: boolean }
   return <div className={`toast${danger ? ' danger' : ''}`}>{message}</div>;
 }
 
-export function Sheet({ children }: { children: ReactNode }) {
+/**
+ * Feuille du bas. `pied` reste collé en bas de la feuille pendant que le reste défile :
+ * l'action principale (confirmer, payer) est toujours sous le pouce, sans faire défiler.
+ */
+export function Sheet({ children, pied }: { children: ReactNode; pied?: ReactNode }) {
   return (
-    <div className="sheet">
+    <div className={`sheet${pied ? ' a-pied' : ''}`}>
       <div className="grabber" />
       {children}
+      {pied && <div className="sheet-pied">{pied}</div>}
     </div>
   );
 }

@@ -70,6 +70,18 @@
             <data android:scheme="sms" />
         </intent>
     </queries>
+    <!--
+      Empreinte digitale ou visage : l'app demande au TÉLÉPHONE de reconnaître son propriétaire
+      (fenêtre système BiometricPrompt). Elle ne lit jamais l'empreinte ni le visage : elle
+      reçoit seulement « reconnu » ou non. Permission dite « normale » : accordée à
+      l'installation, sans fenêtre de demande ; l'accord de la personne se donne dans l'app
+      (Paramètres › Sécurité) puis sur le capteur. USE_FINGERPRINT : Android 9 et antérieurs.
+    -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" android:maxSdkVersion="28" />
+    <uses-feature android:name="android.hardware.fingerprint" android:required="false" />
+    <uses-feature android:name="android.hardware.biometrics.face" android:required="false" />
+
     <!-- Photo de profil : prise de vue avec la caméra frontale. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- L'app s'installe aussi sur un appareil sans caméra (la galerie reste possible). -->
