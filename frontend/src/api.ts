@@ -13,7 +13,82 @@ import { repondreLocal, reserverLocationLocale } from './serveurLocal';
  * Sinon (mode démo), on calcule localement pour que l'app reste pleinement fonctionnelle
  * — utile pour les démonstrations et la revue de design sans infra.
  */
-const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
+const API_CONSTRUCTION = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
+
+/**
+ * SERVEUR ORION CHOISI DANS L'APPLICATION (Paramètres → Serveur ORION).
+ *
+ * L'adresse du serveur n'est plus figée à la construction : la même application — le
+ * même APK — fonctionne en autonomie, puis se relie à un serveur ORION le jour où il est
+ * en ligne, sans réinstallation. Une chaîne vide enregistrée force le mode autonome.
+ */
+const CLE_SERVEUR = 'orion.serveur';
+function serveurEnregistre(): string | null {
+  try { return localStorage.getItem(CLE_SERVEUR); } catch { return null; }
+}
+const API = serveurEnregistre() ?? API_CONSTRUCTION;
+
+export interface EtatServeur {
+  /** Adresse du serveur auquel l'application est reliée ; vide en mode autonome. */
+  url: string;
+  /** D'où vient l'adresse : réglée dans l'app, fixée à la construction, ou aucune. */
+  origine: 'application' | 'construction' | 'aucune';
+}
+export function etatServeur(): EtatServeur {
+  const choisi = serveurEnregistre();
+  return { url: API, origine: !API ? 'aucune' : choisi !== null ? 'application' : 'construction' };
+}
+
+/**
+ * Met en forme une adresse saisie à la main (« orion.exemple.ci » → « https://orion.exemple.ci »).
+ * `https` : la page est servie en https (c'est le cas dans l'app Android et iOS), un
+ * serveur en http y serait bloqué par le système — sauf sur le téléphone lui-même.
+ */
+export function adresseServeur(saisie: string): { url: string } | { erreur: 'adresse' | 'https' } {
+  const brut = saisie.trim().replace(/\/+$/, '');
+  if (!brut) return { erreur: 'adresse' };
+  let u: URL;
+  try { u = new URL(/^https?:\/\//i.test(brut) ? brut : `https://${brut}`); } catch { return { erreur: 'adresse' }; }
+  if (!u.hostname.includes('.') && u.hostname !== 'localhost') return { erreur: 'adresse' };
+  const local = u.hostname === 'localhost' || u.hostname === '127.0.0.1';
+  if (u.protocol === 'http:' && !local && typeof location !== 'undefined' && location.protocol === 'https:') return { erreur: 'https' };
+  return { url: `${u.protocol}//${u.host}${u.pathname.replace(/\/+$/, '')}` };
+}
+
+/** Vérifie qu'un serveur ORION répond bien à cette adresse, avant de s'y relier. */
+export async function testerServeur(url: string): Promise<{ ok: true; ville: string } | { ok: false; raison: 'injoignable' | 'pas_orion' }> {
+  const lire = async (chemin: string): Promise<unknown> => {
+    const ctrl = new AbortController();
+    const fin = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const res = await fetch(`${url}${chemin}`, { signal: ctrl.signal });
+      return res.ok ? await res.json() : null;
+    } finally { clearTimeout(fin); }
+  };
+  try {
+    // Un hébergement en veille met quelques secondes à se réveiller : deux essais.
+    const pret = (await lire('/health/ready').catch(() => null)) ?? (await lire('/health/ready'));
+    const config = await lire('/config') as { city?: string; services?: unknown } | null;
+    if (!pret || !config || typeof config.services !== 'object') return { ok: false, raison: 'pas_orion' };
+    return { ok: true, ville: config.city ?? 'Abidjan' };
+  } catch {
+    return { ok: false, raison: 'injoignable' };
+  }
+}
+
+/**
+ * Relie l'application à un serveur (ou la remet en autonomie avec `null`), puis la
+ * redémarre. Le compte vit sur le serveur : changer de serveur ferme la session en cours.
+ */
+export function relierServeur(url: string | null): void {
+  try {
+    localStorage.setItem(CLE_SERVEUR, url ?? '');
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(PROFIL_KEY);
+    localStorage.removeItem('orion.sos');
+  } catch { /* stockage indisponible : le rechargement gardera l'ancien réglage */ }
+  location.reload();
+}
 
 async function tryFetch<T>(path: string, init?: RequestInit, timeoutMs = 2500): Promise<T | null> {
   if (!API) {

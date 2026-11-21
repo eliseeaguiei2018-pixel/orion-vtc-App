@@ -47,3 +47,10 @@ export function ouvrirClavier(lien: string): void {
   a.click();
   a.remove();
 }
+
+/**
+ * Numéro FICTIF de démonstration. L'indicatif « 00 » n'est attribué à aucun opérateur
+ * ivoirien : le clavier s'ouvre bien avec un numéro composé, mais il ne peut joindre
+ * personne. Sert quand le chauffeur est simulé (application sans serveur).
+ */
+export const NUMERO_DEMONSTRATION = '+2250000000000';

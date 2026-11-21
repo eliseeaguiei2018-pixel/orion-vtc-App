@@ -14,10 +14,11 @@ import { LogoGlyph } from './components/Logo';
 import { Voiture, Scooter, vehiculeDeGamme } from './components/Vehicules';
 import { AssuranceScreen } from './components/AssuranceScreens';
 import { BoutonMessages, ControleSecurite, MessagesScreen, useMessagerie } from './components/MessagesOrion';
+import { ServeurScreen } from './components/ServeurScreen';
 import type { MessageOrion } from './api';
 import { authenticateBiometric, isBiometricEnabled } from './security';
 import type { TrustedContact } from './api';
-import { numeroLisible, ouvrirClavier } from './telephone';
+import { NUMERO_DEMONSTRATION, numeroLisible, ouvrirClavier } from './telephone';
 import { lienPosition, partager } from './partage';
 import { cloreSosLocal, controleSecuriteLocal, enregistrerCourseLocale } from './serveurLocal';
 import {
@@ -744,12 +745,14 @@ export function App() {
             onProfile={() => { setRetourProfil('settings'); setScreen('profile'); }} onHistory={() => setScreen('history')} onSos={() => setScreen('sosHistory')}
             onWallet={() => setScreen('wallet')} onSubscription={() => setScreen('subscription')}
             onHelp={() => setScreen('help')} onLegal={() => setScreen('legal')} onCreate={() => setScreen('auth')}
+            onServeur={() => setScreen('serveur')}
             onLogout={() => quitterCompte(t('set_logged_out'))}
             onDelete={() => void supprimerCompte().then((r) => (r.ok ? quitterCompte(t('set_deleted')) : showToast(r.error, true)))}
             trusted={trusted} setTrusted={(c) => { setTrusted(c); localStorage.setItem('orion.trusted', JSON.stringify(c)); }}
             shareRides={shareRides} setShareRides={(v) => { setShareRides(v); localStorage.setItem('orion.share', v ? '1' : '0'); }} />
         )}
         {screen === 'profile' && <ProfileScreen profil={profil} onBack={() => setScreen(retourProfil)} onSaved={setProfil} onToast={showToast} />}
+        {screen === 'serveur' && <ServeurScreen onBack={() => setScreen('settings')} />}
         {screen === 'sosHistory' && <SosHistoryScreen onBack={() => setScreen('settings')} />}
         {screen === 'legal' && <LegalScreen onBack={() => setScreen('settings')} />}
         {screen === 'wallet' && <WalletScreen onBack={() => setScreen('home')} onToast={showToast} onCommander={() => setScreen('destination')} onLogin={() => setScreen('auth')} />}
@@ -1898,9 +1901,16 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
 
         <div className="row gap-sm">
           <button className="btn btn-ghost" onClick={onShare}><IconShare size={18} /> {t('track_share')}</button>
-          <a className="btn btn-primary" href={contact?.lien ?? '#appeler'} data-testid="bouton-appeler"
+          {/* Un vrai lien « tel: » : c'est ce que le téléphone transmet le plus sûrement à son
+              clavier d'appel. Sans serveur, le chauffeur est simulé : le lien porte un numéro
+              fictif qui ne joint personne, et l'écran le dit. */}
+          <a className="btn btn-primary" data-testid="bouton-appeler"
+            href={contact?.lien ?? (live && rideId ? '#appeler' : `tel:${NUMERO_DEMONSTRATION}`)}
             aria-label={contact ? `${t('track_call')} ${contact.nom} ${numeroLisible(contact.telephone)}` : t('track_call')}
-            onClick={(e) => { if (!contact) { e.preventDefault(); void appeler(); } }} style={{ textDecoration: 'none' }}>
+            onClick={(e) => {
+              if (contact) return;
+              if (live && rideId) { e.preventDefault(); void appeler(); } else setAvisAppel(t('call_demo'));
+            }} style={{ textDecoration: 'none' }}>
             <IconPhone size={18} /> {t('track_call')}
           </a>
         </div>

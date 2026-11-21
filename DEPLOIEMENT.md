@@ -42,6 +42,21 @@ J'ai déjà ajouté le workflow `.github/workflows/deploy-pages.yml`. Une seule 
 4. Lance le déploiement. À la fin tu obtiens une URL, ex. `https://orion-backend.onrender.com`.
 5. Vérifie : ouvre `https://orion-backend.onrender.com/health/ready` → tu dois voir `{"status":"ready"}`.
 
+### Étape A bis · Relier l'application (APK) au serveur — sans la réinstaller
+L'adresse du serveur n'est plus figée dans l'APK. Sur le téléphone :
+
+1. ouvre **Paramètres → Serveur ORION** ;
+2. saisis l'adresse obtenue à l'étape A (ex. `https://orion-backend.onrender.com`) ;
+3. touche **Tester et relier** : l'app vérifie que c'est bien un serveur ORION, puis redémarre.
+
+À partir de là, courses, alertes SOS, messages et compte passent par le serveur et
+apparaissent dans la console. **Revenir au mode autonome** détache l'application.
+L'adresse doit être en `https` (exigé par Android et iOS). Changer de serveur ferme la
+session : le compte vit sur le serveur auquel l'app est reliée.
+
+Pour livrer un APK déjà relié, construis-le avec `VITE_API_URL=https://…` : l'adresse
+réglée dans l'app reste prioritaire.
+
 ### Étape B · Mettre le frontend en ligne (Vercel — gratuit)
 1. Crée un compte sur **https://vercel.com** (connexion avec GitHub).
 2. **Add New → Project**, choisis `orion-vtc-App`.
@@ -381,6 +396,23 @@ consigne, ou contrôle de sécurité « votre course se passe-t-elle bien ? » a
 rapides. L'app envoie aussi ce contrôle d'elle-même pendant chaque course, après
 `SAFETY_CHECKIN_SECONDS` secondes (180 par défaut, 0 pour désactiver). La réponse
 « Je ne me sens pas en sécurité » lève aussitôt une alerte dans la file SAMU.
+
+## SOS : le centre de contrôle prévient les secours
+
+Ce n'est pas au client d'appeler le SAMU, la police ou les pompiers. Dès l'alerte,
+l'**agent ORION automatique** lui répond, comprend ce qui se passe (malaise, accident,
+agression, incendie, chauffeur dangereux, harcèlement, panne) et **demande au centre** de
+prévenir le service qu'il faut. Dans la console, le dossier SOS affiche sa synthèse et
+ses demandes : l'opérateur appelle d'un geste (`Appeler`), ou coche une demande interne
+(`Marquer fait` : chauffeur joint, course arrêtée, client rappelé). Le client voit
+l'avancement réel — « le centre le prévient », « appel en cours », « joint ».
+
+- Dès qu'un opérateur prend le dossier, l'agent automatique l'annonce et se tait.
+- Sans réponse du client : relance à 30 s, puis rappel et police par précaution à 75 s.
+- Avec un opérateur SMS configuré, le numéro `astreinte-ops` du **Répertoire d'urgence**
+  reçoit un SMS à chaque demande : mets-y le vrai numéro d'astreinte.
+- Les numéros 185 / 170 / 180 ne s'affichent côté client qu'en dernier recours : alerte
+  non transmise, ou centre resté muet trois minutes.
 
 ## Activer Google Maps côté itinéraires (optionnel)
 1. Obtiens une clé sur Google Cloud (APIs : Directions, Places, Maps JavaScript).

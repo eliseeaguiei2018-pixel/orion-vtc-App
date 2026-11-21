@@ -217,6 +217,7 @@ export interface SubState {
 }
 
 export type Screen =
+  | 'serveur'
   | 'splash'
   | 'onboarding'
   | 'auth'

@@ -2,14 +2,14 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Sheet, TopBar } from './ui';
 import {
   IconCamera, IconCheck, IconChevron, IconClock, IconFingerprint, IconGlobe, IconImage, IconLock,
-  IconPin, IconShield, IconShieldCheck, IconWallet, IconCrown, IconPhone, IconCar, IconMedical, IconStar,
+  IconPin, IconShield, IconShieldCheck, IconSignal, IconWallet, IconCrown, IconPhone, IconCar, IconMedical, IconStar,
 } from '../icons';
 import { useI18n, LANGUAGES, type Lang } from '../i18n';
 import { ACCENTS, useTheme, type ThemeMode } from '../theme';
 import { COUNTRIES, formatXOF } from '../data';
 import { isBiometricEnabled, setBiometricEnabled } from '../security';
 import {
-  AGENT_GENERIQUE, MOTIFS_ANNULATION, annulerCourse, apercuAnnulation, chargerHistorique, envoyerPhoto, mesAlertesSos,
+  AGENT_GENERIQUE, MOTIFS_ANNULATION, etatServeur, annulerCourse, apercuAnnulation, chargerHistorique, envoyerPhoto, mesAlertesSos,
   modifierProfil, retirerPhoto, sessionClient,
   type CourseHistorique, type FraisAnnulation, type Historique, type MotifAnnulation, type ProfilClient, type SosSuivi,
   type TrustedContact,
@@ -229,8 +229,10 @@ const VERSION = '1.0';
  */
 export function SettingsScreen({
   profil, onBack, onProfile, onHistory, onSos, onWallet, onSubscription, onHelp, onLegal, onCreate, onLogout, onDelete,
-  trusted, setTrusted, shareRides, setShareRides, onAssurance, assuranceActive = false,
+  trusted, setTrusted, shareRides, setShareRides, onAssurance, assuranceActive = false, onServeur,
 }: {
+  /** Liaison avec le serveur ORION (adresse réglable sans réinstaller l'application). */
+  onServeur?: () => void;
   /** ORION Assurance : dossier de premiers secours (inscription gratuite). */
   onAssurance?: () => void; assuranceActive?: boolean;
   profil: ProfilClient | null; onBack: () => void; onProfile: () => void; onHistory: () => void; onSos: () => void;
@@ -249,6 +251,8 @@ export function SettingsScreen({
     { m: 'system', k: 'theme_auto' }, { m: 'light', k: 'theme_light' }, { m: 'dark', k: 'theme_dark' },
   ];
   const saveContact = (nm: string, ph: string) => { if (nm && ph) setTrusted({ name: nm, phone: ph }); };
+  const serveur = etatServeur();
+  const hoteServeur = (() => { try { return new URL(serveur.url).host; } catch { return serveur.url; } })();
   const ligne = (icone: ReactNode, titre: string, sous: string | null, onClick: () => void, classe = '') => (
     <button className={`opt list-btn set-ligne ${classe}`} onClick={onClick}>
       <span className="list-ico" style={{ color: 'var(--green)' }}>{icone}</span>
@@ -370,6 +374,7 @@ export function SettingsScreen({
         <div className="stack">
           {ligne(<IconShieldCheck size={18} />, t('set_help'), null, onHelp)}
           {ligne(<IconLock size={18} />, t('set_legal'), null, onLegal)}
+          {onServeur && ligne(<IconSignal size={18} />, t('srv_title'), serveur.url ? t('srv_d_relie', { h: hoteServeur }) : t('srv_d_autonome'), onServeur)}
         </div>
 
         {/* Mon compte */}

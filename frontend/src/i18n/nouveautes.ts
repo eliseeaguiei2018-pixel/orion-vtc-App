@@ -90,6 +90,10 @@ const TEXTES: Record<string, Huit> = {
     'Alerte reçue par le centre de contrôle', 'Alert received by the control centre', 'Alerta recibida por el centro de control',
     'Avviso ricevuto dal centro di controllo', 'Alarm in der Leitstelle eingegangen', 'تم استلام التنبيه في مركز التحكم', '控制中心已收到警报', 'Центр управления получил сигнал',
   ],
+  sos_step_agent_team: [
+    'Pris en charge par un agent du centre de contrôle', 'Handled by a control centre agent', 'Atendido por un agente del centro de control',
+    'Preso in carico da un agente del centro di controllo', 'Von einem Agenten der Leitstelle übernommen', 'يتولاه وكيل من مركز التحكم', '已由控制中心客服接手', 'Принято агентом центра управления',
+  ],
   sos_step_auto: [
     'Agent ORION en ligne avec vous', 'ORION agent online with you', 'Agente ORION en línea con usted', 'Agente ORION in linea con te',
     'ORION-Agent ist bei Ihnen', 'وكيل أوريون على الخط معك', 'ORION 客服正在线为您服务', 'Агент ORION на связи с вами',
@@ -182,6 +186,69 @@ const TEXTES: Record<string, Huit> = {
   ctrl_ok: ['Tout va bien, merci', 'All is well, thank you', 'Todo bien, gracias', 'Tutto bene, grazie', 'Alles gut, danke', 'كل شيء بخير، شكرًا', '一切都好，谢谢', 'Всё хорошо, спасибо'],
   ctrl_appel: ['Appelez-moi', 'Call me', 'Llámenme', 'Chiamatemi', 'Rufen Sie mich an', 'اتصلوا بي', '请给我打电话', 'Позвоните мне'],
   ctrl_danger: ['Je ne me sens pas en sécurité', 'I do not feel safe', 'No me siento seguro(a)', 'Non mi sento al sicuro', 'Ich fühle mich nicht sicher', 'لا أشعر بالأمان', '我感觉不安全', 'Я не чувствую себя в безопасности'],
+
+  /* --------------------------------- Appel du chauffeur --------------------------------- */
+  call_demo: [
+    'Démonstration : le clavier s’ouvre avec un numéro fictif. Relié au serveur ORION, il porte le numéro de votre chauffeur.',
+    'Demo: the dialer opens with a fictitious number. Once connected to the ORION server, it carries your driver’s number.',
+    'Demostración: el teclado se abre con un número ficticio. Conectado al servidor ORION, lleva el número de su conductor.',
+    'Dimostrazione: il tastierino si apre con un numero fittizio. Collegato al server ORION, riporta il numero del tuo autista.',
+    'Demo: Die Wähltastatur öffnet sich mit einer fiktiven Nummer. Mit dem ORION-Server verbunden, trägt sie die Nummer Ihres Fahrers.',
+    'عرض تجريبي: تُفتح لوحة الاتصال برقم وهمي. عند الاتصال بخادم أوريون تحمل رقم سائقك.',
+    '演示：拨号盘以虚拟号码打开。连接 ORION 服务器后，将显示您司机的号码。',
+    'Демо: набор открывается с вымышленным номером. При подключении к серверу ORION будет номер вашего водителя.',
+  ],
+
+  /* ----------------------------------- Serveur ORION ----------------------------------- */
+  srv_title: ['Serveur ORION', 'ORION server', 'Servidor ORION', 'Server ORION', 'ORION-Server', 'خادم أوريون', 'ORION 服务器', 'Сервер ORION'],
+  srv_d_relie: ['Relié à {h}', 'Connected to {h}', 'Conectado a {h}', 'Collegato a {h}', 'Verbunden mit {h}', 'متصل بـ {h}', '已连接 {h}', 'Подключено к {h}'],
+  srv_d_autonome: [
+    'Mode autonome : les données restent sur ce téléphone', 'Standalone mode: data stays on this phone', 'Modo autónomo: los datos quedan en este teléfono',
+    'Modalità autonoma: i dati restano su questo telefono', 'Eigenständiger Modus: Daten bleiben auf diesem Telefon', 'وضع مستقل: تبقى البيانات على هذا الهاتف', '独立模式：数据保存在本机', 'Автономный режим: данные остаются на телефоне',
+  ],
+  srv_etat_relie: ['Relié au serveur ORION', 'Connected to the ORION server', 'Conectado al servidor ORION', 'Collegato al server ORION', 'Mit dem ORION-Server verbunden', 'متصل بخادم أوريون', '已连接 ORION 服务器', 'Подключено к серверу ORION'],
+  srv_etat_autonome: ['Mode autonome', 'Standalone mode', 'Modo autónomo', 'Modalità autonoma', 'Eigenständiger Modus', 'وضع مستقل', '独立模式', 'Автономный режим'],
+  srv_intro: [
+    'Reliez l’application au serveur ORION : vos courses, vos alertes SOS et vos messages arrivent alors au centre de contrôle, et votre compte vous suit d’un téléphone à l’autre.',
+    'Connect the app to the ORION server: your rides, SOS alerts and messages then reach the control centre, and your account follows you from one phone to another.',
+    'Conecte la aplicación al servidor ORION: sus viajes, alertas SOS y mensajes llegan entonces al centro de control, y su cuenta le sigue de un teléfono a otro.',
+    'Collega l’app al server ORION: corse, avvisi SOS e messaggi arrivano così al centro di controllo, e il tuo account ti segue da un telefono all’altro.',
+    'Verbinden Sie die App mit dem ORION-Server: Ihre Fahrten, SOS-Alarme und Nachrichten erreichen dann die Leitstelle, und Ihr Konto folgt Ihnen von Telefon zu Telefon.',
+    'اربط التطبيق بخادم أوريون: تصل رحلاتك وتنبيهات SOS ورسائلك إلى مركز التحكم، ويتبعك حسابك من هاتف إلى آخر.',
+    '将应用连接到 ORION 服务器：您的行程、SOS 警报和消息将送达控制中心，账户可在不同手机间同步。',
+    'Подключите приложение к серверу ORION: поездки, сигналы SOS и сообщения будут поступать в центр управления, а аккаунт — работать на любом телефоне.',
+  ],
+  srv_adresse: ['Adresse du serveur', 'Server address', 'Dirección del servidor', 'Indirizzo del server', 'Serveradresse', 'عنوان الخادم', '服务器地址', 'Адрес сервера'],
+  srv_tester: ['Tester et relier', 'Test and connect', 'Probar y conectar', 'Prova e collega', 'Testen und verbinden', 'اختبر واربط', '测试并连接', 'Проверить и подключить'],
+  srv_test_en_cours: ['Test de la liaison…', 'Testing the connection…', 'Probando la conexión…', 'Verifica del collegamento…', 'Verbindung wird getestet…', 'جارٍ اختبار الاتصال…', '正在测试连接…', 'Проверка соединения…'],
+  srv_ok: [
+    'Serveur ORION joint. L’application redémarre pour s’y relier.', 'ORION server reached. The app is restarting to connect.', 'Servidor ORION contactado. La aplicación se reinicia para conectarse.',
+    'Server ORION raggiunto. L’app si riavvia per collegarsi.', 'ORION-Server erreicht. Die App startet neu, um sich zu verbinden.', 'تم الوصول إلى خادم أوريون. يُعاد تشغيل التطبيق للاتصال.', '已连上 ORION 服务器。应用将重启以完成连接。', 'Сервер ORION доступен. Приложение перезапускается для подключения.',
+  ],
+  srv_err_adresse: [
+    'Adresse invalide. Exemple : https://orion-backend.onrender.com', 'Invalid address. Example: https://orion-backend.onrender.com', 'Dirección no válida. Ejemplo: https://orion-backend.onrender.com',
+    'Indirizzo non valido. Esempio: https://orion-backend.onrender.com', 'Ungültige Adresse. Beispiel: https://orion-backend.onrender.com', 'عنوان غير صالح. مثال: https://orion-backend.onrender.com', '地址无效。示例：https://orion-backend.onrender.com', 'Неверный адрес. Пример: https://orion-backend.onrender.com',
+  ],
+  srv_err_https: ['Une adresse en https est nécessaire.', 'An https address is required.', 'Se requiere una dirección https.', 'È necessario un indirizzo https.', 'Eine https-Adresse ist erforderlich.', 'يلزم عنوان https.', '需要 https 地址。', 'Нужен адрес https.'],
+  srv_err_injoignable: [
+    'Serveur injoignable. Vérifiez l’adresse et votre connexion.', 'Server unreachable. Check the address and your connection.', 'Servidor inaccesible. Compruebe la dirección y su conexión.',
+    'Server non raggiungibile. Controlla l’indirizzo e la connessione.', 'Server nicht erreichbar. Prüfen Sie Adresse und Verbindung.', 'تعذّر الوصول إلى الخادم. تحقق من العنوان ومن اتصالك.', '无法连接服务器。请检查地址和网络。', 'Сервер недоступен. Проверьте адрес и соединение.',
+  ],
+  srv_err_pas_orion: [
+    'Cette adresse répond, mais ce n’est pas un serveur ORION.', 'This address answers, but it is not an ORION server.', 'Esta dirección responde, pero no es un servidor ORION.',
+    'Questo indirizzo risponde, ma non è un server ORION.', 'Diese Adresse antwortet, ist aber kein ORION-Server.', 'هذا العنوان يستجيب، لكنه ليس خادم أوريون.', '该地址有响应，但不是 ORION 服务器。', 'Адрес отвечает, но это не сервер ORION.',
+  ],
+  srv_detacher: ['Revenir au mode autonome', 'Back to standalone mode', 'Volver al modo autónomo', 'Torna alla modalità autonoma', 'Zurück zum eigenständigen Modus', 'العودة إلى الوضع المستقل', '返回独立模式', 'Вернуться в автономный режим'],
+  srv_note: [
+    'Changer de serveur vous déconnecte : votre compte vit sur le serveur auquel vous êtes relié.',
+    'Changing server signs you out: your account lives on the server you are connected to.',
+    'Cambiar de servidor cierra su sesión: su cuenta vive en el servidor al que está conectado.',
+    'Cambiare server ti disconnette: il tuo account vive sul server a cui sei collegato.',
+    'Ein Serverwechsel meldet Sie ab: Ihr Konto liegt auf dem Server, mit dem Sie verbunden sind.',
+    'تغيير الخادم يسجّل خروجك: حسابك موجود على الخادم المتصل به.',
+    '更换服务器会退出登录：您的账户保存在所连接的服务器上。',
+    'Смена сервера завершает сеанс: аккаунт хранится на подключённом сервере.',
+  ],
 };
 
 export const NOUVEAUTES = Object.fromEntries(

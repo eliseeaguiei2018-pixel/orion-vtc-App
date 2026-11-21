@@ -248,9 +248,13 @@ const P = {
   ] as Bi,
   relance2Deja: ['Sans nouvelle de vous, je demande au centre de vous appeler. Si tout va bien, dites-le-moi.', 'With no news from you, I am asking the centre to call you. If all is well, tell me.'] as Bi,
   passageHumain: (agent: string): Bi => [
-    `${agent}, du centre de contrôle ORION, prend votre dossier. Il a tout notre échange sous les yeux.`,
+    `${agent}, du centre de contrôle ORION, prend votre dossier et a tout notre échange sous les yeux.`,
     `${agent}, from the ORION control centre, is taking over your case and can see our whole conversation.`,
   ],
+  passageHumainAnonyme: [
+    'Un agent du centre de contrôle ORION prend votre dossier. Il a tout notre échange sous les yeux.',
+    'An agent from the ORION control centre is taking over your case and can see our whole conversation.',
+  ] as Bi,
 };
 
 const S = {
@@ -734,7 +738,9 @@ export function relancerAgentSos(etat: EtatAgentSos, ctx: ContexteSos, secondes:
 
 /** L'agent humain prend le dossier : l'agent automatique l'annonce et se tait. */
 export function passerLaMainSos(etat: EtatAgentSos, agent: string): string {
-  return choisir(etat.langue, P.passageHumain(agent));
+  // Un compte technique n'a pas de prénom à présenter : on n'écrit pas « Supervision ORION, du centre… ».
+  const prenom = agent.trim();
+  return choisir(etat.langue, !prenom || /orion|supervision|centre/i.test(prenom) ? P.passageHumainAnonyme : P.passageHumain(prenom));
 }
 
 /** Intitulé d'une demande, pour l'écran de la personne et pour la console. */
