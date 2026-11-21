@@ -17,10 +17,14 @@ export async function safetyRoutes(app: FastifyInstance, container: Container): 
   // SOS manuel.
   app.post('/safety/sos', async (req, reply) => {
     const body = parse(
-      z.object({ userId: z.string().min(1), location: latLng, rideId: z.string().optional(), note: z.string().optional() }),
+      z.object({
+        userId: z.string().min(1), location: latLng, rideId: z.string().optional(), note: z.string().optional(),
+        /** Langue de l'app : l'agent automatique répond en français ou en anglais. */
+        langue: z.string().max(5).optional(),
+      }),
       req.body,
     );
-    const alert = container.safety.raiseSos(body);
+    const alert = container.safety.raiseSos({ ...body, langue: body.langue?.startsWith('en') ? 'en' : 'fr' });
     reply.code(201);
     // `suivi` : ce que l'usager voit de son alerte, puis reçoit en direct (/ws/sos/:id).
     return { alert, suivi: vueUsager(alert) };

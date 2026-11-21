@@ -23,6 +23,27 @@ const fleet: FleetUnit[] = [
 ];
 
 const alerts: Alert[] = [
+  // Alerte que personne n'a encore ouverte : l'agent ORION automatique a déjà répondu à la
+  // cliente, compris la situation et listé ce que le centre doit faire.
+  {
+    id: 'a0', kind: 'sos', level: 'rouge', status: 'raised', source: 'client', userId: 'client-2207',
+    userName: 'Mariam Bamba', userPhone: '+2250709112233', userKind: 'client',
+    location: { lat: 5.3607, lng: -3.9712 }, zoneName: 'Riviéra Bonoumin, Cocody', dispatchedTo: [], createdAt: iso(1), slaSeconds: 64,
+    note: 'SOS déclenché par le client',
+    resume: 'Urgence médicale · personne inconsciente — gravité vitale',
+    demandes: [
+      { cle: 'samu', label: 'SAMU', numero: '185', raison: 'Urgence médicale — personne inconsciente', at: iso(1) },
+      { cle: 'centre:rappel', label: 'Un agent du centre vous appelle', raison: 'Guider les premiers gestes par téléphone', at: iso(1) },
+    ],
+    chat: [
+      { from: 'agent', author: 'Agent ORION', auto: true, text: 'Ici le centre de contrôle ORION. J’ai bien votre alerte et votre position (Riviéra Bonoumin, Cocody). Que se passe-t-il ?', at: iso(1) },
+      { from: 'usager', text: 'mon mari a fait un malaise dans la voiture', at: iso(1) },
+      { from: 'agent', author: 'Agent ORION', auto: true, text: 'Je fais prévenir le SAMU (185) par le centre de contrôle. Vous n’avez aucun appel à passer : le centre s’en charge.', at: iso(1) },
+      { from: 'agent', author: 'Agent ORION', auto: true, text: 'La personne est-elle consciente et respire-t-elle normalement ?', at: iso(1) },
+      { from: 'usager', text: 'Non, elle ne répond plus', at: iso(1) },
+      { from: 'agent', author: 'Agent ORION', auto: true, text: 'Allongez-la sur le côté, la tête légèrement en arrière, et ne lui donnez rien à boire. Restez près d’elle : un agent du centre vous appelle pour vous guider.', at: iso(1) },
+    ],
+  },
   { id: 'a1', kind: 'crash', level: 'rouge', status: 'dispatched', source: 'systeme', userId: 'client-8842', location: { lat: 5.348, lng: -4.002 }, zoneName: 'Adjamé', impactG: 6.2, dispatchedTo: ['185', '170'], createdAt: iso(2), slaSeconds: 122, note: 'Accident détecté automatiquement (capteurs)' },
   { id: 'a2', kind: 'sos', level: 'rouge', status: 'acknowledged', source: 'client', agent: 'Aya (SAMU)', userId: 'client-1190', location: { lat: 5.335, lng: -3.99 }, zoneName: 'Cocody', dispatchedTo: ['185', '170'], createdAt: iso(9), slaSeconds: 540, note: 'SOS déclenché par le client', chat: [{ from: 'agent', author: 'Aya (SAMU)', text: 'Êtes-vous en danger ? Répondez par Oui ou Non.', at: iso(8) }, { from: 'usager', text: 'Non, fausse manip', at: iso(7) }] },
   { id: 'a4', kind: 'deviation', level: 'orange', status: 'dispatched', source: 'systeme', userId: 'client-3312', location: { lat: 5.34, lng: -4.005 }, zoneName: 'Plateau', dispatchedTo: ['185', '170'], createdAt: iso(4), slaSeconds: 240, note: 'Déviation majeure inexpliquée (itinéraire réel très supérieur au prévu)' },

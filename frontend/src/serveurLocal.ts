@@ -13,6 +13,10 @@
  */
 import type { SubInvoice, SubPlanInfo, SubState } from './types';
 import { TIERS } from './data';
+import {
+  libelleDemande, ouvrirAgentSos, relancerAgentSos, repondreAgentSos,
+  type CleDemande, type ContexteSos, type EtatAgentSos, type TourAgent,
+} from './agentSos';
 
 export interface ReponseLocale { status: number; data: unknown }
 
@@ -77,41 +81,71 @@ export function noterDerniereCourseLocale(note: number): void {
 }
 
 /* ------------------------------ Alertes SOS ------------------------------ */
+/**
+ * Sans serveur, l'AGENT ORION AUTOMATIQUE tourne sur le téléphone : même moteur que sur
+ * le serveur (agentSos.ts), même conversation, mêmes décisions. La seule différence est
+ * de taille et l'écran la dit : aucun centre de contrôle ne reçoit l'alerte, donc aucun
+ * service n'est réellement prévenu. Les demandes restent marquées « simulation ».
+ */
+interface DemandeLocale { cle: CleDemande; label: string; numero?: string; at: string }
 interface SosLocal {
-  id: string; kind: string; status: 'raised' | 'acknowledged' | 'resolved'; createdAt: string;
+  id: string; kind: string; status: 'raised' | 'acknowledged' | 'resolved' | 'cancelled'; createdAt: string;
   location: { lat: number; lng: number }; zoneName?: string; rideId?: string;
-  chat: Array<{ from: 'agent' | 'usager'; author?: string; text: string; at: string }>;
+  chat: Array<{ from: 'agent' | 'usager'; author?: string; text: string; at: string; auto?: boolean }>;
   clotureeA: string | null;
+  agent?: { etat: EtatAgentSos; contexte: ContexteSos; dernierSigne: string; suggestions: string[] };
+  demandes?: DemandeLocale[];
 }
-const AGENT = 'Supervision ORION (démonstration)';
+const AGENT = 'Agent ORION';
+const NUMEROS: Partial<Record<CleDemande, string>> = { samu: '185', police: '170', pompiers: '180' };
 
-/** L'alerte évolue avec le temps, comme si un agent la prenait en charge — sans jamais prétendre avoir prévenu des secours. */
-const suiviSos = (a: SosLocal) => {
-  const ecoule = Date.now() - Date.parse(a.createdAt);
-  const chat = [...a.chat];
-  if (ecoule >= 3000) {
-    chat.push({ from: 'agent', author: AGENT, at: plus(a.createdAt, 3000),
-      text: 'Démonstration : cette alerte n’a été transmise à aucun service. En cas de danger réel, appelez tout de suite le 185 (SAMU), le 170 (Police) ou le 180 (Pompiers) avec les boutons ci-dessous.' });
-  }
-  if (ecoule >= 7000) {
-    chat.push({ from: 'agent', author: AGENT, at: plus(a.createdAt, 7000),
-      text: 'Avec le serveur ORION en service, un agent de supervision vous répondrait ici, verrait votre position en direct et pourrait prévenir les secours.' });
-  }
-  chat.sort((x, y) => x.at.localeCompare(y.at));
-  return {
-    // Personne ne prend réellement l'alerte en charge : aucune « prise en charge » n'est affichée.
-    id: a.id, kind: a.kind, status: a.clotureeA ? 'resolved' : 'raised',
-    createdAt: a.createdAt, location: a.location, zoneName: a.zoneName,
-    priseEnCharge: null,
-    chat, secours: [], clotureeA: a.clotureeA,
+/** Inscrit dans l'alerte ce que l'agent vient de dire et de demander. */
+function appliquerTour(a: SosLocal, tour: TourAgent): void {
+  if (!a.agent) return;
+  const at = maintenant();
+  a.agent.etat = tour.etat;
+  a.agent.suggestions = tour.suggestions;
+  tour.messages.forEach((text, i) => a.chat.push({ from: 'agent', author: AGENT, auto: true, text, at: plus(at, i + 1) }));
+  for (const d of tour.demandes) (a.demandes ??= []).push({ cle: d.cle, label: libelleDemande(d.cle, tour.etat.langue), numero: NUMEROS[d.cle], at });
+  if (tour.terminer) { a.status = 'cancelled'; a.clotureeA = at; }
+}
+
+function creerSosLocal(corps: Record<string, unknown>, origine: ContexteSos['origine']): SosLocal {
+  const zoneName = typeof corps.zoneName === 'string' ? corps.zoneName : undefined;
+  const rideId = typeof corps.rideId === 'string' ? corps.rideId : undefined;
+  const contexte: ContexteSos = {
+    origine, enCourse: Boolean(rideId) || corps.enCourse === true, lieu: zoneName,
+    langue: String(corps.langue ?? 'fr').startsWith('en') ? 'en' : 'fr',
   };
-};
+  const tour = ouvrirAgentSos(contexte);
+  const a: SosLocal = {
+    id: id('sos'), kind: 'sos', status: 'raised', createdAt: maintenant(),
+    location: (corps.location as SosLocal['location']) ?? { lat: 5.3236, lng: -4.0217 },
+    zoneName, rideId, chat: [], clotureeA: null,
+    agent: { etat: tour.etat, contexte, dernierSigne: maintenant(), suggestions: tour.suggestions },
+  };
+  appliquerTour(a, tour);
+  ecrire('sos', [a, ...lire<SosLocal[]>('sos', [])].slice(0, 30));
+  return a;
+}
 
-/** Démonstration : la personne met fin elle-même à son alerte (en service, c'est la supervision). */
+/** Vue de la personne : même forme que celle du serveur. */
+const suiviSos = (a: SosLocal) => ({
+  id: a.id, kind: a.kind, status: a.status, createdAt: a.createdAt, location: a.location, zoneName: a.zoneName,
+  // Aucun opérateur ne prend réellement l'alerte : pas de « prise en charge » affichée.
+  priseEnCharge: null,
+  chat: a.chat, secours: [],
+  demandes: (a.demandes ?? []).map((d) => ({ ...d, statut: 'simulation' as const })),
+  suggestions: a.clotureeA ? [] : (a.agent?.suggestions ?? []),
+  agentAuto: Boolean(a.agent) && !a.clotureeA,
+  clotureeA: a.clotureeA,
+});
+
+/** Démonstration : la personne met fin elle-même à son alerte (en service, c'est le centre). */
 export function cloreSosLocal(alerteId: string): void {
   const liste = lire<SosLocal[]>('sos', []);
   const a = liste.find((x) => x.id === alerteId);
-  if (a && !a.clotureeA) { a.clotureeA = maintenant(); ecrire('sos', liste); }
+  if (a && !a.clotureeA) { a.clotureeA = maintenant(); a.status = 'resolved'; ecrire('sos', liste); }
 }
 
 /* ------------------------------ Abonnement ------------------------------ */
@@ -139,7 +173,7 @@ const etatAbonnement = (userId: string): SubState => {
 
 /* ------------------------------ Messages ORION ------------------------------ */
 interface MessageLocal {
-  id: string; type: 'info' | 'consigne' | 'controle'; titre: string; texte: string; auteur: string;
+  id: string; type: 'info' | 'consigne' | 'controle'; titre: string; texte: string; auteur: string; rideId?: string;
   reponses: Array<{ code: string; libelle: string; alerte?: boolean }>; reponse?: { code: string; libelle: string; le: string };
   envoyeLe: string; luLe?: string;
 }
@@ -154,6 +188,29 @@ const messages = (): MessageLocal[] => {
   ecrire('messages', accueil);
   return accueil;
 };
+
+/**
+ * CONTRÔLE DE SÉCURITÉ EN COURSE, sans serveur : quelques instants après la prise en
+ * charge, ORION demande au client si tout se passe bien. Une seule fois par course.
+ * Renvoie vrai si la question vient d'être posée.
+ */
+export function controleSecuriteLocal(rideId: string, textes: { titre: string; texte: string; ok: string; appel: string; danger: string }): boolean {
+  const liste = messages();
+  if (liste.some((x) => x.type === 'controle' && x.rideId === rideId)) return false;
+  // Les contrôles restés sans réponse sur d'anciennes courses n'attendent plus rien.
+  for (const x of liste) if (x.type === 'controle' && !x.reponse) x.reponses = [];
+  liste.unshift({
+    id: id('msg'), type: 'controle', rideId, auteur: 'ORION', titre: textes.titre, texte: textes.texte,
+    reponses: [
+      { code: 'ok', libelle: textes.ok },
+      { code: 'appel', libelle: textes.appel },
+      { code: 'danger', libelle: textes.danger, alerte: true },
+    ],
+    envoyeLe: maintenant(),
+  });
+  ecrire('messages', liste);
+  return true;
+}
 
 /* ------------------------------ Routeur ------------------------------ */
 /**
@@ -244,27 +301,33 @@ export function repondreLocal(chemin: string, init: RequestInit = {}): ReponseLo
 
   // --- SOS
   if (methode === 'POST' && path === '/safety/sos') {
-    const a: SosLocal = {
-      id: id('sos'), kind: 'sos', status: 'raised', createdAt: maintenant(),
-      location: (corps.location as SosLocal['location']) ?? { lat: 5.3236, lng: -4.0217 },
-      zoneName: typeof corps.zoneName === 'string' ? corps.zoneName : undefined,
-      rideId: typeof corps.rideId === 'string' ? corps.rideId : undefined, chat: [], clotureeA: null,
-    };
-    ecrire('sos', [a, ...lire<SosLocal[]>('sos', [])].slice(0, 30));
+    const a = creerSosLocal(corps, 'bouton');
     return ok({ alert: { id: a.id, status: 'raised' }, suivi: suiviSos(a) });
   }
   if ((r = m(/^\/safety\/sos\/([^/]+)\/message$/)) && methode === 'POST') {
     const liste = lire<SosLocal[]>('sos', []);
     const a = liste.find((x) => x.id === r![1]);
     if (!a) return erreur(404, 'Alerte introuvable.');
-    a.chat.push({ from: 'usager', text: String(corps.text ?? '').slice(0, 500), at: maintenant() });
-    a.chat.push({ from: 'agent', author: AGENT, at: plus(maintenant(), 1), text: 'Message reçu. Démonstration : personne ne le lit en ce moment. En cas de danger, appelez le 185, le 170 ou le 180.' });
+    if (a.clotureeA) return erreur(409, 'Cette alerte est clôturée.');
+    const texte = String(corps.text ?? '').slice(0, 300);
+    a.chat.push({ from: 'usager', text: texte, at: maintenant() });
+    if (a.agent) {
+      a.agent.dernierSigne = maintenant();
+      appliquerTour(a, repondreAgentSos(a.agent.etat, texte, a.agent.contexte));
+    }
     ecrire('sos', liste);
     return ok({ suivi: suiviSos(a) });
   }
   if ((r = m(/^\/safety\/sos\/([^/]+)$/))) {
-    const a = lire<SosLocal[]>('sos', []).find((x) => x.id === r![1]);
-    return a ? ok({ suivi: suiviSos(a) }) : erreur(404, 'Alerte introuvable.');
+    const liste = lire<SosLocal[]>('sos', []);
+    const a = liste.find((x) => x.id === r![1]);
+    if (!a) return erreur(404, 'Alerte introuvable.');
+    // Silence : l'agent relance, puis lève le doute — comme le fait le serveur.
+    if (a.agent && !a.clotureeA) {
+      const tour = relancerAgentSos(a.agent.etat, a.agent.contexte, (Date.now() - Date.parse(a.agent.dernierSigne)) / 1000);
+      if (tour) { appliquerTour(a, tour); ecrire('sos', liste); }
+    }
+    return ok({ suivi: suiviSos(a) });
   }
 
   // --- Aide (support)
@@ -358,7 +421,9 @@ export function repondreLocal(chemin: string, init: RequestInit = {}): ReponseLo
     if (!msg || !choix) return erreur(400, 'Réponse inconnue.');
     msg.reponse = { code: choix.code, libelle: choix.libelle, le: maintenant() }; msg.luLe ??= maintenant();
     ecrire('messages', liste);
-    return ok({ message: msg, alerteId: null });
+    // « Je ne me sens pas en sécurité » : la conversation avec le centre s'ouvre aussitôt.
+    const alerte = choix.alerte ? creerSosLocal({ rideId: msg.rideId, enCourse: true, location: corps.location, zoneName: corps.zoneName, langue: corps.langue }, 'controle') : null;
+    return ok({ message: msg, alerteId: alerte?.id ?? null });
   }
 
   // --- ORION Assurance : le dossier reste sur le téléphone (stockage privé de l'app)

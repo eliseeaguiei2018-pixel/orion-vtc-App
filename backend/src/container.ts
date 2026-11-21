@@ -428,6 +428,25 @@ export function createContainer(): Container {
     controle.unref?.();
   }
 
+  // AGENT ORION AUTOMATIQUE (SOS) : relances des personnes silencieuses, et alerte de
+  // l'astreinte pour chaque service que l'agent demande au centre de prévenir. La console
+  // peut être sans personne devant à 3 h du matin : le téléphone d'astreinte, lui, sonne.
+  if (config.NODE_ENV !== 'test') {
+    const relances = setInterval(() => container.safety.relancerAgents(), 5_000);
+    relances.unref?.();
+  }
+  container.safety.onDemandes((alerte, demandes) => {
+    container.audit.log({
+      actor: 'Agent ORION', role: 'systeme', action: 'sos.agent.demande', target: alerte.id,
+      details: { demandes: demandes.map((d) => `${d.label} — ${d.raison}`), resume: alerte.resume },
+    });
+    if (!container.sms.reel) return;
+    const astreinte = container.contacts.actifs().find((c) => c.id === 'astreinte-ops');
+    if (!astreinte) return;
+    const texte = `ORION SOS ${alerte.id.slice(0, 8)} — ${alerte.zoneName ?? 'position sur la console'}. A PREVENIR : ${demandes.map((d) => d.label).join(', ')}. ${alerte.resume ?? ''}`.slice(0, 300);
+    void container.sms.envoyer(astreinte.numero, texte).catch(() => undefined);
+  });
+
   // IDENTIFIANTS CHAUFFEURS : un chauffeur ajouté à la flotte d'une équipe reçoit (s'il
   // n'en a pas) son identifiant console — son chef peut alors lui écrire et lui demander
   // un rapport depuis la flotte. Les chauffeurs restent dans la FLOTTE de l'équipe, pas
@@ -544,6 +563,9 @@ export function controlerCoursesEnCours(c: Container, apresSecondes: number, mai
     if (r.status !== 'in_progress' || c.messages.aDejaUnControle(r.id)) continue;
     const debut = r.events.find((e) => e.type === 'in_progress')?.at;
     if (!debut || maintenant - Date.parse(debut) < apresSecondes * 1000) continue;
+    // Une alerte est déjà ouverte sur cette course : le client parle au centre de
+    // contrôle, lui demander « tout va bien ? » par-dessus serait absurde.
+    if (c.safety.parUsager(r.clientId).some((a) => a.rideId === r.id && a.status !== 'resolved' && a.status !== 'cancelled')) continue;
     c.messages.controleSecurite(r.clientId, r.id);
     envoyes += 1;
   }

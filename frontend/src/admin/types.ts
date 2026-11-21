@@ -29,8 +29,16 @@ export interface Alert {
   closingNote?: string;
   sealed?: boolean;
   slaSeconds?: number;
+  /** Synthèse tenue à jour par l'agent ORION automatique. */
+  resume?: string;
+  /** Ce que l'agent automatique demande au centre : services à prévenir et gestes internes. */
+  demandes?: SosDemande[];
 }
-export interface SosChat { from: 'agent' | 'usager'; author?: string; text: string; at: string }
+export interface SosDemande {
+  cle: string; label: string; numero?: string; raison: string; at: string;
+  traiteeLe?: string; traiteePar?: string;
+}
+export interface SosChat { from: 'agent' | 'usager'; author?: string; text: string; at: string; auto?: boolean }
 /** Une ligne joignable depuis le poste SAMU. */
 export interface ContactLigne {
   id: string; label: string; numero: string;

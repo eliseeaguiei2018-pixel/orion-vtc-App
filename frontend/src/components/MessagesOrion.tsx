@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useI18n } from '../i18n';
 import { TopBar } from './ui';
 import { IconMessage, IconShieldCheck, IconBell, IconCheck } from '../icons';
-import { listerMessages, marquerMessageLu, repondreMessage, sessionClient, type MessageOrion } from '../api';
+import { listerMessages, marquerMessageLu, modeLocal, repondreMessage, sessionClient, type MessageOrion } from '../api';
 
 /**
  * MESSAGERIE ORION (app cliente).
@@ -15,7 +15,8 @@ import { listerMessages, marquerMessageLu, repondreMessage, sessionClient, type 
 export function useMessagerie() {
   const [messages, setMessages] = useState<MessageOrion[]>([]);
   const [nonLus, setNonLus] = useState(0);
-  const actif = Boolean(sessionClient());
+  // Sans serveur, les messages vivent sur le téléphone : pas besoin d'un compte pour les lire.
+  const actif = Boolean(sessionClient()) || modeLocal();
   const rafraichir = useCallback(async () => {
     if (!actif) return;
     const r = await listerMessages();
@@ -37,8 +38,8 @@ export function useMessagerie() {
     const n = await marquerMessageLu(id);
     if (n !== null) setNonLus(n);
   }, []);
-  const repondre = useCallback(async (id: string, code: string) => {
-    const r = await repondreMessage(id, code);
+  const repondre = useCallback(async (id: string, code: string, extra?: Parameters<typeof repondreMessage>[2]) => {
+    const r = await repondreMessage(id, code, extra);
     if (r) setMessages((l) => l.map((m) => (m.id === id ? r.message : m)));
     void rafraichir();
     return r;
@@ -118,12 +119,21 @@ export function MessagesScreen({ messagerie, onBack }: { messagerie: ReturnType<
  * Contrôle de sécurité pendant la course : une carte s'ouvre par-dessus le suivi.
  * Le client répond d'un geste, ou la referme (la question reste dans ses messages).
  */
-export function ControleSecurite({ messagerie, rideId }: { messagerie: ReturnType<typeof useMessagerie>; rideId?: string | null }) {
+export function ControleSecurite({ messagerie, rideId, onAlerte, onVisible, contexte }: {
+  messagerie: ReturnType<typeof useMessagerie>; rideId?: string | null;
+  /** « Je ne me sens pas en sécurité » : l'alerte créée s'ouvre sur la conversation avec le centre. */
+  onAlerte?: (alerteId: string) => void;
+  /** La carte est à l'écran (ou vient d'en sortir). */
+  onVisible?: (visible: boolean) => void;
+  contexte?: Parameters<typeof repondreMessage>[2];
+}) {
   const { t } = useI18n();
   const [fermes, setFermes] = useState<string[]>([]);
   const [alerte, setAlerte] = useState(false);
-  const m = messagerie.messages.find((x) => x.type === 'controle' && !x.reponse && !fermes.includes(x.id) && (!rideId || !x.rideId || x.rideId === rideId));
+  const m = messagerie.messages.find((x) => x.type === 'controle' && !x.reponse && !x.clos && x.reponses.length > 0 && !fermes.includes(x.id) && (!rideId || !x.rideId || x.rideId === rideId));
   const [repondu, setRepondu] = useState<MessageOrion | null>(null);
+  const visible = Boolean(m || repondu);
+  useEffect(() => { onVisible?.(visible); return () => onVisible?.(false); }, [visible, onVisible]);
   if (!m && !repondu) return null;
   const affiche = repondu ?? m!;
   return (
@@ -143,8 +153,12 @@ export function ControleSecurite({ messagerie, rideId }: { messagerie: ReturnTyp
             <>
               <div className="reponses-rapides colonne">
                 {affiche.reponses.map((r) => (
-                  <button key={r.code} className={`reponse-rapide${r.alerte ? ' danger' : ''}`} onClick={() => void messagerie.repondre(affiche.id, r.code).then((res) => {
-                    if (res) { setAlerte(Boolean(res.alerteId)); setRepondu(res.message); void messagerie.lu(affiche.id); }
+                  <button key={r.code} className={`reponse-rapide${r.alerte ? ' danger' : ''}`} onClick={() => void messagerie.repondre(affiche.id, r.code, contexte).then((res) => {
+                    if (!res) return;
+                    void messagerie.lu(affiche.id);
+                    // Alerte levée : on quitte la carte pour la conversation avec le centre de contrôle.
+                    if (res.alerteId && onAlerte) { setFermes((f) => [...f, affiche.id]); onAlerte(res.alerteId); return; }
+                    setAlerte(Boolean(res.alerteId)); setRepondu(res.message);
                   })}>{r.libelle}</button>
                 ))}
               </div>

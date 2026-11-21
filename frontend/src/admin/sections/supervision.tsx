@@ -239,8 +239,63 @@ function RepertoireUrgence({ contacts, canWrite, onSave, onDelete }: {
 }
 
 /* -------- Dossier SAMU : identification, télémétrie, chat, clôture ----- */
-export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf, onCsv, onContact, onIssue }: {
+/** Fiche du répertoire d'urgence à appeler pour chaque service demandé par l'agent automatique. */
+const FICHE_DEMANDE: Record<string, string[]> = {
+  samu: ['samu'], police: ['police', 'police-111'], pompiers: ['pompiers'], depannage: ['remorquage', 'garage'],
+};
+
+/**
+ * Ce que l'agent ORION automatique a compris de la situation, et ce qu'il demande au
+ * centre : c'est le centre qui prévient le SAMU, la police ou les pompiers — jamais la
+ * personne en détresse. Chaque demande se traite d'un geste, et la personne le voit.
+ */
+function DemandesAgent({ d, canWrite, onContact, onFaite }: {
+  d: SosDossier; canWrite: boolean;
+  onContact: (alertId: string, p: { canal: 'appel'; contactId?: string; numero?: string; label?: string }) => void;
+  onFaite: (alertId: string, cle: string) => void;
+}) {
+  const a = d.alert;
+  const demandes = a.demandes ?? [];
+  if (!a.resume && demandes.length === 0) return null;
+  const ouverte = a.status !== 'resolved' && a.status !== 'cancelled';
+  const journal = d.journalContacts ?? [];
+  return (
+    <>
+      <h4 className="adm-drawer-sec">Agent ORION automatique</h4>
+      {a.resume && <p className="samu-resume">{a.resume}</p>}
+      {demandes.length === 0
+        ? <p className="adm-muted" style={{ fontSize: 12 }}>Aucune demande pour l’instant : l’agent qualifie la situation avec la personne.</p>
+        : (
+          <ul className="samu-demandes">
+            {demandes.map((x, i) => {
+              const fiches = FICHE_DEMANDE[x.cle] ?? [];
+              const appels = journal.filter((j) => fiches.includes(j.contactId));
+              const joint = appels.some((j) => j.issue === 'joint');
+              const etat = joint ? 'Joint' : appels.some((j) => j.issue === 'tentative') ? 'Appel en cours' : appels.length ? 'Sans réponse' : x.traiteeLe ? `Fait${x.traiteePar ? ` · ${x.traiteePar}` : ''}` : 'À faire';
+              const fait = joint || Boolean(x.traiteeLe);
+              return (
+                <li key={`${x.cle}-${i}`} className={fait ? 'fait' : 'a-faire'}>
+                  <span className="grow">
+                    <strong>{x.label}{x.numero ? ` — ${x.numero}` : ''}</strong>
+                    <span className="adm-muted">{x.raison}</span>
+                  </span>
+                  <span className={`adm-pill ${fait ? 'av-online' : 'tr-rejected'}`}>{etat}</span>
+                  {canWrite && ouverte && !fait && (fiches.length > 0
+                    ? <button className="adm-btn solid" onClick={() => onContact(a.id, { canal: 'appel', contactId: (d.contacts ?? []).find((c) => fiches.includes(c.id))?.id ?? fiches[0], numero: x.numero, label: x.label })}>Appeler</button>
+                    : <button className="adm-btn" onClick={() => onFaite(a.id, x.cle)}>Marquer fait</button>)}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+    </>
+  );
+}
+
+export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf, onCsv, onContact, onIssue, onDemandeFaite }: {
   d: SosDossier; canWrite: boolean; onClose: () => void;
+  /** Une demande interne de l'agent automatique est traitée (chauffeur joint, course arrêtée…). */
+  onDemandeFaite: (alertId: string, cle: string) => void;
   onMessage: (id: string, text: string) => void;
   onCloseAlert: (id: string, note: string) => void;
   onPdf: (id: string) => void; onCsv: (id: string) => void;
@@ -263,6 +318,8 @@ export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf
         {a.agent && <span className="adm-pill av-online">Agent : {a.agent}</span>}
         {a.sealed && <span className="adm-pill tr-rejected">Scellé</span>}
       </div>
+
+      <DemandesAgent d={d} canWrite={canWrite} onContact={onContact} onFaite={onDemandeFaite} />
 
       <h4 className="adm-drawer-sec">Fiche véhicule (à dicter à la police)</h4>
       {d.vehicle ? (
@@ -321,7 +378,7 @@ export function SosDrawer({ d, canWrite, onClose, onMessage, onCloseAlert, onPdf
         {(a.chat ?? []).map((m, i) => (
           <div key={i} className={`adm-bubble ${m.from === 'agent' ? 'agent' : 'client'}`}>
             <div className="adm-bubble-txt">{m.text}</div>
-            <div className="adm-bubble-meta">{m.from === 'agent' ? m.author ?? 'Agent' : 'Usager'} · {new Date(m.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+            <div className="adm-bubble-meta">{m.from === 'agent' ? `${m.author ?? 'Agent'}${m.auto ? ' (automatique)' : ''}` : 'Usager'} · {new Date(m.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
           </div>
         ))}
       </div>

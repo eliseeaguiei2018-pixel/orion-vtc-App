@@ -416,10 +416,21 @@ export interface SosSuivi {
   location: LatLng;
   zoneName?: string;
   priseEnCharge: { agent: string; at: string } | null;
-  chat: Array<{ from: 'agent' | 'usager'; author?: string; text: string; at: string }>;
+  chat: Array<{ from: 'agent' | 'usager'; author?: string; text: string; at: string; auto?: boolean }>;
   secours: Array<{ service: string; numero: string; canal: 'appel' | 'sms' | 'whatsapp'; at: string; issue: 'tentative' | 'joint' | 'non_joint' | 'messagerie' }>;
+  /**
+   * Ce que le centre de contrôle fait pour la personne : services à prévenir (SAMU,
+   * police, pompiers, dépannage) et gestes internes (appeler le chauffeur, la rappeler).
+   * « simulation » : application sans serveur, rien n'est réellement transmis.
+   */
+  demandes?: Array<{ cle: string; label: string; numero?: string; at: string; statut: StatutDemandeSos }>;
+  /** Réponses proposées d'un toucher par l'agent automatique. */
+  suggestions?: string[];
+  /** Vrai tant que c'est l'agent automatique qui répond (aucun opérateur n'a encore pris le dossier). */
+  agentAuto?: boolean;
   clotureeA: string | null;
 }
+export type StatutDemandeSos = 'transmise' | 'en_cours' | 'joint' | 'injoignable' | 'faite' | 'simulation';
 
 export interface SosResult {
   /** true UNIQUEMENT si ORION a bien reçu l'alerte. Jamais optimiste. */
@@ -445,8 +456,12 @@ export interface SosResult {
  * Désormais : délai plus long qu'un appel ordinaire, deux réessais, et un résultat franc.
  * À l'appelant d'afficher les numéros d'urgence si `delivered` est faux.
  */
-export async function sos(userId: string, location: LatLng, rideId?: string): Promise<SosResult> {
-  const body = JSON.stringify({ userId, location, rideId });
+export async function sos(
+  userId: string, location: LatLng, rideId?: string,
+  /** Langue de l'app (l'agent répond en français ou en anglais) ; lieu lisible, pour l'app sans serveur. */
+  extra: { langue?: string; zoneName?: string; enCourse?: boolean } = {},
+): Promise<SosResult> {
+  const body = JSON.stringify({ userId, location, rideId, ...extra });
   if (!API) {
     // Sans serveur : aucune alerte réelle ne part. Le suivi s'ouvre quand même (numéros
     // d'urgence, position, messages) avec la mention « démonstration ».
@@ -1090,6 +1105,13 @@ export async function marquerMessageLu(id: string): Promise<number | null> {
   const r = await tryFetch<{ nonLus: number }>(`/clients/${encodeURIComponent(clientId())}/messages/${id}/lu`, { method: 'POST', body: '{}' });
   return r?.nonLus ?? null;
 }
-export async function repondreMessage(id: string, code: string): Promise<{ message: MessageOrion; alerteId: string | null } | null> {
-  return tryFetch<{ message: MessageOrion; alerteId: string | null }>(`/clients/${encodeURIComponent(clientId())}/messages/${id}/reponse`, { method: 'POST', body: JSON.stringify({ code }) });
+export async function repondreMessage(
+  id: string, code: string,
+  /** App sans serveur : position et langue de l'alerte ouverte par « je ne me sens pas en sécurité ». */
+  extra: { location?: LatLng; zoneName?: string; langue?: string } = {},
+): Promise<{ message: MessageOrion; alerteId: string | null } | null> {
+  return tryFetch<{ message: MessageOrion; alerteId: string | null }>(
+    `/clients/${encodeURIComponent(clientId())}/messages/${id}/reponse`,
+    { method: 'POST', body: JSON.stringify(API ? { code } : { code, ...extra }) },
+  );
 }

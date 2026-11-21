@@ -895,6 +895,21 @@ function Console({ onLogout }: { onLogout: () => void }) {
     } catch { /* refus déjà signalé */ }
   };
 
+  /** Demande interne de l'agent automatique traitée : la personne en détresse le voit aussitôt. */
+  const sosDemandeFaite = async (alertId: string, cle: string) => {
+    if (!LIVE) {
+      const fait = new Date().toISOString();
+      setSosSel((d) => (d && d.alert.id === alertId
+        ? { ...d, alert: { ...d.alert, demandes: (d.alert.demandes ?? []).map((x) => (x.cle === cle && !x.traiteeLe ? { ...x, traiteeLe: fait, traiteePar: me?.name } : x)) } }
+        : d));
+      return;
+    }
+    try {
+      const r = await adminPost<{ alert: Alert }>(`/admin/sos/${alertId}/demandes/${encodeURIComponent(cle)}/traiter`);
+      setSosSel((d) => (d && d.alert.id === alertId ? { ...d, alert: { ...d.alert, ...r.alert } } : d));
+    } catch { /* refus déjà signalé */ }
+  };
+
   /* ---------------- Location Signature & abonnements ---------------- */
   // Chaque écriture passe par safePost : si le serveur refuse, l'affichage N'EST PAS
   // modifié. Une location affichée « confirmée » alors que le serveur l'a refusée
@@ -1729,6 +1744,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
           onCsv={(id) => void downloadFile(`/admin/sos/${id}/telemetry.csv`, `orion-telemetrie-${id.slice(0, 8)}.csv`)}
           onContact={(id, p) => void sosContact(id, p)}
           onIssue={(id, e, i, c) => void sosContactIssue(id, e, i, c)}
+          onDemandeFaite={(id, cle) => void sosDemandeFaite(id, cle)}
         />
       )}
       {denied && (

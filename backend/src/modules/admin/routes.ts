@@ -22,6 +22,7 @@ import {
   estEcriture, newCsrfToken, parseCookies,
 } from './cookies.js';
 import { SOS_PRESETS } from '../safety/service.js';
+import type { CleDemande } from '../safety/agent-sos.js';
 import { MOTIF_LABEL as IMMO_MOTIF_LABEL, VITESSE_COUPURE_MAX } from '../rental/telematique.js';
 import { COUPURES, ECART_TOLERE, ORIGINE_LABEL, SORTIE_LABEL, totalComptage, type Comptage } from '../treasury/caisse.js';
 import { TYPE_LABEL as CREW_TYPE_LABEL, STATUT_LABEL as CREW_STATUT_LABEL, TYPES_FINANCIERS, PLAFOND_AVANCE, PLAFOND_PRET, MAX_ECHEANCES, type TypeRequete } from '../crew/requests.js';
@@ -915,6 +916,21 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       return { message };
     });
 
+    /**
+     * Demande de l'agent automatique TRAITÉE par l'opérateur : chauffeur joint, course
+     * arrêtée, client rappelé, véhicule de remplacement envoyé. La personne en détresse le
+     * voit aussitôt. Les services de secours, eux, se suivent par le journal des appels.
+     */
+    scoped.post('/admin/sos/:id/demandes/:cle/traiter', async (req) => {
+      require(req, 'alerts:write');
+      const { id, cle } = req.params as { id: string; cle: string };
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
+      const alert = container.safety.traiterDemande(id, cle as CleDemande, account.name);
+      if (!alert) throw notFound('Demande introuvable ou déjà traitée');
+      audit(req, 'sos.demande.traitee', id, { cle });
+      return { alert };
+    });
+
     // Clôture : note de synthèse OBLIGATOIRE → dossier SCELLÉ numériquement.
     scoped.post('/admin/sos/:id/close', async (req, reply) => {
       require(req, 'alerts:write');
@@ -1073,9 +1089,11 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       // l'usager en direct : c'est la seule information qui le rassure vraiment.
       const fiche = body.contactId ? container.contacts.actifs().find((c) => c.id === body.contactId) : undefined;
       if (fiche?.categorie === 'secours') {
-        container.safety.secoursSollicite(id, { entryId: entry.id, service: fiche.label, numero: entry.numero, canal: entry.canal });
-      } else if (!alert.dispatchedTo.includes(entry.label)) {
-        alert.dispatchedTo.push(entry.label);
+        container.safety.secoursSollicite(id, { entryId: entry.id, contactId: fiche.id, service: fiche.label, numero: entry.numero, canal: entry.canal });
+      } else {
+        if (!alert.dispatchedTo.includes(entry.label)) alert.dispatchedTo.push(entry.label);
+        // Dépanneur ou garage joint : la demande de l'agent automatique est satisfaite.
+        if (fiche) container.safety.contactPartenaire(id, fiche.id, account.name);
       }
       audit(req, 'sos.contact', id, { cible: entry.label, canal: entry.canal, numero: entry.numero });
       // La supervision voit en direct qui est en train d'être joint.

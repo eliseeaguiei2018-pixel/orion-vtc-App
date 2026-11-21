@@ -3,6 +3,10 @@ import type { LatLng } from '../../core/geo.js';
 import { EMERGENCY_ROOM, rideRoom, sosRoom, type RealtimeHub } from '../realtime/hub.js';
 import { nearestZone } from '../geo-ci/zones.js';
 import { lieuDe } from '../maps/lieux.js';
+import {
+  libelleDemande, ouvrirAgentSos, passerLaMainSos, relancerAgentSos, repondreAgentSos,
+  type CleDemande, type ContexteSos, type EtatAgentSos, type LangueAgent, type TourAgent,
+} from './agent-sos.js';
 
 /**
  * Sécurité & secours d'urgence (Côte d'Ivoire).
@@ -12,6 +16,11 @@ import { lieuDe } from '../maps/lieux.js';
  *  2) Détection automatique de choc/accident (accéléromètre) → niveau ROUGE.
  *  3) Détections système : déviation majeure d'itinéraire (ORANGE),
  *     immobilisation anormale (JAUNE), mot sensible dans un avis (ROUGE).
+ *
+ * AGENT ORION AUTOMATIQUE (agent-sos.ts) : dès l'alerte, il répond à la personne, qualifie
+ * la situation et DEMANDE AU CENTRE DE CONTRÔLE de prévenir les services qu'il faut. Ce
+ * n'est jamais à la personne en détresse d'appeler le SAMU ou la police : le centre le
+ * fait, et elle voit où il en est. L'agent humain qui prend le dossier reprend la main.
  *
  * Session SUPERVISION SAMU (console) :
  *  - triage par niveau de gravité avec chronomètre SLA ;
@@ -63,7 +72,34 @@ export interface SosChatMessage {
   author?: string;
   text: string;
   at: string;
+  /** Message de l'agent automatique (et non d'un opérateur). */
+  auto?: boolean;
 }
+
+/** Nom sous lequel l'agent automatique signe ses messages. */
+export const AGENT_AUTO = 'Agent ORION';
+
+/** Numéro que le centre compose pour chaque service demandé par l'agent automatique. */
+const NUMERO_SERVICE: Partial<Record<CleDemande, string>> = {
+  samu: EMERGENCY_NUMBERS.samu, police: EMERGENCY_NUMBERS.police, pompiers: EMERGENCY_NUMBERS.pompiers,
+};
+
+/** Ce que l'agent automatique a demandé au centre : un service à prévenir, ou un geste interne. */
+export interface DemandeAuCentre {
+  cle: CleDemande;
+  label: string;
+  /** Numéro à composer (services de secours) ; absent pour un geste interne au centre. */
+  numero?: string;
+  /** Pourquoi : c'est ce que l'opérateur dit au service quand il l'a en ligne. */
+  raison: string;
+  at: string;
+  /** L'opérateur a traité la demande (appel passé, chauffeur joint, course arrêtée…). */
+  traiteeLe?: string;
+  traiteePar?: string;
+}
+
+/** Où en est une demande, vu de la personne en détresse. */
+export type StatutDemande = 'transmise' | 'en_cours' | 'joint' | 'injoignable' | 'faite';
 
 export interface EmergencyAlert {
   id: string;
@@ -101,11 +137,28 @@ export interface EmergencyAlert {
    * numéro n'a été composé.
    */
   secours?: SecoursSollicite[];
+  /* --- Agent automatique --- */
+  /** État de la conversation menée par l'agent automatique (interne). */
+  agentAuto?: {
+    etat: EtatAgentSos;
+    contexte: ContexteSos;
+    /** Faux dès qu'un agent humain a pris le dossier. */
+    actif: boolean;
+    /** Dernier signe de vie de la personne (création de l'alerte ou dernier message). */
+    dernierSigne: string;
+    suggestions: string[];
+  };
+  /** Ce que l'agent automatique a demandé au centre, dans l'ordre. */
+  demandes?: DemandeAuCentre[];
+  /** Synthèse tenue à jour par l'agent automatique, lue par l'opérateur. */
+  resume?: string;
 }
 
 export interface SecoursSollicite {
   /** Entrée du journal de contacts (permet de suivre l'issue de l'appel). */
   entryId: string;
+  /** Fiche du répertoire d'urgence appelée (« samu », « police »…). */
+  contactId?: string;
   service: string;
   numero: string;
   canal: 'appel' | 'sms' | 'whatsapp';
@@ -127,7 +180,35 @@ export interface SuiviUsager {
   priseEnCharge: { agent: string; at: string } | null;
   chat: SosChatMessage[];
   secours: Array<{ service: string; numero: string; canal: SecoursSollicite['canal']; at: string; issue: SecoursSollicite['issue'] }>;
+  /**
+   * Ce que le CENTRE fait pour elle : chaque service à prévenir et chaque geste interne,
+   * avec son avancement réel. « joint » ne s'affiche que si un opérateur l'a consigné.
+   */
+  demandes: Array<{ cle: CleDemande; label: string; numero?: string; at: string; statut: StatutDemande }>;
+  /** Réponses proposées d'un toucher par l'agent automatique (vide si un humain a la main). */
+  suggestions: string[];
+  /** Vrai tant que c'est l'agent automatique qui répond. */
+  agentAuto: boolean;
   clotureeA: string | null;
+}
+
+const chiffres = (n: string) => n.replace(/\D/g, '');
+
+/** Fiches du répertoire d'urgence qui répondent à chaque demande de l'agent automatique. */
+export const CONTACTS_DEMANDE: Partial<Record<CleDemande, string[]>> = {
+  samu: ['samu'], police: ['police', 'police-111'], pompiers: ['pompiers'], depannage: ['remorquage', 'garage'],
+};
+
+/** Avancement d'une demande : il se lit dans le journal des appels du centre, jamais ailleurs. */
+export function statutDemande(d: DemandeAuCentre, secours: SecoursSollicite[]): StatutDemande {
+  const fiches = CONTACTS_DEMANDE[d.cle] ?? [];
+  const appels = secours.filter((s) =>
+    (s.contactId !== undefined && fiches.includes(s.contactId)) ||
+    (d.numero !== undefined && chiffres(s.numero) === chiffres(d.numero)));
+  if (appels.some((s) => s.issue === 'joint')) return 'joint';
+  if (appels.some((s) => s.issue === 'tentative')) return 'en_cours';
+  if (appels.length > 0) return 'injoignable';
+  return d.traiteeLe ? 'faite' : 'transmise';
 }
 
 /** Prénom seul pour l'usager : humain, sans exposer l'identité complète du personnel. */
@@ -142,8 +223,11 @@ export function vueUsager(a: EmergencyAlert): SuiviUsager {
     id: a.id, kind: a.kind, status: a.status, createdAt: a.createdAt,
     location: a.location, zoneName: a.zoneName,
     priseEnCharge: a.agent ? { agent: agentPublic(a.agent), at: a.claimedAt ?? a.updatedAt } : null,
-    chat: (a.chat ?? []).map((m) => ({ ...m, author: m.from === 'agent' ? agentPublic(m.author) : undefined })),
+    chat: (a.chat ?? []).map((m) => ({ ...m, author: m.from === 'agent' ? (m.auto ? AGENT_AUTO : agentPublic(m.author)) : undefined })),
     secours: (a.secours ?? []).map(({ service, numero, canal, at, issue }) => ({ service, numero, canal, at, issue })),
+    demandes: (a.demandes ?? []).map((d) => ({ cle: d.cle, label: d.label, numero: d.numero, at: d.at, statut: statutDemande(d, a.secours ?? []) })),
+    suggestions: a.agentAuto?.actif && a.status !== 'resolved' && a.status !== 'cancelled' ? a.agentAuto.suggestions : [],
+    agentAuto: Boolean(a.agentAuto?.actif),
     clotureeA: a.status === 'resolved' || a.status === 'cancelled' ? a.updatedAt : null,
   };
 }
@@ -186,9 +270,23 @@ export class SafetyService {
   constructor(private readonly realtime: RealtimeHub) {}
 
   /** SOS déclenché manuellement par l'utilisateur. */
-  raiseSos(input: { userId: string; location: LatLng; rideId?: string; note?: string; source?: 'client' | 'chauffeur' }): EmergencyAlert {
-    return this.raise({ kind: 'sos', source: input.source ?? 'client', ...input });
+  raiseSos(input: {
+    userId: string; location: LatLng; rideId?: string; note?: string; source?: 'client' | 'chauffeur';
+    /** « controle » : l'alerte naît d'une réponse au contrôle de sécurité en course. */
+    origine?: 'bouton' | 'controle';
+    langue?: LangueAgent;
+  }): EmergencyAlert {
+    const { origine, langue, ...reste } = input;
+    const source = input.source ?? 'client';
+    // L'agent automatique parle au PASSAGER. Un chauffeur en détresse est pris par un
+    // opérateur : ses situations (agression par un client, malaise au volant) ont leur
+    // propre conduite à tenir.
+    return this.raise({ kind: 'sos', ...reste, source }, source === 'client' ? { origine: origine ?? 'bouton', langue } : undefined);
   }
+
+  /** Écouteurs des demandes de l'agent automatique (astreinte prévenue par SMS, journal…). */
+  private readonly ecouteursDemandes: Array<(a: EmergencyAlert, d: DemandeAuCentre[]) => void> = [];
+  onDemandes(fn: (a: EmergencyAlert, d: DemandeAuCentre[]) => void): void { this.ecouteursDemandes.push(fn); }
 
   /**
    * Alerte système (déviation d'itinéraire, immobilisation, mot sensible).
@@ -225,7 +323,7 @@ export class SafetyService {
       impactG: Math.round(impactMagnitudeG(input.sample) * 10) / 10,
       note: 'Accident détecté automatiquement (capteurs)',
       source: 'systeme',
-    });
+    }, { origine: 'choc' });
   }
 
   private raise(input: {
@@ -236,7 +334,7 @@ export class SafetyService {
     impactG?: number;
     note?: string;
     source?: 'client' | 'chauffeur' | 'systeme';
-  }): EmergencyAlert {
+  }, agent?: { origine: ContexteSos['origine']; langue?: LangueAgent }): EmergencyAlert {
     const now = new Date().toISOString();
     // Le lieu exact pour les secours : quartier réel et commune (limites OSM).
     const lieu = lieuDe(input.location);
@@ -264,10 +362,89 @@ export class SafetyService {
     const lesSiennes = this.parUsagerIndex.get(alert.userId);
     if (lesSiennes) lesSiennes.push(alert); else this.parUsagerIndex.set(alert.userId, [alert]);
 
-    // Diffusion temps réel : poste de supervision (relais SAMU) + suivi de la course.
+    // Une personne a déclenché l'alerte (ou un choc a été mesuré) : l'agent automatique
+    // lui répond avant même qu'un opérateur n'ouvre le dossier.
+    if (agent) this.demarrerAgent(alert, { origine: agent.origine, enCourse: Boolean(alert.rideId), lieu: alert.zoneName, langue: agent.langue });
+
+    // Diffusion temps réel : poste de supervision (relais SAMU). Le canal de la course,
+    // lui, est aussi écouté par l'app du chauffeur : il ne reçoit qu'un signal sans
+    // contenu — ni message, ni position, ni motif. Une passagère qui signale son
+    // chauffeur ne doit pas voir sa conversation partir sur le téléphone de celui-ci.
     this.realtime.publish(EMERGENCY_ROOM, 'emergency.alert', alert);
-    if (alert.rideId) this.realtime.publish(rideRoom(alert.rideId), 'emergency.alert', alert);
+    if (alert.rideId) this.realtime.publish(rideRoom(alert.rideId), 'emergency.alert', { id: alert.id, kind: alert.kind, level: alert.level, at: alert.createdAt });
     return alert;
+  }
+
+  /* ----------------------------- Agent automatique ----------------------------- */
+
+  private demarrerAgent(a: EmergencyAlert, contexte: ContexteSos): void {
+    const tour = ouvrirAgentSos(contexte);
+    a.agentAuto = { etat: tour.etat, contexte, actif: true, dernierSigne: a.createdAt, suggestions: tour.suggestions };
+    this.appliquerTour(a, tour, false);
+  }
+
+  /** Inscrit dans le dossier ce que l'agent automatique vient de dire et de demander. */
+  private appliquerTour(a: EmergencyAlert, tour: TourAgent, diffuser = true): void {
+    if (!a.agentAuto) return;
+    const at = new Date().toISOString();
+    a.agentAuto.etat = tour.etat;
+    a.agentAuto.suggestions = tour.suggestions;
+    a.resume = tour.resume;
+    for (const text of tour.messages) (a.chat ??= []).push({ from: 'agent', author: AGENT_AUTO, auto: true, text, at });
+    const nouvelles: DemandeAuCentre[] = tour.demandes.map((d) => ({
+      cle: d.cle, label: libelleDemande(d.cle), numero: NUMERO_SERVICE[d.cle], raison: d.raison, at,
+    }));
+    if (nouvelles.length) (a.demandes ??= []).push(...nouvelles);
+    a.updatedAt = at;
+    if (tour.terminer) {
+      // Fausse manœuvre confirmée par la personne, aucun service engagé : le dossier se
+      // referme seul, avec sa conversation, et reste lisible par la supervision.
+      a.status = 'cancelled';
+      a.closingNote = 'Fausse manœuvre confirmée par l’usager auprès de l’agent automatique.';
+      a.agentAuto.actif = false;
+    }
+    if (nouvelles.length) for (const fn of this.ecouteursDemandes) { try { fn(a, nouvelles); } catch { /* une notification ratée ne bloque pas l'alerte */ } }
+    if (diffuser) {
+      this.realtime.publish(EMERGENCY_ROOM, 'emergency.update', a);
+      this.informerUsager(a);
+    }
+  }
+
+  /**
+   * Silences : l'agent relance la personne après 30 s, puis, sans nouvelle à 75 s, demande
+   * au centre de la rappeler et de prévenir la police. Appelé périodiquement.
+   */
+  relancerAgents(maintenant = Date.now()): number {
+    let relancees = 0;
+    for (const a of this.alerts.values()) {
+      const ag = a.agentAuto;
+      if (!ag?.actif || a.status === 'resolved' || a.status === 'cancelled') continue;
+      const tour = relancerAgentSos(ag.etat, ag.contexte, (maintenant - Date.parse(ag.dernierSigne)) / 1000);
+      if (!tour) continue;
+      this.appliquerTour(a, tour);
+      relancees += 1;
+    }
+    return relancees;
+  }
+
+  /** Le centre a joint un partenaire du répertoire (dépanneur, garage) : la demande correspondante est faite. */
+  contactPartenaire(id: string, contactId: string, agent: string): void {
+    const a = this.alerts.get(id);
+    const d = a?.demandes?.find((x) => !x.traiteeLe && (CONTACTS_DEMANDE[x.cle] ?? []).includes(contactId));
+    if (a && d && !NUMERO_SERVICE[d.cle]) this.traiterDemande(id, d.cle, agent);
+  }
+
+  /** L'opérateur a traité une demande interne (chauffeur joint, course arrêtée, client rappelé…). */
+  traiterDemande(id: string, cle: CleDemande, agent: string): EmergencyAlert | undefined {
+    const a = this.alerts.get(id);
+    const d = a?.demandes?.find((x) => x.cle === cle && !x.traiteeLe);
+    if (!a || !d) return undefined;
+    d.traiteeLe = new Date().toISOString();
+    d.traiteePar = agent;
+    a.updatedAt = d.traiteeLe;
+    this.realtime.publish(EMERGENCY_ROOM, 'emergency.update', a);
+    this.informerUsager(a);
+    return a;
   }
 
   /**
@@ -276,9 +453,9 @@ export class SafetyService {
    * voyait tout, la personne en détresse ne savait même pas qu'on l'avait lue.
    */
   private informerUsager(a: EmergencyAlert): void {
-    const suivi = vueUsager(a);
-    this.realtime.publish(sosRoom(a.id), 'sos.suivi', suivi);
-    if (a.rideId) this.realtime.publish(rideRoom(a.rideId), 'sos.suivi', suivi);
+    // Uniquement sur le canal de l'alerte, réservé à son auteur : le canal de la course
+    // est partagé avec le chauffeur.
+    this.realtime.publish(sosRoom(a.id), 'sos.suivi', vueUsager(a));
   }
 
   /** Vue usager d'une alerte, si elle lui appartient bien. */
@@ -337,6 +514,12 @@ export class SafetyService {
     // aux secours reste « dispatched » : on ne recule jamais dans le circuit.
     if (a.status === 'raised') a.status = 'acknowledged';
     a.updatedAt = new Date().toISOString();
+    // L'opérateur prend la main : l'agent automatique l'annonce à la personne et se tait.
+    if (premiere && a.agentAuto?.actif) {
+      a.agentAuto.actif = false;
+      a.agentAuto.suggestions = [];
+      (a.chat ??= []).push({ from: 'agent', author: AGENT_AUTO, auto: true, text: passerLaMainSos(a.agentAuto.etat, agentPublic(agent)), at: a.updatedAt });
+    }
     this.realtime.publish(EMERGENCY_ROOM, 'emergency.update', a);
     if (premiere) this.informerUsager(a);
     return a;
@@ -350,7 +533,15 @@ export class SafetyService {
     (a.chat ??= []).push(m);
     a.updatedAt = m.at;
     this.realtime.publish(EMERGENCY_ROOM, 'emergency.chat', { alertId: id, message: m });
-    if (a.rideId) this.realtime.publish(rideRoom(a.rideId), 'emergency.chat', { alertId: id, message: m });
+    // Tant qu'aucun opérateur n'a pris le dossier, l'agent automatique répond aussitôt.
+    const ag = a.agentAuto;
+    if (msg.from === 'usager' && ag) {
+      ag.dernierSigne = m.at;
+      if (ag.actif && a.status !== 'resolved' && a.status !== 'cancelled') {
+        this.appliquerTour(a, repondreAgentSos(ag.etat, msg.text, ag.contexte));
+        return m;
+      }
+    }
     this.informerUsager(a);
     return m;
   }

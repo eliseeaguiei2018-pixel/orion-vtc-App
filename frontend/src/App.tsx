@@ -19,17 +19,17 @@ import { authenticateBiometric, isBiometricEnabled } from './security';
 import type { TrustedContact } from './api';
 import { numeroLisible, ouvrirClavier } from './telephone';
 import { lienPosition, partager } from './partage';
-import { cloreSosLocal, enregistrerCourseLocale } from './serveurLocal';
+import { cloreSosLocal, controleSecuriteLocal, enregistrerCourseLocale } from './serveurLocal';
 import {
   DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { urlApi, contactCourse, lireCodePriseEnCharge, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, modeLocal, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, reserverMariage, mesMariages, type ReservationMariage, chargerPortefeuille, resumeCotisations, transfererPortefeuille, type Cotisations, type MouvementPortefeuille, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type PkgSize, type SafeDriver, type SosSuivi, type SupportMessage } from './api';
+import { urlApi, contactCourse, lireCodePriseEnCharge, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, modeLocal, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, reserverMariage, mesMariages, type ReservationMariage, chargerPortefeuille, resumeCotisations, transfererPortefeuille, type Cotisations, type MouvementPortefeuille, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type PkgSize, type SafeDriver, type SosSuivi, type StatutDemandeSos, type SupportMessage } from './api';
 import { useI18n } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
 import { ChoixLieu, iconeLieu, type ModeChoix } from './components/ChoixLieu';
-import { LIEUX_POPULAIRES, enregistrerLieu, lieuEnregistre, lieuxRecents, memoriserRecent, useDepart, type EtatPosition } from './lieux';
+import { LIEUX_POPULAIRES, enregistrerLieu, lieuEnregistre, lieuxRecents, memoriserRecent, quartierDe, useDepart, type EtatPosition } from './lieux';
 import { Avatar, CancelSheet, HistoryScreen, LegalScreen, PhotoScreen, ProfileScreen, SettingsScreen, SosHistoryScreen } from './components/CompteScreens';
 
 const PAYMENTS = [
@@ -85,7 +85,7 @@ function pointSurTrace(trace: LatLng[], t: number): LatLng {
 }
 
 export function App() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [screen, setScreen] = useState<Screen>('splash');
   /*
    * POINT DE PRISE EN CHARGE : la vraie position du téléphone (GPS) ou le point choisi
@@ -397,7 +397,11 @@ export function App() {
     // Une alerte est déjà ouverte : on la rouvre au lieu d'en créer une seconde.
     if (sosLive && !sosLive.clotureeA) { setSosOuvert(true); return; }
     setSosState('sending');
-    const res = await sos(clientId(), carPos ?? origin.location, rideId ?? undefined);
+    const position = carPos ?? origin.location;
+    const enCourse = screen === 'tracking';
+    // Le lieu lisible (« Riviéra Bonoumin, Cocody ») : l'agent le cite, le centre le lit.
+    const zone = await quartierDe(position).catch(() => null);
+    const res = await sos(clientId(), position, rideId ?? undefined, { langue: lang === 'fr' ? 'fr' : 'en', zoneName: zone?.nom, enCourse });
     if (res.delivered || (res.local && res.suivi)) {
       setSosState(null);
       if (res.suivi) {
@@ -410,6 +414,40 @@ export function App() {
     }
     setSosState('failed'); // échec : le passager doit appeler lui-même
   };
+
+  /** Une alerte ouverte ailleurs (réponse au contrôle de sécurité) s'affiche comme un SOS. */
+  const ouvrirSos = (id: string) => {
+    void sosSuivi(id, clientId()).then((sv) => {
+      if (!sv) return;
+      sosAgentVus.current = nbAgent(sv);
+      setSosLive(sv); setSosOuvert(true);
+      try { localStorage.setItem('orion.sos', sv.id); } catch { /* ignore */ }
+    });
+  };
+
+  /**
+   * CONTRÔLE DE SÉCURITÉ EN COURSE, application sans serveur : quelques secondes après la
+   * prise en charge, ORION demande au passager si tout se passe bien (avec un serveur,
+   * c'est lui qui pose la question). Une seule fois par course, jamais pour un colis.
+   */
+  const cleCourseLocale = useRef('');
+  /** La question « tout va bien ? » est à l'écran : la course simulée attend la réponse. */
+  const [controleOuvert, setControleOuvert] = useState(false);
+  useEffect(() => {
+    if (screen === 'tracking' && tripPhase === 'enroute') cleCourseLocale.current = `locale-${Date.now()}`;
+  }, [screen, tripPhase]);
+  useEffect(() => {
+    // Une alerte est déjà ouverte : la personne parle au centre, on ne lui repose pas la question.
+    if (!modeLocal() || mode !== 'ride' || screen !== 'tracking' || tripPhase !== 'inprogress' || sosId) return;
+    const id = window.setTimeout(() => {
+      const pose = controleSecuriteLocal(cleCourseLocale.current || 'locale', {
+        titre: t('ctrl_titre'), texte: t('ctrl_texte'), ok: t('ctrl_ok'), appel: t('ctrl_appel'), danger: t('ctrl_danger'),
+      });
+      if (pose) void messagerie.rafraichir();
+    }, 3000);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, tripPhase, mode, sosId]);
 
   const repondreSos = async (texte: string) => {
     if (!sosLive) return;
@@ -632,6 +670,7 @@ export function App() {
         {screen === 'tracking' && destination && driver && (
           <TrackingScreen onMessage={messagerie.recevoir} messages={messagerie.actif ? { nonLus: messagerie.nonLus, ouvrir: () => { setRetourMessages('tracking'); setScreen('messages'); } } : undefined} origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase} mode={mode}
             carPos={carPos} setCarPos={setCarPos} setPhase={setTripPhase} live={live} rideId={rideId} stops={stops}
+            pause={controleOuvert || (sosOuvert && modeLocal())}
             onSos={triggerSos} onShare={() => void partagerTrajet()} onArrived={() => setScreen('payment')}
             onCancel={cancelCurrentRide}
             onReassigned={(d) => {
@@ -687,7 +726,12 @@ export function App() {
             </div>
           </div>
         )}
-        {screen === 'tracking' && <ControleSecurite messagerie={messagerie} rideId={rideId} />}
+        {screen === 'tracking' && (
+          <ControleSecurite
+            messagerie={messagerie} rideId={rideId} onAlerte={ouvrirSos} onVisible={setControleOuvert}
+            contexte={{ location: carPos ?? origin.location, langue: lang === 'fr' ? 'fr' : 'en' }}
+          />
+        )}
         {screen === 'assurance' && (
           <AssuranceScreen nomClient={profil?.name} onToast={showToast}
             onBack={() => setScreen(retourAssurance)}
@@ -793,23 +837,69 @@ const heure = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-d
  * n'est affiché par anticipation — un secours n'apparaît « prévenu » que lorsqu'un
  * agent l'a effectivement appelé.
  */
+/** Intitulé d'une demande du centre dans la langue de l'app (le serveur l'envoie en français). */
+function libelleDemandeSos(t: (k: string, v?: Record<string, string | number>) => string, d: NonNullable<SosSuivi['demandes']>[number]): string {
+  const cle = `sos_k_${d.cle.replace(':', '_')}`;
+  const nom = t(cle) === cle ? d.label : t(cle);
+  const interne = d.cle.startsWith('centre:');
+  const s = !interne && d.numero ? `${nom} (${d.numero})` : nom;
+  if (interne) return d.statut === 'faite' ? t('sos_d_faite', { s }) : d.statut === 'simulation' ? t('sos_g_simulation', { s }) : t('sos_g_transmise', { s });
+  return t(`sos_d_${d.statut}`, { s });
+}
+const classeDemandeSos = (st: StatutDemandeSos) =>
+  st === 'joint' || st === 'faite' ? 'ok rescue' : st === 'injoignable' ? 'warn' : st === 'simulation' ? 'idle' : 'wait rescue';
+
+/**
+ * SUIVI D'UNE ALERTE. Ce n'est pas à la personne en détresse d'appeler le SAMU ou la
+ * police : l'agent ORION lui répond, comprend ce qui se passe, et c'est le centre de
+ * contrôle qui prévient le service qu'il faut. L'écran montre où en est le centre.
+ */
 function SosLive({ suivi, horsLigne, demo, onMinimize, onClose, onSend }: {
   suivi: SosSuivi; horsLigne: boolean; demo?: boolean; onMinimize: () => void; onClose: () => void; onSend: (t: string) => void;
 }) {
-  // Démonstration : aucune supervision ne clôt l'alerte, la personne peut y mettre fin.
+  // Démonstration : aucun centre ne clôt l'alerte, la personne peut y mettre fin.
   const terminerDemo = () => { cloreSosLocal(suivi.id); onClose(); };
   const { t } = useI18n();
   const [texte, setTexte] = useState('');
   const finChat = useRef<HTMLDivElement>(null);
-  useEffect(() => { finChat.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [suivi.chat.length]);
   const close = suivi.clotureeA !== null;
+  const demandes = suivi.demandes ?? [];
   const envoyer = (x: string) => { const v = x.trim(); if (v) { onSend(v); setTexte(''); } };
+
+  // L'agent écrit comme une personne : ses messages arrivent l'un après l'autre.
+  const [affiches, setAffiches] = useState(() => (suivi.chat.length <= 1 ? 0 : suivi.chat.length));
+  useEffect(() => {
+    if (affiches >= suivi.chat.length) return;
+    const prochain = suivi.chat[affiches]!;
+    const delai = prochain.from === 'agent' ? Math.min(1300, 380 + prochain.text.length * 9) : 0;
+    const id = window.setTimeout(() => setAffiches((n) => n + 1), delai);
+    return () => window.clearTimeout(id);
+  }, [affiches, suivi.chat]);
+  const ecrit = affiches < suivi.chat.length && suivi.chat[affiches]!.from === 'agent';
+  useEffect(() => { finChat.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [affiches, ecrit]);
+
+  // Appels passés par le centre en dehors d'une demande de l'agent (initiative de l'opérateur).
+  const numerosDemandes = new Set(demandes.map((d) => d.numero).filter(Boolean));
+  const autresSecours = suivi.secours.filter((s) => !numerosDemandes.has(s.numero));
   const libelleSecours = (s: SosSuivi['secours'][number]) =>
     s.issue === 'joint' ? t('sos_rescue_joint', { s: s.service, n: s.numero })
       : s.issue === 'tentative'
         // Un SMS ou un WhatsApp n'est pas un appel : c'est la position qui est partie.
         ? t(s.canal === 'appel' ? 'sos_rescue_calling' : 'sos_rescue_sent', { s: s.service, n: s.numero })
         : t('sos_rescue_failed', { s: s.service, n: s.numero });
+
+  // Réponses d'un toucher : celles de l'agent automatique, sinon les trois de toujours.
+  const rapides = suivi.suggestions?.length ? suivi.suggestions : [t('sos_quick_safe'), t('sos_quick_cant_talk'), t('sos_quick_help')];
+
+  /**
+   * Dernier recours — et seulement là : la démonstration (personne ne reçoit l'alerte), la
+   * liaison perdue, ou un centre qui n'a joint aucun service trois minutes après l'alerte.
+   */
+  const [maintenant, setMaintenant] = useState(() => Date.now());
+  useEffect(() => { const id = window.setInterval(() => setMaintenant(Date.now()), 15_000); return () => window.clearInterval(id); }, []);
+  const sansNouvelle = !suivi.priseEnCharge && !demandes.some((d) => d.statut === 'joint' || d.statut === 'en_cours')
+    && suivi.secours.length === 0 && maintenant - Date.parse(suivi.createdAt) > 180_000;
+  const secoursDirects = !close && (demo || horsLigne || sansNouvelle);
   const numeros: Array<[string, string]> = [['SAMU', EMERGENCY_NUMBERS.samu], [t('help_police'), EMERGENCY_NUMBERS.police], [t('help_fire'), EMERGENCY_NUMBERS.pompiers]];
 
   return (
@@ -828,39 +918,50 @@ function SosLive({ suivi, horsLigne, demo, onMinimize, onClose, onSend }: {
         {demo && !close && <p className="sos-offline" role="alert">{t('sos_demo')}</p>}
         <ol className="sos-steps">
           <li className="ok"><span className="dot" /><span className="grow">{t(demo ? 'sos_step_local' : 'sos_step_received')}</span><time>{heure(suivi.createdAt)}</time></li>
-          {demo ? null : suivi.priseEnCharge
+          {suivi.priseEnCharge
             ? <li className="ok"><span className="dot" /><span className="grow">{(suivi.priseEnCharge.agent === AGENT_GENERIQUE ? t('sos_step_agent_team') : t('sos_step_agent', { a: suivi.priseEnCharge.agent }))}</span><time>{heure(suivi.priseEnCharge.at)}</time></li>
-            : !close && <li className="wait"><span className="dot" /><span className="grow">{t('sos_step_waiting_agent')}</span></li>}
-          {demo ? null : suivi.secours.length > 0
-            ? suivi.secours.map((s, i) => (
-              <li key={i} className={s.issue === 'joint' || (s.issue === 'tentative' && s.canal !== 'appel') ? 'ok rescue' : s.issue === 'tentative' ? 'wait rescue' : 'warn'}>
-                <span className="dot" /><span className="grow">{libelleSecours(s)}</span><time>{heure(s.at)}</time>
-              </li>
-            ))
-            : !close && <li className="idle"><span className="dot" /><span className="grow">{t('sos_step_no_rescue')}</span></li>}
+            : suivi.agentAuto
+              ? <li className="ok"><span className="dot" /><span className="grow">{t('sos_step_auto')}</span><time>{heure(suivi.createdAt)}</time></li>
+              : !close && !demo && <li className="wait"><span className="dot" /><span className="grow">{t('sos_step_waiting_agent')}</span></li>}
+          {demandes.map((d, i) => (
+            <li key={`${d.cle}-${i}`} className={classeDemandeSos(d.statut)}>
+              <span className="dot" /><span className="grow">{libelleDemandeSos(t, d)}</span><time>{heure(d.at)}</time>
+            </li>
+          ))}
+          {autresSecours.map((s, i) => (
+            <li key={`s-${i}`} className={s.issue === 'joint' || (s.issue === 'tentative' && s.canal !== 'appel') ? 'ok rescue' : s.issue === 'tentative' ? 'wait rescue' : 'warn'}>
+              <span className="dot" /><span className="grow">{libelleSecours(s)}</span><time>{heure(s.at)}</time>
+            </li>
+          ))}
+          {!close && demandes.length === 0 && autresSecours.length === 0 && (
+            <li className="idle"><span className="dot" /><span className="grow">{t('sos_step_tell')}</span></li>
+          )}
           {close && <li className="ok"><span className="dot" /><span className="grow">{t('sos_step_closed')}</span><time>{heure(suivi.clotureeA!)}</time></li>}
         </ol>
 
-        {!close && <p className="sos-geo"><IconShield size={14} /> {t('sos_position')}</p>}
+        {!close && <p className="sos-geo"><IconShield size={14} /> {t('sos_no_call')}</p>}
 
         <div className="sos-chat-box">
           <span className="eyebrow">{t('sos_chat_title')}</span>
           <div className="sos-chat">
-            {suivi.chat.map((m, i) => (
+            {suivi.chat.slice(0, affiches).map((m, i) => (
               <div key={i} className={`sos-bubble ${m.from}`}>
                 <span>{m.text}</span>
                 <small>{m.from === 'agent' ? (m.author ?? 'ORION') : t('sos_you')} · {heure(m.at)}</small>
               </div>
             ))}
+            {ecrit && <div className="sos-bubble agent sos-ecrit" aria-label={t('sos_typing')}><i /><i /><i /></div>}
             <div ref={finChat} />
           </div>
           {!close && (
             <>
-              <div className="sos-quick">
-                {[t('sos_quick_safe'), t('sos_quick_cant_talk'), t('sos_quick_help')].map((q) => (
-                  <button key={q} className="chip" onClick={() => envoyer(q)}>{q}</button>
-                ))}
-              </div>
+              {!ecrit && (
+                <div className="sos-quick">
+                  {rapides.map((q) => (
+                    <button key={q} className="chip" onClick={() => envoyer(q)}>{q}</button>
+                  ))}
+                </div>
+              )}
               <div className="sos-input">
                 <input value={texte} onChange={(e) => setTexte(e.target.value)} placeholder={t('sos_chat_placeholder')} onKeyDown={(e) => { if (e.key === 'Enter') envoyer(texte); }} />
                 <button className="btn btn-primary" disabled={!texte.trim()} onClick={() => envoyer(texte)}>{t('sos_send')}</button>
@@ -869,12 +970,16 @@ function SosLive({ suivi, horsLigne, demo, onMinimize, onClose, onSend }: {
           )}
         </div>
 
-        <span className="eyebrow" style={{ display: 'block', marginTop: 14 }}>{t('sos_call_direct')}</span>
-        <div className="sos-direct">
-          {numeros.map(([label, num]) => (
-            <a key={num} href={`tel:${num}`}><IconPhone size={15} /> <strong>{num}</strong> <span>{label}</span></a>
-          ))}
-        </div>
+        {secoursDirects && (
+          <div className="sos-recours">
+            <span>{t(demo ? 'sos_fallback_demo' : 'sos_fallback')}</span>
+            <div className="sos-direct">
+              {numeros.map(([label, num]) => (
+                <a key={num} href={`tel:${num}`}><IconPhone size={15} /> <strong>{num}</strong> <span>{label}</span></a>
+              ))}
+            </div>
+          </div>
+        )}
         {close && <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={onClose}>{t('sos_live_close')}</button>}
         {demo && !close && <button className="btn btn-ghost" style={{ marginTop: 14 }} onClick={terminerDemo}>{t('sos_demo_end')}</button>}
       </div>
@@ -885,10 +990,16 @@ function SosLive({ suivi, horsLigne, demo, onMinimize, onClose, onSend }: {
 /** Rappel permanent d'une alerte ouverte quand le panneau est réduit. */
 function SosPill({ suivi, nonLu, demo, onOpen }: { suivi: SosSuivi; nonLu: number; demo?: boolean; onOpen: () => void }) {
   const { t } = useI18n();
-  // Démonstration : rien n'est parti, la bannière ne doit pas laisser croire le contraire.
-  const etape = demo && !suivi.clotureeA ? t('sos_step_local') : suivi.clotureeA ? t('sos_step_closed')
-    : suivi.secours.some((s) => s.issue === 'joint') ? t('sos_rescue_joint', { s: suivi.secours.find((s) => s.issue === 'joint')!.service, n: suivi.secours.find((s) => s.issue === 'joint')!.numero })
-      : suivi.priseEnCharge ? (suivi.priseEnCharge.agent === AGENT_GENERIQUE ? t('sos_step_agent_team') : t('sos_step_agent', { a: suivi.priseEnCharge.agent })) : t('sos_step_received');
+  // On affiche l'avancement le plus parlant : un service joint, sinon ce que le centre fait.
+  const demandes = suivi.demandes ?? [];
+  const parlante = demandes.find((d) => d.statut === 'joint') ?? demandes.find((d) => d.statut === 'en_cours') ?? demandes[demandes.length - 1];
+  const jointe = suivi.secours.find((s) => s.issue === 'joint');
+  const etape = suivi.clotureeA ? t('sos_step_closed')
+    : parlante ? libelleDemandeSos(t, parlante)
+      : jointe ? t('sos_rescue_joint', { s: jointe.service, n: jointe.numero })
+        : suivi.priseEnCharge ? (suivi.priseEnCharge.agent === AGENT_GENERIQUE ? t('sos_step_agent_team') : t('sos_step_agent', { a: suivi.priseEnCharge.agent }))
+          : suivi.agentAuto ? t('sos_pill_auto')
+            : demo ? t('sos_step_local') : t('sos_step_received');
   return (
     <button className="sos-pill" onClick={onOpen}>
       <span className="sos-pill-dot" /> <strong>{t('sos_live_pill')}</strong> <span className="grow">{etape}</span>
@@ -1615,9 +1726,11 @@ function SearchingScreen({ origin, destination, mode = 'ride', onCancel }: { ori
 }
 
 /* ----------------------------- Tracking ------------------------------ */
-function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, onSos, onShare, onArrived, onCancel, onReassigned, onServerCancel, onMessage, messages }: {
+function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, pause = false, onSos, onShare, onArrived, onCancel, onReassigned, onServerCancel, onMessage, messages }: {
   origin: Place; destination: Place; driver: Driver; tier: TierOption; phase: TripPhase; mode?: 'ride' | 'delivery';
   carPos: LatLng | null; setCarPos: (p: LatLng) => void; setPhase: (p: TripPhase) => void;
+  /** Course simulée en attente : le contrôle de sécurité ou le SOS est à l'écran. */
+  pause?: boolean;
   live: boolean; rideId: string | null; stops: Place[]; onSos: () => void; onShare: () => void; onArrived: () => void; onCancel: () => void;
   /** Synchro app chauffeur : nouveau chauffeur (refus / délai dépassé / console). */
   onReassigned?: (d: SafeDriver) => void;
@@ -1692,6 +1805,8 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live, rideId]);
 
+  const pauseRef = useRef(pause);
+  useEffect(() => { pauseRef.current = pause; }, [pause]);
   useEffect(() => {
     if (live) return;
     progressRef.current = 0;
@@ -1702,8 +1817,10 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
     // Démonstration : le véhicule suit lui aussi les vraies routes dès que l'itinéraire arrive.
     let trace: LatLng[] = [from, to];
     void itineraire([from, to]).then((r) => { if (r) trace = r.geometrie; });
-    const start = Date.now();
+    let start = Date.now();
     const id = window.setInterval(() => {
+      // En attente d'une réponse (contrôle de sécurité, SOS) : le temps de la simulation s'arrête.
+      if (pauseRef.current) { start += 120; return; }
       const tt = Math.min(1, (Date.now() - start) / durations[phase]);
       setCarPos(pointSurTrace(trace, tt));
       if (tt >= 1) {

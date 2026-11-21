@@ -47,7 +47,14 @@ test('l’usager suit sa prise en charge, les messages de l’agent, et peut ré
   const rep = await app.inject({ method: 'POST', url: `/safety/sos/${alert.id}/message`, payload: { userId: 'client-aya', text: 'Non, envoyez la police' } });
   assert.equal(rep.statusCode, 200, rep.body);
   s = rep.json().suivi;
-  assert.deepEqual(s.chat.map((m: { from: string }) => m.from), ['agent', 'usager']);
+  // L'agent automatique a ouvert la conversation, annoncé l'opérateur, puis s'est tu :
+  // une fois le dossier pris par un humain, lui seul répond.
+  assert.deepEqual(
+    s.chat.map((m: { from: string; auto?: boolean }) => (m.auto ? 'auto' : m.from)),
+    ['auto', 'auto', 'agent', 'usager'],
+  );
+  assert.equal(s.agentAuto, false);
+  assert.deepEqual(s.suggestions, []);
 
   // La console lit la réponse dans le dossier.
   const d = await app.inject({ method: 'GET', url: `/admin/sos/${alert.id}`, headers: JETON });

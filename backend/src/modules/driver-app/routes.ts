@@ -414,7 +414,9 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
         rideUnsub?.();
         rideUnsub = null;
         followed = rideId;
-        if (rideId) rideUnsub = container.realtime.subscribe(rideRoom(rideId), (msg) => { if (msg.type !== 'driver.location') relay(msg); });
+        // « message » = messagerie ORION → client (consignes, contrôle de sécurité) : ce
+        // qu'ORION écrit au passager ne regarde pas le chauffeur.
+        if (rideId) rideUnsub = container.realtime.subscribe(rideRoom(rideId), (msg) => { if (msg.type !== 'driver.location' && msg.type !== 'message') relay(msg); });
       };
       follow(activeOf(id)?.id ?? null);
       const unsubs = [

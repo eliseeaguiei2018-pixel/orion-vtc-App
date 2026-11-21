@@ -157,6 +157,8 @@ export class MessagerieService {
         location: this.contexte.position(m.rideId, clientId),
         note: `Réponse au contrôle de sécurité : « ${choix.libelle} »`,
         source: 'client',
+        // L'agent automatique ouvre la conversation en sachant d'où vient l'alerte.
+        origine: 'controle',
       });
       alerteId = alerte.id;
     }
