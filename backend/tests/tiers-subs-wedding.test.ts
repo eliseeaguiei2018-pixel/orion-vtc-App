@@ -48,10 +48,19 @@ test('mariage : réservation enregistrée', () => {
   assert.equal(w.listByUser('u1').length, 1);
 });
 
-test('pays : CI actif, sous-région à venir', () => {
+test('pays : seule la Côte d’Ivoire est publiée, les autres pays restent en réserve', async () => {
   const ci = COUNTRIES.find((c) => c.code === 'CI');
   assert.equal(ci?.status, 'active');
+  // Gardés dans le catalogue pour plus tard, jamais actifs.
   for (const code of ['GH', 'SN', 'TG', 'BJ', 'NG']) {
     assert.equal(COUNTRIES.find((c) => c.code === code)?.status, 'coming_soon');
   }
+  // La route publique ne montre que les pays ouverts.
+  const { buildApp } = await import('../src/app.js');
+  const { app } = await buildApp();
+  const res = await app.inject({ method: 'GET', url: '/countries' });
+  await app.close();
+  assert.deepEqual(res.json().countries.map((c: { code: string }) => c.code), ['CI']);
+  assert.deepEqual(res.json().active, ['CI']);
+  assert.ok(!/Ghana|Sénégal|Togo|Bénin|Nigeria/.test(res.body), 'aucun autre pays dans la réponse');
 });

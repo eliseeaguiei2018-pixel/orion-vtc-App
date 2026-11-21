@@ -33,7 +33,7 @@ transparence des prix (FCFA) · qualité de service · extensibilité multi-serv
 - **Location mariage** : réservez une voiture selon le niveau, prix variable + options
   (décoration, cortège, durée).
 - **8 langues** : Français, English, Español, Italiano, العربية (RTL), 中文, Deutsch, Русский.
-- **Expansion sous-régionale** prête dans les paramètres : Ghana, Sénégal, Togo, Bénin, Nigeria.
+- **Pays** : ORION opère en Côte d'Ivoire ; aucun autre pays n'est affiché ni annoncé.
 - **Ouverture animée** premium + design vert épuré, fluide et soigné.
 
 ## 🧭 Les trois interfaces

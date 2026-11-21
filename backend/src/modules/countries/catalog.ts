@@ -1,7 +1,7 @@
 /**
- * Pays d'exploitation ORION. La Côte d'Ivoire est active ; l'expansion sous-régionale
- * (Ghana, Sénégal, Togo, Bénin, Nigeria) est planifiée. La structure permet d'activer un
- * pays sans changement de code (config par pays).
+ * Pays d'exploitation ORION. Seule la Côte d'Ivoire est active et visible. Les autres pays
+ * sont gardés ici pour une ouverture future (réglages par pays), mais ne sont publiés nulle
+ * part : ni par la route /countries, ni dans les applications.
  */
 export interface Country {
   code: string;
