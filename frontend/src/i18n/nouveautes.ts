@@ -965,26 +965,6 @@ const TEXTES: Record<string, Huit> = {
     'Google 暂时无响应：显示的街区仍来自 ORION。',
     'Google пока не отвечает: район по-прежнему показывает ORION.',
   ],
-  accueil_services: [
-    'Services',
-    'Services',
-    'Servicios',
-    'Servizi',
-    'Dienste',
-    'الخدمات',
-    '服务',
-    'Сервисы',
-  ],
-  accueil_decouvrir: [
-    'Découvrir',
-    'Discover',
-    'Descubrir',
-    'Scopri',
-    'Entdecken',
-    'اكتشف',
-    '了解',
-    'Подробнее',
-  ],
 };
 
 export const NOUVEAUTES = Object.fromEntries(

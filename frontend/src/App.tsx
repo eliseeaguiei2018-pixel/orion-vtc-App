@@ -1378,7 +1378,6 @@ function HomeScreen({ announce, closed, deliveryOff, city, onSearch, onCourse, o
       <div className="page-body hub-body">
         {/* Services principaux : Course et Livraison. La livraison se masque si la console
             l'a désactivée (services.delivery = false) ; tout est grisé en maintenance. */}
-        <h3 className="hub-section rise rise-2">{t('accueil_services')}</h3>
         <div className="tuiles-duo rise rise-2">
           <Tuile grande off={closed} rang={0} objet={<Voiture modele="berline" peinture="accent" largeur={172} accueil />} label={t('svc_course')} note={t('svc_course_d')} onClick={onCourse} />
           {!deliveryOff && (
@@ -1400,16 +1399,6 @@ function HomeScreen({ announce, closed, deliveryOff, city, onSearch, onCourse, o
           <Tuile rang={7} objet={<Objet nom="location" volume />} label={t('rent_entry')} onClick={() => onNav('rental')} />
           <Tuile rang={8} objet={<Objet nom="mariage" volume />} label={t('menu_wedding')} onClick={() => onNav('wedding')} />
         </div>
-
-        {/* Bandeau de la marque : l'abonnement, en couleur franche (la couleur choisie par le client). */}
-        <button className="hub-promo rise rise-3" onClick={() => onNav('subscription')}>
-          <span className="hub-promo-texte">
-            <small>{t('sub_title')}</small>
-            <strong>{t('sub_subtitle')}</strong>
-            <em>{t('accueil_decouvrir')} <IconChevron size={15} /></em>
-          </span>
-          <Objet nom="abonnement" taille={104} volume />
-        </button>
 
         <span className="eyebrow" style={{ marginTop: 4 }}><IconPin size={13} /> {t('lieu_vos_lieux')}</span>
         <div className="stack" style={{ marginTop: 10 }}>
