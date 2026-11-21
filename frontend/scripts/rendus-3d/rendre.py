@@ -13,7 +13,10 @@ def rendu(nom, largeur=600, hauteur=600, azimut=35, elevation=20, marge=0.06, or
 def _peinture(nom, couleur, metal=0.6, rugosite=0.22): return o3.matiere(nom, couleur, rugosite=rugosite, metal=metal, vernis=1.0)
 PEINTURES = {
     # En noir, gris et blanc : une laque noire profonde, métallisée, comme une berline de maître.
-    'orion': lambda: _peinture('noir ORION', (0.010, 0.010, 0.012), metal=0.55, rugosite=0.17) if o3.NB else _peinture('vert ORION', o3.VERT, metal=0.1, rugosite=0.24),
+    # Palette urbaine : un blanc nacré, vitres sombres, feux rouges — la berline la plus lisible en petit.
+    'orion': lambda: _peinture('noir ORION', (0.010, 0.010, 0.012), metal=0.55, rugosite=0.17) if o3.NB
+             else _peinture('blanc nacré', (0.93, 0.93, 0.90), metal=0.10, rugosite=0.22) if o3.URBAIN
+             else _peinture('vert ORION', o3.VERT, metal=0.1, rugosite=0.24),
     # L'accent choisi par le client (vert, bleu ou orange) habille la voiture ORION.
     'bleu': lambda: _peinture('bleu', o3.hexa('#1463FF'), metal=0.1, rugosite=0.24),
     'orange': lambda: _peinture('orange', o3.hexa('#FF6A00'), metal=0.1, rugosite=0.24),
@@ -29,7 +32,15 @@ for modele in ('berline', 'suv'):
 rendu('limousine-nuit', 760, 440, azimut=58, elevation=12)(lambda: o3.voiture('limousine', PEINTURES['nuit']()))
 rendu('suv-perle', 760, 440, azimut=58, elevation=12)(lambda: o3.voiture('suv', PEINTURES['perle']()))
 rendu('berline-perle', 760, 440, azimut=58, elevation=12)(lambda: o3.voiture('berline', PEINTURES['perle']()))
-rendu('scooter', 640, 560, azimut=42, elevation=13)(lambda: o3.scooter())
+def _scooter():
+    if not o3.URBAIN: return o3.scooter()
+    # Carrosserie blanc nacré, filets anthracite, selle en cuir fauve, coffre noir mat à couvercle clair.
+    return o3.scooter(
+        caisse=_peinture('blanc nacré', (0.93, 0.93, 0.90), metal=0.08, rugosite=0.24),
+        accent=o3.matiere('anthracite', o3.VERT, rugosite=0.30, vernis=0.6),
+        coffre=o3.matiere('coffre', o3.hexa('#1D1E22'), rugosite=0.5, vernis=0.15),
+        selle=o3.matiere('cuir', o3.hexa('#9A5B2E'), rugosite=0.55, satin=0.35, grain=0.2))
+rendu('scooter', 640, 560, azimut=42, elevation=13)(_scooter)
 rendu('voiture-dessus', 256, 512, azimut=90, elevation=89.9, marge=0.08, ortho=True)(lambda: o3.voiture('berline', PEINTURES['orion']()))
 for teinte in ('bleu', 'orange'):
     rendu(f'berline-{teinte}', 760, 440, azimut=58, elevation=12)(lambda t=teinte: o3.voiture('berline', PEINTURES[t]()))
@@ -40,6 +51,18 @@ rendu('scooter-dessus', 256, 512, azimut=90, elevation=89.9, marge=0.10, ortho=T
 # ---------------------------------------------------------------- objets des services
 M = o3.matiere
 def _teintes():
+    if o3.URBAIN:
+        # Base neutre et douce ; la couleur vient des matières : kraft, carton, or, cuir.
+        return dict(
+            vert=M('anthracite', o3.VERT, rugosite=0.36, vernis=0.35), vert_clair=M('ardoise', o3.VERT_CLAIR, rugosite=0.42, vernis=0.2),
+            violet=M('gris', o3.VIOLET, rugosite=0.40, vernis=0.25), violet_clair=M('gris clair', o3.VIOLET_CLAIR, rugosite=0.40, vernis=0.25),
+            blanc=M('blanc cassé', o3.BLANC, rugosite=0.34, vernis=0.4), noir=M('noir mat', o3.NOIR, rugosite=0.5),
+            metal=M('acier', o3.hexa('#D9DCE1'), rugosite=0.18, metal=1.0), papier=M('papier', o3.hexa('#F6F4EF'), rugosite=0.66),
+            sac=M('kraft', o3.hexa('#C4935A'), rugosite=0.74, grain=0.45), carton=M('carton', o3.hexa('#C8985C'), rugosite=0.72, grain=0.4),
+            laque=M('carte anthracite', o3.hexa('#1F2024'), rugosite=0.30, vernis=0.6), or_=M('or', o3.hexa('#E8B944'), rugosite=0.22, metal=1.0),
+            cuir=M('cuir', o3.hexa('#A5632F'), rugosite=0.55, satin=0.35, grain=0.2), rouge=M('rouge', o3.hexa('#D8402E'), rugosite=0.34, vernis=0.5),
+            velours=M('velours', o3.hexa('#1B1E2A'), rugosite=0.9, satin=0.7), ivoire=M('ivoire', o3.hexa('#F3EBDD'), rugosite=0.6, satin=0.4),
+        )
     if o3.NB:
         # Noir laqué, graphite satiné, gris moyen et perle, céramique blanche, acier brossé.
         return dict(
@@ -72,11 +95,13 @@ def food():
     pain = M('pain', o3.hexa('#E0A34A'), rugosite=0.55, nb='#A3A5AA', grain=0.5 if o3.NB else None); viande = M('viande', o3.hexa('#4A2A1A'), rugosite=0.75, nb='#17171A')
     fromage = M('fromage', o3.hexa('#FFC531'), rugosite=0.4, nb='#F3F3F4', vernis=0.5 if o3.NB else 0.0); tomate = M('tomate', o3.hexa('#E5372B'), rugosite=0.35, nb='#55575C', vernis=0.6 if o3.NB else 0.0)
     o3.cylindre('pain bas', 0.36, 0.14, (0.42, -0.30, 0.07), pain, arrondi=0.06)
-    o3.cylindre('salade', 0.40, 0.035, (0.42, -0.30, 0.165), t['vert_clair'], arrondi=0.015, cotes=11)
+    salade = M('salade', o3.hexa('#7CC63F'), rugosite=0.5) if o3.URBAIN else t['vert_clair']
+    salade_haute = M('salade foncée', o3.hexa('#4FA53A'), rugosite=0.5) if o3.URBAIN else t['vert']
+    o3.cylindre('salade', 0.40, 0.035, (0.42, -0.30, 0.165), salade, arrondi=0.015, cotes=11)
     o3.cylindre('viande', 0.37, 0.10, (0.42, -0.30, 0.235), viande, arrondi=0.04)
     o3.boite('fromage', (0.62, 0.62, 0.022), (0.42, -0.30, 0.298), fromage, rayon=0.008, rot=(0, 0, 0.6))
-    o3.cylindre('tomate', 0.33, 0.04, (0.42, -0.30, 0.33), tomate, arrondi=0.015)
-    o3.cylindre('salade haute', 0.39, 0.03, (0.42, -0.30, 0.365), t['vert'], arrondi=0.012, cotes=9)
+    o3.cylindre('tomate', 0.385 if o3.URBAIN else 0.33, 0.04, (0.42, -0.30, 0.33), tomate, arrondi=0.015)   # en couleur, la tranche dépasse
+    o3.cylindre('salade haute', 0.39, 0.03, (0.42, -0.30, 0.365), salade_haute, arrondi=0.012, cotes=9)
     o3.sphere('pain haut', 0.37, (0.42, -0.30, 0.38), pain, echelle=(1, 1, 0.62))
     for i in range(14):  # graines de sésame
         a, r = i * 2.4, 0.07 + (i % 4) * 0.055
@@ -87,9 +112,11 @@ def food():
 @rendu('achat', azimut=112, elevation=20)
 def achat():
     t = _teintes()
+    # Palette urbaine : un grand sac anthracite, un petit sac kraft, une étiquette rouge.
+    petit, anse, etiquette = (t['sac'], t['vert'], t['rouge']) if o3.URBAIN else (t['blanc'], t['violet'], t['violet'])
     _sac((-0.20, 0.14, 0), t['vert'], t['blanc'], taille=(0.60, 0.30, 0.76), pastille=t['blanc'])
-    _sac((0.30, -0.16, 0), t['blanc'], t['violet'], taille=(0.48, 0.26, 0.56), pastille=t['violet'])
-    o3.boite('étiquette', (0.20, 0.014, 0.28), (0.63, -0.34, 0.20), t['violet'], rayon=0.02, rot=(0.25, 0.3, 0.2))
+    _sac((0.30, -0.16, 0), petit, anse, taille=(0.48, 0.26, 0.56), pastille=anse)
+    o3.boite('étiquette', (0.20, 0.014, 0.28), (0.63, -0.34, 0.20), etiquette, rayon=0.02, rot=(0.25, 0.3, 0.2))
     o3.cylindre('œillet', 0.022, 0.02, (0.645, -0.365, 0.30), t['blanc'], rot=(math.pi / 2 + 0.25, 0, 0.2))
 
 @rendu('supermarche', azimut=115, elevation=26)
@@ -101,23 +128,25 @@ def supermarche():
     o3.percer(panier, c)
     for y in (-0.31, 0.31):
         for k in range(7): o3.boite('fente', (0.05, 0.012, 0.20), (-0.36 + k * 0.12, y, 0.22), t['vert_clair'], rayon=0.004)
-    o3.tube('anse', [(-0.40, -0.02, 0.40), (-0.36, -0.02, 0.74), (0.36, -0.02, 0.74), (0.40, -0.02, 0.40)], 0.022, t['blanc'])
+    o3.tube('anse', [(-0.40, -0.02, 0.40), (-0.36, -0.02, 0.74), (0.36, -0.02, 0.74), (0.40, -0.02, 0.40)], 0.022, t['metal'] if o3.URBAIN else t['blanc'])
     o3.boite('brique', (0.20, 0.20, 0.50), (-0.24, 0.10, 0.36), t['blanc'], rayon=0.02)
-    o3.boite('bande', (0.205, 0.205, 0.14), (-0.24, 0.10, 0.34), t['violet'], rayon=0.01)
+    o3.boite('bande', (0.205, 0.205, 0.14), (-0.24, 0.10, 0.34), M('bleu lait', o3.hexa('#2F6FE0'), rugosite=0.4, vernis=0.3) if o3.URBAIN else t['violet'], rayon=0.01)
     o3.boite('toit de brique', (0.20, 0.03, 0.10), (-0.24, 0.10, 0.64), t['blanc'], rayon=0.012)
-    o3.cylindre('bouteille', 0.085, 0.42, (0.10, 0.12, 0.34), t['violet_clair'], arrondi=0.03)
-    o3.cylindre('goulot', 0.035, 0.14, (0.10, 0.12, 0.60), t['violet_clair'], arrondi=0.01)
+    verre = M('verre vert', o3.hexa('#2F8A52'), rugosite=0.10, vernis=1.0) if o3.URBAIN else t['violet_clair']
+    o3.cylindre('bouteille', 0.085, 0.42, (0.10, 0.12, 0.34), verre, arrondi=0.03)
+    o3.cylindre('goulot', 0.035, 0.14, (0.10, 0.12, 0.60), verre, arrondi=0.01)
     o3.cylindre('bouchon', 0.042, 0.04, (0.10, 0.12, 0.68), t['blanc'], arrondi=0.01)
-    o3.sphere('pomme', 0.115, (0.30, -0.12, 0.42), M('pomme', o3.hexa('#7BD13C'), rugosite=0.3, vernis=0.5, nb='#E6E6E8'), echelle=(1, 1, 0.92))
+    o3.sphere('pomme', 0.115, (0.30, -0.12, 0.42), M('pomme', o3.hexa('#7BD13C'), rugosite=0.3, vernis=0.5, nb='#E6E6E8', urbain='#D8392E'), echelle=(1, 1, 0.92))
     o3.sphere('orange', 0.105, (0.06, -0.14, 0.44), M('orange', o3.hexa('#FF9A1F'), rugosite=0.5, nb='#77797F', grain=0.6 if o3.NB else None))
     o3.cylindre('baguette', 0.05, 0.62, (-0.02, 0.02, 0.50), M('pain', o3.hexa('#DDA050'), rugosite=0.6, nb='#B4B6BB'), rot=(0.15, 0.5, 0.4), arrondi=0.045)
 
 @rendu('colis', azimut=120, elevation=24)
 def colis():
     t = _teintes()
-    carton = M('carton', o3.hexa('#F1F2F4'), rugosite=0.6)
+    carton = t['carton'] if o3.URBAIN else M('carton', o3.hexa('#F1F2F4'), rugosite=0.6)
+    adhesif = M('adhésif', o3.hexa('#EADFC8'), rugosite=0.35, vernis=0.3) if o3.URBAIN else t['violet']
     o3.boite('colis', (0.90, 0.70, 0.56), (0, 0, 0.28), carton, rayon=0.02)
-    o3.boite('ruban', (0.905, 0.14, 0.565), (0, 0, 0.28), t['violet'], rayon=0.008)
+    o3.boite('ruban', (0.905, 0.14, 0.565), (0, 0, 0.28), adhesif, rayon=0.008)
     o3.boite('étiquette', (0.30, 0.012, 0.20), (0.24, -0.352, 0.30), t['papier'], rayon=0.01)
     for k in range(3): o3.boite('ligne', (0.22 - k * 0.05, 0.004, 0.018), (0.22 - k * 0.025, -0.36, 0.35 - k * 0.05), t['noir'], rayon=0)
     o3.boite('petit colis', (0.46, 0.38, 0.30), (0.08, 0.02, 0.71), t['vert'], rayon=0.02, rot=(0, 0, 0.35))
@@ -131,8 +160,10 @@ def abonnement():
     o3.boite('puce', (0.15, 0.012, 0.11), (-0.30, -0.115, 0.42), M('or', o3.hexa('#F2C14E'), rugosite=0.2, metal=1.0, nb='#E2E3E6'), rayon=0.02, rot=(-0.20, 0, 0.12))
     for k in range(2): o3.boite('ligne', (0.46 - k * 0.14, 0.008, 0.03), (-0.10 - k * 0.07, -0.075, 0.23 - k * 0.07), t['violet_clair'], rayon=0.01, rot=(-0.20, 0, 0.12))
     # Médaille à couronne : ce que l'abonnement donne en plus.
-    o3.cylindre('médaille', 0.20, 0.05, (0.40, -0.28, 0.20), t['metal'] if o3.NB else t['vert'], rot=(math.pi / 2 - 0.25, 0, 0.3), arrondi=0.018)
-    o3.tore('bord', 0.20, 0.016, (0.40, -0.28, 0.20), t['blanc'] if o3.NB else t['vert_clair'], rot=(math.pi / 2 - 0.25, 0, 0.3))
+    medaille = t['or_'] if o3.URBAIN else t['metal'] if o3.NB else t['vert']
+    bord = t['or_'] if o3.URBAIN else t['blanc'] if o3.NB else t['vert_clair']
+    o3.cylindre('médaille', 0.20, 0.05, (0.40, -0.28, 0.20), medaille, rot=(math.pi / 2 - 0.25, 0, 0.3), arrondi=0.018)
+    o3.tore('bord', 0.20, 0.016, (0.40, -0.28, 0.20), bord, rot=(math.pi / 2 - 0.25, 0, 0.3))
     for k, h in enumerate((0.07, 0.11, 0.07)):
         o3.cylindre('pointe', 0.03, h, (0.33 + k * 0.07, -0.318, 0.215 + h / 2 - 0.035), t['blanc'], rot=(-0.25, 0, 0), rayon_haut=0.004, cotes=20)
     o3.boite('socle', (0.20, 0.022, 0.035), (0.40, -0.318, 0.165), t['blanc'], rayon=0.008, rot=(-0.25, 0, 0))
@@ -142,27 +173,29 @@ def location():
     t = _teintes()
     o3.boite('télécommande', (0.42, 0.72, 0.13), (0, 0, 0.09), t['noir'], rayon=0.055, rot=(0, 0, 0.35))
     o3.boite('jonc', (0.43, 0.73, 0.03), (0, 0, 0.09), t['metal'], rayon=0.012, rot=(0, 0, 0.35))
-    for k, m in enumerate((t['vert'], t['blanc'], t['violet'])):
+    for k, m in enumerate((t['violet_clair'], t['blanc'], t['rouge']) if o3.URBAIN else (t['vert'], t['blanc'], t['violet'])):
         d = (k - 1) * 0.19
         o3.cylindre('bouton', 0.062, 0.03, (-math.sin(0.35) * d, math.cos(0.35) * d, 0.16), m, arrondi=0.01)
     o3.tore('anneau', 0.17, 0.014, (-0.17, 0.46, 0.06), t['metal'], rot=(0.25, 0.1, 0))
-    o3.boite('porte-clés', (0.26, 0.40, 0.05), (-0.46, 0.50, 0.04), t['violet'], rayon=0.022, rot=(0, 0, -0.7))
-    o3.cylindre('pastille', 0.07, 0.012, (-0.46, 0.50, 0.068), t['blanc'])
+    o3.boite('porte-clés', (0.26, 0.40, 0.05), (-0.46, 0.50, 0.04), t['cuir'] if o3.URBAIN else t['violet'], rayon=0.022, rot=(0, 0, -0.7))
+    o3.cylindre('pastille', 0.07, 0.012, (-0.46, 0.50, 0.068), t['metal'] if o3.URBAIN else t['blanc'])
 
 @rendu('mariage', azimut=110, elevation=24)
 def mariage():
     t = _teintes()
-    or_blanc = M('or blanc', o3.hexa('#F1EEE6'), rugosite=0.12, metal=1.0)
-    o3.boite('écrin', (0.80, 0.66, 0.22), (0, 0, 0.11), t.get('laque', t['violet']), rayon=0.05)
-    o3.boite('coussin', (0.68, 0.54, 0.10), (0, 0, 0.24), t['blanc'], rayon=0.045)
-    o3.boite('couvercle', (0.80, 0.05, 0.62), (0, 0.33, 0.50), t.get('laque', t['violet']), rayon=0.022, rot=(-0.20, 0, 0))
-    o3.boite('doublure', (0.68, 0.02, 0.50), (0, 0.300, 0.50), t['blanc'], rayon=0.02, rot=(-0.20, 0, 0))
+    or_blanc = M('or blanc', o3.hexa('#F1EEE6'), rugosite=0.12, metal=1.0, urbain='#EDBE4B')
+    ecrin = t['velours'] if o3.URBAIN else t.get('laque', t['violet'])
+    interieur = t['ivoire'] if o3.URBAIN else t['blanc']
+    o3.boite('écrin', (0.80, 0.66, 0.22), (0, 0, 0.11), ecrin, rayon=0.05)
+    o3.boite('coussin', (0.68, 0.54, 0.10), (0, 0, 0.24), interieur, rayon=0.045)
+    o3.boite('couvercle', (0.80, 0.05, 0.62), (0, 0.33, 0.50), ecrin, rayon=0.022, rot=(-0.20, 0, 0))
+    o3.boite('doublure', (0.68, 0.02, 0.50), (0, 0.300, 0.50), interieur, rayon=0.02, rot=(-0.20, 0, 0))
     o3.tore('alliance', 0.15, 0.030, (-0.13, -0.02, 0.42), or_blanc, rot=(math.pi / 2 - 0.25, 0, 0.5))
     o3.tore('alliance', 0.13, 0.026, (0.15, -0.04, 0.40), or_blanc, rot=(math.pi / 2 - 0.2, 0, -0.5))
     bpy = o3.bpy
     bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=0.062, location=(0.15, -0.04, 0.575))
     gemme = bpy.context.object; gemme.scale = (1, 1, 0.8)
-    gemme.data.materials.append(M('gemme', (0.93, 0.94, 0.96) if o3.NB else o3.VERT_CLAIR, rugosite=0.03, vernis=1.0, metal=0.2))
+    gemme.data.materials.append(M('gemme', (0.93, 0.94, 0.96) if o3.FIN else o3.VERT_CLAIR, rugosite=0.03, vernis=1.0, metal=0.2))
     o3.cylindre('griffe', 0.035, 0.05, (0.15, -0.04, 0.535), or_blanc, rayon_haut=0.055, cotes=6)
 
 @rendu('mes-courses', azimut=108, elevation=34)

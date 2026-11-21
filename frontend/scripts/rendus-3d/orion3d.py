@@ -13,6 +13,11 @@ et blanc — noir laqué, graphite satiné, céramique blanche, acier — pour l
 cliente. Toute couleur demandée est alors ramenée à sa valeur de gris ; l'éclairage gagne
 une grande boîte zénithale et un rendu plus fin (reflets doux sur les laques, grain léger
 sur les matières mates).
+
+PALETTE « urbain » (ORION_PALETTE=urbain) : le même studio, mais les matières gardent leur vraie
+couleur — carton kraft, or, cuir, pain doré, salade, feux rouges — sur une base neutre (blanc
+cassé, anthracite, gris). Les teintes de la marque seules deviennent neutres. C'est le registre
+des applications de transport : des objets clairs et doux, où la couleur vient de la matière.
 """
 import math
 import os
@@ -37,11 +42,18 @@ GRIS = hexa('#8B9099')
 
 PALETTE = os.environ.get('ORION_PALETTE', 'couleur')
 NB = PALETTE == 'nb'
+URBAIN = PALETTE == 'urbain'
+FIN = NB or URBAIN                  # studio à reflets doux et réponse photographique
 if NB:
     # Noir, gris, blanc : le vert devient un noir profond, le violet un gris moyen.
     VERT, VERT_CLAIR = hexa('#0B0B0D'), hexa('#3B3D42')
     VIOLET, VIOLET_CLAIR = hexa('#6E7178'), hexa('#B9BCC2')
     BLANC, NOIR, GRIS = hexa('#F4F4F5'), hexa('#101114'), hexa('#8B8E94')
+if URBAIN:
+    # Base neutre et douce : anthracite plutôt que noir, blanc cassé plutôt que blanc pur.
+    VERT, VERT_CLAIR = hexa('#25272C'), hexa('#585B62')
+    VIOLET, VIOLET_CLAIR = hexa('#9A9DA4'), hexa('#CFD1D6')
+    BLANC, NOIR, GRIS = hexa('#F1EFEA'), hexa('#1B1C20'), hexa('#8E9197')
 
 
 def gris(couleur):
@@ -56,9 +68,13 @@ def vider():
     return bpy.context.scene
 
 
-def matiere(nom, couleur, rugosite=0.4, metal=0.0, vernis=0.0, emission=0.0, verre=False, satin=0.0, grain=None, brosse=0.0, nb=None):
+def matiere(nom, couleur, rugosite=0.4, metal=0.0, vernis=0.0, emission=0.0, verre=False, satin=0.0, grain=None, brosse=0.0, nb=None, urbain=None):
     """`grain` : relief fin procédural (papier, carton, mie). `brosse` : métal brossé (reflets étirés).
-    `nb` : teinte imposée dans la palette noir, gris et blanc (sinon la valeur de gris de `couleur`)."""
+    `nb` : teinte imposée dans la palette noir, gris et blanc (sinon la valeur de gris de `couleur`).
+    `urbain` : teinte imposée dans la palette urbaine (sinon `couleur`, telle quelle)."""
+    if URBAIN:
+        if urbain: couleur = hexa(urbain) if isinstance(urbain, str) else urbain
+        if grain is None and metal < 0.5 and vernis < 0.3 and rugosite >= 0.5: grain = 0.3     # papier, carton, mie : un grain fin
     if NB:
         couleur = hexa(nb) if nb else gris(couleur)
         if emission:                                                              # feux : verre, plus de rouge
@@ -203,7 +219,7 @@ def studio(scene, largeur=640, hauteur=640, echantillons=96, ombre=True):
     scene.cycles.use_denoising = True
     try: scene.cycles.denoiser = 'OPENIMAGEDENOISE'
     except TypeError: pass
-    scene.cycles.max_bounces = 10 if NB else 6
+    scene.cycles.max_bounces = 10 if FIN else 6
     scene.render.film_transparent = True
     scene.render.resolution_x, scene.render.resolution_y = largeur, hauteur
     scene.render.image_settings.file_format = 'PNG'
@@ -212,14 +228,15 @@ def studio(scene, largeur=640, hauteur=640, echantillons=96, ombre=True):
     scene.view_settings.view_transform = 'Standard'
     try: scene.view_settings.look = 'Medium High Contrast'
     except TypeError: pass
-    if NB:
+    if FIN:
         # Réponse photographique : les blancs gardent leur modelé au lieu de brûler, les noirs
         # restent profonds. C'est ce qui fait la différence entre un rendu et une photo.
         try:
             scene.view_settings.view_transform = 'AgX'
-            scene.view_settings.look = os.environ.get('ORION_LOOK', 'AgX - Medium High Contrast')
+            # Palette urbaine : rendu « Punchy », qui garde aux matières leur couleur franche.
+            scene.view_settings.look = os.environ.get('ORION_LOOK', 'AgX - Punchy' if URBAIN else 'AgX - Medium High Contrast')
         except TypeError: pass
-        scene.view_settings.exposure = float(os.environ.get('ORION_EXPO', '0.35'))
+        scene.view_settings.exposure = float(os.environ.get('ORION_EXPO', '0.30' if URBAIN else '0.35'))
     monde = bpy.data.worlds.new('studio'); monde.use_nodes = True; scene.world = monde
     fond = monde.node_tree.nodes['Background']
     fond.inputs['Color'].default_value = (1, 1, 1, 1); fond.inputs['Strength'].default_value = 0.34
@@ -236,7 +253,7 @@ def studio(scene, largeur=640, hauteur=640, echantillons=96, ombre=True):
     # éclairent sans salir le sol d'un voile gris.
     boite_a_lumiere('debouchage', (6.5, -4.0, 3.5), (5, 5), 190, (1.0, 0.98, 0.96)).data.use_shadow = False
     boite_a_lumiere('lisere', (1.5, 6.5, 5.5), (7, 3), 300).data.use_shadow = False
-    if NB:
+    if FIN:
         # Noir laqué et céramique vivent de leurs reflets : une grande boîte zénithale dessine
         # un reflet doux sur le dessus des objets, une bande latérale en ourle les flancs.
         boite_a_lumiere('zenith', (0.5, -0.5, 11.0), (9, 9), 420).data.use_shadow = False
@@ -336,7 +353,7 @@ def voiture(modele='berline', peinture=None, vitrage=None, jante=None):
     """Voiture complète, nez vers +X. La caisse est une surface tendue sur des couples."""
     g = GABARITS[modele]
     peinture = peinture or matiere('peinture', VERT, rugosite=0.24, metal=0.1, vernis=1.0)
-    vitrage = vitrage or matiere('vitrage', hexa('#1B1436'), verre=True)
+    vitrage = vitrage or matiere('vitrage', hexa('#1B1436'), verre=True, urbain='#10161D')
     demi = g['L'] / 2
     xs = sorted(set([-demi, -demi + 0.10, -demi + 0.30, demi - 0.30, demi - 0.10, demi]
                     + [round(-demi + 0.5 + i * (g['L'] - 1.0) / 22, 3) for i in range(23)]
@@ -406,7 +423,7 @@ def voiture(modele='berline', peinture=None, vitrage=None, jante=None):
     return caisse
 
 
-def scooter(caisse=None, accent=None, coffre=None):
+def scooter(caisse=None, accent=None, coffre=None, selle=None, couvercle=None):
     """Scooter électrique de livraison, nez vers +X, avec son coffre."""
     # Carrosserie verte, filets et couvercle blancs, coffre violet : les trois teintes d'ORION.
     caisse = caisse or matiere('carrosserie', VERT, rugosite=0.24, metal=0.1, vernis=1.0)
@@ -414,7 +431,7 @@ def scooter(caisse=None, accent=None, coffre=None):
     coffre = coffre or matiere('coffre', VIOLET, rugosite=0.32, vernis=0.6)
     blanc = matiere('blanc', BLANC, rugosite=0.25, vernis=1.0)
     sombre = matiere('sombre', (0.025, 0.025, 0.03), rugosite=0.55)
-    selle = matiere('selle', (0.035, 0.035, 0.04), rugosite=0.7, satin=0.3)
+    selle = selle or matiere('selle', (0.035, 0.035, 0.04), rugosite=0.7, satin=0.3)
     chrome = matiere('chrome', (0.80, 0.82, 0.85), rugosite=0.18, metal=1.0)
     r = 0.25
     for x in (-0.62, 0.66):
@@ -446,6 +463,6 @@ def scooter(caisse=None, accent=None, coffre=None):
     # Coffre de livraison : violet, couvercle blanc, pastille verte.
     boite('porte-bagages', (0.46, 0.34, 0.04), (-0.74, 0, 0.90), sombre, rayon=0.012)
     boite('coffre', (0.50, 0.50, 0.46), (-0.76, 0, 1.15), coffre, rayon=0.07)
-    boite('couvercle', (0.52, 0.52, 0.07), (-0.76, 0, 1.40), blanc, rayon=0.03)
+    boite('couvercle', (0.52, 0.52, 0.07), (-0.76, 0, 1.40), couvercle or blanc, rayon=0.03)
     for y in (-1, 1):
         cylindre('pastille', 0.10, 0.012, (-0.76, y * 0.252, 1.16), accent, rot=(math.pi / 2, 0, 0))

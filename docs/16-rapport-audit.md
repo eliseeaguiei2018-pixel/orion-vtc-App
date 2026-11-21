@@ -689,3 +689,48 @@ le tableau de bord gardent la carte ORION et les objets en couleur.
 - **L'APK compilé par GitHub** garde la carte ORION tant que le secret
   `GOOGLE_MAPS_API_KEY` n'est pas ajouté au dépôt.
 - **La page partageable** montre encore la version 1.4.
+
+## 17. Version 1.5.1 : accueil sur tuiles translucides, objets aux couleurs naturelles (21 novembre)
+
+**Demande.** Après essai de la version 1.5 : les neuf objets de l'accueil sont « trop noir
+et blanc », et leur fond ne doit plus être blanc mais transparent, dans l'esprit des
+interfaces Apple ; le rendu attendu est celui des applications de transport du type Uber.
+Le client a joint un exemple d'appel au modèle Claude par Vertex AI (Google Cloud).
+
+### Ce qui a été fait
+
+| Sujet | Changement |
+|---|---|
+| Objets | Troisième palette de l'atelier 3D, « urbain » : base neutre (blanc cassé, anthracite, gris) et couleur des matières — sacs et carton en kraft, or de la carte, de la médaille et des alliances, cuir fauve de la selle et du porte-clés, pain doré, salade, tomate, pomme, bouteille verte, feux rouges. Berline et scooter en blanc nacré. Neuf rendus dans `public/rendus/urbain/`. |
+| Tuiles | Le fond n'est plus un aplat clair : une plaque translucide, sans couleur, lue à son reflet en haut à gauche, à son bord plus dense en bas à droite et à l'ombre douce qu'elle pose. Même matière en clair et en sombre. |
+| Retour en arrière | `accueil: 'nb'` ou `accueil: 'couleur'` dans `src/main.tsx` : les trois jeux de rendus sont livrés. |
+
+**L'exemple Vertex AI n'a pas été utilisé.** Il appelle un modèle de texte : il n'aurait
+produit aucune image. La session n'a par ailleurs ni identifiant de projet ni droits sur
+le compte Google Cloud du client, et un appel serait facturé sur ce compte. Les objets
+sont modélisés et rendus par l'atelier 3D du dépôt (Blender), ce qui garantit le fond
+transparent et la cohérence des neuf images.
+
+**Sur l'inspiration.** Le registre est repris (objets clairs et doux, base neutre, couleur
+portée par la matière) ; aucun pictogramme d'une autre application n'est copié : les neuf
+objets sont les modèles d'ORION.
+
+### Vérifications (sur le contenu exact de l'APK 1.5.1)
+
+- Accueil : neuf images de la palette urbaine, aucune manquante ; neuf tuiles dont le fond
+  est translucide (dégradés à transparence, aucun aplat opaque), en clair et en sombre.
+- Services Google (lieux, itinéraire, adresse, Menu → Carte) : 8 étapes sur 8. Google seul,
+  en clair puis en sombre : 7 sur 7. Menu et bulle GPS : 9 sur 9. Parcours complet : 20
+  sur 20. Aucune erreur JavaScript.
+- APK 1.5.1 : `ci.orion.app`, code 7, même signature, 10,9 Mo ; ses 158 fichiers web sont
+  identiques à la version testée. La clé n'est ni dans le dépôt ni dans son historique.
+
+### Limites
+
+- Sur une page blanche, une plaque translucide reste claire : elle se distingue par son
+  reflet, son bord et son ombre, pas par une teinte. Elle prendrait la couleur de tout
+  fond placé derrière elle.
+- Aucun flou d'arrière-plan : rien ne passe derrière une tuile, il coûterait de la
+  fluidité sans se voir.
+- **Rien n'a été essayé sur un téléphone**, comme pour les versions précédentes.
+- **La page partageable** montre encore la version 1.4.

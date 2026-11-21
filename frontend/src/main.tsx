@@ -10,10 +10,11 @@ import './premium.css';
 import { demarrerDiagnosticFluidite } from './fps';
 import { definirStyle } from './components/Vehicules';
 
-// Style de l'app cliente (version 1.5) : toutes les icônes des listes au trait, sans couleur ;
-// tuiles de l'accueil en rendus noir, gris et blanc. Pour revenir à l'accueil vert, blanc et
-// violet : `accueil: 'couleur'`.
-definirStyle({ icones: 'trait', accueil: 'nb' });
+// Style de l'app cliente : toutes les icônes des listes au trait, sans couleur ; à l'accueil,
+// des objets en volume sur une base neutre, où la couleur vient des matières (kraft, or, cuir,
+// aliments) — palette « urbain ». Autres jeux livrés : `accueil: 'nb'` (noir, gris et blanc)
+// et `accueil: 'couleur'` (vert, blanc et violet).
+definirStyle({ icones: 'trait', accueil: 'urbain' });
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

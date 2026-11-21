@@ -1574,6 +1574,35 @@ body { letter-spacing: 0; text-rendering: optimizeLegibility; }
   .tuile-fond .vehicule { animation: none !important; }
 }
 
+/* ---- Tuiles en verre ----
+   Le fond d'une tuile n'est plus un aplat clair : c'est une plaque translucide, dans l'esprit
+   des matières des interfaces Apple. Elle laisse voir la page ; on la lit à son reflet (en
+   haut à gauche), à son bord plus dense (en bas à droite) et à l'ombre douce qu'elle pose.
+   Aucune couleur : le verre prend celle de ce qu'il recouvre, en clair comme en sombre.
+   Pas de flou d'arrière-plan : rien ne passe derrière une tuile, il coûterait sans se voir. */
+.tuile-fond {
+  background:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.12) 36%, rgba(255, 255, 255, 0) 58%),
+    linear-gradient(320deg, rgba(118, 118, 128, 0.17) 0%, rgba(118, 118, 128, 0.075) 52%, rgba(118, 118, 128, 0.035) 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(118, 118, 128, 0.10),
+    inset 1.5px 1.5px 0.5px -0.5px rgba(255, 255, 255, 0.95),
+    inset -1px -1px 0.5px -0.5px rgba(60, 60, 67, 0.12),
+    0 18px 28px -22px rgba(0, 0, 0, 0.32),
+    0 3px 8px -4px rgba(0, 0, 0, 0.06);
+}
+:root:not([data-theme='light']) .tuile-fond {
+  background:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.17) 0%, rgba(255, 255, 255, 0.045) 38%, rgba(255, 255, 255, 0) 60%),
+    rgba(255, 255, 255, 0.055);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+    inset 1.5px 1.5px 0.5px -0.5px rgba(255, 255, 255, 0.30),
+    inset -1px -1px 0.5px -0.5px rgba(0, 0, 0, 0.40),
+    0 18px 30px -20px rgba(0, 0, 0, 0.80);
+}
+.tuile:active .tuile-fond { filter: brightness(0.97); }
+
 /* Paramètres : « Mes courses » et « Aide », au même format que sur l'accueil. */
 .set-tuiles { margin: 4px 0 18px; }
 .set-tuiles .tuile.grande .tuile-fond { aspect-ratio: 1 / 0.6; }

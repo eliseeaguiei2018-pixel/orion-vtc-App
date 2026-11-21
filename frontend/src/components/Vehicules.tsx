@@ -31,10 +31,10 @@ export const rendu = (nom: string): string => `${import.meta.env.BASE_URL}rendus
  *
  * Revenir à l'ancien accueil : `accueil: 'couleur'` dans src/main.tsx, rien d'autre.
  */
-export interface StyleOrion { icones: 'volume' | 'trait'; accueil: 'couleur' | 'nb' }
+export interface StyleOrion { icones: 'volume' | 'trait'; accueil: 'couleur' | 'nb' | 'urbain' }
 const style: StyleOrion = { icones: 'volume', accueil: 'couleur' };
 export function definirStyle(s: Partial<StyleOrion>): void { Object.assign(style, s); }
-const dossierAccueil = (): string => (style.accueil === 'nb' ? 'nb/' : '');
+const dossierAccueil = (): string => (style.accueil === 'couleur' ? '' : `${style.accueil}/`);
 
 /** Objets des services de l'accueil. */
 export type ObjetService =
@@ -89,7 +89,7 @@ export function Voiture({ modele = 'berline', peinture = 'accent', largeur = 120
   modele?: Modele; peinture?: Peinture; largeur?: number; phares?: boolean; accueil?: boolean;
 }) {
   const accent = useAccentSur();
-  if (accueil && style.accueil === 'nb') return <Rendu nom="nb/berline-orion" largeur={largeur} ratio={0.58} />;
+  if (accueil && style.accueil !== 'couleur') return <Rendu nom={`${dossierAccueil()}berline-orion`} largeur={largeur} ratio={0.58} />;
   return <Rendu nom={fichierVoiture(modele, peinture, accent)} largeur={largeur} ratio={0.58} />;
 }
 

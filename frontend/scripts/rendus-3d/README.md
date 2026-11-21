@@ -22,7 +22,25 @@ python publier.py /tmp/rendus ../../public/rendus
 Pour ajouter un objet : écrire une fonction décorée par `@rendu('nom')` dans `rendre.py`,
 avec les briques d'`orion3d.py`, puis l'afficher avec `<Objet nom="nom" />`.
 
-## Palette noir, gris et blanc (accueil de l'app cliente, depuis la version 1.5)
+## Palette urbaine (accueil de l'app cliente, depuis la version 1.5.1)
+
+`ORION_PALETTE=urbain` garde le studio à reflets doux de la palette noir, gris et blanc,
+mais rend aux matières leur couleur : carton et sacs en kraft, or de la carte et des
+alliances, cuir fauve de la selle et du porte-clés, pain doré, salade, tomate, feux
+rouges. Seules les teintes de la marque deviennent neutres (blanc cassé, anthracite,
+gris). C'est le registre des applications de transport : des objets clairs et doux, où
+la couleur vient de la matière et non d'une charte. Les neuf objets sont publiés dans
+`public/rendus/urbain/` ; l'app cliente les affiche sur des tuiles translucides.
+
+```bash
+ORION_PALETTE=urbain ECHANTILLONS=192 python rendre.py /tmp/rendus-urbain berline-orion scooter food achat supermarche colis abonnement location mariage
+python publier.py /tmp/rendus-urbain ../../public/rendus/urbain
+```
+
+Dans `rendre.py`, `o3.URBAIN` choisit les matières de cette palette objet par objet ; dans
+`orion3d.py`, `matiere(..., urbain='#RRGGBB')` impose une teinte pour elle seule.
+
+## Palette noir, gris et blanc (essai de la version 1.5)
 
 `ORION_PALETTE=nb` rend les mêmes modèles sans couleur : noir laqué, graphite, gris perle,
 céramique blanche, acier brossé. Le studio gagne une boîte à lumière au zénith et une
@@ -36,10 +54,11 @@ python publier.py /tmp/rendus-nb ../../public/rendus/nb
 ```
 
 L'app cliente choisit son style au démarrage, dans `src/main.tsx` :
-`definirStyle({ icones: 'trait', accueil: 'nb' })`. `accueil: 'couleur'` rétablit les objets
-vert, blanc et violet ; `icones: 'volume'` rétablit les icônes en volume des listes. Les
-autres interfaces (chauffeur, console, tableau de bord) n'appellent pas `definirStyle` et
-gardent les objets en couleur.
+`definirStyle({ icones: 'trait', accueil: 'urbain' })`. `accueil: 'nb'` rétablit les objets
+noir, gris et blanc, `accueil: 'couleur'` les objets vert, blanc et violet ;
+`icones: 'volume'` rétablit les icônes en volume des listes. Les autres interfaces
+(chauffeur, console, tableau de bord) n'appellent pas `definirStyle` et gardent les objets
+en couleur.
 
 ## Icônes des listes
 
