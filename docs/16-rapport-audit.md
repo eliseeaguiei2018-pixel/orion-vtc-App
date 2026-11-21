@@ -919,3 +919,15 @@ fluidité inchangée (1 carte, 1 recentrage, 14 recadrages), aucune erreur JavaS
 s'y lit sur le trajet d'essai de 5,4 km : 1 800 F en Argent, 2 500 F en Or, 3 500 F en Diamant
 (1 500, 2 200 et 3 200 F auparavant). Vérification automatique du dépôt verte sur l'envoi.
 
+### APK 1.5.6 : supplément retiré
+
+Le supplément fixe par course (essayé à 700 F puis à 300 F dans la 1.5.5) est entièrement
+retiré à la demande du fondateur : le code du serveur, de l'application et de la console revient
+à l'état de la 1.5.4, sans réglage `rideFee`. Les prix sont de nouveau ceux du barème et des zones :
+20,5 km au départ de Yopougon, Argent 3 700 F la nuit et 4 050 F en journée (Or 4 400 et 4 750 F,
+Diamant 5 400 et 5 750 F). Le test de parité application/serveur reste exact.
+
+`ORION-client-1.5.6.apk` : version 1.5.6, code 13, même signature, SHA-256
+`f2066b569c0a742ee703b6ec6f7c4e1bab40c10e43e957a74cfdd22e338a8fa6`, 167 fichiers web identiques au
+contenu construit, aucune trace du supplément.
+
