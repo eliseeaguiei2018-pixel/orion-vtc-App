@@ -385,3 +385,46 @@ Limites à connaître : le serveur n'est pas hébergé (il faut un compte chez u
 voir `DEPLOIEMENT.md`) ; tant que l'application n'y est pas reliée, les courses sont
 simulées et le SOS ne prévient aucun secours réel — il l'écrit à l'écran. Les données de
 Google Maps ne sont pas utilisées (conditions d'utilisation).
+
+## 13. Lien partageable : l'application ne s'ouvrait pas (21 novembre)
+
+**Constat.** Depuis la page partagée, « Ouvrir l'app client » menait à un écran vide. Les
+quatre autres interfaces aussi.
+
+**Cause.** La version web appelait ses fichiers par chemin absolu (`/assets/…`). Or la
+page partagée n'est pas servie à la racine d'un domaine mais dans un sous-dossier
+(`/_f/<version>/demo/`) : à la racine, ces fichiers n'existent pas, tout répondait 404 et
+rien ne démarrait. Les essais précédents servaient la même version à la racine d'un
+serveur local, où le défaut ne se voit pas.
+
+**Corrections.**
+
+| Fichier | Changement |
+|---|---|
+| `frontend/vite.config.ts` | Base **relative** par défaut pour toute version publiée (`./assets/…`) : la même construction s'ouvre à la racine, en sous-dossier, dans l'app Android/iOS et dans une page partagée. `VITE_BASE` reste possible (GitHub Pages). |
+| `frontend/src/stockageSur.ts` | Chargé en premier par les cinq points d'entrée. Si le navigateur refuse le stockage local dans un cadre (navigation privée, blocage des cookies tiers), la lecture de `localStorage` levait une erreur avant tout affichage : il est alors remplacé par une mémoire le temps de la visite. Sinon, rien n'est touché. |
+| `frontend/src/pwa.tsx` | L'enregistrement du service worker ne peut plus interrompre le démarrage dans un cadre isolé. |
+| `frontend/src/api.ts` | Après un refus du calcul d'itinéraire public, pas de nouvelle tentative pendant 30 s : le tracé de repli s'affiche tout de suite. |
+| `frontend/scripts/fumee-navigateurs.mjs` | 2e passe du test de fumée (CI, tous navigateurs) : les cinq interfaces servies **en sous-dossier, dans un cadre, stockage refusé**. Toute réapparition d'un chemin absolu fait échouer la CI. |
+
+**Vérifications.**
+
+- Panne reproduite à l'identique sur la version publiée avant correction (404 sur tous
+  les fichiers, écran vide), dans une copie du cadre : même sous-chemin, même politique
+  de sécurité (CSP), mêmes interdictions (géolocalisation).
+- Après correction, dans ce même cadre : clic sur « Ouvrir l'app client », inscription,
+  accueil (9 tuiles, 15 objets en volume), recherche « Riviera Golf », gammes et prix ;
+  puis app chauffeur, console, tableau de bord et écran de véhicule. Aucune erreur, avec
+  le stockage autorisé comme refusé.
+- Sur l'adresse réelle de la page republiée : les 52 fichiers appelés par les cinq pages
+  répondent 200, aucun chemin absolu.
+- Parcours complet de l'app client : 20 étapes sur 20.
+- Contre-épreuve : le nouveau test échoue bien sur une construction en chemins absolus.
+
+**Limite qui reste.** Dans la page partagée, le trajet est tracé en ligne droite : la
+page n'a pas le droit d'interroger le calcul d'itinéraire. Dans l'application installée,
+avec une connexion, il suit les routes. La page partagée l'indique.
+
+**Non vérifié.** L'ouverture dans la visionneuse elle-même, depuis un téléphone : cet
+environnement ne peut pas la charger (contrôle anti-robot). La vérification porte sur
+l'adresse qui sert les fichiers et sur une copie du cadre.

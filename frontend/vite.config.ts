@@ -2,13 +2,17 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 // L'URL de l'API backend est injectable (VITE_API_URL). En dev, proxy vers :3000.
-// `base` permet le déploiement en sous-chemin (GitHub Pages) via VITE_BASE.
+// `base` : RELATIF par défaut pour les versions publiées. Les pages appellent alors leurs
+// fichiers par « ./assets/… » et s'ouvrent partout : à la racine d'un domaine, dans un
+// sous-dossier, dans l'app Android/iOS, dans une page partagée. Avec des chemins absolus
+// (« /assets/… »), une publication en sous-dossier affichait un écran vide. VITE_BASE
+// reste possible (GitHub Pages) ; en développement, la base est « / ».
 // App native « ORION Chauffeur » (ORION_APP=chauffeur) : seule l'app chauffeur est
 // construite, dans dist-chauffeur (voir scripts/construire-app-chauffeur.mjs).
 const appChauffeur = process.env.ORION_APP === 'chauffeur';
 
-export default defineConfig({
-  base: process.env.VITE_BASE ?? '/',
+export default defineConfig(({ command }) => ({
+  base: process.env.VITE_BASE ?? (command === 'build' ? './' : '/'),
   plugins: [react()],
   // Multi-page : app cliente (index.html) + dashboard admin (admin.html)
   // + app chauffeur (driver.html).
@@ -45,4 +49,4 @@ export default defineConfig({
       '/api': { target: 'http://localhost:3000', changeOrigin: true, rewrite: (p) => p.replace(/^\/api/, '') },
     },
   },
-});
+}));

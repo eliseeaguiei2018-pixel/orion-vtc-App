@@ -1073,6 +1073,8 @@ export interface ItineraireRoute {
 }
 
 const cacheItineraires = new Map<string, Promise<ItineraireRoute | null>>();
+/** Dernier refus du calcul d'itinéraire public (hors connexion, page intégrée qui l'interdit). */
+let refusItinerairePublic = 0;
 
 /**
  * Itinéraire sur les vraies routes (ponts, échangeurs, sens de circulation). Passe par le
@@ -1088,6 +1090,8 @@ export function itineraire(points: LatLng[]): Promise<ItineraireRoute | null> {
       const r = await tryFetch<{ itineraire: ItineraireRoute }>('/maps/itineraire', { method: 'POST', body: JSON.stringify({ points }) }, 8000);
       if (r?.itineraire) return r.itineraire;
     }
+    // Après un refus, on n'insiste pas pendant 30 s : le tracé de repli s'affiche tout de suite.
+    if (Date.now() - refusItinerairePublic < 30_000) return null;
     try {
       const coords = points.map((q) => `${q.lng.toFixed(6)},${q.lat.toFixed(6)}`).join(';');
       const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true`, { signal: AbortSignal.timeout(8000) });
@@ -1104,6 +1108,7 @@ export function itineraire(points: LatLng[]): Promise<ItineraireRoute | null> {
         }))),
       };
     } catch {
+      refusItinerairePublic = Date.now();
       return null;
     }
   })();

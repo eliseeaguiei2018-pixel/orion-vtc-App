@@ -1,3 +1,4 @@
+import '../stockageSur';
 import React from 'react';
 import { enregistrerServiceWorker } from '../pwa';
 import ReactDOM from 'react-dom/client';

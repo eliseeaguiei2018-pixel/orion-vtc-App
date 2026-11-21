@@ -1,3 +1,4 @@
+import '../stockageSur';
 import '../polices.css';
 import { activerEcranVehicule } from './ecran';
 

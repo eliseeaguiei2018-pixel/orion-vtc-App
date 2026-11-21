@@ -24,7 +24,11 @@ function estEmballee(): boolean {
 export function enregistrerServiceWorker(): void {
   if (!import.meta.env.PROD || !('serviceWorker' in navigator) || estEmballee()) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => { /* navigation privée, stockage refusé : l'application marche sans */ });
+    // Dans un cadre isolé (page partagée, aperçu intégré), lire `navigator.serviceWorker`
+    // peut LEVER une erreur au lieu de renvoyer une promesse rejetée : on couvre les deux.
+    try {
+      navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => { /* navigation privée, stockage refusé : l'application marche sans */ });
+    } catch { /* cadre isolé : l'application marche sans service worker */ }
   });
 }
 
