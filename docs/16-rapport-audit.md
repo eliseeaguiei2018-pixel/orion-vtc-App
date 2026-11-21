@@ -428,3 +428,79 @@ avec une connexion, il suit les routes. La page partagée l'indique.
 **Non vérifié.** L'ouverture dans la visionneuse elle-même, depuis un téléphone : cet
 environnement ne peut pas la charger (contrôle anti-robot). La vérification porte sur
 l'adresse qui sert les fichiers et sur une copie du cadre.
+
+## 14. Version 1.3 : menu à trois traits, bulle GPS, Google Maps, recherche côté serveur (21 novembre)
+
+**Demandes.** Une icône sur la carte pour actualiser la position GPS avant et pendant la
+course ; la vraie carte Google Maps dans l'APK, pour les essais ; trois traits à la place
+des trois icônes en haut à droite, ouvrant le profil et toutes les rubriques ; des icônes
+de menu minimalistes, en traits noirs, dans des bulles, sur le modèle de la capture
+fournie ; un nouvel APK.
+
+### App cliente
+
+| Sujet | Ce qui a été fait |
+|---|---|
+| Trois traits | `App.tsx` : les trois boutons de l'en-tête (messages, avatar, engrenage) sont remplacés par un bouton à trois traits, de la couleur du texte. La pastille des messages non lus y est reportée. |
+| Menu | `CompteScreens.tsx` : avatar, nom, numéro vérifié ; quatre bulles (Mes courses, Aide, Adresses, Paramètres) ; trois groupes de lignes (icône, titre, explication, chevron). Les réglages eux-mêmes passent dans un écran « Paramètres », la sécurité et les adresses dans les leurs. |
+| Icônes | Traits noirs, fond transparent, ni ombre ni dégradé (`icons.tsx`, épaisseur 1,9). Les icônes secondaires de toute l'application sont posées dans des bulles translucides (`.bulle`). Le menu et ses écrans n'emploient plus la couleur d'accent : noir sur gris clair, clair sur graphite en mode sombre. |
+| Bulle GPS | `OrionMap.tsx`, `gpsCarte.ts`, `lieux.ts` : une bulle ronde sur la carte relit la position du téléphone (lecture fraîche, sans cache). **Avant la course**, le point de départ suit la nouvelle position et le prix est recalculé. **Pendant la course**, un repère « vous êtes ici » se déplace ; la course n'est pas modifiée. Refus de l'autorisation, GPS indisponible et position hors zone ont chacun leur message. |
+| Google Maps | `carteGoogle.ts`, `CarteGoogle.tsx`, `CarteFondScreen.tsx` : le moteur officiel de Google (Maps JavaScript API), pas une copie de ses images. Itinéraire, véhicule, départ, arrivée et repère GPS ORION sont posés dessus. Menu → Carte : choix du fond, saisie de la clé, **aperçu en direct** de la carte Google. |
+
+**Pourquoi une clé.** Google n'affiche sa carte dans une application qu'avec une clé
+d'API rattachée à un compte Google Cloud. Sans clé, il sert une carte assombrie marquée
+« For development purposes only ». Récupérer ses images sans passer par ce service est
+interdit par ses conditions d'utilisation : ce n'est pas fait. La clé n'est écrite ni
+dans le dépôt ni dans l'APK : le client la colle dans Menu → Carte, elle reste sur son
+téléphone (ou elle est fournie à la construction par `VITE_GOOGLE_MAPS_API_KEY`).
+
+**Clé refusée.** Sur un téléphone, il n'y a pas de console pour lire l'erreur de Google.
+L'écran Carte l'affiche donc en clair : clé inconnue ou expirée, service « Maps
+JavaScript API » non activé, clé limitée à d'autres sites (l'application Android charge
+la carte depuis `https://localhost/`), facturation non activée. Dans tous ces cas
+l'application repasse d'elle-même sur la carte ORION : la course n'est jamais bloquée
+par le fond de carte.
+
+### Serveur : recherche de lieux sur l'index enrichi
+
+L'app cliente, l'app chauffeur, la console et le tableau de bord cherchaient déjà dans
+l'index de 48 924 lieux livré avec elles. Le serveur, lui, ne connaissait que les
+communes et 449 quartiers : un client de l'API (écran de véhicule, constructeur,
+partenaire) n'obtenait pas les mêmes résultats.
+
+| Fichier | Changement |
+|---|---|
+| `backend/data/lieux-index.json.gz` | Le même index que celui des applications (0,7 Mo compressé). `npm run index-lieux` le recopie ; un test échoue si les deux copies divergent. |
+| `backend/src/modules/maps/index-lieux.ts` | Lecture unique, à la première recherche. Index absent ou illisible : la recherche garde communes et quartiers. |
+| `backend/src/modules/maps/geocodage.ts` | Le répertoire cherche aussi dans l'index. Un nom de catégorie (« pharmacie », « banque », « mosquée ») donne les lieux de cette catégorie les plus proches. Chaque résultat porte sa catégorie et son quartier ; 12 résultats au plus, sans doublon à moins de 300 m. |
+| `backend/Dockerfile` | L'image du serveur embarque l'index. |
+
+### Vérifications
+
+- Serveur : 391 tests, 389 réussis, 0 échec (2 tests SQLite ignorés, comme avant). 6
+  nouveaux tests sur la recherche.
+- App cliente, sur le contenu exact de l'APK : parcours complet 20 étapes sur 20 ;
+  parcours 1.3 (trois traits, menu, bulles, écrans du menu, bulle GPS avant et pendant
+  la course) 9 étapes sur 9 en clair sur la carte ORION, en clair et en sombre sur
+  Google Maps ; écran Carte 5 étapes sur 5 (aperçu Google, clé refusée avec son motif,
+  retour à la carte ORION, clé effacée).
+- Test de fumée des cinq interfaces : 12 passages sur 12, dont l'ouverture en
+  sous-dossier, dans un cadre, stockage refusé.
+- Textes : 783 clés, toutes traduites dans les huit langues.
+- APK 1.3.0 : `ci.orion.app`, version 4, même signature que les précédents (il s'installe
+  par-dessus). Les 39 fichiers web qu'il contient sont identiques, octet pour octet, à
+  la version testée. Aucune clé Google dedans.
+
+### Limites
+
+- **Google Maps avec une vraie clé n'a pas été vérifié.** Les essais ont porté sur la
+  carte sans clé (celle que Google marque « For development purposes only ») et sur une
+  clé volontairement fausse. L'affichage net dépend d'une clé valide, que seul le
+  titulaire du compte Google Cloud peut créer.
+- **Rien n'a été essayé sur un téléphone.** Les parcours tournent dans le moteur de
+  Chrome, celui de l'application Android, pas sur un appareil.
+- **Position du client pendant la course.** Elle est actualisée sur le téléphone du
+  client. Reliée à un serveur, l'application ne la transmet pas encore au chauffeur ni
+  au centre de contrôle.
+- **Google Maps ne fonctionne qu'avec une connexion.** Sans réseau, la carte ORION,
+  livrée dans l'application, prend le relais.
