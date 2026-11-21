@@ -365,3 +365,23 @@ client d'appeler les secours, un bouton Appeler qui ouvre le téléphone, et un 
   disparaissait à la compilation (seule la forme préfixée survivait, que Chrome et Android
   ignorent). Le voile du contrôle de sécurité restait donc flouté. Corrigé et vérifié dans le
   fichier compilé.
+
+### Vérifications de la version 1.2
+
+| Contrôle | Résultat |
+|---|---|
+| Tests du serveur (`npm test`) | 383 réussis, 0 échec, 2 ignorés |
+| Traductions (`npm run check:langues`) | 739 textes couverts dans les 8 langues |
+| Scénario SOS et contrôle de sécurité (navigateur piloté) | 9 étapes sur 9, aucune erreur JavaScript |
+| Parcours complet sur le contenu exact de l'APK | 20 étapes sur 20 : inscription, course, partage, SOS, paiement, historique, assurance, abonnement, portefeuille, aide, location, mariage, suppression du compte |
+| Animations de l'accueil | 9 objets en mouvement ; 0 quand le téléphone demande moins d'animations |
+| Application reliée à un vrai serveur local | liaison depuis les paramètres, course, numéro du chauffeur, SOS, reprise par un opérateur (passé avant la refonte graphique, non rejoué depuis) |
+| APK `ORION-client-1.2.0.apk` | version 1.2.0 (code 3), 26,4 Mo, même certificat que la version précédente ; SHA-256 `a503ec01728e2c48e2ad03e77b65d10eb3b128754fee65a9cf893a3496643f51` |
+
+Non rejoué sur cette version : le robot qui touche chaque bouton (dernier passage sur la
+version 1.1). L'intégration continue GitHub reste à l'arrêt (facturation du compte).
+
+Limites à connaître : le serveur n'est pas hébergé (il faut un compte chez un hébergeur,
+voir `DEPLOIEMENT.md`) ; tant que l'application n'y est pas reliée, les courses sont
+simulées et le SOS ne prévient aucun secours réel — il l'écrit à l'écran. Les données de
+Google Maps ne sont pas utilisées (conditions d'utilisation).
