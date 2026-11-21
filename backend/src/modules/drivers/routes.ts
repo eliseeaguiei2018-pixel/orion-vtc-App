@@ -13,7 +13,7 @@ import { ajouterPoint } from '../rides/simulator.js';
 
 const registerSchema = z.object({
   name: z.string().min(1),
-  category: z.string().default('bronze'),
+  category: z.string().default('argent'),
   /**
    * Numéro du chauffeur. Il était impossible à renseigner à la création : seuls les
    * chauffeurs inscrits eux-mêmes par OTP en avaient un, et la console affichait les

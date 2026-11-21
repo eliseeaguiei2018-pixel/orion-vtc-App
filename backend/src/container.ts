@@ -507,9 +507,9 @@ export async function seedDemoDrivers(c: Container): Promise<void> {
   // sans téléphone donne un « n° inconnu » qui ne sert à personne — y compris en
   // développement, où c'est précisément ce qu'on veut pouvoir vérifier.
   const seeds: Array<{ name: string; lat: number; lng: number; category: string; phone: string }> = [
-    { name: 'Konan Yao', lat: 5.3258, lng: -4.0205, category: 'bronze', phone: '+2250701020304' },
-    { name: 'Awa Diomandé', lat: 5.331, lng: -4.012, category: 'bronze', phone: '+2250702030405' },
-    { name: 'Aïcha Touré', lat: 5.3585, lng: -3.989, category: 'argent', phone: '+2250703040506' },
+    { name: 'Konan Yao', lat: 5.3258, lng: -4.0205, category: 'argent', phone: '+2250701020304' },
+    { name: 'Awa Diomandé', lat: 5.331, lng: -4.012, category: 'argent', phone: '+2250702030405' },
+    { name: 'Aïcha Touré', lat: 5.3585, lng: -3.989, category: 'or', phone: '+2250703040506' },
     { name: 'Ismaël Cissé', lat: 5.347, lng: -3.999, category: 'argent', phone: '+2250704050607' },
     { name: 'Mamadou Bamba', lat: 5.3402, lng: -4.0095, category: 'or', phone: '+2250705060708' },
     { name: 'Grace Kouamé', lat: 5.353, lng: -3.995, category: 'or', phone: '+2250706070809' },

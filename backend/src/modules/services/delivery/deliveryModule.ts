@@ -29,10 +29,10 @@ export const DEFAULT_PACKAGE = 'moyen';
  * Barème coursier (F CFA) — distinct de celui des voitures et DÉLIBÉRÉMENT moins cher.
  *
  * Le barème hérité de la maquette faisait payer une livraison 22 à 30 % de PLUS qu'une
- * course bronze sur le même trajet, ce qui est commercialement à l'envers : une moto
+ * course Argent sur le même trajet, ce qui est commercialement à l'envers : une moto
  * transportant un colis coûte moins cher à exploiter qu'une voiture transportant une
  * personne, et le client n'occupe pas le véhicule. Le barème vise désormais environ
- * 70 % du prix d'une course bronze, le plancher protégeant les très courtes distances.
+ * 70 % du prix d'une course Argent, le plancher protégeant les très courtes distances.
  */
 export const DELIVERY_TARIFF = {
   baseFare: 220,

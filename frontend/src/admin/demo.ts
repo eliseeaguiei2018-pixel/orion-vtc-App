@@ -10,15 +10,15 @@ import type {
 const iso = (minAgo: number) => new Date(Date.now() - minAgo * 60000).toISOString();
 
 const fleet: FleetUnit[] = [
-  { id: 'd1', name: 'Konan Yao', matricule: 'ORION-CI-1042', category: 'bronze', availability: 'online', lat: 5.3258, lng: -4.0205 },
-  { id: 'd2', name: 'Awa Diomandé', matricule: 'ORION-CI-2210', category: 'bronze', availability: 'on_trip', lat: 5.331, lng: -4.012 },
+  { id: 'd1', name: 'Konan Yao', matricule: 'ORION-CI-1042', category: 'argent', availability: 'online', lat: 5.3258, lng: -4.0205 },
+  { id: 'd2', name: 'Awa Diomandé', matricule: 'ORION-CI-2210', category: 'argent', availability: 'on_trip', lat: 5.331, lng: -4.012 },
   { id: 'd3', name: 'Aïcha Touré', matricule: 'ORION-CI-1207', category: 'argent', availability: 'online', lat: 5.3585, lng: -3.989 },
   { id: 'd4', name: 'Ismaël Cissé', matricule: 'ORION-CI-3391', category: 'argent', availability: 'on_trip', lat: 5.347, lng: -3.999 },
   { id: 'd5', name: 'Mamadou Bamba', matricule: 'ORION-CI-9034', category: 'or', availability: 'online', lat: 5.3402, lng: -4.0095 },
   { id: 'd6', name: 'Grace Kouamé', matricule: 'ORION-CI-5567', category: 'or', availability: 'online', lat: 5.353, lng: -3.995 },
   { id: 'd7', name: 'Fatou Koné', matricule: 'ORION-CI-7788', category: 'diamant', availability: 'on_trip', lat: 5.301, lng: -3.998 },
   { id: 'd8', name: 'Serge Aka', matricule: 'ORION-CI-4820', category: 'diamant', availability: 'online', lat: 5.3265, lng: -4.0185 },
-  { id: 'd9', name: 'Yao N’Guessan', matricule: 'ORION-CI-6120', category: 'bronze', availability: 'online', lat: 5.362, lng: -4.02 },
+  { id: 'd9', name: 'Yao N’Guessan', matricule: 'ORION-CI-6120', category: 'argent', availability: 'online', lat: 5.362, lng: -4.02 },
   { id: 'd10', name: 'Adjoua Brou', matricule: 'ORION-CI-3055', category: 'argent', availability: 'online', lat: 5.312, lng: -3.978 },
 ];
 
@@ -110,7 +110,7 @@ const overview: Overview = {
 const pricing = {
   baseFare: 300, perKm: 130, perMinute: 18, minFare: 600, avgSpeedKmh: 24,
   tvaRate: 0.05, feeRate: 0.1, insuranceRate: 0.02, trafficWeight: 0.6, stopFee: 250,
-  multipliers: { bronze: 0.9, argent: 1.25, or: 1.7, diamant: 2.3 },
+  multipliers: { argent: 0.9, or: 0.9, diamant: 0.9 }, supplements: { argent: 0, or: 700, diamant: 1700 },
   bodySurcharge: { berline: 1, suv: 1.08 },
   freeWaitMinutes: 5, cancelGraceMinutes: 2, cancelFee: 500, cleaningLight: 10000, cleaningMajor: 50000,
   longPickupPerKm: 100, longPickupThresholdKm: 5,
@@ -278,7 +278,7 @@ function copilot(q: string) {
   }
   if (/flotte|chauffeur/.test(s)) {
     return { query: q, incompris: false, sources: ['drivers', 'dispatch'], data: null,
-      answer: '10 chauffeur(s) enregistré(s) : 8 en ligne, 4 en course. Répartition des disponibles : bronze 2, argent 3, or 2, diamant 1.' };
+      answer: '10 chauffeur(s) enregistré(s) : 8 en ligne, 4 en course. Répartition des disponibles : argent 5, or 2, diamant 1.' };
   }
   if (/chiffre|revenu|ca\b|commission|gmv|tva|caisse|trésor|tresor/.test(s)) {
     return { query: q, incompris: false, sources: ['direction', 'finance'], data: null,
@@ -504,7 +504,7 @@ const audit = [
 
 const finance = {
   currency: 'XOF', gmv: 1263500, revenue: 1263500, commission: 227430, earnings: 1036070, payouts: 640000,
-  byTier: { bronze: { count: 62, revenue: 214000 }, argent: { count: 34, revenue: 268000 }, or: { count: 21, revenue: 372500 }, diamant: { count: 9, revenue: 289000 }, livraison: { count: 22, revenue: 120000 } },
+  byTier: { argent: { count: 96, revenue: 482000 }, or: { count: 21, revenue: 372500 }, diamant: { count: 9, revenue: 289000 }, livraison: { count: 22, revenue: 120000 } },
 };
 
 const broadcasts = [
@@ -671,9 +671,9 @@ const rentalStats: RentalStats = {
 };
 
 const subPlans: SubPlanRow[] = [
-  { id: 'bronze', label: 'Pack Bronze', ridesPerDay: 2, monthlyPrice: 25000, perRideCap: 2500, tiers: ['bronze', 'argent'], remiseHorsQuota: 0, remiseLocation: 0, accent: '#cd7f4d', benefits: ['2 courses incluses / jour', 'Niveaux Bronze & Argent'] },
-  { id: 'argent', label: 'Pack Argent', ridesPerDay: 3, monthlyPrice: 38000, perRideCap: 3500, tiers: ['bronze', 'argent', 'or'], remiseHorsQuota: 0.1, remiseLocation: 0.05, accent: '#c8d2dc', benefits: ['3 courses incluses / jour', 'Niveaux jusqu’à Or', '-10 % au-delà du quota'] },
-  { id: 'gold', label: 'Pack Gold', ridesPerDay: 4, monthlyPrice: 55000, perRideCap: 5000, tiers: ['bronze', 'argent', 'or', 'diamant'], remiseHorsQuota: 0.15, remiseLocation: 0.1, accent: '#f5c451', benefits: ['4 courses incluses / jour', 'Tous les niveaux', '-15 % au-delà du quota', 'Annulation gratuite'] },
+  { id: 'bronze', label: 'Pack Bronze', ridesPerDay: 2, monthlyPrice: 25000, perRideCap: 2500, tiers: ['argent'], remiseHorsQuota: 0, remiseLocation: 0, accent: '#cd7f4d', benefits: ['2 courses incluses / jour', 'Niveaux Bronze & Argent'] },
+  { id: 'argent', label: 'Pack Argent', ridesPerDay: 3, monthlyPrice: 38000, perRideCap: 3500, tiers: ['argent', 'or'], remiseHorsQuota: 0.1, remiseLocation: 0.05, accent: '#c8d2dc', benefits: ['3 courses incluses / jour', 'Niveaux jusqu’à Or', '-10 % au-delà du quota'] },
+  { id: 'gold', label: 'Pack Gold', ridesPerDay: 4, monthlyPrice: 55000, perRideCap: 5000, tiers: ['argent', 'or', 'diamant'], remiseHorsQuota: 0.15, remiseLocation: 0.1, accent: '#f5c451', benefits: ['4 courses incluses / jour', 'Tous les niveaux', '-15 % au-delà du quota', 'Annulation gratuite'] },
 ];
 
 const subscriptions: SubscriptionRow[] = [

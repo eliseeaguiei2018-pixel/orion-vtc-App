@@ -6,7 +6,7 @@ const AUTH = { 'x-admin-token': 'orion-admin-dev' };
 
 /** Crée un chauffeur en ligne à la position donnée. */
 async function driverAt(app: Awaited<ReturnType<typeof buildApp>>['app'], name: string, lat: number, lng: number) {
-  const res = await app.inject({ method: 'POST', url: '/drivers', payload: { name, category: 'bronze' } });
+  const res = await app.inject({ method: 'POST', url: '/drivers', payload: { name, category: 'argent' } });
   const id = res.json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${id}/online`, payload: { position: { lat, lng } } });
   return id;
@@ -16,7 +16,7 @@ async function driverAt(app: Awaited<ReturnType<typeof buildApp>>['app'], name: 
 async function createRide(app: Awaited<ReturnType<typeof buildApp>>['app'], clientId: string) {
   const est = await app.inject({
     method: 'POST', url: '/pricing/estimate',
-    payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'bronze' },
+    payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'argent' },
   });
   const lockId = est.json().quote.lockId as string;
   const res = await app.inject({ method: 'POST', url: '/rides', payload: { clientId, lockId }, headers: { 'idempotency-key': `${clientId}-${lockId}` } });
@@ -202,7 +202,7 @@ test('dispatch avancé : filtre ETA, cascade (bornes 10–15 s), surge plafonné
   // → demande > offre ×2 → ×1.5 brut, PLAFONNÉ à 1.3 (incitation verte).
   const est = () => app.inject({
     method: 'POST', url: '/pricing/estimate',
-    payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'bronze' },
+    payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'argent' },
   });
   let last = await est();
   for (let i = 0; i < 5; i++) last = await est();
@@ -221,10 +221,10 @@ test('micro-zonage : standard minimal, frais de secteur, cantonnement, attente 1
   t.after(() => app.close());
 
   // --- Standard minimal : Riviera Beverly Hills exige ≥ or.
-  const bronzeBH = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Bronze BH', category: 'bronze' } });
+  const bronzeBH = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Bronze BH', category: 'argent' } });
   const bronzeId = bronzeBH.json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${bronzeId}/online`, payload: { position: { lat: 5.3808, lng: -3.9611 } } });
-  const estBH = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.3808, lng: -3.9611 }, destination: { lat: 5.35, lng: -4.0 }, category: 'bronze' } });
+  const estBH = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.3808, lng: -3.9611 }, destination: { lat: 5.35, lng: -4.0 }, category: 'argent' } });
   const lockBH = estBH.json().quote.lockId as string;
   const rideBH = await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-bh', lockId: lockBH }, headers: { 'idempotency-key': 'bh-1' } });
   assert.equal(rideBH.json().ride.status, 'no_driver', 'bronze refusé dans un secteur ≥ or');
@@ -246,7 +246,7 @@ test('micro-zonage : standard minimal, frais de secteur, cantonnement, attente 1
   await app.inject({ method: 'POST', url: `/admin/drivers/${bronzeId}/zone`, headers: AUTH, payload: { zoneId: 'riviera-beverly-hills' } });
   // (bronzeId est le seul bronze en ligne) Course à Yopougon → aucun chauffeur.
   await app.inject({ method: 'POST', url: `/drivers/${bronzeId}/location`, payload: { position: { lat: 5.3456, lng: -4.0864 } } });
-  const estYop = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.3456, lng: -4.0864 }, destination: { lat: 5.35, lng: -4.0 }, category: 'bronze' } });
+  const estYop = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.3456, lng: -4.0864 }, destination: { lat: 5.35, lng: -4.0 }, category: 'argent' } });
   const rideYop = await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-yop', lockId: estYop.json().quote.lockId }, headers: { 'idempotency-key': 'yop-1' } });
   assert.equal(rideYop.json().ride.status, 'no_driver', 'cantonné à Beverly Hills → indisponible à Yopougon');
 

@@ -1,5 +1,6 @@
 import type { GeoIndex, LatLng } from '../../core/geo.js';
 import type { DriverStore, Driver } from '../drivers/store.js';
+import { TIER_RANK } from '../fleet/catalog.js';
 
 /** Catégorie de flotte des coursiers (livraison à moto). */
 export const CATEGORIE_COURSIER = 'moto';
@@ -39,8 +40,7 @@ export interface DispatchContext {
   greenPriority?: boolean;
 }
 
-/** Rang des niveaux (standard minimal de secteur). */
-const TIER_RANK: Record<string, number> = { bronze: 0, argent: 1, or: 2, diamant: 3 };
+/* Rang des gammes (standard minimal de secteur) : TIER_RANK du catalogue de la flotte. */
 
 /** Vitesse d'approche urbaine présumée pour l'ETA chauffeur (km/h). */
 const APPROACH_SPEED_KMH = 28;

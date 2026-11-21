@@ -22,7 +22,7 @@ async function appDriver(app: FastifyInstance, phone: string, name: string, pos 
 }
 
 async function order(app: FastifyInstance, key: string) {
-  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: ORIGIN, destination: DEST, category: 'bronze' } });
+  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: ORIGIN, destination: DEST, category: 'argent' } });
   const r = await app.inject({ method: 'POST', url: '/rides', headers: { 'idempotency-key': key }, payload: { clientId: `client-${key}`, lockId: est.json().quote.lockId } });
   assert.equal(r.statusCode, 201, r.body);
   return r.json().ride as { id: string; status: string; driverId?: string };
@@ -165,7 +165,7 @@ test('Simulateur : les chauffeurs équipés de l’app ne sont jamais simulés',
   const rides = new RideStore(createRepository('rides-sim-test'));
   const mk = (id: string, driverId: string) => rides.save({
     id, clientId: 'c', driverId, serviceType: 'ride', status: 'accepted', origin: ORIGIN, destination: DEST,
-    quote: { lockId: id, serviceType: 'ride', category: 'bronze', amount: 1000, currency: 'XOF', origin: ORIGIN, destination: DEST, distanceMeters: 1000, etaSeconds: 60, trafficLevel: 'fluid', breakdown: { base: 0, distance: 0, time: 0, surge: 1, traffic: 0, discount: 0, subtotal: 0, tva: 0, fee: 0, insurance: 0 }, expiresAt: new Date().toISOString() },
+    quote: { lockId: id, serviceType: 'ride', category: 'argent', amount: 1000, currency: 'XOF', origin: ORIGIN, destination: DEST, distanceMeters: 1000, etaSeconds: 60, trafficLevel: 'fluid', breakdown: { base: 0, distance: 0, time: 0, surge: 1, traffic: 0, discount: 0, subtotal: 0, tva: 0, fee: 0, insurance: 0 }, expiresAt: new Date().toISOString() },
     events: [], createdAt: new Date().toISOString(),
   });
   const sim = new RideSimulator(rides, new RealtimeHub(), { enabled: true, tickMs: 1000, enrouteMs: 5000, tripMs: 5000 });

@@ -17,7 +17,7 @@ export interface TravelPolicy {
   /** Zones autorisées (ids de zones console) ; vide = toutes. */
   zoneIds?: string[];
   /** Gamme maximale autorisée pour les employés standard. */
-  maxTier?: 'bronze' | 'argent' | 'or' | 'diamant';
+  maxTier?: 'argent' | 'or' | 'diamant';
 }
 
 export interface CorporateAccount {

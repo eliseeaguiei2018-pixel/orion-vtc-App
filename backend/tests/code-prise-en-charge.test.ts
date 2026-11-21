@@ -27,7 +27,7 @@ async function passager(app: FastifyInstance, phone: string, name: string) {
   return { id: v.client.id as string, h: { authorization: `Bearer ${v.token}` } };
 }
 
-async function commander(app: FastifyInstance, client: { id: string; h: Record<string, string> }, cle: string, extra: Record<string, unknown> = { category: 'bronze' }) {
+async function commander(app: FastifyInstance, client: { id: string; h: Record<string, string> }, cle: string, extra: Record<string, unknown> = { category: 'argent' }) {
   const q = (await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: ORIGIN, destination: DEST, ...extra } })).json().quote;
   const r = await app.inject({ method: 'POST', url: '/rides', headers: { 'idempotency-key': cle, ...client.h }, payload: { clientId: client.id, lockId: q.lockId } });
   assert.equal(r.statusCode, 201, r.body);

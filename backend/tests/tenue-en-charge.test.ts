@@ -17,7 +17,7 @@ const AUTH = { 'x-admin-token': 'orion-admin-dev' };
 
 function course(i: number, driverId: string, status: Ride['status']): Ride {
   const quote = {
-    lockId: `l${i}`, serviceType: 'course', category: 'bronze',
+    lockId: `l${i}`, serviceType: 'course', category: 'argent',
     origin: { lat: 5.32, lng: -4.02 }, destination: { lat: 5.36, lng: -3.99 },
     amount: 1500, currency: 'XOF', distanceMeters: 5000, etaSeconds: 900, trafficLevel: 'dense',
     breakdown: { base: 300, distance: 650, time: 200, surge: 1, traffic: 0, discount: 0, subtotal: 1150, tva: 58, fee: 115, insurance: 0 },
@@ -32,7 +32,7 @@ test('équipages : une passe par source, plus de blocage avec des milliers de ch
   const { app, container } = await buildApp();
   t.after(() => app.close());
   for (let i = 0; i < 3000; i++) {
-    container.drivers.upsert({ id: `drv-${i}`, name: `Chauffeur ${i}`, matricule: `ORION-CI-${10000 + i}`, kycStatus: 'active', availability: 'online', category: 'bronze', ratingAvg: 4.8, ratingCount: 10 } as never);
+    container.drivers.upsert({ id: `drv-${i}`, name: `Chauffeur ${i}`, matricule: `ORION-CI-${10000 + i}`, kycStatus: 'active', availability: 'online', category: 'argent', ratingAvg: 4.8, ratingCount: 10 } as never);
   }
   for (let i = 0; i < 3000; i++) container.rides.save(course(i, `drv-${i % 1000}`, i % 2 ? 'completed' : 'in_progress'));
 
@@ -53,7 +53,7 @@ test('tableau de bord : au-delà de 400 véhicules, la carte passe en points com
   const { app, container } = await buildApp();
   t.after(() => app.close());
   for (let i = 0; i < 450; i++) {
-    const d = container.drivers.upsert({ id: `masse-${i}`, name: `C ${i}`, matricule: `M-${i}`, kycStatus: 'active', availability: 'offline', category: 'bronze', ratingAvg: 4.8, ratingCount: 10 } as never);
+    const d = container.drivers.upsert({ id: `masse-${i}`, name: `C ${i}`, matricule: `M-${i}`, kycStatus: 'active', availability: 'offline', category: 'argent', ratingAvg: 4.8, ratingCount: 10 } as never);
     await container.drivers.goOnline(d.id, { lat: 5.3 + (i % 30) * 0.003, lng: -4.05 + Math.floor(i / 30) * 0.004 });
   }
   const etat = (await app.inject({ method: 'GET', url: '/admin/dashboard', headers: AUTH })).json();

@@ -304,7 +304,7 @@ export function createDemoBackend(): DriverBackend {
         st.phone = full;
         st.driver = {
           id: `drv-${uid()}`, name, matricule: `ORION-CI-${Math.floor(1000 + Math.random() * 9000)}`,
-          kycStatus: 'draft', availability: 'offline', category: category ?? 'bronze', ratingAvg: 0, ratingCount: 0,
+          kycStatus: 'draft', availability: 'offline', category: category ?? 'argent', ratingAvg: 0, ratingCount: 0,
           phone: full, engine: 'electric', batteryPct: 82, appLinkedAt: now(), electricRides: 0,
         };
         // Petit historique de bienvenue (bonus d'activation).

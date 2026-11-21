@@ -37,10 +37,10 @@ const PRENOMS = ['Aya', 'Konan', 'Awa', 'Yao', 'Fatou', 'Koffi', 'Mariam', 'Ibra
 const NOMS = ['Kouassi', 'Yao', 'Koné', 'Traoré', 'Ouattara', 'Coulibaly', 'Diallo', 'Bamba', 'Kouamé', 'Touré', 'Cissé', 'Diomandé', 'Kouadio',
   'N’Guessan', 'Assi', 'Gbagbo', 'Sanogo', 'Doumbia', 'Aka', 'Brou', 'Tanoh', 'Konaté', 'Soro', 'Fofana'];
 
-/** Gammes de la flotte de test : la moto (livraison) en plus des quatre niveaux de course. */
+/** Gammes de la flotte de test : la moto (livraison) en plus des trois gammes de course. */
 const GAMMES: Array<{ categorie: string; poids: number }> = [
-  { categorie: 'bronze', poids: 40 }, { categorie: 'argent', poids: 24 }, { categorie: 'or', poids: 12 },
-  { categorie: 'diamant', poids: 6 }, { categorie: 'moto', poids: 18 },
+  { categorie: 'argent', poids: 58 }, { categorie: 'or', poids: 16 },
+  { categorie: 'diamant', poids: 8 }, { categorie: 'moto', poids: 18 },
 ];
 
 const tirer = <T extends { poids: number }>(liste: T[], total = liste.reduce((s, x) => s + x.poids, 0)): T => {

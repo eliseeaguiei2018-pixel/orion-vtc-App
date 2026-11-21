@@ -25,14 +25,14 @@ test('Passager et chauffeur obtiennent le numéro de l’autre, et personne d’
   const { app, container } = await buildApp();
   t.after(() => app.close());
 
-  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Konan Yao', category: 'bronze', phone: '+225 07 11 22 33 44' } });
+  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Konan Yao', category: 'argent', phone: '+225 07 11 22 33 44' } });
   const driverId = drv.json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${driverId}/online`, payload: { position: { lat: 5.324, lng: -4.021 } } });
   container.clients.touch('client-appel', { name: 'Awa Koné', phone: '05 55 66 77 88' });
 
   const est = await app.inject({
     method: 'POST', url: '/pricing/estimate',
-    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9876 }, category: 'bronze', clientId: 'client-appel' },
+    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9876 }, category: 'argent', clientId: 'client-appel' },
   });
   const ride = await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-appel', lockId: est.json().quote.lockId } });
   const r = ride.json().ride;

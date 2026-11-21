@@ -173,7 +173,7 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
     currency: 'XOF',
     docs: '/docs (voir le dossier docs/ du dépôt)',
     services: container.registry.list(),
-    tiers: ['bronze', 'argent', 'or', 'diamant'],
+    tiers: ['argent', 'or', 'diamant'],
     features: ['geo-ci', 'mobile-money', 'safety-samu', 'realtime-ws', 'live-tracking', 'wallet-commissions', 'subscriptions', 'wedding-rental', 'rental-signature', 'rental-corporate', 'rental-hourly', 'multi-country', 'insurance', 'trusted-contact-share', 'in-app-call', 'biometric-ready', 'google-maps-ready', 'admin-dashboard', 'samu-supervision'],
   }));
 

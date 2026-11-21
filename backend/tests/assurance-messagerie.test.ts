@@ -87,7 +87,7 @@ test('commande : l’option à 2 % exige l’inscription (gratuite) au dossier',
   const aya = await inscrire(app, 'client-aya', '0711111111');
   const devis = (insurance: boolean) => app.inject({
     method: 'POST', url: '/pricing/estimate',
-    payload: { origin: ABIDJAN, destination: { lat: 5.36, lng: -3.99 }, category: 'bronze', insurance, clientId: 'client-aya' },
+    payload: { origin: ABIDJAN, destination: { lat: 5.36, lng: -3.99 }, category: 'argent', insurance, clientId: 'client-aya' },
   });
   const refus = await devis(true);
   assert.equal(refus.statusCode, 409);

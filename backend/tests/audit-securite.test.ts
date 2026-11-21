@@ -75,12 +75,12 @@ test('S2 · courses d’un compte inscrit : annulation et aperçu exigent sa ses
   const { app, container } = await buildApp();
   t.after(() => app.close());
   compte(container, 'cli-bintou', 'Bintou', '+2250700000003');
-  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.3237, lng: -4.0186 }, destination: { lat: 5.3540, lng: -3.989 }, category: 'bronze', clientId: 'cli-bintou' } });
+  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.3237, lng: -4.0186 }, destination: { lat: 5.3540, lng: -3.989 }, category: 'argent', clientId: 'cli-bintou' } });
   assert.equal(est.statusCode, 200, est.body);
   const lockId = est.json().quote?.lockId ?? est.json().lockId;
-  const sans = await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'cli-bintou', lockId, origin: { lat: 5.3237, lng: -4.0186 }, destination: { lat: 5.354, lng: -3.989 }, category: 'bronze', paymentMethod: 'cash' } });
+  const sans = await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'cli-bintou', lockId, origin: { lat: 5.3237, lng: -4.0186 }, destination: { lat: 5.354, lng: -3.989 }, category: 'argent', paymentMethod: 'cash' } });
   assert.equal(sans.statusCode, 401, `commande sans session : ${sans.statusCode}`);
-  const cree = await app.inject({ method: 'POST', url: '/rides', headers: session('cli-bintou'), payload: { clientId: 'cli-bintou', lockId, origin: { lat: 5.3237, lng: -4.0186 }, destination: { lat: 5.354, lng: -3.989 }, category: 'bronze', paymentMethod: 'cash' } });
+  const cree = await app.inject({ method: 'POST', url: '/rides', headers: session('cli-bintou'), payload: { clientId: 'cli-bintou', lockId, origin: { lat: 5.3237, lng: -4.0186 }, destination: { lat: 5.354, lng: -3.989 }, category: 'argent', paymentMethod: 'cash' } });
   assert.equal(cree.statusCode, 201, cree.body);
   const id = cree.json().ride.id as string;
   const apercu = await app.inject({ method: 'GET', url: `/rides/${id}/cancel-preview?clientId=cli-bintou` });

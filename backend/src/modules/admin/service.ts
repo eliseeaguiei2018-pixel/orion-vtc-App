@@ -671,14 +671,15 @@ export class AdminService {
   pricingMatrixCsv(): string {
     const p = this.c.settings.getPricing();
     const zones = this.c.settings.getZones();
-    const cats = Object.keys(p.multipliers ?? { bronze: 1 });
-    const head = 'zone,facteur_zone,frais_prise_en_charge,categorie,multiplicateur,base_fcfa,par_km,par_min,exemple_5km_15min';
+    const cats = Object.keys(p.multipliers ?? { argent: 1 });
+    const head = 'zone,facteur_zone,frais_prise_en_charge,categorie,multiplicateur,supplement_gamme,base_fcfa,par_km,par_min,exemple_5km_15min';
     const rows: string[] = [];
     for (const z of zones) {
       for (const cat of cats) {
         const mult = (p.multipliers as Record<string, number>)[cat] ?? 1;
-        const example = Math.round((p.baseFare + 5 * p.perKm + 15 * p.perMinute) * mult * z.factor + (z.pickupFee ?? 0));
-        rows.push([z.name.replace(/,/g, ' '), z.factor, z.pickupFee ?? 0, cat, mult, p.baseFare, p.perKm, p.perMinute, example].join(','));
+        const supp = (p.supplements as Record<string, number> | undefined)?.[cat] ?? 0;
+        const example = Math.round((p.baseFare + 5 * p.perKm + 15 * p.perMinute) * mult * z.factor + (z.pickupFee ?? 0)) + supp;
+        rows.push([z.name.replace(/,/g, ' '), z.factor, z.pickupFee ?? 0, cat, mult, supp, p.baseFare, p.perKm, p.perMinute, example].join(','));
       }
     }
     return [head, ...rows].join('\n');
@@ -1376,7 +1377,7 @@ export class AdminService {
         lng: e.lng,
         name: d?.name ?? 'Chauffeur',
         matricule: d?.matricule ?? null,
-        category: (e.meta?.category as string) ?? d?.category ?? 'bronze',
+        category: (e.meta?.category as string) ?? d?.category ?? 'argent',
         availability: d?.availability ?? 'online',
       };
     });

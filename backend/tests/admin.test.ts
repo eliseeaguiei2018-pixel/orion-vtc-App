@@ -15,7 +15,7 @@ test('admin : overview + drivers avec jeton', async (t) => {
   const { app, container } = await buildApp();
   t.after(() => app.close());
 
-  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Awa', category: 'bronze' } });
+  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Awa', category: 'argent' } });
   const driverId = drv.json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${driverId}/online`, payload: { position: { lat: 5.324, lng: -4.021 } } });
 
@@ -131,11 +131,11 @@ test('admin : zone factor modifie le prix fixe', async (t) => {
 
   // Neutralise toutes les zones par défaut pour isoler l'effet.
   for (const z of [...container.settings.getZones()]) container.settings.removeZone(z.id);
-  const q1 = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin, destination, category: 'bronze' } });
+  const q1 = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin, destination, category: 'argent' } });
   const base = q1.json().quote.amount as number;
 
   container.settings.upsertZone({ id: 'z-cher', name: 'Cher', factor: 1.5, lat: 5.35, lng: -4.0, radiusKm: 3, active: true });
-  const q2 = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin, destination, category: 'bronze' } });
+  const q2 = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin, destination, category: 'argent' } });
   const withZone = q2.json().quote.amount as number;
 
   assert.ok(withZone > base, `zone chère doit augmenter le prix (${withZone} > ${base})`);
@@ -269,7 +269,7 @@ test('admin : pagination serveur des chauffeurs', async (t) => {
   t.after(() => app.close());
 
   for (const n of ['Aya', 'Bintou', 'Chaka']) {
-    await app.inject({ method: 'POST', url: '/drivers', payload: { name: n, category: 'bronze' } });
+    await app.inject({ method: 'POST', url: '/drivers', payload: { name: n, category: 'argent' } });
   }
   const p1 = await app.inject({ method: 'GET', url: '/admin/drivers?page=1&limit=2', headers: AUTH });
   const b1 = p1.json();

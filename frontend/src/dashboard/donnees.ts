@@ -142,8 +142,8 @@ export function ecouter(onLot: (entrees: EntreeJournal[], recus: number) => void
 /* ------------------------------ Démonstration ------------------------------ */
 
 const DEMO_FLOTTE = [
-  { nom: 'Konan Yao', categorie: 'bronze', lat: 5.3258, lng: -4.0205 },
-  { nom: 'Awa Diomandé', categorie: 'bronze', lat: 5.331, lng: -4.012 },
+  { nom: 'Konan Yao', categorie: 'argent', lat: 5.3258, lng: -4.0205 },
+  { nom: 'Awa Diomandé', categorie: 'argent', lat: 5.331, lng: -4.012 },
   { nom: 'Aïcha Touré', categorie: 'argent', lat: 5.3585, lng: -3.989 },
   { nom: 'Ismaël Cissé', categorie: 'argent', lat: 5.347, lng: -3.999 },
   { nom: 'Mamadou Bamba', categorie: 'or', lat: 5.3402, lng: -4.0095 },

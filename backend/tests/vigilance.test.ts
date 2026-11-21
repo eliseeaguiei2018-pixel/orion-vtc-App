@@ -29,7 +29,7 @@ test('un chauffeur en ligne avec assurance expirée est signalé comme critique'
   const { app, container } = await buildApp();
   t.after(() => app.close());
 
-  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Yao', category: 'bronze' } });
+  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Yao', category: 'argent' } });
   const id = drv.json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${id}/online`, payload: { position: { lat: 5.324, lng: -4.021 } } });
   const d = container.drivers.get(id)!;
@@ -138,7 +138,7 @@ test('filtrage par gravité et par domaine, et rapport de contrôle PDF', async 
   const { app, container } = await buildApp();
   t.after(() => app.close());
 
-  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Koffi', category: 'bronze' } });
+  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Koffi', category: 'argent' } });
   const id = drv.json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${id}/online`, payload: { position: { lat: 5.324, lng: -4.021 } } });
   const d = container.drivers.get(id)!;
@@ -161,7 +161,7 @@ test('les failles critiques remontent jusqu’au tableau de bord du PDG', async 
   const { app, container } = await buildApp();
   t.after(() => app.close());
 
-  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Adjoua', category: 'bronze' } });
+  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Adjoua', category: 'argent' } });
   const id = drv.json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${id}/online`, payload: { position: { lat: 5.324, lng: -4.021 } } });
   container.drivers.get(id)!.insuranceExpiry = new Date(Date.now() - 86_400_000).toISOString();

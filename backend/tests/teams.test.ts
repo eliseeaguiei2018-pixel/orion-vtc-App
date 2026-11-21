@@ -27,8 +27,8 @@ test('équipes : création, flotte affiliée, portée manager imposée côté se
   t.after(() => app.close());
 
   // Deux chauffeurs.
-  const d1 = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Flotte A1', category: 'bronze' } })).json().driver.id as string;
-  const d2 = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Flotte B1', category: 'bronze' } })).json().driver.id as string;
+  const d1 = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Flotte A1', category: 'argent' } })).json().driver.id as string;
+  const d2 = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Flotte B1', category: 'argent' } })).json().driver.id as string;
 
   // La direction crée deux équipes avec leurs flottes.
   const t1 = await app.inject({ method: 'PUT', url: '/admin/teams', headers: AUTH, payload: { name: 'Équipe Cocody', managerUsername: 'chef.awa', managerName: 'Awa', driverIds: [d1] } });
@@ -71,7 +71,7 @@ test('CRM chauffeur : dossier véhicule + formation éco-conduite (QCM serveur)'
   const { app } = await buildApp();
   t.after(() => app.close());
 
-  const id = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Eco Drv', category: 'bronze' } })).json().driver.id as string;
+  const id = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Eco Drv', category: 'argent' } })).json().driver.id as string;
 
   // Dossier véhicule : modèle + expiration d'assurance.
   const prof = await app.inject({ method: 'POST', url: `/drivers/${id}/profile`, payload: { vehicleModel: 'BYD Dolphin 2024', insuranceExpiry: '2026-08-15' } });
@@ -102,11 +102,11 @@ test('anti-abus : 3 annulations → avertissement automatique du client', async 
   const { app, container } = await buildApp();
   t.after(() => app.close());
 
-  const drv = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Cancel Drv', category: 'bronze' } })).json().driver.id as string;
+  const drv = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Cancel Drv', category: 'argent' } })).json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${drv}/online`, payload: { position: { lat: 5.351, lng: -4.001 } } });
 
   for (let i = 0; i < 3; i++) {
-    const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'bronze' } });
+    const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'argent' } });
     const ride = await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-abus', lockId: est.json().quote.lockId }, headers: { 'idempotency-key': `ab-${i}` } });
     await app.inject({ method: 'POST', url: `/rides/${ride.json().ride.id}/transition`, payload: { to: 'cancelled' } });
   }
@@ -121,11 +121,11 @@ test('B2B : ligne de crédit, refus au-delà du plafond, facture mensuelle CSV',
   const { app } = await buildApp();
   t.after(() => app.close());
 
-  const drv = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'B2B Drv', category: 'bronze' } })).json().driver.id as string;
+  const drv = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'B2B Drv', category: 'argent' } })).json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${drv}/online`, payload: { position: { lat: 5.351, lng: -4.001 } } });
 
   // Plafond calibré pour UNE course : la deuxième dépassera la ligne de crédit.
-  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'bronze' } });
+  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'argent' } });
   const amount = est.json().quote.amount as number;
   const acc = await app.inject({ method: 'PUT', url: '/admin/corporate', headers: AUTH, payload: { id: 'hotel-ivoire', name: 'Hôtel Ivoire', creditLimit: amount + 100 } });
   assert.equal(acc.statusCode, 200);
@@ -135,7 +135,7 @@ test('B2B : ligne de crédit, refus au-delà du plafond, facture mensuelle CSV',
   // Le crédit consommé est visible ; un dépassement est refusé (409).
   const list = await app.inject({ method: 'GET', url: '/admin/corporate', headers: AUTH });
   assert.equal(list.json().accounts[0].balanceUsed, amount);
-  const est2 = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'bronze' } });
+  const est2 = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'argent' } });
   const over = await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-b2b2', lockId: est2.json().quote.lockId, corporateCode: 'hotel-ivoire' }, headers: { 'idempotency-key': 'b2b-2' } });
   assert.equal(over.statusCode, 409, 'ligne de crédit dépassée → refus');
 
@@ -154,11 +154,11 @@ test('IA : conversion par zone, churn et bilan carbone PDF', async (t) => {
   const { app, container } = await buildApp();
   t.after(() => app.close());
 
-  const drv = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'IA Drv', category: 'bronze' } })).json().driver.id as string;
+  const drv = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'IA Drv', category: 'argent' } })).json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${drv}/online`, payload: { position: { lat: 5.351, lng: -4.001 } } });
 
   // 3 sessions (devis), 1 seule commande → conversion 33 %.
-  const mk = () => app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'bronze' } });
+  const mk = () => app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'argent' } });
   const e1 = await mk(); await mk(); await mk();
   await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-conv', lockId: e1.json().quote.lockId }, headers: { 'idempotency-key': 'cv-1' } });
   const conv = await app.inject({ method: 'GET', url: '/admin/conversion', headers: AUTH });

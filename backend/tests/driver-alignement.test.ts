@@ -24,7 +24,7 @@ async function appDriver(app: FastifyInstance, phone: string, name: string, pos 
 }
 
 async function order(app: FastifyInstance, key: string, extra: Record<string, unknown> = {}) {
-  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: ORIGIN, destination: DEST, category: 'bronze' } });
+  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: ORIGIN, destination: DEST, category: 'argent' } });
   const r = await app.inject({ method: 'POST', url: '/rides', headers: { 'idempotency-key': key }, payload: { clientId: `client-${key}`, lockId: est.json().quote.lockId, ...extra } });
   assert.equal(r.statusCode, 201, r.body);
   return { ...r.json().ride, code: r.json().codePriseEnCharge } as { id: string; status: string; driverId?: string; code: string; clientId: string };

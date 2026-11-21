@@ -19,14 +19,14 @@ const MIN = 60_000;
 
 async function courseTerminee(app: Awaited<ReturnType<typeof buildApp>>['app'], container: Awaited<ReturnType<typeof buildApp>>['container'], suffixe: string) {
   const d = container.drivers.upsert({
-    id: `drv-rel-${suffixe}`, name: `Chauffeur ${suffixe}`, matricule: `AB-${suffixe}-CI`, category: 'bronze',
+    id: `drv-rel-${suffixe}`, name: `Chauffeur ${suffixe}`, matricule: `AB-${suffixe}-CI`, category: 'argent',
     kycStatus: 'active', availability: 'offline', ratingAvg: 4.8, ratingCount: 20, phone: '+2250701020304',
   });
   await container.drivers.goOnline(d.id, { lat: 5.3236, lng: -4.0217 });
 
   const est = await app.inject({
     method: 'POST', url: '/pricing/estimate',
-    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3596, lng: -3.9903 }, category: 'bronze', clientId: `client-${suffixe}` },
+    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3596, lng: -3.9903 }, category: 'argent', clientId: `client-${suffixe}` },
   });
   const ride = (await app.inject({ method: 'POST', url: '/rides', payload: { clientId: `client-${suffixe}`, lockId: est.json().quote.lockId, paymentMethod: 'cash' } })).json().ride;
   assert.equal(ride.driverId, d.id, 'le chauffeur doit avoir été attribué');
@@ -70,7 +70,7 @@ test('le chauffeur libéré peut effectivement reprendre une course', async (t) 
 
   const est = await app.inject({
     method: 'POST', url: '/pricing/estimate',
-    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3007, lng: -3.9877 }, category: 'bronze', clientId: 'client-suivant' },
+    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3007, lng: -3.9877 }, category: 'argent', clientId: 'client-suivant' },
   });
   const suivante = (await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-suivant', lockId: est.json().quote.lockId } })).json().ride;
   assert.equal(suivante.driverId, driverId, 'sans le filet, cette course partait en « aucun chauffeur »');

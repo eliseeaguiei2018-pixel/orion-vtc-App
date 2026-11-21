@@ -30,7 +30,7 @@ async function approve(app: FastifyInstance, id: string) {
 }
 
 async function order(app: FastifyInstance, key: string, paymentMethod?: string) {
-  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: ORIGIN, destination: DEST, category: 'bronze' } });
+  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: ORIGIN, destination: DEST, category: 'argent' } });
   const r = await app.inject({ method: 'POST', url: '/rides', headers: { 'idempotency-key': key }, payload: { clientId: `client-${key}`, lockId: est.json().quote.lockId, paymentMethod } });
   assert.equal(r.statusCode, 201, r.body);
   return { ...r.json().ride, code: r.json().codePriseEnCharge } as { id: string; status: string; driverId?: string; paymentMethod?: string; code: string };
@@ -98,7 +98,7 @@ test('Dossier : soumission complète exigée, zones à forte demande', async (t)
   assert.equal((await submit()).statusCode, 400);
 
   // Carte de chaleur : un devis compte comme une demande dans sa cellule.
-  await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: ORIGIN, destination: DEST, category: 'bronze' } });
+  await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: ORIGIN, destination: DEST, category: 'argent' } });
   const heat = (await app.inject({ method: 'GET', url: '/drivers/demand' })).json();
   assert.ok(heat.cells.length >= 1);
   assert.equal(typeof heat.cells[0].demand, 'number');

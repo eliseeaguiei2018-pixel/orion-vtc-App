@@ -14,13 +14,13 @@ const DG = { 'x-admin-token': 'orion-admin-dev' };
 
 /** Déroule une course complète jusqu'au paiement, et renvoie son montant. */
 async function coursePayee(app: any, clientId: string, method: 'card' | 'cash') {
-  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: `Chauffeur ${clientId}`, category: 'bronze' } });
+  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: `Chauffeur ${clientId}`, category: 'argent' } });
   const driverId = drv.json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${driverId}/online`, payload: { position: { lat: 5.324, lng: -4.021 } } });
 
   const est = await app.inject({
     method: 'POST', url: '/pricing/estimate',
-    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9876 }, category: 'bronze', clientId },
+    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9876 }, category: 'argent', clientId },
   });
   const quote = est.json().quote;
   const ride = await app.inject({ method: 'POST', url: '/rides', payload: { clientId, lockId: quote.lockId, paymentMethod: method } });
@@ -204,7 +204,7 @@ test('la commission due sur les espèces ne se noie pas dans les gains électron
 
   // Un même chauffeur enchaîne une course carte puis une course espèces : son solde
   // reste positif. Calculer la dette depuis le solde la rendrait invisible.
-  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Konan', category: 'bronze' } });
+  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Konan', category: 'argent' } });
   const driverId = drv.json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${driverId}/online`, payload: { position: { lat: 5.324, lng: -4.021 } } });
 
@@ -212,7 +212,7 @@ test('la commission due sur les espèces ne se noie pas dans les gains électron
   for (const method of ['card', 'cash'] as const) {
     const est = await app.inject({
       method: 'POST', url: '/pricing/estimate',
-      payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9876 }, category: 'bronze', clientId: 'client-dg-5' },
+      payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9876 }, category: 'argent', clientId: 'client-dg-5' },
     });
     const quote = est.json().quote;
     if (method === 'cash') especes = quote.amount;

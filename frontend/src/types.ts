@@ -13,13 +13,15 @@ export interface Place {
   categorie?: string;
 }
 
-export type TierId = 'bronze' | 'argent' | 'or' | 'diamant';
+export type TierId = 'argent' | 'or' | 'diamant';
 
 export interface TierOption {
   id: TierId;
-  /** Clé i18n du libellé (tier_bronze, …). */
+  /** Clé i18n du libellé (tier_argent, …). */
   key: string;
   multiplier: number;
+  /** Écart fixe TTC par rapport à la gamme Argent, en F CFA (Or +700, Diamant +1 700). */
+  supplement: number;
   capacity: number;
   eta: number; // minutes
   cars: string[];

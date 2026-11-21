@@ -20,8 +20,8 @@ export interface Zone {
   waitMaxMin?: number;
   /** Bonus versé au chauffeur qui se rend dans le secteur (F CFA, fidélisation offre). */
   driverBonus?: number;
-  /** Standard minimal de véhicule exigé dans le secteur (bronze < argent < or < diamant). */
-  minStandard?: 'bronze' | 'argent' | 'or' | 'diamant';
+  /** Standard minimal de véhicule exigé dans le secteur (argent < or < diamant). */
+  minStandard?: 'argent' | 'or' | 'diamant';
   /** Frais de prise en charge propres au secteur (F CFA, intégrés au prix fixe). */
   pickupFee?: number;
   /** Cantonnement : les chauffeurs épinglés à cette zone n'en sortent pas (jamais en pénurie). */
@@ -37,8 +37,8 @@ export interface Zone {
   premiumFloor?: number;
 }
 
-/** Rang des niveaux pour le standard minimal de zone. */
-export const TIER_RANK: Record<string, number> = { bronze: 0, argent: 1, or: 2, diamant: 3 };
+/** Rang des gammes pour le standard minimal de zone (source : catalogue de la flotte). */
+export { TIER_RANK } from '../fleet/catalog.js';
 
 /** Communes d'Abidjan avec un facteur neutre au départ (ajustable depuis la console). */
 export const DEFAULT_ZONES: Zone[] = [
@@ -84,8 +84,9 @@ export interface PricingRecord extends PricingSettings {
 }
 
 /** Patch partiel (les multiplicateurs peuvent n'être fournis que partiellement). */
-export interface PricingPatch extends Partial<Omit<PricingSettings, 'multipliers' | 'bodySurcharge'>> {
+export interface PricingPatch extends Partial<Omit<PricingSettings, 'multipliers' | 'supplements' | 'bodySurcharge'>> {
   multipliers?: Partial<Record<string, number>>;
+  supplements?: Partial<Record<string, number>>;
   bodySurcharge?: Record<string, number>;
 }
 const PRICING_ID = 'pricing';
@@ -197,6 +198,13 @@ export class SettingsService {
     // Fusion avec les défauts : les enregistrements persistés avant l'ajout d'un
     // champ (frais annexes, forfaits) restent valides.
     this.pricing = saved ? { ...DEFAULT_PRICING, ...stripId(saved) } : { ...DEFAULT_PRICING };
+    // Tarifs enregistrés avant la suppression de la gamme Bronze (quatre multiplicateurs) :
+    // la grille a changé de modèle (Argent de référence + écarts fixes), on repart des
+    // valeurs par défaut pour les gammes en gardant le reste des réglages de la console.
+    if ('bronze' in (this.pricing.multipliers as Record<string, number>) || !this.pricing.supplements) {
+      this.pricing = { ...this.pricing, multipliers: { ...DEFAULT_PRICING.multipliers }, supplements: { ...DEFAULT_PRICING.supplements } };
+      this.repo?.put({ id: PRICING_ID, ...this.pricing });
+    }
     const savedSvc = servicesRepo?.get(SERVICES_ID);
     this.services = savedSvc
       ? { city: savedSvc.city, open: savedSvc.open, services: savedSvc.services, gateways: savedSvc.gateways ?? { ...DEFAULT_SERVICES.gateways } }
@@ -365,6 +373,7 @@ export class SettingsService {
       ...this.pricing,
       ...patch,
       multipliers: { ...this.pricing.multipliers, ...(patch.multipliers ?? {}) },
+      supplements: { ...this.pricing.supplements, ...(patch.supplements ?? {}) } as PricingSettings['supplements'],
       bodySurcharge: { ...this.pricing.bodySurcharge, ...(patch.bodySurcharge ?? {}) },
     };
     this.repo?.put({ id: PRICING_ID, ...this.pricing });

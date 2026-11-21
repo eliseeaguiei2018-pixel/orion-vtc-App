@@ -31,7 +31,7 @@ export const KYC_LABEL: Record<KycStatus, string> = libelles({
   approved: 'Validé', active: 'Actif', suspended: 'Suspendu',
 });
 
-export const TIER_LABEL: Record<string, string> = libelles({ bronze: 'Bronze', argent: 'Argent', or: 'Or', diamant: 'Diamant', moto: 'Coursier moto' });
+export const TIER_LABEL: Record<string, string> = libelles({ bronze: 'Argent', argent: 'Argent', or: 'Or', diamant: 'Diamant', moto: 'Coursier moto' });
 
 /** Livraison à moto : les mêmes étapes, dites avec les mots du coursier. */
 export const STATUS_LABEL_LIVRAISON: Partial<Record<RideStatus, string>> = libelles({
@@ -40,7 +40,8 @@ export const STATUS_LABEL_LIVRAISON: Partial<Record<RideStatus, string>> = libel
 });
 export const TAILLE_COLIS: Record<string, string> = libelles({ petit: 'petit colis', moyen: 'colis moyen', grand: 'grand colis' });
 export const statutLabel = (status: RideStatus, livraison: boolean) => (livraison ? STATUS_LABEL_LIVRAISON[status] : undefined) ?? STATUS_LABEL[status];
-const TIER_RANK: Record<string, number> = { bronze: 0, argent: 1, or: 2, diamant: 3 };
+// Trois gammes ; un compte créé avant la suppression du Bronze est lu comme Argent.
+const TIER_RANK: Record<string, number> = { bronze: 0, argent: 0, or: 1, diamant: 2 };
 export const meetsStandard = (category: string, min: string | null): boolean => !min || (TIER_RANK[category] ?? 0) >= (TIER_RANK[min] ?? 0);
 
 export function haversine(a: LatLng, b: LatLng): number {

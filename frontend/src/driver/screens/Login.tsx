@@ -16,7 +16,7 @@ export function Login({ app }: { app: DriverApp }) {
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
-  const [category, setCategory] = useState('bronze');
+  const [category, setCategory] = useState('argent');
   const [registered, setRegistered] = useState(true);
   const [devCode, setDevCode] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
@@ -98,7 +98,6 @@ export function Login({ app }: { app: DriverApp }) {
               </div>
               <label className="dv-label">{tr('Gamme de véhicule')}
                 <select className="dv-select" value={category} onChange={(e) => setCategory(e.target.value)}>
-                  <option value="bronze">{tr('Bronze — citadine électrique')}</option>
                   <option value="argent">{tr('Argent — berline confort')}</option>
                   <option value="or">{tr('Or — berline premium')}</option>
                   <option value="diamant">{tr('Diamant — prestige')}</option>

@@ -108,7 +108,7 @@ test('abonnement : estimation (aperçu) → course (quota consommé) → paiemen
   t.after(() => app.close());
 
   // Un chauffeur en ligne, pour que la course soit réellement attribuée.
-  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Konan', category: 'bronze' } });
+  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Konan', category: 'argent' } });
   const driverId = drv.json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${driverId}/online`, payload: { position: { lat: 5.324, lng: -4.021 } } });
 
@@ -120,7 +120,7 @@ test('abonnement : estimation (aperçu) → course (quota consommé) → paiemen
   // 1) ESTIMATION : l'app cliente voit « course incluse » AVANT de commander…
   const est = await app.inject({
     method: 'POST', url: '/pricing/estimate',
-    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9876 }, category: 'bronze', clientId: 'abonne-1' },
+    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9876 }, category: 'argent', clientId: 'abonne-1' },
   });
   assert.equal(est.statusCode, 200);
   const abonnement = est.json().abonnement;
@@ -167,7 +167,7 @@ test('abonnement : une course entièrement couverte ne sollicite aucune passerel
   const { app, container } = await buildApp();
   t.after(() => app.close());
 
-  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Awa', category: 'bronze' } });
+  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Awa', category: 'argent' } });
   const driverId = drv.json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${driverId}/online`, payload: { position: { lat: 5.324, lng: -4.021 } } });
 
@@ -176,7 +176,7 @@ test('abonnement : une course entièrement couverte ne sollicite aucune passerel
   // Course très courte : son montant passe sous le plafond de 5 000 F.
   const est = await app.inject({
     method: 'POST', url: '/pricing/estimate',
-    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3246, lng: -4.0227 }, category: 'bronze', clientId: 'abonne-2' },
+    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3246, lng: -4.0227 }, category: 'argent', clientId: 'abonne-2' },
   });
   const quote = est.json().quote;
   assert.ok(quote.amount <= PLANS.gold.perRideCap, `course à ${quote.amount} F, sous le plafond`);
@@ -203,19 +203,19 @@ test('abonnement : quota épuisé → remise d’abonné appliquée à la course
   const { app, container } = await buildApp();
   t.after(() => app.close());
 
-  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Ismaël', category: 'bronze' } });
+  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Ismaël', category: 'argent' } });
   const driverId = drv.json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${driverId}/online`, payload: { position: { lat: 5.324, lng: -4.021 } } });
 
   await app.inject({ method: 'POST', url: '/subscriptions', payload: { userId: 'abonne-3', plan: 'argent' } });
   // On épuise les 3 courses incluses sans passer par le HTTP (le quota, pas le trajet).
   for (let i = 0; i < PLANS.argent.ridesPerDay; i += 1) {
-    container.subscriptions.consumeRide('abonne-3', { amount: 3_000, tier: 'bronze' });
+    container.subscriptions.consumeRide('abonne-3', { amount: 3_000, tier: 'argent' });
   }
 
   const est = await app.inject({
     method: 'POST', url: '/pricing/estimate',
-    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9876 }, category: 'bronze', clientId: 'abonne-3' },
+    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9876 }, category: 'argent', clientId: 'abonne-3' },
   });
   const apercu = est.json().abonnement;
   assert.equal(apercu.covered, false);

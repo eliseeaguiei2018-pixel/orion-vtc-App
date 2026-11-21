@@ -20,7 +20,7 @@ export async function weddingRoutes(app: FastifyInstance, container: Container):
   app.post('/wedding/quote', async (req) => {
     const body = parse(
       z.object({
-        tier: z.enum(['bronze', 'argent', 'or', 'diamant']),
+        tier: z.enum(['argent', 'or', 'diamant']),
         date: z.string(),
         duration: z.enum(['halfday', 'fullday', 'weekend']).optional(),
         car: z.string().optional(),
@@ -36,7 +36,7 @@ export async function weddingRoutes(app: FastifyInstance, container: Container):
     const body = parse(
       z.object({
         userId: z.string().min(1),
-        tier: z.enum(['bronze', 'argent', 'or', 'diamant']),
+        tier: z.enum(['argent', 'or', 'diamant']),
         date: z.string(),
         duration: z.enum(['halfday', 'fullday', 'weekend']).optional(),
         car: z.string().optional(),

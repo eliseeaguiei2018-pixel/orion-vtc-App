@@ -75,9 +75,9 @@ test('profil et photo : réservés au titulaire, photo vérifiée octet par octe
 });
 
 async function courseAvecChauffeur(app: App, container: Awaited<ReturnType<typeof buildApp>>['container'], clientId: string, suffixe: string, headers: Record<string, string> = {}) {
-  const d = container.drivers.upsert({ id: `drv-an-${suffixe}`, name: 'Konan Yao', matricule: `AN-${suffixe}`, category: 'bronze', kycStatus: 'active', availability: 'offline', ratingAvg: 4.8, ratingCount: 10, phone: '+2250701020304' });
+  const d = container.drivers.upsert({ id: `drv-an-${suffixe}`, name: 'Konan Yao', matricule: `AN-${suffixe}`, category: 'argent', kycStatus: 'active', availability: 'offline', ratingAvg: 4.8, ratingCount: 10, phone: '+2250701020304' });
   await container.drivers.goOnline(d.id, { lat: 5.3236, lng: -4.0217 });
-  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3596, lng: -3.9903 }, category: 'bronze', clientId } });
+  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3596, lng: -3.9903 }, category: 'argent', clientId } });
   const ride = (await app.inject({ method: 'POST', url: '/rides', payload: { clientId, lockId: est.json().quote.lockId }, headers })).json().ride;
   assert.equal(ride.driverId, d.id);
   return { ride, driverId: d.id };

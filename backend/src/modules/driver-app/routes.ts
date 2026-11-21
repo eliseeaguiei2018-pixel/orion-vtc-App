@@ -71,7 +71,7 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
       code: z.string().min(4).max(8),
       name: z.string().trim().min(2).max(60).optional(),
       // « moto » : coursier de la livraison à moto.
-      category: z.enum(['bronze', 'argent', 'or', 'diamant', 'moto']).optional(),
+      category: z.enum(['argent', 'or', 'diamant', 'moto']).optional(),
     }), req.body);
     const phone = normalizePhone(body.phone);
     if (!phone) throw badRequest('Numéro de téléphone invalide');
@@ -92,7 +92,7 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
         id: randomUUID(),
         name: body.name ?? 'Chauffeur ORION',
         matricule: genMatricule(),
-        category: body.category ?? 'bronze',
+        category: body.category ?? 'argent',
         kycStatus: 'draft',
         availability: 'offline',
         ratingAvg: 0,

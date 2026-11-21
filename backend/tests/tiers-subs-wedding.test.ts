@@ -1,17 +1,20 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FLEET, TIERS, pickCar, isTier } from '../src/modules/fleet/catalog.js';
+import { FLEET, TIERS, pickCar, isTier, normaliserGamme } from '../src/modules/fleet/catalog.js';
 import { SubscriptionService, PLANS } from '../src/modules/subscriptions/service.js';
 import { quoteWedding, WeddingService } from '../src/modules/wedding/service.js';
 import { COUNTRIES } from '../src/modules/countries/catalog.js';
 import { AppError } from '../src/core/errors.js';
 
-test('flotte : 4 niveaux avec marques attendues', () => {
-  assert.deepEqual(TIERS, ['bronze', 'argent', 'or', 'diamant']);
-  assert.ok(FLEET.bronze.cars.includes('Geely Galaxy E8'));
+test('flotte : 3 gammes (Argent, Or, Diamant), le Bronze a rejoint l’Argent', () => {
+  assert.deepEqual(TIERS, ['argent', 'or', 'diamant']);
+  assert.ok(FLEET.argent.cars.includes('Geely Galaxy E8'), 'les véhicules Bronze roulent en Argent');
   assert.ok(FLEET.diamant.cars.includes('NIO ET9'));
-  assert.ok(isTier('or') && !isTier('comfort'));
-  assert.ok(FLEET.bronze.cars.includes(pickCar('bronze', 0)));
+  assert.ok(isTier('or') && !isTier('comfort') && !isTier('bronze'));
+  assert.ok(FLEET.argent.cars.includes(pickCar('argent', 0)));
+  assert.equal(normaliserGamme('bronze'), 'argent');
+  // Mariage : les tarifs ont glissé d'une gamme (60 000 → 110 000 → 190 000 F / jour).
+  assert.deepEqual(TIERS.map((t) => FLEET[t].weddingDayPrice), [60_000, 110_000, 190_000]);
 });
 
 test('abonnement : quota quotidien consommable', () => {
@@ -30,10 +33,10 @@ test('abonnement : forfait inconnu rejeté', () => {
 });
 
 test('mariage : prix croît avec le niveau et les options', () => {
-  const base = quoteWedding({ tier: 'bronze', date: '2026-07-01' }).total;
+  const base = quoteWedding({ tier: 'argent', date: '2026-07-01' }).total;
   const lux = quoteWedding({ tier: 'diamant', date: '2026-07-01' }).total;
   assert.ok(lux > base);
-  const withOpts = quoteWedding({ tier: 'bronze', date: '2026-07-01', options: { decoration: true, convoy: 2 } }).total;
+  const withOpts = quoteWedding({ tier: 'argent', date: '2026-07-01', options: { decoration: true, convoy: 2 } }).total;
   assert.ok(withOpts > base);
 });
 

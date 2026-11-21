@@ -11,12 +11,12 @@ import { buildApp } from '../src/app.js';
 async function setup() {
   const built = await buildApp();
   const { app } = built;
-  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Awa Koné', category: 'bronze' } });
+  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Awa Koné', category: 'argent' } });
   const driverId = drv.json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${driverId}/online`, payload: { position: { lat: 5.324, lng: -4.021 } } });
   const est = await app.inject({
     method: 'POST', url: '/pricing/estimate',
-    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9876 }, category: 'bronze' },
+    payload: { origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9876 }, category: 'argent' },
   });
   const lockId = est.json().quote.lockId as string;
   return { ...built, driverId, lockId };

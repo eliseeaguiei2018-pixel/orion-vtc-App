@@ -418,7 +418,7 @@ export function NotifySection({ broadcasts, triggers, canWrite, onSend, onTrigge
   );
 }
 
-export const TIER_LABEL: Record<string, string> = { bronze: 'Bronze', argent: 'Argent', or: 'Or', diamant: 'Diamant', livraison: 'Livraison', ride: 'Course' };
+export const TIER_LABEL: Record<string, string> = { bronze: 'Argent', argent: 'Argent', or: 'Or', diamant: 'Diamant', livraison: 'Livraison', ride: 'Course' };
 export const GW_LABEL: Record<string, string> = { orange_money: 'Orange Money', mtn_momo: 'MTN MoMo', moov_money: 'Moov Money', wave: 'Wave', card: 'Carte bancaire', cash: 'Espèces' };
 export const EXP_STATUS: Record<string, { label: string; cls: string }> = {
   pending: { label: 'En attente CFO', cls: 'tr-pending' }, info_requested: { label: 'Complément demandé', cls: 'tr-pending' },
@@ -547,7 +547,8 @@ export function exampleFare(p: Pricing, tier: string, km: number): number {
   const distance = km * p.perKm * m;
   const time = (km / p.avgSpeedKmh) * 60 * p.perMinute * m;
   const subtotal = Math.max(base + distance + time, p.minFare * m);
-  return Math.round((subtotal * (1 + p.tvaRate + p.feeRate)) / 50) * 50;
+  // Écart fixe de la gamme (Or, Diamant) ajouté au prix TTC, comme sur le serveur.
+  return Math.round((subtotal * (1 + p.tvaRate + p.feeRate)) / 50) * 50 + (p.supplements?.[tier] ?? 0);
 }
 
 export function PricingEditor({ pricing, canWrite, onSave, onShadow, onMatrixCsv }: {
@@ -573,7 +574,7 @@ export function PricingEditor({ pricing, canWrite, onSave, onShadow, onMatrixCsv
         baseFare: form.baseFare, perKm: form.perKm, perMinute: form.perMinute, minFare: form.minFare,
         avgSpeedKmh: form.avgSpeedKmh, tvaRate: form.tvaRate, feeRate: form.feeRate,
         insuranceRate: form.insuranceRate, trafficWeight: form.trafficWeight, stopFee: form.stopFee,
-        multipliers: form.multipliers,
+        multipliers: form.multipliers, supplements: form.supplements,
         freeWaitMinutes: form.freeWaitMinutes, cancelGraceMinutes: form.cancelGraceMinutes, cancelFee: form.cancelFee,
         cleaningLight: form.cleaningLight, cleaningMajor: form.cleaningMajor,
         longPickupPerKm: form.longPickupPerKm, longPickupThresholdKm: form.longPickupThresholdKm,
@@ -582,7 +583,7 @@ export function PricingEditor({ pricing, canWrite, onSave, onShadow, onMatrixCsv
     } finally { setBusy(false); }
   };
 
-  const tiers = ['bronze', 'argent', 'or', 'diamant'];
+  const tiers = ['argent', 'or', 'diamant'];
   const F = ({ label, k, step = 10 }: { label: string; k: keyof Pricing; step?: number }) => (
     <label className="price-field"><span>{label}</span><input type="number" step={step} value={form[k] as number} onChange={num(k)} disabled={!canWrite} /></label>
   );
@@ -604,7 +605,14 @@ export function PricingEditor({ pricing, canWrite, onSave, onShadow, onMatrixCsv
           <label className="price-field"><span>Poids trafic (0–1)</span><input type="number" step={0.1} value={form.trafficWeight} onChange={num('trafficWeight')} disabled={!canWrite} /></label>
         </div>
 
-        <div className="adm-card-h" style={{ marginTop: 18 }}><h3 style={{ fontSize: 14 }}>Multiplicateurs par niveau</h3></div>
+        <div className="adm-card-h" style={{ marginTop: 18 }}><h3 style={{ fontSize: 14 }}>Gammes — écart fixe par rapport à l’Argent (F CFA)</h3><span className="adm-muted">Or = Argent + 700 F · Diamant = Or + 1 000 F</span></div>
+        <div className="price-grid">
+          {tiers.map((t) => (
+            <label key={t} className="price-field cap"><span>{t}</span><input type="number" step={50} min={0} value={form.supplements?.[t] ?? 0}
+              onChange={(e) => setForm((f) => ({ ...f, supplements: { ...(f.supplements ?? {}), [t]: Number(e.target.value) } }))} disabled={!canWrite || t === 'argent'} /></label>
+          ))}
+        </div>
+        <div className="adm-card-h" style={{ marginTop: 18 }}><h3 style={{ fontSize: 14 }}>Multiplicateur de la grille par gamme</h3></div>
         <div className="price-grid">
           {tiers.map((t) => (
             <label key={t} className="price-field cap"><span>{t}</span><input type="number" step={0.05} value={form.multipliers[t] ?? 1} onChange={mult(t)} disabled={!canWrite} /></label>
@@ -663,7 +671,7 @@ export function PricingEditor({ pricing, canWrite, onSave, onShadow, onMatrixCsv
         <div className="adm-card-h"><h3>Aperçu du prix</h3><span className="adm-muted">Exemple : trajet de 6,7 km</span></div>
         <div className="adm-kpis">
           {tiers.map((t) => (
-            <Kpi key={t} label={t.toUpperCase()} value={fcfa(exampleFare(form, t, 6.7))} sub="prix fixe TTC" tone={t === 'bronze' ? 'green' : t === 'diamant' ? 'teal' : 'mint'} />
+            <Kpi key={t} label={t.toUpperCase()} value={fcfa(exampleFare(form, t, 6.7))} sub="prix fixe TTC" tone={t === 'argent' ? 'green' : t === 'diamant' ? 'teal' : 'mint'} />
           ))}
         </div>
       </div>

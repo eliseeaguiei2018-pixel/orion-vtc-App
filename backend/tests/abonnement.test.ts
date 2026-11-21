@@ -31,19 +31,19 @@ test('consulter ne consomme PAS le quota (apercu vs consumeRide)', () => {
   s.subscribe('u1', 'bronze'); // 2 courses / jour
   // Dix consultations : le client compare les gammes, cela ne doit rien lui coûter.
   for (let i = 0; i < 10; i += 1) {
-    const vu = s.apercu('u1', { amount: 2_000, tier: 'bronze' });
+    const vu = s.apercu('u1', { amount: 2_000, tier: 'argent' });
     assert.equal(vu.covered, true, 'l’aperçu annonce bien une course incluse');
   }
   assert.equal(s.get('u1')!.usedToday, 0, 'aucune course consommée par la consultation');
   // Seule la commande consomme.
-  s.consumeRide('u1', { amount: 2_000, tier: 'bronze' });
+  s.consumeRide('u1', { amount: 2_000, tier: 'argent' });
   assert.equal(s.get('u1')!.usedToday, 1);
 });
 
 test('plafond par course : le dépassement reste à la charge du client', () => {
   const s = new SubscriptionService();
   s.subscribe('u1', 'bronze'); // plafond 2 500 F
-  const r = s.consumeRide('u1', { amount: 9_000, tier: 'bronze' });
+  const r = s.consumeRide('u1', { amount: 9_000, tier: 'argent' });
   assert.equal(r.covered, true);
   assert.equal(r.montantCouvert, PLANS.bronze.perRideCap);
   assert.equal(r.aPayer, 9_000 - PLANS.bronze.perRideCap);
@@ -54,7 +54,7 @@ test('plafond par course : le dépassement reste à la charge du client', () => 
 
 test('niveaux autorisés : un Bronze ne voyage pas en Diamant aux frais du forfait', () => {
   const s = new SubscriptionService();
-  s.subscribe('u1', 'bronze'); // niveaux bronze & argent uniquement
+  s.subscribe('u1', 'bronze'); // Pack Bronze : gamme Argent uniquement
   const refus = s.consumeRide('u1', { amount: 5_000, tier: 'diamant' });
   assert.equal(refus.covered, false);
   assert.equal(refus.montantCouvert, 0);
@@ -79,8 +79,8 @@ test('hors quota : la remise d’abonné annoncée est réellement appliquée', 
 
   // Le Bronze n'annonce aucune remise : il ne doit pas en inventer une.
   s.subscribe('u2', 'bronze');
-  for (let i = 0; i < 2; i += 1) s.consumeRide('u2', { amount: 2_000, tier: 'bronze' });
-  assert.equal(s.consumeRide('u2', { amount: 10_000, tier: 'bronze' }).remise, 0);
+  for (let i = 0; i < 2; i += 1) s.consumeRide('u2', { amount: 2_000, tier: 'argent' });
+  assert.equal(s.consumeRide('u2', { amount: 10_000, tier: 'argent' }).remise, 0);
 });
 
 test('abonnement échu ou suspendu : plus aucun avantage', () => {
@@ -142,8 +142,8 @@ test('impayé : suspension après le délai de grâce, réactivation au règleme
 test('changement de formule : le quota déjà consommé n’est pas remis à zéro', () => {
   const s = new SubscriptionService();
   s.subscribe('u1', 'bronze');
-  s.consumeRide('u1', { amount: 1_000, tier: 'bronze' });
-  s.consumeRide('u1', { amount: 1_000, tier: 'bronze' }); // quota bronze épuisé (2)
+  s.consumeRide('u1', { amount: 1_000, tier: 'argent' });
+  s.consumeRide('u1', { amount: 1_000, tier: 'argent' }); // quota bronze épuisé (2)
   s.subscribe('u1', 'gold'); // montée en gamme le même jour
   assert.equal(s.get('u1')!.usedToday, 2, 'les 2 courses du jour restent comptées');
   assert.equal(s.get('u1')!.ridesPerDay, 4);
@@ -158,7 +158,7 @@ test('résiliation : plus de couverture, et pas de réactivation par un paiement
   s.cancel('u1', 'déménagement');
   assert.equal(s.get('u1')!.active, false);
   assert.ok(s.get('u1')!.cancelledAt);
-  assert.equal(s.consumeRide('u1', { amount: 2_000, tier: 'bronze' }).covered, false);
+  assert.equal(s.consumeRide('u1', { amount: 2_000, tier: 'argent' }).covered, false);
   // Régler une ancienne facture ne doit pas ressusciter un abonnement résilié.
   s.payerFacture(f.id);
   assert.equal(s.get('u1')!.active, false);
@@ -166,7 +166,7 @@ test('résiliation : plus de couverture, et pas de réactivation par un paiement
 
 test('sans abonnement : aucune couverture et un message clair', () => {
   const s = new SubscriptionService();
-  const r = s.apercu('inconnu', { amount: 3_000, tier: 'bronze' });
+  const r = s.apercu('inconnu', { amount: 3_000, tier: 'argent' });
   assert.equal(r.covered, false);
   assert.equal(r.aPayer, 3_000);
   assert.match(r.raison, /Aucun abonnement/);

@@ -58,7 +58,7 @@ function plateFromMatricule(m: string): string {
   return `CI-${n} ${a}${b}`;
 }
 
-/** Le véhicule de la gamme (silhouette et peinture : bronze, argent, or, nuit). */
+/** Le véhicule de la gamme (silhouette et peinture : argent, or, nuit). */
 function TierBadge({ tier, size = 50, suv = false }: { tier: string; size?: number; suv?: boolean }) {
   const v = vehiculeDeGamme(tier);
   return (

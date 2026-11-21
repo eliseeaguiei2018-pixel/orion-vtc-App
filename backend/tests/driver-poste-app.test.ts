@@ -131,7 +131,7 @@ test('Photo du chauffeur : vérifiée, servie à part, visible du passager', asy
 
   // Le passager reconnaît son chauffeur : photo, véhicule, VRAIE plaque.
   await app.inject({ method: 'POST', url: `/drivers/${d.id}/online`, headers: d.headers, payload: { position: { lat: 5.336, lng: -4.031 } } });
-  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.335, lng: -4.03 }, destination: { lat: 5.345, lng: -4.02 }, category: 'bronze' } });
+  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.335, lng: -4.03 }, destination: { lat: 5.345, lng: -4.02 }, category: 'argent' } });
   const ride = (await app.inject({ method: 'POST', url: '/rides', headers: { 'idempotency-key': 'photo-1' }, payload: { clientId: 'client-photo', lockId: est.json().quote.lockId } })).json();
   assert.equal(ride.driver.photoUrl, url);
   assert.equal(ride.driver.vehiclePlate, '4521 KL 01');

@@ -9,7 +9,7 @@ import { issueDriverToken, verifyDriverToken } from '../src/modules/driver-app/a
  * chauffeur. Le code est à usage unique, lié au bon chauffeur, limité en essais.
  */
 async function creerChauffeur(app: any, nom: string) {
-  const r = await app.inject({ method: 'POST', url: '/drivers', payload: { name: nom, category: 'bronze' } });
+  const r = await app.inject({ method: 'POST', url: '/drivers', payload: { name: nom, category: 'argent' } });
   return r.json().driver.id as string;
 }
 

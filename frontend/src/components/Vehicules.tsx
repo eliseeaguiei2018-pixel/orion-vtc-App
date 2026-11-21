@@ -8,7 +8,7 @@ import { useId } from 'react';
  * jantes aérodynamiques avec étrier de frein, ombre portée douce.
  *
  * La peinture « accent » suit la couleur choisie par le client (vert, orange, bleu) ;
- * les gammes ont leur teinte : bronze, argent, or et « nuit » pour Diamant.
+ * les gammes ont leur teinte : argent, or et « nuit » pour Diamant.
  * Les identifiants SVG sont uniques par illustration (plusieurs véhicules par écran).
  */
 export type Modele = 'citadine' | 'berline' | 'suv' | 'luxe';
@@ -22,10 +22,9 @@ const PEINTURES: Record<Exclude<Peinture, 'accent'>, [string, string, string]> =
   perle: ['#ffffff', '#e6ecf2', '#9aa7b5'],
 };
 
-/** Teinte de la gamme ORION (Bronze → citadine, Diamant → berline de luxe). */
+/** Teinte de la gamme ORION (Argent → berline, Or → SUV, Diamant → berline de luxe). */
 export function vehiculeDeGamme(gamme: string): { modele: Modele; peinture: Peinture } {
   switch (gamme) {
-    case 'bronze': return { modele: 'citadine', peinture: 'bronze' };
     case 'argent': return { modele: 'berline', peinture: 'argent' };
     case 'or': return { modele: 'suv', peinture: 'or' };
     case 'diamant': return { modele: 'luxe', peinture: 'nuit' };

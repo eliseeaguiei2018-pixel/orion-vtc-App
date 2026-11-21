@@ -621,7 +621,7 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       clientId: z.string().min(1).max(80),
       origin: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }),
       destination: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }),
-      category: z.string().min(2).max(20).default('bronze'),
+      category: z.string().min(2).max(20).default('argent'),
       scheduledFor: z.string().datetime(),
       favoriteDriverId: z.string().optional(),
     }), req.body);

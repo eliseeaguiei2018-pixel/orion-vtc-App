@@ -60,7 +60,7 @@ test('Livraison : moins chère qu’une course voiture, quelle que soit la taill
     return q;
   };
 
-  const course = await une({ serviceType: 'ride', origin: ORIGIN, destination: DEST, category: 'bronze' });
+  const course = await une({ serviceType: 'ride', origin: ORIGIN, destination: DEST, category: 'argent' });
   for (const taille of ['petit', 'moyen', 'grand']) {
     const livr = await une({ serviceType: 'delivery', origin: ORIGIN, destination: DEST, category: taille });
     // Une moto portant un colis ne doit jamais coûter plus qu'une voiture portant
@@ -110,7 +110,7 @@ test('Livraison : une course de livraison peut être créée depuis le devis', a
   // Un coursier à moto ET une voiture bronze, tous deux tout près du point de retrait.
   const drv = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Coursier Moto', category: 'moto' } })).json().driver.id;
   await app.inject({ method: 'POST', url: `/drivers/${drv}/online`, payload: { position: { lat: 5.3240, lng: -4.0220 } } });
-  const voiture = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Berline Bronze', category: 'bronze' } })).json().driver.id;
+  const voiture = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Berline Bronze', category: 'argent' } })).json().driver.id;
   await app.inject({ method: 'POST', url: `/drivers/${voiture}/online`, payload: { position: { lat: 5.3237, lng: -4.0218 } } });
 
   const q = (await app.inject({ method: 'POST', url: '/pricing/estimate', payload: {
@@ -131,7 +131,7 @@ test('Livraison : une course de livraison peut être créée depuis le devis', a
 
   // Une course bronze, elle, ne part jamais à moto.
   const qc = (await app.inject({ method: 'POST', url: '/pricing/estimate', payload: {
-    serviceType: 'ride', origin: ORIGIN, destination: DEST, category: 'bronze',
+    serviceType: 'ride', origin: ORIGIN, destination: DEST, category: 'argent',
   } })).json().quote;
   const course = (await app.inject({ method: 'POST', url: '/rides', headers: { 'idempotency-key': 'course-1' },
     payload: { clientId: 'c-course', lockId: qc.lockId } })).json().ride;

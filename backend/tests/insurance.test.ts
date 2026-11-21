@@ -10,12 +10,12 @@ const origin = { lat: 5.3236, lng: -4.0217 };
 const destination = { lat: 5.3599, lng: -3.9876 };
 
 test('assurance désactivée : pas de cotisation', () => {
-  const r = estimatePrice({ origin, destination, category: 'bronze' });
+  const r = estimatePrice({ origin, destination, category: 'argent' });
   assert.equal(r.breakdown.insurance, 0);
 });
 
 test('assurance activée : cotisation = 2% du sous-total', () => {
-  const r = estimatePrice({ origin, destination, category: 'bronze', insurance: true });
+  const r = estimatePrice({ origin, destination, category: 'argent', insurance: true });
   assert.equal(r.breakdown.insurance, Math.round(r.breakdown.subtotal * INSURANCE_RATE));
   assert.ok(r.breakdown.insurance > 0);
 });

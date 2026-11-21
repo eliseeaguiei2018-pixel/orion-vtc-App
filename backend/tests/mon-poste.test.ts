@@ -77,7 +77,7 @@ test('« à traiter » ne propose que ce que mes droits me permettent d’ouvrir
   t.after(() => app.close());
 
   // On crée une vraie faille : un chauffeur en ligne sans dossier validé.
-  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Yao', category: 'bronze' } });
+  const drv = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Yao', category: 'argent' } });
   const id = drv.json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${id}/online`, payload: { position: { lat: 5.324, lng: -4.021 } } });
 

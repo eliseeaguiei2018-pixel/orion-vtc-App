@@ -23,12 +23,12 @@ async function login(app: App, u: string) {
   return { authorization: `Bearer ${res.json().token}` };
 }
 async function onlineDriver(app: App, name: string) {
-  const id = (await app.inject({ method: 'POST', url: '/drivers', payload: { name, category: 'bronze' } })).json().driver.id as string;
+  const id = (await app.inject({ method: 'POST', url: '/drivers', payload: { name, category: 'argent' } })).json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${id}/online`, payload: { position: { lat: 5.351, lng: -4.001 } } });
   return id;
 }
 async function fullRide(app: App, clientId: string, key: string) {
-  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'bronze' } });
+  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'argent' } });
   const ride = (await app.inject({ method: 'POST', url: '/rides', payload: { clientId, lockId: est.json().quote.lockId }, headers: { 'idempotency-key': key } })).json().ride;
   for (const to of ['driver_en_route', 'arrived', 'in_progress', 'completed']) {
     await app.inject({ method: 'POST', url: `/rides/${ride.id}/transition`, payload: { to } });
@@ -111,7 +111,7 @@ test('S14 Finances : commission verte réduite, gateway coupé, cash-debt, payou
 
   // Commission verte 12 % par défaut (au lieu de 18 % standard) : vérifiée à la source.
   const drv = await onlineDriver(app, 'Fin Drv');
-  const est0 = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'bronze' } });
+  const est0 = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'argent' } });
   const ride = (await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-fin', lockId: est0.json().quote.lockId }, headers: { 'idempotency-key': 'fin-1' } })).json().ride;
   for (const to of ['driver_en_route', 'arrived', 'in_progress', 'completed']) await app.inject({ method: 'POST', url: `/rides/${ride.id}/transition`, payload: { to } });
   const pay = await app.inject({ method: 'POST', url: `/rides/${ride.id}/pay`, payload: { method: 'cash' }, headers: { 'idempotency-key': 'pay-fin-1' } });
@@ -120,7 +120,7 @@ test('S14 Finances : commission verte réduite, gateway coupé, cash-debt, payou
   // Passerelle coupée (panne) → paiement refusé.
   await app.inject({ method: 'POST', url: '/admin/finance/gateways', headers: AUTH, payload: { method: 'wave', enabled: false } });
   const drv2 = await onlineDriver(app, 'Fin Drv2');
-  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'bronze' } });
+  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'argent' } });
   const r2 = (await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-fin2', lockId: est.json().quote.lockId }, headers: { 'idempotency-key': 'fin-2' } })).json().ride;
   for (const to of ['driver_en_route', 'arrived', 'in_progress', 'completed']) await app.inject({ method: 'POST', url: `/rides/${r2.id}/transition`, payload: { to } });
   const payKo = await app.inject({ method: 'POST', url: `/rides/${r2.id}/pay`, payload: { method: 'wave', phone: '+22507080910' }, headers: { 'idempotency-key': 'pw-2' } });

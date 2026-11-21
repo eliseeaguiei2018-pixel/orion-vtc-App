@@ -10,7 +10,7 @@ const AUTH = { 'x-admin-token': 'orion-admin-dev' };
 type App = { inject: (o: object) => Promise<{ statusCode: number; body: string; rawPayload: Buffer; headers: Record<string, unknown>; json: () => any }> };
 
 async function estimate(app: App, origin: { lat: number; lng: number }, destination: { lat: number; lng: number }) {
-  const r = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin, destination, category: 'bronze' } });
+  const r = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin, destination, category: 'argent' } });
   return r.json().quote;
 }
 
@@ -29,7 +29,7 @@ test('S16 Tarification : minutes de courtoisie, frais d’annulation progressifs
   assert.equal(pr.cancelFee, 800);
 
   // Course : attente de 4 min = offerte (< 5 min courtoisie) → aucune facturation.
-  const drv = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Tarif Drv', category: 'bronze' } })).json().driver.id;
+  const drv = (await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Tarif Drv', category: 'argent' } })).json().driver.id;
   await app.inject({ method: 'POST', url: `/drivers/${drv}/online`, payload: { position: { lat: 5.351, lng: -4.001 } } });
   const est = await estimate(app, { lat: 5.35, lng: -4.0 }, { lat: 5.37, lng: -3.98 });
   const ride = (await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'c-tarif', lockId: est.lockId }, headers: { 'idempotency-key': 'tf-1' } })).json().ride;

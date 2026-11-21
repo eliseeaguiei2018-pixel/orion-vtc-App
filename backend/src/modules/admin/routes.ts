@@ -535,7 +535,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
           hourStart: z.number().int().min(0).max(23).optional(),
           hourEnd: z.number().int().min(0).max(23).optional(),
           zoneIds: z.array(z.string()).optional(),
-          maxTier: z.enum(['bronze', 'argent', 'or', 'diamant']).optional(),
+          maxTier: z.enum(['argent', 'or', 'diamant']).optional(),
         }).optional(),
       }), req.body);
       const account = container.corporate.upsert(body);
@@ -569,7 +569,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         guestName: z.string().min(1).max(80),
         origin: z.object({ lat: z.number(), lng: z.number() }),
         destination: z.object({ lat: z.number(), lng: z.number() }),
-        category: z.string().min(2).max(20).default('bronze'),
+        category: z.string().min(2).max(20).default('argent'),
       }), req.body);
       const acc = container.corporate.get(id);
       if (!acc) throw notFound('Compte entreprise introuvable');
@@ -1248,7 +1248,12 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
           tvaRate: rate.optional(), feeRate: rate.optional(), insuranceRate: rate.optional(),
           trafficWeight: z.number().min(0).max(1).optional(), stopFee: z.number().min(0).optional(),
           multipliers: z.object({
-            bronze: num.optional(), argent: num.optional(), or: num.optional(), diamant: num.optional(),
+            argent: num.optional(), or: num.optional(), diamant: num.optional(),
+          }).partial().optional(),
+          // Écart fixe de chaque gamme par rapport à l'Argent (F CFA TTC).
+          supplements: z.object({
+            argent: z.number().min(0).max(100_000).optional(), or: z.number().min(0).max(100_000).optional(),
+            diamant: z.number().min(0).max(100_000).optional(),
           }).partial().optional(),
           // Frais annexes & pénalités (session Tarification).
           freeWaitMinutes: z.number().min(0).max(30).optional(),
@@ -1287,7 +1292,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         // Micro-zonage résidentiel (qualité de service)
         waitMaxMin: z.number().min(1).max(60).optional(),
         driverBonus: z.number().min(0).max(5000).optional(),
-        minStandard: z.enum(['bronze', 'argent', 'or', 'diamant']).optional(),
+        minStandard: z.enum(['argent', 'or', 'diamant']).optional(),
         pickupFee: z.number().min(0).max(10_000).optional(),
         dedicated: z.boolean().optional(),
         // Surge MANUEL d'urgence (stade, concert…) — plafonné par le cap vert.

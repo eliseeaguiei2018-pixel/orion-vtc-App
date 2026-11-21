@@ -26,13 +26,13 @@ async function login(app: App, username: string) {
 }
 
 async function newDriver(app: App, name: string, pos = { lat: 5.351, lng: -4.001 }) {
-  const id = (await app.inject({ method: 'POST', url: '/drivers', payload: { name, category: 'bronze' } })).json().driver.id as string;
+  const id = (await app.inject({ method: 'POST', url: '/drivers', payload: { name, category: 'argent' } })).json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${id}/online`, payload: { position: pos } });
   return id;
 }
 
 async function newRide(app: App, clientId: string, key: string) {
-  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'bronze' } });
+  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'argent' } });
   const ride = await app.inject({ method: 'POST', url: '/rides', payload: { clientId, lockId: est.json().quote.lockId }, headers: { 'idempotency-key': key } });
   return ride.json().ride as { id: string; status: string; driverId?: string };
 }
@@ -242,12 +242,12 @@ test('Courses : anomalies, clôture forcée, destination en vol, réservations +
   // Réservations : trop tôt → 400 ; valide → calendrier console + assignation.
   const soon = await app.inject({ method: 'POST', url: '/reservations', payload: {
     clientId: 'cl-res', origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.26, lng: -3.93 },
-    category: 'bronze', scheduledFor: new Date(Date.now() + 5 * 60_000).toISOString(),
+    category: 'argent', scheduledFor: new Date(Date.now() + 5 * 60_000).toISOString(),
   } });
   assert.equal(soon.statusCode, 400);
   const res = await app.inject({ method: 'POST', url: '/reservations', payload: {
     clientId: 'cl-res', origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.26, lng: -3.93 },
-    category: 'bronze', scheduledFor: new Date(Date.now() + 2 * 3_600_000).toISOString(),
+    category: 'argent', scheduledFor: new Date(Date.now() + 2 * 3_600_000).toISOString(),
   } });
   assert.equal(res.statusCode, 201);
   const cal = await app.inject({ method: 'GET', url: '/admin/reservations', headers: AUTH });
@@ -292,7 +292,7 @@ test('Dispatch : rayons/pondération/broadcast pilotables, surge manuel de zone,
     id: 'stade-ebimpe', name: 'Stade (événement)', factor: 1, lat: 5.35, lng: -4.0, radiusKm: 2, surgeManual: 1.25,
   } });
   assert.equal(zone.statusCode, 200);
-  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'bronze' } });
+  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'argent' } });
   assert.equal(est.json().quote.breakdown.surge, 1.25);
 
   // Shadow mode + documentation PDF + matrice tarifaire CSV.

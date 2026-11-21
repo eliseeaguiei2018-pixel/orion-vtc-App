@@ -22,11 +22,11 @@ test('Surge : comparer les gammes ne fait PAS monter son propre prix', async (t)
   })).json().quote;
 
   // Une MÊME personne parcourt les quatre gammes, puis revient sur la première.
-  const premier = await devis('bronze', 'client-unique');
+  const premier = await devis('argent', 'client-unique');
   await devis('argent', 'client-unique');
   await devis('or', 'client-unique');
   await devis('diamant', 'client-unique');
-  const retour = await devis('bronze', 'client-unique');
+  const retour = await devis('argent', 'client-unique');
 
   assert.equal(retour.breakdown.surge, 1, 'aucun surge déclenché par sa propre navigation');
   assert.equal(retour.amount, premier.amount,
@@ -40,7 +40,7 @@ test('Surge : des personnes DIFFÉRENTES comptent bien, chacune pour une demande
 
   const devis = async (clientId: string) => app.inject({
     method: 'POST', url: '/pricing/estimate',
-    payload: { origin: ORIGIN, destination: DEST, category: 'bronze', clientId },
+    payload: { origin: ORIGIN, destination: DEST, category: 'argent', clientId },
   });
 
   // Une seule personne, cinq consultations -> une seule demande.
@@ -59,7 +59,7 @@ test('Surge : une demande anonyme reste comptée (appels serveur, tests)', async
 
   for (let i = 0; i < 3; i++) {
     await app.inject({ method: 'POST', url: '/pricing/estimate',
-      payload: { origin: ORIGIN, destination: DEST, category: 'bronze' } });
+      payload: { origin: ORIGIN, destination: DEST, category: 'argent' } });
   }
   assert.equal(container.demand.demandAt(ORIGIN), 3, 'sans identifiant, chaque devis compte');
 });
@@ -76,7 +76,7 @@ test('Surge : le défaut est bien celui-là — non identifié le prix monte, id
     const { app } = await buildApp();             // instance neuve : aucune demande héritée
     const devis = async () => (await app.inject({
       method: 'POST', url: '/pricing/estimate',
-      payload: { origin: ORIGIN, destination: DEST, category: 'bronze', clientId },
+      payload: { origin: ORIGIN, destination: DEST, category: 'argent', clientId },
     })).json().quote;
     const premier = await devis();
     for (let i = 0; i < 4; i++) await devis();    // la personne compare / ajuste

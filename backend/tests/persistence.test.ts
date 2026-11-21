@@ -17,7 +17,7 @@ const sqlite = config.PERSISTENCE === 'sqlite';
 test('SQLite : un chauffeur survit à un nouveau cycle (réhydratation)', { skip: !sqlite }, async () => {
   const geo = createGeoIndex();
   const id = randomUUID();
-  const driver: Driver = { id, name: 'Persistant', matricule: 'ORION-CI-0001', category: 'bronze', kycStatus: 'active', availability: 'online', ratingAvg: 4.8, ratingCount: 10 };
+  const driver: Driver = { id, name: 'Persistant', matricule: 'ORION-CI-0001', category: 'argent', kycStatus: 'active', availability: 'online', ratingAvg: 4.8, ratingCount: 10 };
 
   const store1 = new DriverStore(geo, createRepository<Driver>('drivers'));
   store1.upsert(driver);

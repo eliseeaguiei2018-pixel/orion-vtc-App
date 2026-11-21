@@ -18,6 +18,11 @@ export interface PricingSettings {
   baseFare: number; perKm: number; perMinute: number; minFare: number; avgSpeedKmh: number;
   tvaRate: number; feeRate: number; insuranceRate: number; trafficWeight: number; stopFee: number;
   multipliers: Record<Tier, number>;
+  /**
+   * Supplément FIXE de chaque gamme par rapport à l'Argent, en F CFA TTC : le client voit
+   * exactement cet écart entre deux gammes sur le même trajet (Or +700, Diamant +1 700).
+   */
+  supplements: Record<Tier, number>;
   bodySurcharge: Record<string, number>;
   /* --- Frais annexes & pénalités (session Tarification S16) --- */
   /** Minutes d'attente offertes à l'arrivée du chauffeur (courtoisie). */
@@ -37,10 +42,8 @@ export interface PricingSettings {
 export const DEFAULT_PRICING: PricingSettings = {
   baseFare: 300, perKm: 130, perMinute: 18, minFare: 600, avgSpeedKmh: 24,
   tvaRate: TVA_RATE, feeRate: APP_FEE_RATE, insuranceRate: INSURANCE_RATE, trafficWeight: 0.6, stopFee: 250,
-  multipliers: {
-    bronze: FLEET.bronze.multiplier, argent: FLEET.argent.multiplier,
-    or: FLEET.or.multiplier, diamant: FLEET.diamant.multiplier,
-  },
+  multipliers: { argent: FLEET.argent.multiplier, or: FLEET.or.multiplier, diamant: FLEET.diamant.multiplier },
+  supplements: { argent: FLEET.argent.supplement, or: FLEET.or.supplement, diamant: FLEET.diamant.supplement },
   bodySurcharge: { berline: 1.0, suv: 1.08 },
   freeWaitMinutes: 5, cancelGraceMinutes: 2, cancelFee: 500,
   cleaningLight: 10_000, cleaningMajor: 50_000,
@@ -49,7 +52,7 @@ export const DEFAULT_PRICING: PricingSettings = {
 
 /**
  * Stratégie de tarification (pattern Strategy) : chaque service injecte la sienne.
- * Pour le VTC : base + distance + temps, modulé par le NIVEAU choisi (Bronze→Diamant),
+ * Pour le VTC : base + distance + temps, selon la GAMME choisie (Argent, Or, Diamant),
  * un coefficient de surge (zone/heure), puis remise éventuelle. Le détail (breakdown) est
  * renvoyé pour la TRANSPARENCE des prix.
  */
@@ -64,7 +67,7 @@ export interface CategoryTariff {
   avgSpeedKmh: number;
 }
 
-export const DEFAULT_TIER: Tier = 'bronze';
+export const DEFAULT_TIER: Tier = 'argent';
 
 /** Construit le tarif d'un niveau à partir des paramètres pilotables × multiplicateur. */
 export function tariffForTier(tier: Tier, s: PricingSettings = DEFAULT_PRICING): CategoryTariff {
@@ -170,12 +173,19 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
   const promo = ctx.promoDiscount ? ctx.promoDiscount(floored) : 0;
   const discount = Math.min(floored, promo > 0 ? promo : floored * discountRate);
 
-  const subtotal = floored - discount;
+  // Supplément de gamme (Or, Diamant) : un écart FIXE et TTC par rapport à l'Argent. Il est
+  // ajouté après l'arrondi du prix Argent pour que l'écart affiché soit exact, puis
+  // réparti hors taxes dans le détail (sous-total, TVA, frais, assurance) qui reste juste.
+  const supplementTtc = Math.max(0, s.supplements?.[category] ?? 0);
+  const tauxTtc = 1 + s.tvaRate + s.feeRate + (req.insurance ? s.insuranceRate : 0);
+  const sansSupplement = floored - discount;
+  const montantArgent = roundFcfa(sansSupplement * tauxTtc);
+  const amount = montantArgent + supplementTtc;
+  const subtotal = amount / tauxTtc;
   const tva = subtotal * s.tvaRate;
   const fee = subtotal * s.feeRate;
   const insurance = req.insurance ? subtotal * s.insuranceRate : 0;
-  // PRIX FIXE GARANTI : ce montant arrondi est exactement ce que le client paiera.
-  const amount = roundFcfa(subtotal + tva + fee + insurance);
+  // PRIX FIXE GARANTI : `amount` est exactement ce que le client paiera.
 
   return {
     category,

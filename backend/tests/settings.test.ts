@@ -19,14 +19,14 @@ test('tarification pilotable : baisser baseFare/perKm réduit le prix des course
   const { app } = await buildApp();
   t.after(() => app.close());
 
-  const before = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin, destination, category: 'bronze' } });
+  const before = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin, destination, category: 'argent' } });
   const priceBefore = before.json().quote.amount as number;
 
   const upd = await app.inject({ method: 'PUT', url: '/admin/pricing', headers: AUTH, payload: { baseFare: 150, perKm: 80 } });
   assert.equal(upd.statusCode, 200);
   assert.equal(upd.json().pricing.baseFare, 150);
 
-  const after = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin, destination, category: 'bronze' } });
+  const after = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin, destination, category: 'argent' } });
   const priceAfter = after.json().quote.amount as number;
   assert.ok(priceAfter < priceBefore, `attendu ${priceAfter} < ${priceBefore}`);
 });

@@ -91,13 +91,17 @@ function localEstimate(origin: LatLng, destination: LatLng, tier: TierOption, op
   const distance = km * 130 * m * bodyF;
   const time = minutes * 18 * m * bodyF;
   const trafficMult = 1 + (traffic.factor - 1) * TRAFFIC_PRICE_WEIGHT;
-  const subtotal = Math.max((base + distance + time) * trafficMult, 600 * m);
+  const sansSupplement = Math.max((base + distance + time) * trafficMult, 600 * m);
+  // Supplément de gamme : écart FIXE et TTC par rapport à l'Argent (même règle que le serveur).
+  const tauxTtc = 1 + 0.05 + 0.1 + (opts.insurance ? 0.02 : 0);
+  const amount = round50(sansSupplement * tauxTtc) + (tier.supplement ?? 0);
+  const subtotal = amount / tauxTtc;
   const tva = subtotal * 0.05;
   const fee = subtotal * 0.1;
   const insurance = opts.insurance ? subtotal * 0.02 : 0;
   return {
     lockId: `local-${Date.now()}`,
-    amount: round50(subtotal + tva + fee + insurance),
+    amount,
     currency: 'XOF',
     distanceMeters: Math.round(distanceMeters),
     etaSeconds,

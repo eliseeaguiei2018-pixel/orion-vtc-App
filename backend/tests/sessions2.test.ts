@@ -24,7 +24,7 @@ async function login(app: App, username: string) {
   return { authorization: `Bearer ${res.json().token}` };
 }
 async function onlineDriver(app: App, name: string, pos = { lat: 5.351, lng: -4.001 }) {
-  const id = (await app.inject({ method: 'POST', url: '/drivers', payload: { name, category: 'bronze' } })).json().driver.id as string;
+  const id = (await app.inject({ method: 'POST', url: '/drivers', payload: { name, category: 'argent' } })).json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${id}/online`, payload: { position: pos } });
   return id;
 }
@@ -98,7 +98,7 @@ test('S9 IA : anti-fraude (ghost rides, spoofing), élasticité, copilote', asyn
   // Seed : 3 courses même client + même chauffeur (collusion) + une avec téléportation GPS.
   const drvId = await onlineDriver(app, 'Fraud Drv');
   const now = new Date().toISOString();
-  const mkQuote = () => ({ lockId: 'x', amount: 3000, currency: 'XOF' as const, serviceType: 'ride', category: 'bronze', origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, distanceMeters: 4000, expiresAt: now, trafficLevel: 'fluid', breakdown: { base: 300, distance: 1800, time: 600, subtotal: 2700, tva: 135, fee: 270, insurance: 0, surge: 1 } });
+  const mkQuote = () => ({ lockId: 'x', amount: 3000, currency: 'XOF' as const, serviceType: 'ride', category: 'argent', origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, distanceMeters: 4000, expiresAt: now, trafficLevel: 'fluid', breakdown: { base: 300, distance: 1800, time: 600, subtotal: 2700, tva: 135, fee: 270, insurance: 0, surge: 1 } });
   for (let i = 0; i < 3; i++) {
     container.rides.save({ id: `ghost-${i}`, clientId: 'client-collusion', driverId: drvId, serviceType: 'ride', status: 'rated', origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, quote: mkQuote() as any, events: [], createdAt: now });
   }
@@ -110,7 +110,7 @@ test('S9 IA : anti-fraude (ghost rides, spoofing), élasticité, copilote', asyn
   assert.ok((fraud.json().gpsSpoof as Array<{ rideId: string }>).some((s) => s.rideId === 'spoof-1'));
 
   // Élasticité-prix (recommandation par cellule) + copilote NL.
-  await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'bronze' } });
+  await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'argent' } });
   const el = await app.inject({ method: 'GET', url: '/admin/elasticity', headers: AUTH });
   assert.equal(el.statusCode, 200);
   assert.ok(Array.isArray(el.json().cells));
@@ -136,14 +136,14 @@ test('S10 B2B : filiales, import de masse, politique de déplacement, web booker
   // Politique : zone autorisée = cocody uniquement → web booker au Plateau refusé (409).
   await app.inject({ method: 'PUT', url: '/admin/corporate', headers: AUTH, payload: { id: 'groupe-x', name: 'Groupe X', creditLimit: 5_000_000, policy: { zoneIds: ['cocody'] } } });
   const koBook = await app.inject({ method: 'POST', url: '/admin/corporate/groupe-x/book', headers: AUTH, payload: {
-    guestName: 'M. Invité', origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.35, lng: -3.99 }, category: 'bronze',
+    guestName: 'M. Invité', origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.35, lng: -3.99 }, category: 'argent',
   } });
   assert.equal(koBook.statusCode, 409);
   assert.match(koBook.json().error, /Zone non autorisée/);
 
   // Web booker dans Cocody : conforme → réservation créée + imputée.
   const okBook = await app.inject({ method: 'POST', url: '/admin/corporate/groupe-x/book', headers: AUTH, payload: {
-    guestName: 'Mme Cliente', origin: { lat: 5.3596, lng: -3.9903 }, destination: { lat: 5.35, lng: -3.99 }, category: 'bronze',
+    guestName: 'Mme Cliente', origin: { lat: 5.3596, lng: -3.9903 }, destination: { lat: 5.35, lng: -3.99 }, category: 'argent',
   } });
   assert.equal(okBook.statusCode, 201);
   assert.ok(okBook.json().booking.amount > 0);
@@ -161,7 +161,7 @@ test('S11 Litiges : escalade + claim lock, quarantaine (gel wallet), chargeback 
 
   // Course payée puis litige ouvert.
   const drv = await onlineDriver(app, 'Litige Drv');
-  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'bronze' } });
+  const est = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.35, lng: -4.0 }, destination: { lat: 5.37, lng: -3.98 }, category: 'argent' } });
   const ride = (await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-lit', lockId: est.json().quote.lockId }, headers: { 'idempotency-key': 'lit-1' } })).json().ride;
   const disp = (await app.inject({ method: 'POST', url: `/rides/${ride.id}/dispute`, payload: { clientId: 'client-lit', kind: 'facturation', description: 'Paiement contesté, carte volée selon le client' } })).json().dispute;
 
