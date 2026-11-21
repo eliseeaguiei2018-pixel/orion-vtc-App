@@ -37,6 +37,11 @@ export interface VectorConfig {
   sprite: string;
   /** Quartiers d'usage absents d'OSM (« Riviéra Golf ») : GeoJSON livré avec l'app. */
   quartiersUsage?: string;
+  /**
+   * L'index des lieux est livré avec l'app : la carte affiche TOUS ses lieux (banques,
+   * entreprises, immeubles nommés, commerces…), pas seulement ceux que portent les tuiles.
+   */
+  lieuxIndex?: boolean;
 }
 
 const env = import.meta.env as Record<string, string | undefined>;
@@ -48,12 +53,13 @@ export function getVectorConfig(): VectorConfig | null {
   return {
     tiles: absolu(env.VITE_MAP_TILES_URL ?? 'https://tiles.openfreemap.org/planet'),
     glyphs: absolu(env.VITE_MAP_GLYPHS_URL ?? 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf'),
-    attribution: '© OpenStreetMap · OpenFreeMap',
+    attribution: donnees ? '© OpenStreetMap · OpenFreeMap · Overture Maps' : '© OpenStreetMap · OpenFreeMap',
     bounds: bornes.length === 4 && bornes.every(Number.isFinite) ? bornes as [number, number, number, number] : undefined,
     maxzoom: env.VITE_MAP_TILES_MAXZOOM ? Number(env.VITE_MAP_TILES_MAXZOOM) : undefined,
     policesLocales: /^((b64|paquet|hybride):)?\.\//.test(env.VITE_MAP_GLYPHS_URL ?? ''),
     sprite: donnees ? `${donnees}sprites/ofm` : 'https://tiles.openfreemap.org/sprites/ofm_f384/ofm',
     quartiersUsage: donnees ? `${donnees}quartiers-usage.json` : undefined,
+    lieuxIndex: Boolean(donnees),
   };
 }
 

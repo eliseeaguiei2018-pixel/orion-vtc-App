@@ -46,6 +46,10 @@ jobs:
           npm ci
           python3 scripts/carte-hors-ligne/telecharger-tuiles.py "$RUNNER_TEMP/carte"
           node scripts/carte-hors-ligne/indexer-lieux.mjs "$RUNNER_TEMP/carte/tuiles" "$RUNNER_TEMP/carte/carte/lieux-index.json"
+          # Carte « comblée » : OpenStreetMap complet (export HOT) et Overture Maps.
+          pip install --quiet pyarrow
+          python3 scripts/carte-hors-ligne/telecharger-sources.py "$RUNNER_TEMP/sources-lieux"
+          python3 scripts/carte-hors-ligne/enrichir-lieux.py "$RUNNER_TEMP/carte/carte/lieux-index.json" "$RUNNER_TEMP/sources-lieux" "$RUNNER_TEMP/carte/carte/lieux-index.json"
           mkdir -p "$RUNNER_TEMP/carte/carte/sprites"
           for f in ofm.json ofm.png ofm@2x.json ofm@2x.png; do
             curl -sSfo "$RUNNER_TEMP/carte/carte/sprites/$f" "https://tiles.openfreemap.org/sprites/ofm_f384/$f"

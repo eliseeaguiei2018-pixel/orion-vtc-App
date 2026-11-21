@@ -17,7 +17,7 @@ interface Palette {
   principale: string; principaleBord: string; autoroute: string; autorouteBord: string;
   pontBord: string; chantier: string; texte: string; texteFort: string; halo: string; texteEau: string;
   /** Couleur du nom des lieux selon leur famille (repérage d'un coup d'œil, comme sur un plan). */
-  lieux: { manger: string; commerce: string; culte: string; sante: string; ecole: string; argent: string; hotel: string; loisirs: string; transport: string };
+  lieux: { manger: string; commerce: string; culte: string; sante: string; ecole: string; argent: string; hotel: string; loisirs: string; transport: string; bureau: string };
 }
 
 const SOMBRE: Palette = {
@@ -25,14 +25,14 @@ const SOMBRE: Palette = {
   mineure: '#1b3028', mineureBord: '#0a1611', secondaire: '#243b31', secondaireBord: '#0a1611',
   principale: '#2e4b3e', principaleBord: '#0b1712', autoroute: '#3c5d4e', autorouteBord: '#0c1a14',
   pontBord: '#5f8573', chantier: '#7d9187', texte: '#7f9b8e', texteFort: '#d3e4dc', halo: '#0b1813', texteEau: '#4f8aa3',
-  lieux: { manger: '#f0a35e', commerce: '#86b6f5', culte: '#c4a7ff', sante: '#ff8f8f', ecole: '#e3b27a', argent: '#5fd3c4', hotel: '#ff9cc8', loisirs: '#7fd99a', transport: '#a5b4c3' },
+  lieux: { manger: '#f0a35e', commerce: '#86b6f5', culte: '#c4a7ff', sante: '#ff8f8f', ecole: '#e3b27a', argent: '#5fd3c4', hotel: '#ff9cc8', loisirs: '#7fd99a', transport: '#a5b4c3', bureau: '#b9c3d6' },
 };
 const CLAIR: Palette = {
   fond: '#eef2ee', residentiel: '#e8eee8', parc: '#d3e9d1', eau: '#b4d6ea', batiment: '#e0e5e0', batimentBord: '#d2d9d2',
   mineure: '#ffffff', mineureBord: '#d5dcd6', secondaire: '#ffffff', secondaireBord: '#c9d2cb',
   principale: '#fff1c9', principaleBord: '#e2c983', autoroute: '#ffd68a', autorouteBord: '#d4a43f',
   pontBord: '#7d9187', chantier: '#8e9b93', texte: '#5d7065', texteFort: '#1d2b24', halo: '#ffffff', texteEau: '#3f7899',
-  lieux: { manger: '#c2410c', commerce: '#1d4ed8', culte: '#6d28d9', sante: '#b91c1c', ecole: '#92400e', argent: '#0f766e', hotel: '#be185d', loisirs: '#15803d', transport: '#475569' },
+  lieux: { manger: '#c2410c', commerce: '#1d4ed8', culte: '#6d28d9', sante: '#b91c1c', ecole: '#92400e', argent: '#0f766e', hotel: '#be185d', loisirs: '#15803d', transport: '#475569', bureau: '#3f4a63' },
 };
 
 const largeur = (base: number, z18: number): ExpressionSpecification =>
@@ -97,6 +97,9 @@ export function styleOrion(mode: 'dark' | 'light', cfg: VectorConfig): StyleSpec
         : { type: 'vector', url: cfg.tiles, attribution: cfg.attribution },
       // Quartiers que les Abidjanais nomment mais qu'OSM ne porte pas (« Riviéra Golf »).
       ...(cfg.quartiersUsage ? { usage: { type: 'geojson' as const, data: cfg.quartiersUsage } } : {}),
+      // Tous les lieux de l'index (OpenStreetMap complet + Overture Maps) : remplie par la
+      // carte une fois l'index chargé — vide d'ici là, les lieux des tuiles restent affichés.
+      ...(cfg.lieuxIndex ? { index: { type: 'geojson' as const, data: { type: 'FeatureCollection' as const, features: [] }, maxzoom: 16, buffer: 48 } } : {}),
     },
     layers: [
       { id: 'fond', type: 'background', paint: { 'background-color': P.fond } },
@@ -175,6 +178,30 @@ export function styleOrion(mode: 'dark' | 'light', cfg: VectorConfig): StyleSpec
         paint: { 'text-color': ['match', ['get', 'class'], MANGER, P.lieux.manger, COMMERCE, P.lieux.commerce, 'place_of_worship', P.lieux.culte, SANTE, P.lieux.sante,
       ECOLE, P.lieux.ecole, ['bank', 'atm'], P.lieux.argent, 'lodging', P.lieux.hotel, LOISIRS, P.lieux.loisirs, TRANSPORT, P.lieux.transport, P.texte], 'text-halo-color': P.halo, 'text-halo-width': 1.4 },
       },
+      // Lieux de l'INDEX (masqués tant qu'il n'est pas chargé) : la carte devient aussi
+      // complète que la recherche. Trois niveaux, pour ne pas noyer l'écran : les repères
+      // dès le zoom 14, les lieux à 15,2, les commerces de détail et immeubles nommés à 16,3.
+      ...(cfg.lieuxIndex ? ([
+        ['index-immeubles', 16.3, ['==', ['get', 'n'], 3] as ExpressionSpecification, 'Noto Sans Regular', 10],
+        ['index-detail', 16.3, ['==', ['get', 'n'], 2] as ExpressionSpecification, 'Noto Sans Regular', 10.5],
+        ['index-lieux', 15.2, ['==', ['get', 'n'], 1] as ExpressionSpecification, 'Noto Sans Regular', 10.5],
+        ['index-reperes', 14, ['==', ['get', 'n'], 0] as ExpressionSpecification, 'Noto Sans Bold', 11],
+      ] as const).map(([id, minzoom, filtre, fonte, taille]) => ({
+        id, type: 'symbol' as const, source: 'index', minzoom, filter: filtre,
+        layout: {
+          visibility: 'none' as const,
+          'icon-image': ['coalesce', ['image', ['concat', ['get', 'ic'], '_11']], ['image', 'dot_11']] as ExpressionSpecification,
+          'text-field': ['get', 'nom'] as ExpressionSpecification, 'text-font': [police(fonte)], 'text-size': taille,
+          'text-anchor': 'top' as const, 'text-offset': [0, 0.7] as [number, number], 'text-optional': true, 'text-max-width': 8,
+          'symbol-sort-key': ['get', 'rg'] as ExpressionSpecification,
+        },
+        paint: {
+          'text-color': ['match', ['get', 'f'], 'manger', P.lieux.manger, 'commerce', P.lieux.commerce, 'culte', P.lieux.culte, 'sante', P.lieux.sante,
+            'ecole', P.lieux.ecole, 'argent', P.lieux.argent, 'hotel', P.lieux.hotel, 'loisirs', P.lieux.loisirs, 'transport', P.lieux.transport,
+            'bureau', P.lieux.bureau, P.texte] as ExpressionSpecification,
+          'text-halo-color': P.halo, 'text-halo-width': 1.3, 'icon-opacity': 0.9,
+        },
+      })) : []),
       // Sous-quartiers, cités, lotissements (Cité Angré Star 8, Les Jardins de la Riviéra…).
       {
         id: 'sous-quartiers', type: 'symbol', source: 'osm', 'source-layer': 'place', minzoom: 13.5,

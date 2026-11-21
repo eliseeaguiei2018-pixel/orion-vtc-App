@@ -249,6 +249,18 @@ const TEXTES: Record<string, Huit> = {
     '更换服务器会退出登录：您的账户保存在所连接的服务器上。',
     'Смена сервера завершает сеанс: аккаунт хранится на подключённом сервере.',
   ],
+
+  /* --------------------------------------- Crédits --------------------------------------- */
+  legal_carte: [
+    'Cartes : © les contributeurs d’OpenStreetMap (licence ODbL), tuiles OpenFreeMap, lieux complétés par Overture Maps (CDLA-Permissive-2.0), itinéraires calculés avec OSRM.',
+    'Maps: © OpenStreetMap contributors (ODbL licence), OpenFreeMap tiles, places completed with Overture Maps (CDLA-Permissive-2.0), routes computed with OSRM.',
+    'Mapas: © colaboradores de OpenStreetMap (licencia ODbL), teselas OpenFreeMap, lugares completados con Overture Maps (CDLA-Permissive-2.0), itinerarios calculados con OSRM.',
+    'Mappe: © contributori di OpenStreetMap (licenza ODbL), tile OpenFreeMap, luoghi completati con Overture Maps (CDLA-Permissive-2.0), percorsi calcolati con OSRM.',
+    'Karten: © OpenStreetMap-Mitwirkende (ODbL-Lizenz), Kacheln von OpenFreeMap, Orte ergänzt durch Overture Maps (CDLA-Permissive-2.0), Routen berechnet mit OSRM.',
+    'الخرائط: © مساهمو OpenStreetMap (ترخيص ODbL)، بلاطات OpenFreeMap، أماكن مكمَّلة من Overture Maps (CDLA-Permissive-2.0)، مسارات محسوبة بـ OSRM.',
+    '地图：© OpenStreetMap 贡献者（ODbL 许可），OpenFreeMap 瓦片，地点由 Overture Maps 补充（CDLA-Permissive-2.0），路线由 OSRM 计算。',
+    'Карты: © участники OpenStreetMap (лицензия ODbL), тайлы OpenFreeMap, места дополнены данными Overture Maps (CDLA-Permissive-2.0), маршруты рассчитаны OSRM.',
+  ],
 };
 
 export const NOUVEAUTES = Object.fromEntries(

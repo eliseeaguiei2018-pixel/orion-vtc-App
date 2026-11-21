@@ -79,6 +79,39 @@ export function chargerIndexLieux(): Promise<void> {
   return chargement;
 }
 
+/** Famille d'un lieu (couleur de son nom sur la carte), d'après son pictogramme. */
+const FAMILLE: Record<string, string> = {
+  restaurant: 'manger', bar: 'manger', fast_food: 'manger', cafe: 'manger', bakery: 'manger', ice_cream: 'manger',
+  bank: 'argent', grocery: 'commerce', shop: 'commerce', clothing_store: 'commerce', hairdresser: 'commerce', car: 'commerce',
+  religious_christian: 'culte', religious_muslim: 'culte', place_of_worship: 'culte',
+  school: 'ecole', college: 'ecole', library: 'ecole', hospital: 'sante', pharmacy: 'sante', doctors: 'sante', dentist: 'sante',
+  lodging: 'hotel', fuel: 'transport', bus: 'transport', ferry: 'transport', railway: 'transport', airport: 'transport', harbor: 'transport',
+  cinema: 'loisirs', theatre: 'loisirs', museum: 'loisirs', art_gallery: 'loisirs', stadium: 'loisirs', attraction: 'loisirs', park: 'loisirs', music: 'loisirs',
+  commercial: 'bureau', building: 'bureau',
+};
+/** Repères de quartier, visibles de loin : on s'oriente avec eux. */
+const REPERES = new Set(['Hôpital', 'Clinique', 'Église', 'Mosquée', 'Lycée · université', 'Supermarché', 'Marché', 'Centre commercial',
+  'Hôtel', 'Station-service', 'Gare routière', 'Gare lagunaire', 'Gare', 'Aéroport', 'Port', 'Mairie · administration', 'Ambassade',
+  'Musée', 'Cinéma', 'Théâtre · salle de spectacle', 'Sport', 'Police', 'Pompiers', 'Tribunal']);
+
+/**
+ * Les lieux de l'index, prêts pour la carte. Les rues, arrêts et quartiers n'y sont pas :
+ * la carte les dessine déjà elle-même. `n` = niveau d'apparition (0 repère, 1 lieu,
+ * 2 commerce de détail, 3 immeuble nommé).
+ */
+export function lieuxPourCarte(): GeoJSON.FeatureCollection<GeoJSON.Point> | null {
+  if (!indexCharge) return null;
+  const { categories, lieux } = indexCharge;
+  const features: Array<GeoJSON.Feature<GeoJSON.Point>> = [];
+  for (const [nom, lat, lng, c] of lieux) {
+    const [libelle, ic, rg] = categories[c] ?? ['', 'dot', 9];
+    if (rg <= 2 || rg >= 5) continue;
+    const n = libelle === 'Immeuble · résidence' ? 3 : REPERES.has(libelle) ? 0 : rg === 3 ? 1 : 2;
+    features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] }, properties: { nom, ic, rg, n, f: FAMILLE[ic] ?? 'autre' } });
+  }
+  return { type: 'FeatureCollection', features };
+}
+
 /**
  * RECHERCHE SANS SERVEUR : les 449 lieux du Grand Abidjan vérifiés (OpenStreetMap,
  * dédoublonnés, avec niveau et commune), et l'index détaillé quand il est livré. Sert
