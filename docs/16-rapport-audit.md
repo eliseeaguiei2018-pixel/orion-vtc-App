@@ -568,6 +568,25 @@ Tous les parcours tournent sur le contenu exact de l'APK 1.4.0, avec la clé du 
   police de la carte ORION dedans. La clé y figure (c'est voulu) ; elle ne figure ni dans
   le dépôt ni dans son historique.
 
+### Page partageable
+
+La page d'audit est republiée à la même adresse, en version 1.4 :
+
+- les 30 captures de l'app client sont celles de l'APK 1.4.0, sur Google Maps, avec la
+  clé du client ; les 40 captures de l'app chauffeur, de la console et du tableau de bord
+  sont refaites après leur alignement graphique, sans serveur (données d'exemple) ;
+- la démonstration web est la version 1.4 sans clé : elle garde la carte ORION, la page
+  n'ayant pas le droit de charger Google Maps. Aucune clé n'est publiée ;
+- la section Android donne les trois réglages qui protègent la clé et les trois services
+  à activer pour aller plus loin.
+
+Vérifications : dans une copie du cadre de partage (même sous-chemin, même politique de
+sécurité), les cinq interfaces s'ouvrent, stockage autorisé comme refusé ; l'app client
+y passe l'inscription, la recherche, la bulle GPS (position refusée, dite à l'écran), le
+menu et l'écran Carte (Google injoignable, dit à l'écran). Sur l'adresse réelle, les 502
+fichiers de la page répondent 200 et les anciens ne sont plus servis. L'ouverture dans
+la visionneuse elle-même, depuis un téléphone, reste non vérifiée d'ici.
+
 ### Limites
 
 - **Rien n'a été essayé sur un téléphone.** Les parcours tournent dans le moteur de
