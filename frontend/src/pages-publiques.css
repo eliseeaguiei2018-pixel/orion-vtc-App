@@ -1,6 +1,6 @@
 /* Pages publiques (confidentialité, suppression de compte) : lisibles partout, sans dépendance. */
 :root { color-scheme: light dark; --vert: #00b46e; --texte: #10231a; --doux: #4d6358; --fond: #f4faf7; --carte: #ffffff; --bord: #d3e6dc; }
-@media (prefers-color-scheme: dark) { :root { --texte: #e8f3ee; --doux: #9db8ab; --fond: #04100b; --carte: #0d1f17; --bord: #1d3a2d; } }
+@media (prefers-color-scheme: dark) { :root { --texte: #f4f4f6; --doux: #b6b9c1; --fond: #0c0d0f; --carte: #16171a; --bord: #2b2d33; } }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--fond); color: var(--texte); font: 16px/1.6 Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
 .page { max-width: 720px; margin: 0 auto; padding: 28px 16px 48px; }

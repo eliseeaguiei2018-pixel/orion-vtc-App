@@ -21,17 +21,21 @@ interface Palette {
 }
 
 const SOMBRE: Palette = {
-  fond: '#0b1813', residentiel: '#0e1d17', parc: '#0f2a1d', eau: '#0a2533', batiment: '#13241c', batimentBord: '#1a3127',
-  mineure: '#1b3028', mineureBord: '#0a1611', secondaire: '#243b31', secondaireBord: '#0a1611',
-  principale: '#2e4b3e', principaleBord: '#0b1712', autoroute: '#3c5d4e', autorouteBord: '#0c1a14',
-  pontBord: '#5f8573', chantier: '#7d9187', texte: '#7f9b8e', texteFort: '#d3e4dc', halo: '#0b1813', texteEau: '#4f8aa3',
+  // Plan de nuit : graphite neutre, le même pour les trois accents (aucune teinte verte, bleue
+  // ou orange). Seuls les parcs et la lagune gardent une pointe de leur couleur, pour se repérer.
+  fond: '#111214', residentiel: '#141518', parc: '#16241b', eau: '#0f2230', batiment: '#1a1b1f', batimentBord: '#24262b',
+  mineure: '#26282d', mineureBord: '#0e0f11', secondaire: '#303238', secondaireBord: '#0e0f11',
+  principale: '#3d4048', principaleBord: '#101113', autoroute: '#4c4f59', autorouteBord: '#121316',
+  pontBord: '#737781', chantier: '#7d818a', texte: '#8d919a', texteFort: '#e4e5e9', halo: '#111214', texteEau: '#5b8fb0',
   lieux: { manger: '#f0a35e', commerce: '#86b6f5', culte: '#c4a7ff', sante: '#ff8f8f', ecole: '#e3b27a', argent: '#5fd3c4', hotel: '#ff9cc8', loisirs: '#7fd99a', transport: '#a5b4c3', bureau: '#b9c3d6' },
 };
 const CLAIR: Palette = {
-  fond: '#eef2ee', residentiel: '#e8eee8', parc: '#d3e9d1', eau: '#b4d6ea', batiment: '#e0e5e0', batimentBord: '#d2d9d2',
-  mineure: '#ffffff', mineureBord: '#d5dcd6', secondaire: '#ffffff', secondaireBord: '#c9d2cb',
-  principale: '#fff1c9', principaleBord: '#e2c983', autoroute: '#ffd68a', autorouteBord: '#d4a43f',
-  pontBord: '#7d9187', chantier: '#8e9b93', texte: '#5d7065', texteFort: '#1d2b24', halo: '#ffffff', texteEau: '#3f7899',
+  // Plan de jour : gris neutres (aucune teinte verte), routes blanches, grands axes ambrés.
+  // Le vert est réservé aux parcs, le bleu à la lagune : ce sont eux qu'on repère.
+  fond: '#f3f4f6', residentiel: '#eeeff2', parc: '#cfead6', eau: '#aed3f2', batiment: '#e5e7eb', batimentBord: '#d8dbe0',
+  mineure: '#ffffff', mineureBord: '#d9dce1', secondaire: '#ffffff', secondaireBord: '#cdd1d8',
+  principale: '#ffeebf', principaleBord: '#e3c675', autoroute: '#ffd27a', autorouteBord: '#d19d2e',
+  pontBord: '#8a909a', chantier: '#9aa0aa', texte: '#5b616c', texteFort: '#1c1e22', halo: '#ffffff', texteEau: '#2f6fa3',
   lieux: { manger: '#c2410c', commerce: '#1d4ed8', culte: '#6d28d9', sante: '#b91c1c', ecole: '#92400e', argent: '#0f766e', hotel: '#be185d', loisirs: '#15803d', transport: '#475569', bureau: '#3f4a63' },
 };
 

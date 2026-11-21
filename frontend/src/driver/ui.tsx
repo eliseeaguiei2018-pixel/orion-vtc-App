@@ -4,6 +4,7 @@ import { Scooter, Voiture, vehiculeDeGamme } from '../components/Vehicules';
 import { IconBell, IconBriefcase, IconCar, IconCheck, IconGlobe, IconHome, IconLeaf, IconSettings, IconWallet } from '../icons';
 import { tr } from './i18n';
 import { LANGUAGES, useI18n, type Lang } from '../i18n';
+import { Drapeau } from '../components/Drapeau';
 
 export type Tab = 'home' | 'rides' | 'earnings' | 'poste' | 'green' | 'profile';
 
@@ -129,7 +130,7 @@ export function ChoixLangue({ onChoisi }: { onChoisi?: () => void }) {
       {LANGUAGES.map((l) => (
         <button key={l.code} type="button" className={`opt${l.code === lang ? ' active' : ''}`} lang={l.code}
           onClick={() => { setLang(l.code as Lang); onChoisi?.(); }}>
-          <span style={{ fontSize: 20 }}>{l.flag}</span> <span className="grow" style={{ textAlign: 'start' }}>{l.label}</span>
+          <Drapeau code={l.code} /> <span className="grow" style={{ textAlign: 'start' }}>{l.label}</span>
           {l.code === lang && <IconCheck size={16} />}
         </button>
       ))}
@@ -141,11 +142,10 @@ export function ChoixLangue({ onChoisi }: { onChoisi?: () => void }) {
 export function BoutonLangue() {
   const [ouvert, setOuvert] = useState(false);
   const { lang } = useI18n();
-  const drapeau = LANGUAGES.find((l) => l.code === lang)?.flag;
   return (
     <>
       <button type="button" className="avatar dv-auth-lang" onClick={() => setOuvert(true)} aria-label={tr('Langue')}>
-        <IconGlobe size={18} /><span className="dv-auth-drapeau">{drapeau}</span>
+        <IconGlobe size={18} /><span className="dv-auth-drapeau"><Drapeau code={lang} taille={14} /></span>
       </button>
       {ouvert && <Modal title={tr('Langue')} onClose={() => setOuvert(false)}><ChoixLangue onChoisi={() => setOuvert(false)} /></Modal>}
     </>

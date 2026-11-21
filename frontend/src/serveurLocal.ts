@@ -150,12 +150,12 @@ export function cloreSosLocal(alerteId: string): void {
 
 /* ------------------------------ Abonnement ------------------------------ */
 const PLANS: Record<string, SubPlanInfo> = {
-  bronze: { id: 'bronze', label: 'Pack Bronze', ridesPerDay: 2, monthlyPrice: 25_000, perRideCap: 2_500, tiers: ['argent'], remiseHorsQuota: 0, remiseLocation: 0, priorite: 0, annulationGratuite: false,
-    benefits: ['2 courses incluses / jour', 'Gamme Argent', 'Plafond 2 500 F par course incluse', 'Support standard'], accent: '#cd7f4d' },
-  argent: { id: 'argent', label: 'Pack Argent', ridesPerDay: 3, monthlyPrice: 38_000, perRideCap: 3_500, tiers: ['argent', 'or'], remiseHorsQuota: 0.1, remiseLocation: 0.05, priorite: 1, annulationGratuite: false,
-    benefits: ['3 courses incluses / jour', 'Gammes Argent et Or', 'Plafond 3 500 F par course incluse', 'Priorité de mise en relation', '-10 % au-delà du quota', '-5 % sur les locations'], accent: '#c8d2dc' },
-  gold: { id: 'gold', label: 'Pack Gold', ridesPerDay: 4, monthlyPrice: 55_000, perRideCap: 5_000, tiers: ['argent', 'or', 'diamant'], remiseHorsQuota: 0.15, remiseLocation: 0.1, priorite: 2, annulationGratuite: true,
-    benefits: ['4 courses incluses / jour', 'Toutes les gammes (jusqu’à Diamant)', 'Plafond 5 000 F par course incluse', 'Priorité maximale', '-15 % au-delà du quota', '-10 % sur les locations', 'Annulation gratuite'], accent: '#f5c451' },
+  bronze: { id: 'bronze', label: 'Pack Argent', ridesPerDay: 2, monthlyPrice: 25_000, perRideCap: 2_500, tiers: ['argent'], remiseHorsQuota: 0, remiseLocation: 0, priorite: 0, annulationGratuite: false,
+    benefits: ['2 courses incluses / jour', 'Gamme Argent', 'Plafond 2 500 F par course incluse', 'Support standard'], accent: '#8e98a4' },
+  argent: { id: 'argent', label: 'Pack Or', ridesPerDay: 3, monthlyPrice: 38_000, perRideCap: 3_500, tiers: ['argent', 'or'], remiseHorsQuota: 0.1, remiseLocation: 0.05, priorite: 1, annulationGratuite: false,
+    benefits: ['3 courses incluses / jour', 'Gammes Argent et Or', 'Plafond 3 500 F par course incluse', 'Priorité de mise en relation', '-10 % au-delà du quota', '-5 % sur les locations'], accent: '#c79a1e' },
+  gold: { id: 'gold', label: 'Pack Diamant', ridesPerDay: 4, monthlyPrice: 55_000, perRideCap: 5_000, tiers: ['argent', 'or', 'diamant'], remiseHorsQuota: 0.15, remiseLocation: 0.1, priorite: 2, annulationGratuite: true,
+    benefits: ['4 courses incluses / jour', 'Toutes les gammes (jusqu’à Diamant)', 'Plafond 5 000 F par course incluse', 'Priorité maximale', '-15 % au-delà du quota', '-10 % sur les locations', 'Annulation gratuite'], accent: '#6a35f0' },
 };
 interface AbonnementLocal { sub: NonNullable<SubState['subscription']>; factures: SubInvoice[] }
 const etatAbonnement = (userId: string): SubState => {

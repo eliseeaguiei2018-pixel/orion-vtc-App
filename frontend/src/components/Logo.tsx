@@ -56,3 +56,16 @@ export function LogoIcon({ size = 96, radius = 0.24 }: { size?: number; radius?:
     </div>
   );
 }
+
+/**
+ * Icône de l'application rendue en volume : la même image que sur l'écran d'accueil du
+ * téléphone (feuille en relief sur laque verte). Sert de logo dans l'application cliente.
+ */
+export function LogoApp({ size = 64, className = '' }: { size?: number; className?: string }) {
+  return (
+    <img
+      className={`logo-app ${className}`.trim()} src={`${import.meta.env.BASE_URL}rendus/icone-app.webp`}
+      alt="ORION" width={size} height={size} draggable={false}
+    />
+  );
+}

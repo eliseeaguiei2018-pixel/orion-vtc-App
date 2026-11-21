@@ -692,9 +692,9 @@ const rentalStats: RentalStats = {
 };
 
 const subPlans: SubPlanRow[] = [
-  { id: 'bronze', label: 'Pack Bronze', ridesPerDay: 2, monthlyPrice: 25000, perRideCap: 2500, tiers: ['argent'], remiseHorsQuota: 0, remiseLocation: 0, accent: '#cd7f4d', benefits: ['2 courses incluses / jour', 'Niveaux Bronze & Argent'] },
-  { id: 'argent', label: 'Pack Argent', ridesPerDay: 3, monthlyPrice: 38000, perRideCap: 3500, tiers: ['argent', 'or'], remiseHorsQuota: 0.1, remiseLocation: 0.05, accent: '#c8d2dc', benefits: ['3 courses incluses / jour', 'Niveaux jusqu’à Or', '-10 % au-delà du quota'] },
-  { id: 'gold', label: 'Pack Gold', ridesPerDay: 4, monthlyPrice: 55000, perRideCap: 5000, tiers: ['argent', 'or', 'diamant'], remiseHorsQuota: 0.15, remiseLocation: 0.1, accent: '#f5c451', benefits: ['4 courses incluses / jour', 'Tous les niveaux', '-15 % au-delà du quota', 'Annulation gratuite'] },
+  { id: 'bronze', label: 'Pack Argent', ridesPerDay: 2, monthlyPrice: 25000, perRideCap: 2500, tiers: ['argent'], remiseHorsQuota: 0, remiseLocation: 0, accent: '#8e98a4', benefits: ['2 courses incluses / jour', 'Niveaux Bronze & Argent'] },
+  { id: 'argent', label: 'Pack Or', ridesPerDay: 3, monthlyPrice: 38000, perRideCap: 3500, tiers: ['argent', 'or'], remiseHorsQuota: 0.1, remiseLocation: 0.05, accent: '#c79a1e', benefits: ['3 courses incluses / jour', 'Niveaux jusqu’à Or', '-10 % au-delà du quota'] },
+  { id: 'gold', label: 'Pack Diamant', ridesPerDay: 4, monthlyPrice: 55000, perRideCap: 5000, tiers: ['argent', 'or', 'diamant'], remiseHorsQuota: 0.15, remiseLocation: 0.1, accent: '#6a35f0', benefits: ['4 courses incluses / jour', 'Tous les niveaux', '-15 % au-delà du quota', 'Annulation gratuite'] },
 ];
 
 const subscriptions: SubscriptionRow[] = [

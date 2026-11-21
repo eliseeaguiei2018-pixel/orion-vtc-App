@@ -36,13 +36,13 @@ export const TIERS: TierOption[] = [
 
 export const tierById = (id: string): TierOption => TIERS.find((t) => t.id === id) ?? TIERS[0]!;
 
-/** Abonnements mensuels. */
+/** Abonnements mensuels : packs Argent, Or, Diamant (les identifiants historiques sont conservés). */
 export const SUB_PLANS: SubPlan[] = [
-  { id: 'bronze', key: 'tier_bronze', ridesPerDay: 2, monthlyPrice: 25000, accent: '#cd7f4d',
+  { id: 'bronze', key: 'tier_argent', ridesPerDay: 2, monthlyPrice: 25000, accent: '#8e98a4',
     benefits: ['2 courses incluses / jour', 'Gamme Argent', 'Support standard'] },
-  { id: 'argent', key: 'tier_argent', ridesPerDay: 3, monthlyPrice: 38000, accent: '#c8d2dc',
+  { id: 'argent', key: 'tier_or', ridesPerDay: 3, monthlyPrice: 38000, accent: '#c79a1e',
     benefits: ['3 courses incluses / jour', 'Gammes Argent et Or', 'Priorité de mise en relation', '-10% au-delà du quota'] },
-  { id: 'gold', key: 'tier_or', ridesPerDay: 4, monthlyPrice: 55000, accent: '#f5c451',
+  { id: 'gold', key: 'tier_diamant', ridesPerDay: 4, monthlyPrice: 55000, accent: '#6a35f0',
     benefits: ['4 courses incluses / jour', 'Toutes les gammes (Diamant inclus)', 'Priorité maximale', '-15% au-delà du quota', 'Annulation gratuite'] },
 ];
 

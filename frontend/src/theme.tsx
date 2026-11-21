@@ -20,9 +20,9 @@ const KEY_ACCENT = 'orion.accent';
 
 /** Couleur de la barre du navigateur / du système, par accent et par mode. */
 const BARRE: Record<Accent, Record<Resolved, string>> = {
-  vert: { dark: '#04100b', light: '#ffffff' },
-  orange: { dark: '#120a04', light: '#ffffff' },
-  bleu: { dark: '#040a14', light: '#ffffff' },
+  vert: { dark: '#0c0d0f', light: '#ffffff' },
+  orange: { dark: '#0c0d0f', light: '#ffffff' },
+  bleu: { dark: '#0c0d0f', light: '#ffffff' },
 };
 
 function accentInitial(): Accent {

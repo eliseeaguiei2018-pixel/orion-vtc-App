@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { LatLng } from '../types';
+import { rendu } from './Vehicules';
 import { useTheme, type Accent } from '../theme';
 import { getVectorConfig } from '../mapConfig';
 import { CarteReelle } from './CarteReelle';
@@ -42,14 +43,14 @@ interface Palette {
   route0: string; route1: string; origin: string; dest: string; car: string; ink: string;
 }
 const DARK: Palette = {
-  land: '#0c2018', land2: '#08160f', water: '#0a2b3c', park: '#123a26',
-  roadCasing: '#0a1d14', roadFill: '#1a3428', primaryCasing: '#081610', primaryFill: '#36584a', label: '#61806f',
-  route0: '#2bffa6', route1: '#00b46e', origin: '#2bffa6', dest: '#f5c451', car: '#2bffa6', ink: '#04140d',
+  land: '#141518', land2: '#0f1012', water: '#0f2230', park: '#16241b',
+  roadCasing: '#0e0f11', roadFill: '#2a2c32', primaryCasing: '#0c0d0f', primaryFill: '#474a53', label: '#7b7f88',
+  route0: '#4be391', route1: '#1fb863', origin: '#4be391', dest: '#e8b84a', car: '#4be391', ink: '#04160c',
 };
 const LIGHT: Palette = {
-  land: '#e9f1ea', land2: '#f4f8f4', water: '#bfe0f0', park: '#d5eccf',
-  roadCasing: '#d6e0da', roadFill: '#ffffff', primaryCasing: '#ecd48a', primaryFill: '#fff0bf', label: '#8aa093',
-  route0: '#00c884', route1: '#008a53', origin: '#00a865', dest: '#e0a92e', car: '#00a865', ink: '#ffffff',
+  land: '#eeeff2', land2: '#f3f4f6', water: '#aed3f2', park: '#cfead6',
+  roadCasing: '#d9dce1', roadFill: '#ffffff', primaryCasing: '#e3c675', primaryFill: '#ffeebf', label: '#6f737c',
+  route0: '#00b85c', route1: '#00843d', origin: '#00843d', dest: '#b7791f', car: '#00843d', ink: '#ffffff',
 };
 
 interface Props {
@@ -73,14 +74,15 @@ interface Props {
 
 /** Itinéraire, départ et véhicule prennent la couleur choisie par le client. */
 const ACCENT_CARTE: Record<Accent, Record<'dark' | 'light', Partial<Palette>>> = {
+  // Le fond de carte ne change pas avec l'accent : seuls l'itinéraire, le départ et le véhicule le portent.
   vert: { dark: {}, light: {} },
   orange: {
-    dark: { land: '#1c140c', land2: '#140d07', roadCasing: '#170f08', roadFill: '#33261a', primaryCasing: '#120b05', primaryFill: '#5a4532', park: '#2a2414', label: '#8a735f', route0: '#ffb05a', route1: '#e86a00', origin: '#ffb05a', car: '#ffb05a', ink: '#1c0e02' },
-    light: { land: '#f3ece4', land2: '#faf6f1', roadCasing: '#e2d6ca', label: '#a08d7c', route0: '#ff8a1f', route1: '#c25700', origin: '#e06a00', car: '#e06a00' },
+    dark: { route0: '#ffa466', route1: '#f06a10', origin: '#ffa466', car: '#ffa466', ink: '#1f0d00' },
+    light: { route0: '#ff6a00', route1: '#b84300', origin: '#b84300', car: '#b84300' },
   },
   bleu: {
-    dark: { land: '#0b1626', land2: '#07101c', roadCasing: '#081221', roadFill: '#1a2c45', primaryCasing: '#060e19', primaryFill: '#33506f', park: '#10283a', label: '#61758f', route0: '#79b8ff', route1: '#1f74e8', origin: '#79b8ff', car: '#79b8ff', ink: '#03112a' },
-    light: { land: '#e8eef6', land2: '#f4f7fb', roadCasing: '#d0dae6', label: '#8696ad', route0: '#3d95ff', route1: '#0f5bc4', origin: '#1a6fe0', car: '#1a6fe0' },
+    dark: { route0: '#9cc1ff', route1: '#4a8bff', origin: '#9cc1ff', car: '#9cc1ff', ink: '#03112a' },
+    light: { route0: '#1463ff', route1: '#0b57e6', origin: '#0b57e6', car: '#0b57e6' },
   },
 };
 
@@ -245,39 +247,21 @@ function CarteStylisee({ origin, destination, stops = [], car, vehicle = 'car', 
 }
 
 function CarMarker({ x, y, P }: { x: number; y: number; P: Palette }) {
-  // Voiture vue de dessus, avec un halo qui respire : on la repère d'un coup d'œil.
+  // Voiture vue de dessus (rendu 3D), sur un halo : on la repère d'un coup d'œil.
   return (
     <g className="car-marker" transform={`translate(${x} ${y})`}>
       <circle r="22" fill={P.car} opacity="0.16" className="marker-halo" />
-      <circle r="14" fill={P.car} opacity="0.18" />
-      <g transform="translate(-8 -15)">
-        <rect x="0.5" y="0.5" width="15" height="29" rx="6" fill={P.car} stroke="#000" strokeOpacity="0.35" strokeWidth="0.8" />
-        <rect x="0.5" y="0.5" width="15" height="29" rx="6" fill="#fff" opacity="0.12" />
-        <path d="M3 9 C 5 7 11 7 13 9 L 12.4 13 C 10 12 6 12 3.6 13 Z" fill="#0b1117" />
-        <path d="M3.6 22 C 6 23 10 23 12.4 22 L 13 25.5 C 10.5 27 5.5 27 3 25.5 Z" fill="#0b1117" />
-        <rect x="4" y="13.6" width="8" height="8" rx="2" fill="#fff" opacity="0.2" />
-        <rect x="2.4" y="1.1" width="3.2" height="1.4" rx="0.7" fill="#f4fbff" />
-        <rect x="10.4" y="1.1" width="3.2" height="1.4" rx="0.7" fill="#f4fbff" />
-        <rect x="2.4" y="27.6" width="3.2" height="1.2" rx="0.6" fill="#ff3b4a" />
-        <rect x="10.4" y="27.6" width="3.2" height="1.2" rx="0.6" fill="#ff3b4a" />
-      </g>
+      <image href={rendu('voiture-dessus')} x="-9" y="-18" width="18" height="36" />
     </g>
   );
 }
 
 function MotoMarker({ x, y, P }: { x: number; y: number; P: Palette }) {
-  // Scooter de livraison vu de dessus : guidon, selle et top-case à la couleur de l'app.
+  // Scooter de livraison vu de dessus (rendu 3D).
   return (
     <g className="car-marker" transform={`translate(${x} ${y})`}>
       <circle r="20" fill={P.car} opacity="0.16" className="marker-halo" />
-      <circle r="12" fill={P.car} opacity="0.18" />
-      <g transform="translate(-6 -13)">
-        <rect x="3.5" y="1" width="5" height="22" rx="2.5" fill="#27313a" stroke="#000" strokeOpacity="0.3" strokeWidth="0.6" />
-        <path d="M0 5 L 12 5" stroke="#1d252c" strokeWidth="1.8" strokeLinecap="round" />
-        <rect x="4.6" y="9" width="2.8" height="7" rx="1.4" fill="#0d1217" />
-        <rect x="1" y="16" width="10" height="9" rx="2" fill={P.car} stroke="#000" strokeOpacity="0.3" strokeWidth="0.6" />
-        <rect x="4.4" y="0.4" width="3.2" height="1.4" rx="0.7" fill="#f4fbff" />
-      </g>
+      <image href={rendu('scooter-dessus')} x="-8" y="-16" width="16" height="32" />
     </g>
   );
 }

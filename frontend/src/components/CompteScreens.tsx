@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Sheet, TopBar } from './ui';
 import {
-  IconCamera, IconCheck, IconChevron, IconClock, IconFingerprint, IconGlobe, IconImage, IconLock,
-  IconPin, IconShield, IconShieldCheck, IconSignal, IconWallet, IconCrown, IconPhone, IconCar, IconMedical, IconStar,
+  IconCamera, IconCheck, IconChevron, IconClock, IconGlobe, IconImage, IconLock,
+  IconPin, IconShield, IconShieldCheck, IconPhone, IconStar,
 } from '../icons';
 import { useI18n, LANGUAGES, type Lang } from '../i18n';
+import { Drapeau } from './Drapeau';
+import { Objet, Tuile } from './Vehicules';
 import { ACCENTS, useTheme, type ThemeMode } from '../theme';
 import { COUNTRIES, formatXOF } from '../data';
 import { isBiometricEnabled, setBiometricEnabled } from '../security';
@@ -255,7 +257,7 @@ export function SettingsScreen({
   const hoteServeur = (() => { try { return new URL(serveur.url).host; } catch { return serveur.url; } })();
   const ligne = (icone: ReactNode, titre: string, sous: string | null, onClick: () => void, classe = '') => (
     <button className={`opt list-btn set-ligne ${classe}`} onClick={onClick}>
-      <span className="list-ico" style={{ color: 'var(--green)' }}>{icone}</span>
+      <span className="list-ico">{icone}</span>
       <span className="col grow" style={{ textAlign: 'start' }}>
         <strong style={{ fontSize: 14 }}>{titre}</strong>
         {sous && <span className="faint" style={{ fontSize: 12 }}>{sous}</span>}
@@ -293,20 +295,25 @@ export function SettingsScreen({
           </div>
         )}
 
+        {/* Mes courses et Aide : les deux tuiles venues de l'accueil, au même format. */}
+        <div className="tuiles-duo set-tuiles">
+          <Tuile grande rang={0} objet={<Objet nom="mes-courses" />} label={t('menu_history')} note={t('set_history_d')} onClick={onHistory} />
+          <Tuile grande rang={1} objet={<Objet nom="aide" />} label={t('menu_help')} note={t('set_help_d')} onClick={onHelp} />
+        </div>
+
         {/* Mon activité */}
         <span className="eyebrow set-titre"><IconClock size={13} /> {t('set_activity')}</span>
         <div className="stack">
-          {profil && onAssurance && ligne(<IconMedical size={18} />, t('as_title'), t(assuranceActive ? 'set_assurance_d_on' : 'set_assurance_d_off'), onAssurance)}
-          {ligne(<IconClock size={18} />, t('set_history'), t('set_history_d'), onHistory)}
-          {ligne(<IconShield size={18} />, t('set_sos'), t('set_sos_d'), onSos)}
-          {ligne(<IconWallet size={18} />, t('wal_title'), null, onWallet)}
-          {ligne(<IconCrown size={18} />, t('set_subscription'), null, onSubscription)}
+          {profil && onAssurance && ligne(<Objet nom="assurance" taille={34} />, t('as_title'), t(assuranceActive ? 'set_assurance_d_on' : 'set_assurance_d_off'), onAssurance)}
+          {ligne(<Objet nom="alertes-sos" taille={34} />, t('set_sos'), t('set_sos_d'), onSos)}
+          {ligne(<Objet nom="portefeuille" taille={34} />, t('wal_title'), null, onWallet)}
+          {ligne(<Objet nom="abonnement" taille={34} />, t('set_subscription'), null, onSubscription)}
         </div>
 
         {/* Sécurité & confidentialité */}
         <span className="eyebrow set-titre"><IconShieldCheck size={13} /> {t('sec_title')}</span>
         <div className="opt" style={{ marginBottom: 8 }}>
-          <span className="list-ico" style={{ color: 'var(--green)' }}><IconFingerprint size={18} /></span>
+          <span className="list-ico"><Objet nom="cadenas" taille={34} /></span>
           <span className="col grow" style={{ textAlign: 'start' }}>
             <strong style={{ fontSize: 14 }}>{t('sec_biometric')}</strong>
             <span className="faint" style={{ fontSize: 12 }}>{t('sec_biometric_d')}</span>
@@ -353,7 +360,7 @@ export function SettingsScreen({
         <div className="grid2" style={{ margin: '8px 0 14px' }}>
           {LANGUAGES.map((l) => (
             <button key={l.code} className={`opt${l.code === lang ? ' active' : ''}`} onClick={() => setLang(l.code as Lang)}>
-              <span className="code-langue">{l.code.toUpperCase()}</span> <span className="grow" style={{ textAlign: 'start' }}>{l.label}</span>
+              <Drapeau code={l.code} /> <span className="grow" style={{ textAlign: 'start' }}>{l.label}</span>
               {l.code === lang && <IconCheck size={16} color="var(--green)" />}
             </button>
           ))}
@@ -362,7 +369,7 @@ export function SettingsScreen({
         <div className="stack" style={{ marginTop: 8 }}>
           {COUNTRIES.map((c) => (
             <div key={c.code} className={`opt${c.status === 'active' ? ' active' : ' muted-opt'}`} style={{ cursor: c.status === 'active' ? 'default' : 'not-allowed' }}>
-              <span className="code-langue">{c.code}</span>
+              <Drapeau code={c.code} />
               <span className="grow" style={{ textAlign: 'start' }}>{c.name}</span>
               <span className={`badge ${c.status === 'active' ? 'green' : ''}`}>{c.status === 'active' ? t('set_active') : t('set_comingSoon')}</span>
             </div>
@@ -372,9 +379,8 @@ export function SettingsScreen({
         {/* Aide et informations */}
         <span className="eyebrow set-titre">{t('set_info')}</span>
         <div className="stack">
-          {ligne(<IconShieldCheck size={18} />, t('set_help'), null, onHelp)}
-          {ligne(<IconLock size={18} />, t('set_legal'), null, onLegal)}
-          {onServeur && ligne(<IconSignal size={18} />, t('srv_title'), serveur.url ? t('srv_d_relie', { h: hoteServeur }) : t('srv_d_autonome'), onServeur)}
+          {ligne(<Objet nom="document" taille={34} />, t('set_legal'), null, onLegal)}
+          {onServeur && ligne(<Objet nom="serveur" taille={34} />, t('srv_title'), serveur.url ? t('srv_d_relie', { h: hoteServeur }) : t('srv_d_autonome'), onServeur)}
         </div>
 
         {/* Mon compte */}
@@ -459,7 +465,7 @@ export function HistoryScreen({ onBack, onLogin }: { onBack: () => void; onLogin
                   return (
                     <div key={c.id} className={`card hist-item ${etat}`}>
                       <button className="list-btn hist-tete" onClick={() => setOuvert(open ? null : c.id)}>
-                        <span className="list-ico"><IconCar size={18} /></span>
+                        <span className="list-ico"><Objet nom="mes-courses" taille={34} /></span>
                         <span className="col grow" style={{ textAlign: 'start' }}>
                           <strong style={{ fontSize: 14 }}>{c.depart} → {c.arrivee}</strong>
                           <span className="faint" style={{ fontSize: 12 }}>{new Date(c.createdAt).toLocaleDateString(undefined, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>

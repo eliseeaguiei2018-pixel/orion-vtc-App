@@ -52,9 +52,9 @@ test('plafond par course : le dépassement reste à la charge du client', () => 
   assert.equal(s.get('u1')!.coursesCouvertes, 1);
 });
 
-test('niveaux autorisés : un Bronze ne voyage pas en Diamant aux frais du forfait', () => {
+test('niveaux autorisés : le pack Argent ne voyage pas en Diamant aux frais du forfait', () => {
   const s = new SubscriptionService();
-  s.subscribe('u1', 'bronze'); // Pack Bronze : gamme Argent uniquement
+  s.subscribe('u1', 'bronze'); // Pack Argent (identifiant historique « bronze ») : gamme Argent uniquement
   const refus = s.consumeRide('u1', { amount: 5_000, tier: 'diamant' });
   assert.equal(refus.covered, false);
   assert.equal(refus.montantCouvert, 0);
@@ -162,6 +162,14 @@ test('résiliation : plus de couverture, et pas de réactivation par un paiement
   // Régler une ancienne facture ne doit pas ressusciter un abonnement résilié.
   s.payerFacture(f.id);
   assert.equal(s.get('u1')!.active, false);
+});
+
+test('packs : trois noms, ceux des gammes — plus aucun « Bronze » affiché', () => {
+  assert.deepEqual(Object.values(PLANS).map((p) => p.label), ['Pack Argent', 'Pack Or', 'Pack Diamant']);
+  // Le pack du haut couvre la gamme du haut ; le premier pack ne couvre que l'Argent.
+  assert.deepEqual(PLANS.bronze.tiers, ['argent']);
+  assert.ok(PLANS.gold.tiers.includes('diamant'));
+  for (const p of Object.values(PLANS)) assert.doesNotMatch(p.label + p.benefits.join(' '), /bronze/i);
 });
 
 test('sans abonnement : aucune couverture et un message clair', () => {

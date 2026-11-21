@@ -266,3 +266,102 @@ macOS (comptées dix fois), plus deux compilations Android. Désormais : CI une 
 modification et sur Linux seulement ; Windows et macOS, applications mobiles et démonstrations
 filmées à la demande (onglet Actions → Run workflow). Les applications Windows et macOS de la
 console restent dans le projet : seuls leurs tests automatiques sont devenus manuels.
+
+## 12. Version 1.2 : centre de contrôle, trois gammes, carte comblée, design en volume (21 novembre)
+
+Demande du client après l'APK 1.1 : un rendu « digne d'une application premium » (fond
+blanc pur, sans transparence ni teinte verte, icônes réalistes), une carte plus complète,
+trois gammes au lieu de quatre, des locations moins chères, un SOS où ce n'est pas au
+client d'appeler les secours, un bouton Appeler qui ouvre le téléphone, et un serveur.
+
+### Gammes et prix
+- **Trois gammes** : Argent, Or, Diamant. L'Argent reprend la grille de l'ancien Bronze ;
+  l'Or coûte **700 F** de plus que l'Argent, le Diamant **1 000 F** de plus que l'Or — un
+  écart fixe, toutes taxes comprises, indépendant de la distance (réglable dans la
+  console). Une demande « bronze » venue d'un ancien client est servie en Argent ; un
+  barème enregistré avec quatre gammes est migré au démarrage.
+- **Location Signature** : de **60 000 à 300 000 F la journée** (la console ne peut plus
+  sortir de ces bornes). Forfait mensuel remisé : −30 % dès le premier mois, −35 % dès 3,
+  −40 % dès 6, −45 % dès 12. **Entreprise : forfait mensuel uniquement, six mois minimum,
+  renouvelable ou non** ; particuliers : heure, journée, week-end, semaine ou mois. Le devis
+  affiche la mensualité, le total du forfait et le gain ; la caution porte sur un mois.
+
+### SOS : le centre de contrôle prévient les secours
+- **Agent ORION automatique** (`agent-sos.ts`, identique sur le serveur et dans
+  l'application — un test échoue si les deux copies divergent). Il répond dès l'alerte,
+  qualifie la situation (malaise, accident, agression, incendie, chauffeur dangereux,
+  harcèlement, panne, objet oublié), donne les gestes qui protègent et **demande au centre**
+  de prévenir le bon service. Le client n'a aucun appel à passer.
+- La console affiche la synthèse et les demandes dans le dossier SOS (`Appeler`,
+  `Marquer fait`) ; le client voit l'avancement réel : transmise, appel en cours, joint.
+- Silence : relance à 30 s, rappel et police par précaution à 75 s. Fausse manœuvre
+  confirmée : clôture automatique, sauf si la personne peut être sous contrainte (agression,
+  harcèlement, chauffeur signalé) — alors un opérateur confirme de vive voix.
+- **Contrôle de sécurité en course** (« Votre course se passe-t-elle bien ? ») : envoyé par
+  le serveur, et désormais aussi par l'application sans serveur ; « Je ne me sens pas en
+  sécurité » ouvre la conversation avec le centre.
+- **Confidentialité, trouvée en chemin** : la conversation SOS et les messages ORION →
+  client étaient diffusés sur le canal de la course, que l'app du chauffeur écoute. Une
+  passagère signalant son chauffeur voyait ses messages partir vers lui. Ils ne passent
+  plus que par le canal de l'alerte, réservé à son auteur.
+- Les numéros 185 / 170 / 180 ne s'affichent plus qu'en dernier recours : alerte non
+  transmise, démonstration, ou centre muet depuis trois minutes.
+
+### Appel et serveur
+- **Appeler** est un vrai lien `tel:` dans tous les cas : relié au serveur, il porte le
+  numéro du chauffeur ; sans serveur (chauffeur simulé), un numéro fictif non attribué,
+  avec la mention à l'écran. L'APK 1.1 n'affichait qu'un message.
+- **Paramètres → Serveur ORION** : l'adresse du serveur se règle dans l'application, est
+  testée (serveur ORION, https) puis retenue. Le même APK passe de l'autonomie au serveur
+  sans réinstallation. Le serveur lui-même se déploie avec `render.yaml` (voir
+  `DEPLOIEMENT.md`) : il demande un compte d'hébergement, que seul le client peut ouvrir.
+
+### Carte
+- Index des lieux : **31 341 → 48 924** (+56 %), tous affichés sur la carte. Sources
+  ouvertes : OpenStreetMap complet (export HOT), bâtiments et voies nommés, Overture Maps.
+  Détail et commandes : `frontend/scripts/carte-hors-ligne/README.md`.
+- Riviéra Bonoumin : 286 → 456 lieux dans un rayon de 800 m ; Plateau : 342 → 684.
+- Google Maps n'est pas utilisé : ses conditions interdisent de copier ses données.
+
+### Design
+- Direction : **sûr, net, chaleureux**. Fond blanc pur, gris neutres (plus aucune teinte
+  verte), aucune surface translucide ni floutée ; plan de ville en gris neutres.
+- Accents francs : vert `#00B85C`, bleu `#1463FF`, orange `#FF6A00` en aplat ; une teinte
+  plus profonde quand l'accent sert d'encre sur fond blanc (lisibilité 4,5:1).
+- **Objets en volume** : véhicules (berline, SUV, limousine, par gamme et par teinte),
+  scooter de livraison, vues de dessus pour la carte et les neuf objets des services sont
+  modélisés et rendus avec Blender (`frontend/scripts/rendus-3d/`), en vert, blanc et
+  violet. L'accueil les présente sur des tuiles gris clair, le nom dessous.
+- **Icônes en volume dans toute l'application** (demande du 21 novembre) : 32 objets de plus —
+  couronnes d'argent et d'or et diamant des packs, mallette de premiers secours (SAMU), insigne
+  (police), extincteur (pompiers), engrenage des paramètres, bouclier d'ORION Assurance, horloge
+  de l'historique, bouton d'alerte SOS, portefeuille, maison, mallette, banque, avion, et les
+  objets des lieux de la recherche (école, église, mosquée, hôtel, station, bus…). Les
+  pictogrammes au trait ne restent que pour les gestes de l'interface.
+- **Mode sombre neutre** : les fonds sombres étaient teintés par l'accent (vert-noir, brun,
+  bleu nuit). Ils sont désormais d'un même graphite pour les trois accents — pages, feuilles,
+  cartes, sélections, pastilles et plan de ville. L'accent ne reste que sur les boutons, le texte
+  d'action et l'itinéraire.
+- **Drapeaux en couleur** : langues et pays ont leur drapeau dessiné en vectoriel, identique
+  sur tous les téléphones (les drapeaux « emoji » dépendent du système). L'arabe porte le
+  drapeau des Émirats arabes unis.
+- **Polices livrées avec l'application** : Sora et Inter ne sont plus téléchargées chez Google
+  au lancement ; sans réseau, la typographie reste exactement la même (les quatre interfaces).
+- **Packs d'abonnement** : Pack Argent, Pack Or, Pack Diamant — plus de « Bronze » ni de
+  « Gold ». Prix, quotas et plafonds inchangés ; les identifiants enregistrés ne bougent pas.
+- **Suivi de course** : le code de prise en charge est sur un aplat plein, « Annuler la
+  course » est un bouton discret, plus aucun halo coloré autour des cartes sélectionnées.
+- **Accueil réagencé** : « Mes courses » et « Aide » ont rejoint les paramètres, au même
+  format de tuile. Les sept services restants tiennent sur deux rangées pleines — trois, puis
+  quatre — sous Course et Livraison ; « Vos lieux » remonte dans le premier écran.
+- **Objets animés** : sur l'accueil, la voiture et le scooter arrivent chacun de son côté,
+  les objets entrent l'un après l'autre puis flottent doucement, chacun à son rythme. Vérifié
+  par mesure : les neuf objets bougent ; aucun ne bouge quand le téléphone demande moins
+  d'animations.
+- **Icône de l'application en volume** : la feuille du logo en relief sur une dalle verte
+  laquée, rendue comme les autres objets et déclinée pour toutes les densités Android (icône
+  adaptative, ronde, carrée). La même image sert de logo dans l'application.
+- **Un défaut trouvé en vérifiant** : la règle qui interdit tout flou d'arrière-plan
+  disparaissait à la compilation (seule la forme préfixée survivait, que Chrome et Android
+  ignorent). Le voile du contrôle de sécurité restait donc flouté. Corrigé et vérifié dans le
+  fichier compilé.

@@ -10,6 +10,14 @@ const ORDRE: Langue[] = ['fr', 'en', 'es', 'it', 'de', 'ar', 'zh', 'ru'];
 type Huit = [string, string, string, string, string, string, string, string];
 
 const TEXTES: Record<string, Huit> = {
+  /* ------------------------------ Paramètres ------------------------------ */
+  set_help_d: [
+    'Urgences, support, questions', 'Emergencies, support, questions', 'Urgencias, soporte, preguntas', 'Emergenze, assistenza, domande',
+    'Notfälle, Support, Fragen', 'طوارئ، دعم، أسئلة', '紧急求助、客服、常见问题', 'Экстренные службы, поддержка, вопросы',
+  ],
+  /* ------------------------------ Pastilles ------------------------------ */
+  badge_gratuit: ['Gratuit', 'Free', 'Gratis', 'Gratis', 'Kostenlos', 'مجاني', '免费', 'Бесплатно'],
+  badge_a_bord: ['À bord', 'On board', 'A bordo', 'A bordo', 'An Bord', 'على المتن', '车上', 'В салоне'],
   /* ------------------------------ Location ------------------------------ */
   rent_f_entrepriseHint: [
     'Société, institution, ambassade — forfait mensuel, 6 mois minimum, facture TVA.',
@@ -205,6 +213,10 @@ const TEXTES: Record<string, Huit> = {
   srv_d_autonome: [
     'Mode autonome : les données restent sur ce téléphone', 'Standalone mode: data stays on this phone', 'Modo autónomo: los datos quedan en este teléfono',
     'Modalità autonoma: i dati restano su questo telefono', 'Eigenständiger Modus: Daten bleiben auf diesem Telefon', 'وضع مستقل: تبقى البيانات على هذا الهاتف', '独立模式：数据保存在本机', 'Автономный режим: данные остаются на телефоне',
+  ],
+  srv_etat_autonome_d: [
+    'Les données restent sur ce téléphone', 'Data stays on this phone', 'Los datos quedan en este teléfono', 'I dati restano su questo telefono',
+    'Die Daten bleiben auf diesem Telefon', 'تبقى البيانات على هذا الهاتف', '数据保存在本机', 'Данные остаются на телефоне',
   ],
   srv_etat_relie: ['Relié au serveur ORION', 'Connected to the ORION server', 'Conectado al servidor ORION', 'Collegato al server ORION', 'Mit dem ORION-Server verbunden', 'متصل بخادم أوريون', '已连接 ORION 服务器', 'Подключено к серверу ORION'],
   srv_etat_autonome: ['Mode autonome', 'Standalone mode', 'Modo autónomo', 'Modalità autonoma', 'Eigenständiger Modus', 'وضع مستقل', '独立模式', 'Автономный режим'],

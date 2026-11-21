@@ -44,10 +44,17 @@ export interface Plan {
   accent: string;
 }
 
+/**
+ * Trois packs, nommés comme les trois gammes : Argent, Or, Diamant (version 1.2 — le nom
+ * « Bronze » a disparu avec la gamme). Les IDENTIFIANTS, eux, n'ont pas bougé (`bronze`,
+ * `argent`, `gold`) : ils sont enregistrés dans les abonnements et les factures en cours,
+ * et les renommer aurait requalifié un abonné « argent » d'hier en pack supérieur.
+ * Seul le libellé affiché change ; prix, quotas et plafonds sont ceux d'avant.
+ */
 export const PLANS: Record<PlanId, Plan> = {
   bronze: {
     id: 'bronze',
-    label: 'Pack Bronze',
+    label: 'Pack Argent',
     ridesPerDay: 2,
     monthlyPrice: 25_000,
     perRideCap: 2_500,
@@ -57,11 +64,11 @@ export const PLANS: Record<PlanId, Plan> = {
     priorite: 0,
     annulationGratuite: false,
     benefits: ['2 courses incluses / jour', 'Gamme Argent', 'Plafond 2 500 F par course incluse', 'Support standard'],
-    accent: '#cd7f4d',
+    accent: '#8e98a4',
   },
   argent: {
     id: 'argent',
-    label: 'Pack Argent',
+    label: 'Pack Or',
     ridesPerDay: 3,
     monthlyPrice: 38_000,
     perRideCap: 3_500,
@@ -71,11 +78,11 @@ export const PLANS: Record<PlanId, Plan> = {
     priorite: 1,
     annulationGratuite: false,
     benefits: ['3 courses incluses / jour', 'Gammes Argent et Or', 'Plafond 3 500 F par course incluse', 'Priorité de mise en relation', '-10 % au-delà du quota', '-5 % sur les locations'],
-    accent: '#c8d2dc',
+    accent: '#c79a1e',
   },
   gold: {
     id: 'gold',
-    label: 'Pack Gold',
+    label: 'Pack Diamant',
     ridesPerDay: 4,
     monthlyPrice: 55_000,
     perRideCap: 5_000,
@@ -85,7 +92,7 @@ export const PLANS: Record<PlanId, Plan> = {
     priorite: 2,
     annulationGratuite: true,
     benefits: ['4 courses incluses / jour', 'Toutes les gammes (jusqu’à Diamant)', 'Plafond 5 000 F par course incluse', 'Priorité maximale', '-15 % au-delà du quota', '-10 % sur les locations', 'Annulation gratuite'],
-    accent: '#f5c451',
+    accent: '#6a35f0',
   },
 };
 

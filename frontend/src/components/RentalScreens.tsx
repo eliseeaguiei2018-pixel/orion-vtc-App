@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { TopBar } from './ui';
-import { Voiture } from './Vehicules';
+import { Objet, Voiture } from './Vehicules';
 import {
-  IconCalendar, IconCar, IconCheck, IconClock, IconCrown, IconLeaf, IconMinus, IconPin,
-  IconPlus, IconUsers,
-} from '../icons';
+  IconCalendar, IconCar, IconCheck, IconClock, IconLeaf, IconMinus, IconPin,
+  IconPlus, } from '../icons';
 import { useI18n } from '../i18n';
 import {
   dureesPermises, formatXOF, remiseMensuelle, RENTAL_FORMULES, RENTAL_MOIS_MAX, RENTAL_OPTION_KEYS, RENTAL_TARIFF,
@@ -200,8 +199,8 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
                 }
               }}
             >
-              <span className="veh-ico" style={{ width: 42, height: 42, color: 'var(--green)' }}>
-                {f === 'entreprise' ? <IconUsers size={20} /> : f === 'mise_a_disposition' ? <IconClock size={20} /> : <IconCrown size={20} />}
+              <span className="veh-ico pack-ico">
+                <Objet nom={f === 'entreprise' ? 'immeuble' : f === 'mise_a_disposition' ? 'historique' : 'mariage'} taille={46} />
               </span>
               <span className="col grow" style={{ textAlign: 'start' }}>
                 <strong style={{ fontSize: 15 }}>{t(`rent_f_${f}`)}</strong>
@@ -223,7 +222,7 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
               <button
                 key={v.id}
                 className={`veh${actif ? ' active' : ''}`}
-                style={{ ...(actif ? { borderColor: v.classe === 'presidentielle' ? '#f5c451' : '#7fe7ff' } : {}), opacity: indispo ? 0.55 : 1 }}
+                style={{ opacity: indispo ? 0.55 : 1 }} aria-pressed={actif}
                 onClick={() => setVehicleId(v.id)}
               >
                 <PrestigeBadge vehicule={v} />

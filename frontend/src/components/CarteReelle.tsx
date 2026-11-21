@@ -8,6 +8,7 @@ import type { VectorConfig } from '../mapConfig';
 import { itineraire, type ItineraireRoute } from '../api';
 import { styleOrion } from './styleCarte';
 import { chargerIndexLieux, lieuxPourCarte } from '../lieux';
+import { rendu } from './Vehicules';
 
 /**
  * VRAIE CARTE (MapLibre, données OpenStreetMap) : l'itinéraire suit les routes,
@@ -48,17 +49,9 @@ const couleur = (v: string, defaut: string) => {
   return c || defaut;
 };
 
-const VOITURE = `<svg viewBox="0 0 26 44" width="26" height="44" aria-hidden="true">
-  <rect x="2" y="2" width="22" height="40" rx="9" fill="currentColor" stroke="#fff" stroke-width="2"/>
-  <rect x="5.5" y="9" width="15" height="8" rx="3" fill="#0b1a14" opacity=".85"/>
-  <rect x="5.5" y="27" width="15" height="7" rx="3" fill="#0b1a14" opacity=".7"/>
-  <rect x="4" y="3.5" width="5" height="2.5" rx="1.2" fill="#fffbe6"/><rect x="17" y="3.5" width="5" height="2.5" rx="1.2" fill="#fffbe6"/>
-</svg>`;
-const MOTO = `<svg viewBox="0 0 20 40" width="20" height="40" aria-hidden="true">
-  <rect x="6" y="1" width="8" height="38" rx="4" fill="#1d2a32" stroke="#fff" stroke-width="1.6"/>
-  <rect x="3" y="22" width="14" height="12" rx="3" fill="currentColor" stroke="#fff" stroke-width="1.6"/>
-  <circle cx="10" cy="13" r="4" fill="#0b1a14"/>
-</svg>`;
+/** Repères du véhicule sur la carte : rendus 3D vus de dessus, nez vers le haut. */
+const repere = (nom: string, largeur: number) =>
+  `<img src="${rendu(nom)}" width="${largeur}" height="${largeur * 2}" alt="" draggable="false" />`;
 
 function element(classe: string, html = ''): HTMLDivElement {
   const d = document.createElement('div');
@@ -248,7 +241,7 @@ export function CarteReelle({ origin, destination, stops = [], car, vehicle = 'c
     void chargerML().then((ml) => {
       const M = marqueurs.current;
       if (!M.vehicule) {
-        M.vehicule = new ml.Marker({ element: element(`carte-vehicule ${vehicle}`, `<span class="halo"></span><i>${vehicle === 'moto' ? MOTO : VOITURE}</i>`), rotationAlignment: 'map' })
+        M.vehicule = new ml.Marker({ element: element(`carte-vehicule ${vehicle}`, `<span class="halo"></span><i>${vehicle === 'moto' ? repere('scooter-dessus', 24) : repere(accent === 'vert' ? 'voiture-dessus' : `voiture-dessus-${accent}`, 30)}</i>`), rotationAlignment: 'map' })
           .setLngLat([car.lng, car.lat]).addTo(m);
         derniere.current = { pos: car, angle: 0 };
         return;

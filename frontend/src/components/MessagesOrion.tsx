@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Objet } from './Vehicules';
 import { useI18n } from '../i18n';
 import { TopBar } from './ui';
 import { IconMessage, IconShieldCheck, IconBell, IconCheck } from '../icons';
@@ -51,7 +52,7 @@ export function BoutonMessages({ nonLus, onClick, clair = false }: { nonLus: num
   const { t } = useI18n();
   return (
     <button className={`avatar bouton-messages${clair ? ' clair' : ''}`} onClick={onClick} aria-label={`${t('msg_titre')}${nonLus ? ` (${nonLus})` : ''}`}>
-      <IconMessage size={20} />
+      <Objet nom="message" taille={26} />
       {nonLus > 0 && <span className="pastille-messages">{nonLus > 9 ? '9+' : nonLus}</span>}
     </button>
   );

@@ -40,7 +40,7 @@ export function ServeurScreen({ onBack }: { onBack: () => void }) {
           <span className="srv-point" aria-hidden="true" />
           <span className="col grow" style={{ textAlign: 'start' }}>
             <strong>{t(etat.url ? 'srv_etat_relie' : 'srv_etat_autonome')}</strong>
-            <span className="faint">{etat.url ? hote(etat.url) : t('srv_d_autonome')}</span>
+            <span className="faint">{etat.url ? hote(etat.url) : t('srv_etat_autonome_d')}</span>
           </span>
           {etat.url && <IconShieldCheck size={20} />}
         </div>

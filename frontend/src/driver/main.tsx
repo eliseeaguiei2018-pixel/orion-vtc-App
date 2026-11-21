@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client';
 import { ThemeProvider } from '../theme';
 import { I18nProvider } from '../i18n';
 import { DriverApp } from './Driver';
+import '../polices.css';
 import '../index.css';
 import './driver.css';
 import '../premium.css';

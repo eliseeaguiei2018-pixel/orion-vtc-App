@@ -1,3 +1,4 @@
+import '../polices.css';
 import { enregistrerServiceWorker } from '../pwa';
 import { choisirServeur } from '../serveur';
 

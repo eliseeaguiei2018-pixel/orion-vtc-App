@@ -17,7 +17,7 @@ export const LANGUAGES: LangMeta[] = [
   { code: 'en', label: 'English', flag: '🇬🇧' },
   { code: 'es', label: 'Español', flag: '🇪🇸' },
   { code: 'it', label: 'Italiano', flag: '🇮🇹' },
-  { code: 'ar', label: 'العربية', flag: '🇸🇦', rtl: true },
+  { code: 'ar', label: 'العربية', flag: '🇦🇪', rtl: true },
   { code: 'zh', label: '中文', flag: '🇨🇳' },
   { code: 'de', label: 'Deutsch', flag: '🇩🇪' },
   { code: 'ru', label: 'Русский', flag: '🇷🇺' },

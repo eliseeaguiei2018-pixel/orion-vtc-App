@@ -4,14 +4,12 @@ import { App as AppNative } from '@capacitor/app';
 import { OrionMap } from './components/OrionMap';
 import { Sheet, TopBar, Toast } from './components/ui';
 import {
-  IconBell, IconClose, IconUser, IconBolt, IconBriefcase, IconCalendar, IconCamera, IconCar, IconCheck, IconChevron, IconClock, IconCrown,
-  IconFingerprint, IconGem, IconGlobe, IconHome, IconLeaf, IconLock, IconMinus,
-  IconPhone, IconPin, IconPlus, IconRing, IconSearch, IconSettings, IconShare,
-  IconShield, IconShieldCheck, IconMedical, IconStar, IconTraffic, IconWallet, IconWifi,
-  IconUtensils, IconBag, IconCart, IconPackage,
-} from './icons';
-import { LogoGlyph } from './components/Logo';
-import { Voiture, Scooter, vehiculeDeGamme } from './components/Vehicules';
+  IconBell, IconClose, IconUser, IconBolt, IconCalendar, IconCamera, IconCar, IconCheck, IconChevron, IconClock, IconCrown,
+  IconFingerprint, IconGem, IconGlobe, IconLeaf, IconLock, IconMinus,
+  IconPhone, IconPin, IconPlus, IconRing, IconSearch, IconShare,
+  IconShield, IconShieldCheck, IconMedical, IconStar, IconTraffic, IconWallet, } from './icons';
+import { LogoApp } from './components/Logo';
+import { Objet, Tuile, Voiture, Scooter, objetPack, objetUrgence, vehiculeDeGamme } from './components/Vehicules';
 import { AssuranceScreen } from './components/AssuranceScreens';
 import { BoutonMessages, ControleSecurite, MessagesScreen, useMessagerie } from './components/MessagesOrion';
 import { ServeurScreen } from './components/ServeurScreen';
@@ -60,7 +58,7 @@ function plateFromMatricule(m: string): string {
 }
 
 /** Le véhicule de la gamme (silhouette et peinture : argent, or, nuit). */
-function TierBadge({ tier, size = 50, suv = false }: { tier: string; size?: number; suv?: boolean }) {
+function TierBadge({ tier, size = 58, suv = false }: { tier: string; size?: number; suv?: boolean }) {
   const v = vehiculeDeGamme(tier);
   return (
     <span className="veh-illus" style={{ width: size * 1.75, height: size }}>
@@ -806,7 +804,7 @@ function SosOverlay({ state, onRetry, onClose }: { state: 'sending' | 'failed'; 
             <div className="sos-nums">
               {numeros.map(([label, num]) => (
                 <a key={num} className="sos-num" href={`tel:${num}`}>
-                  <IconPhone size={18} /> <strong>{num}</strong> <span>{label}</span>
+                  <Objet nom={objetUrgence(num)} taille={30} /> <strong>{num}</strong> <span>{label}</span>
                 </a>
               ))}
             </div>
@@ -978,7 +976,7 @@ function SosLive({ suivi, horsLigne, demo, onMinimize, onClose, onSend }: {
             <span>{t(demo ? 'sos_fallback_demo' : 'sos_fallback')}</span>
             <div className="sos-direct">
               {numeros.map(([label, num]) => (
-                <a key={num} href={`tel:${num}`}><IconPhone size={15} /> <strong>{num}</strong> <span>{label}</span></a>
+                <a key={num} href={`tel:${num}`}><Objet nom={objetUrgence(num)} taille={26} /> <strong>{num}</strong> <span>{label}</span></a>
               ))}
             </div>
           </div>
@@ -1021,7 +1019,7 @@ function Splash({ onDone }: { onDone: () => void }) {
   return (
     <div className="splash" onClick={onDone}>
       <div className="splash-rings"><span /><span /><span /></div>
-      <div className="splash-logo" style={{ color: '#fff' }}><LogoGlyph size={56} /></div>
+      <div className="splash-logo volume"><LogoApp size={104} /></div>
       <div className="splash-word">ORION</div>
       <div className="splash-tag">{t('tagline')}</div>
     </div>
@@ -1042,7 +1040,7 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
   }, []);
   return (
     <div className="lock-screen">
-      <div className="logo-mark" style={{ width: 64, height: 64, color: 'var(--btn-on)' }}><LogoGlyph size={36} /></div>
+      <LogoApp size={72} />
       <div className="lock-fp" onClick={unlock} role="button">
         <IconFingerprint size={56} />
       </div>
@@ -1063,7 +1061,7 @@ function Onboarding({ onStart, onLang }: { onStart: () => void; onLang: () => vo
       <OrionMap origin={DEFAULT_ORIGIN.location} />
       <button className="avatar lang-fab" onClick={onLang} aria-label="Language"><IconGlobe size={20} /></button>
       <div style={{ position: 'relative', zIndex: 2 }} className="stack">
-        <div className="logo-mark rise" style={{ color: '#fff' }}><LogoGlyph size={46} /></div>
+        <LogoApp size={76} className="rise" />
         <div className="eyebrow rise rise-2">{t('onb_eyebrow')}</div>
         <h1 className="h-hero rise rise-2">{t('onb_title')}</h1>
         <p className="h-sub rise rise-3">{t('onb_subtitle')}</p>
@@ -1121,7 +1119,7 @@ function AuthScreen({ phone, setPhone, name, setName, email, setEmail, erreur, o
       <TopBar onBack={onBack} />
       <div style={{ flex: 1 }} />
       <Sheet>
-        <div className="logo-mark" style={{ width: 56, height: 56, marginBottom: 12, color: 'var(--btn-on)' }}><LogoGlyph size={32} /></div>
+        <div style={{ marginBottom: 12 }}><LogoApp size={60} /></div>
         <h2 className="h-title">{t('reg_title')}</h2>
         <p className="h-sub" style={{ marginBottom: 16 }}>{t('reg_subtitle')}</p>
         <div className="field" style={{ marginBottom: 10 }}>
@@ -1173,7 +1171,7 @@ function PermissionsScreen({ etat, onLocaliser, onDone }: { etat: EtatPosition; 
         <p className="h-sub" style={{ marginBottom: 14 }}>{t('perm_sub')}</p>
         <div className="stack">
           <div className="opt" style={etat === 'ok' ? { borderColor: 'var(--green)' } : undefined}>
-            <span className="list-ico" style={{ color: 'var(--green)' }}><IconPin size={20} /></span>
+            <span className="list-ico"><Objet nom="lieu" taille={34} /></span>
             <span className="col grow" style={{ textAlign: 'start' }}>
               <strong style={{ fontSize: 14.5 }}>{t('perm_loc')}</strong>
               <span className="faint" style={{ fontSize: 12 }}>{statut ?? t('perm_loc_d')}</span>
@@ -1248,17 +1246,6 @@ function OtpScreen({ phone, devCode, onBack, onResend, onVerify }: {
 }
 
 /* ------------------------------- Home -------------------------------- */
-function MiniSvc({ illus, label, soon, onClick }: { illus: React.ReactNode; label: string; soon?: boolean; onClick: () => void }) {
-  const { t } = useI18n();
-  return (
-    <button className="svc-mini list-btn" onClick={onClick}>
-      <span className="svc-mini-illus">{illus}</span>
-      <span className="svc-mini-label">{label}</span>
-      {/* Une mention discrète sous le nom, pas une pastille posée sur la tuile. */}
-      <span className="svc-mini-note">{soon ? t('soon_badge') : t('svc_open')}</span>
-    </button>
-  );
-}
 
 function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onCourse, onDelivery, onQuick, onAjouterLieu, onNav, onSoon, nonLus = 0, onMessages }: {
   /** Enregistrer le domicile ou le bureau du client. */
@@ -1287,7 +1274,7 @@ function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onC
     <div className="screen page hub">
       <div className="hub-hero">
         <div className="hub-top">
-          <span className="hub-brand"><span className="hub-logo"><LogoGlyph size={20} /></span> ORION</span>
+          <span className="hub-brand"><LogoApp size={32} className="hub-logo-volume" /> ORION</span>
           <span className="hub-actions">
             {onMessages && <BoutonMessages nonLus={nonLus} onClick={onMessages} clair />}
             {/* Le profil du client, à côté des paramètres : sans compte, il ouvre l'inscription. */}
@@ -1295,7 +1282,7 @@ function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onC
               {profil ? <Avatar photo={profil.photo} name={profil.name} size={40} /> : <IconUser size={20} />}
             </button>
             <button className="avatar hub-avatar" onClick={() => onNav('settings')} aria-label={t('set_title')}>
-              <IconSettings size={20} />
+              <Objet nom="reglages" taille={28} />
             </button>
           </span>
         </div>
@@ -1326,43 +1313,35 @@ function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onC
       </div>
 
       <div className="page-body hub-body">
-        {/* Services principaux : Course & Livraison. La livraison se masque si la console
+        {/* Services principaux : Course et Livraison. La livraison se masque si la console
             l'a désactivée (services.delivery = false) ; tout est grisé en maintenance. */}
-        <div className="svc-grid rise rise-2">
-          <button className={`svc-card course${closed ? ' svc-off' : ''}`} onClick={onCourse} disabled={closed}>
-            <span className="svc-illus"><Voiture modele="berline" peinture="accent" largeur={150} /></span>
-            <span className="svc-meta"><strong>{t('svc_course')}</strong><span>{t('svc_course_d')}</span></span>
-          </button>
+        <div className="tuiles-duo rise rise-2">
+          <Tuile grande off={closed} rang={0} objet={<Voiture modele="berline" peinture="accent" largeur={172} />} label={t('svc_course')} note={t('svc_course_d')} onClick={onCourse} />
           {!deliveryOff && (
-            <button className={`svc-card deliver${closed ? ' svc-off' : ''}`} onClick={onDelivery} disabled={closed}>
-              <span className="svc-illus"><Scooter largeur={150} /></span>
-              <span className="svc-meta"><strong>{t('svc_delivery')}</strong><span>{t('svc_delivery_d')}</span></span>
-            </button>
+            <Tuile grande off={closed} rang={1} objet={<Scooter largeur={150} />} label={t('svc_delivery')} note={t('svc_delivery_d')} onClick={onDelivery} />
           )}
         </div>
 
-        {/* Autres services : Colis ouvre la livraison moto ; les autres arrivent bientôt. */}
-        <div className="svc-mini-grid rise rise-3">
-          <MiniSvc soon illus={<IconUtensils size={22} strokeWidth={1.6} />} label={t('svc_food')} onClick={() => onSoon(t('svc_food'))} />
-          <MiniSvc soon illus={<IconBag size={22} strokeWidth={1.6} />} label={t('svc_shop')} onClick={() => onSoon(t('svc_shop'))} />
-          <MiniSvc soon illus={<IconCart size={22} strokeWidth={1.6} />} label={t('svc_market')} onClick={() => onSoon(t('svc_market'))} />
-          <MiniSvc illus={<IconPackage size={22} strokeWidth={1.6} />} label={t('svc_colis')} onClick={() => (deliveryOff || closed ? onSoon(t('svc_colis')) : onDelivery())} />
+        {/* Sept services, sur deux rangées pleines : trois qui arrivent bientôt (on peut demander
+            à être prévenu), puis quatre déjà ouverts. « Mes courses » et « Aide » sont dans les
+            paramètres, au même format. */}
+        <div className="tuiles rise rise-3">
+          <Tuile rang={2} objet={<Objet nom="food" />} label={t('svc_food')} note={t('soon_badge')} onClick={() => onSoon(t('svc_food'))} />
+          <Tuile rang={3} objet={<Objet nom="achat" />} label={t('svc_shop')} note={t('soon_badge')} onClick={() => onSoon(t('svc_shop'))} />
+          <Tuile rang={4} objet={<Objet nom="supermarche" />} label={t('svc_market')} note={t('soon_badge')} onClick={() => onSoon(t('svc_market'))} />
         </div>
-
-        {/* Raccourcis ORION */}
-        <div className="hub-quick rise rise-3">
-          <button className="feature-card" onClick={() => onNav('subscription')}><i><IconCrown size={19} /></i> <span>{t('menu_subscription')}</span></button>
-          <button className="feature-card" onClick={() => onNav('rental')}><i><IconCar size={19} /></i> <span>{t('rent_entry')}</span></button>
-          <button className="feature-card" onClick={() => onNav('wedding')}><i><IconRing size={19} /></i> <span>{t('menu_wedding')}</span></button>
-          <button className="feature-card" onClick={() => onNav('history')}><i><IconClock size={19} /></i> <span>{t('menu_history')}</span></button>
-          <button className="feature-card" onClick={() => onNav('help')}><i><IconShield size={19} /></i> <span>{t('menu_help')}</span></button>
+        <div className="tuiles quatre rise rise-3">
+          <Tuile rang={5} objet={<Objet nom="colis" />} label={t('svc_colis')} onClick={() => (deliveryOff || closed ? onSoon(t('svc_colis')) : onDelivery())} />
+          <Tuile rang={6} objet={<Objet nom="abonnement" />} label={t('menu_subscription')} onClick={() => onNav('subscription')} />
+          <Tuile rang={7} objet={<Objet nom="location" />} label={t('rent_entry')} onClick={() => onNav('rental')} />
+          <Tuile rang={8} objet={<Objet nom="mariage" />} label={t('menu_wedding')} onClick={() => onNav('wedding')} />
         </div>
 
         <span className="eyebrow" style={{ marginTop: 4 }}><IconPin size={13} /> {t('lieu_vos_lieux')}</span>
         <div className="stack" style={{ marginTop: 10 }}>
           {([['domicile', domicile], ['bureau', bureau]] as const).map(([quel, lieu]) => (
             <button key={quel} className="list-row list-btn" onClick={() => (lieu ? onQuick(lieu) : onAjouterLieu(quel))}>
-              <span className="list-ico" style={{ color: 'var(--green)' }}>{quel === 'domicile' ? <IconHome size={20} /> : <IconBriefcase size={20} />}</span>
+              <span className="list-ico"><Objet nom={quel} taille={34} /></span>
               <span className="col grow" style={{ textAlign: 'start', minWidth: 0 }}>
                 <strong style={{ fontSize: 15 }}>{t(quel === 'domicile' ? 'lieu_domicile' : 'lieu_bureau')}</strong>
                 <span className="faint" style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lieu ? lieu.area || lieu.name : t(quel === 'domicile' ? 'lieu_ajouter_domicile' : 'lieu_ajouter_bureau')}</span>
@@ -1372,7 +1351,7 @@ function HomeScreen({ announce, closed, deliveryOff, city, profil, onSearch, onC
           ))}
           {quick.map((p) => (
             <button key={p.id} className="list-row list-btn" onClick={() => onQuick(p)}>
-              <span className="list-ico" style={{ color: 'var(--green)' }}>{iconeLieu(p)}</span>
+              <span className="list-ico">{iconeLieu(p)}</span>
               <span className="col grow" style={{ textAlign: 'start' }}>
                 <strong style={{ fontSize: 15 }}>{p.name}</strong>
                 <span className="faint" style={{ fontSize: 13 }}>{p.area}</span>
@@ -1415,7 +1394,7 @@ function DeliveryScreen({ origin, departAConfirmer, dropoff, pkgSize, onPickup, 
 
         {/* Dépôt */}
         <button className="list-row list-btn" style={{ width: '100%', padding: '8px 0' }} onClick={onDropoff}>
-          <span className="list-ico" style={{ color: 'var(--gold)' }}>{dropoff ? <IconPin size={18} /> : <IconSearch size={18} />}</span>
+          <span className="list-ico"><Objet nom="destination" taille={34} /></span>
           <span className="col grow" style={{ textAlign: 'start', minWidth: 0 }}>
             <strong style={{ fontSize: 14 }}>{dropoff ? dropoff.name : t('del_dropoff')}</strong>
             <span className="faint" style={{ fontSize: 12 }}>{dropoff ? dropoff.area : t('lieu_recherche')}</span>
@@ -1461,7 +1440,7 @@ function LigneDepart({ origin, aConfirmer, libelle, onChange, droite }: { origin
   const titre = aConfirmer ? t('lieu_a_confirmer') : origin.id === 'gps' ? `${origin.name} · ${origin.area}` : origin.name;
   return (
     <button className="list-row list-btn ligne-depart" style={{ width: '100%', padding: '8px 0' }} onClick={onChange} aria-label={`${libelle} : ${titre}. ${t('del_change')}`}>
-      <span className="list-ico" style={{ color: aConfirmer ? 'var(--warn-ink, var(--gold))' : 'var(--green)' }}><IconPin size={18} /></span>
+      <span className={`list-ico${aConfirmer ? ' a-confirmer' : ''}`}><Objet nom="lieu" taille={34} /></span>
       <span className="col grow" style={{ textAlign: 'start', minWidth: 0 }}>
         <strong className="ligne-depart-titre">{titre}</strong>
         <span className="faint" style={{ fontSize: 12 }}>
@@ -1530,7 +1509,7 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
 
         <div className="stack">
           {TIERS.map((v) => (
-            <button key={v.id} className={`veh${v.id === tier.id ? ' active' : ''}`} style={{ width: '100%', ...(v.id === tier.id ? { borderColor: v.accent, boxShadow: `0 0 22px ${v.accent}44` } : {}) }} onClick={() => onTier(v)}>
+            <button key={v.id} className={`veh${v.id === tier.id ? ' active' : ''}`} style={{ width: '100%' }} aria-pressed={v.id === tier.id} onClick={() => onTier(v)}>
               <TierBadge tier={v.id} suv={bodyType === 'suv'} />
               <span className="col grow" style={{ textAlign: 'start' }}>
                 <strong style={{ fontSize: 16 }}>{t(v.key)}</strong>
@@ -1571,7 +1550,7 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
       <Sheet>
         <div className="card" style={{ padding: 14, marginBottom: 12 }}>
           <LigneDepart origin={origin} aConfirmer={departAConfirmer} libelle={t('conf_departure')} onChange={onDepart}
-            droite={<TierBadge tier={tier.id} size={32} suv={bodyType === 'suv'} />} />
+            droite={<TierBadge tier={tier.id} size={40} suv={bodyType === 'suv'} />} />
           {stops.map((s, i) => (
             <div key={`${s.id}-${i}`}><div className="divider" /><div className="list-row" style={{ padding: '6px 0' }}>
               <span className="list-ico" style={{ color: 'var(--green)', fontSize: 12, fontWeight: 600 }}>{i + 1}</span>
@@ -1581,7 +1560,7 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
           ))}
           <div className="divider" />
           <div className="list-row" style={{ padding: '6px 0' }}>
-            <span className="list-ico" style={{ color: 'var(--gold)' }}>{iconeLieu(destination)}</span>
+            <span className="list-ico"><Objet nom="destination" taille={34} /></span>
             <span className="col grow"><strong style={{ fontSize: 14 }}>{destination.name}</strong><span className="faint" style={{ fontSize: 12 }}>{destination.area}</span></span>
           </div>
         </div>
@@ -1596,7 +1575,7 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
 
         {/* ORION Assurance (optionnelle, +2%) */}
         <div className="opt" style={{ marginBottom: 14, ...(insurance ? { borderColor: 'var(--green)', background: 'rgba(var(--accent-rgb),0.06)' } : {}) }}>
-          <span className="list-ico" style={{ color: 'var(--green)' }}><IconShieldCheck size={18} /></span>
+          <span className="list-ico"><Objet nom="assurance" taille={34} /></span>
           <span className="col grow" style={{ textAlign: 'start' }}>
             <strong style={{ fontSize: 14 }}>{t('ins_toggle')}</strong>
             <button className="faint list-btn lien-cible" style={{ fontSize: 12, textDecoration: 'underline', textAlign: 'start' }} onClick={() => setShowIns(true)}>{t('ins_why')}</button>
@@ -1682,9 +1661,9 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
         )}
         {/* Avantage à bord : Wi-Fi gratuit illimité */}
         <div className="perk" style={{ marginTop: 12 }}>
-          <span className="list-ico" style={{ color: 'var(--green)' }}><IconWifi size={18} /></span>
+          <span className="list-ico"><Objet nom="wifi" taille={34} /></span>
           <span className="grow" style={{ textAlign: 'start', fontSize: 13, fontWeight: 600 }}>{t('wifi_free')}</span>
-          <span className="badge green" style={{ fontSize: 10 }}>GRATUIT</span>
+          <span className="badge green">{t('badge_gratuit')}</span>
         </div>
         {departAConfirmer ? (
           <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={onDepart}><IconPin size={18} /> {t('lieu_confirmer_depart')}</button>
@@ -1882,14 +1861,14 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
             <span className="col drv-vehicule">
               {del
                 ? <span className="veh-illus" style={{ width: 60, height: 34 }}><Scooter largeur={60} /></span>
-                : <TierBadge tier={tier.id} size={34} />}
+                : <TierBadge tier={tier.id} size={40} />}
               <span className="plate">{driver.plate}</span>
             </span>
           </div>
           <div className="divider" style={{ margin: '12px 0' }} />
           <div className="row between">
             <span className="row gap-sm" style={{ fontSize: 13 }}>
-              <span className="list-ico" style={{ width: 30, height: 30, color: 'var(--green)' }}><IconShieldCheck size={16} /></span>
+              <span className="list-ico" style={{ width: 34, height: 34 }}><Objet nom="police" taille={28} /></span>
               <span className="col">
                 <span className="faint" style={{ fontSize: 11 }}>{t('drv_matricule')}</span>
                 <strong style={{ fontSize: 13, letterSpacing: '0.04em' }}>{driver.matricule}</strong>
@@ -1919,13 +1898,13 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
         </p>
 
         {(phase === 'enroute' || phase === 'arrived') && (
-          <button className="btn btn-danger" style={{ marginTop: 10 }} onClick={onCancel}>{t(del ? 'act_cancel_liv' : 'act_cancel')}</button>
+          <button className="btn btn-ghost btn-annuler" style={{ marginTop: 10 }} onClick={onCancel}>{t(del ? 'act_cancel_liv' : 'act_cancel')}</button>
         )}
         {!del && (
           <div className="perk" style={{ marginTop: 12 }}>
-            <span className="list-ico" style={{ color: 'var(--green)' }}><IconWifi size={18} /></span>
+            <span className="list-ico"><Objet nom="wifi" taille={34} /></span>
             <span className="grow" style={{ textAlign: 'start', fontSize: 13, fontWeight: 600 }}>{t('wifi_free')}</span>
-            <span className="badge green" style={{ fontSize: 10 }}>À BORD</span>
+            <span className="badge green">{t('badge_a_bord')}</span>
           </div>
         )}
         <div className="supervised-card">
@@ -2074,12 +2053,12 @@ function SubscriptionScreen({ onBack, onToast }: { onBack: () => void; onToast: 
             const srv = planServeur(p.id);
             const avantages = srv?.benefits ?? p.benefits;
             return (
-              <div key={p.id} className="plan-card" style={{ borderColor: active ? p.accent : 'var(--stroke)', boxShadow: active ? `0 0 24px ${p.accent}44` : 'none' }}>
+              <div key={p.id} className={`plan-card${active ? ' actif' : ''}`}>
                 <div className="row between">
                   <div className="row gap-sm">
-                    <span className="veh-ico" style={{ width: 42, height: 42, color: p.accent }}><IconCrown size={22} /></span>
+                    <span className="veh-ico pack-ico"><Objet nom={objetPack(p.id)} taille={46} /></span>
                     <div className="col">
-                      <strong style={{ fontSize: 17 }}>{srv?.label ?? (p.id === 'gold' ? 'Pack Gold' : `Pack ${t(p.key)}`)}</strong>
+                      <strong style={{ fontSize: 17 }}>{srv?.label ?? `Pack ${t(p.key)}`}</strong>
                       <span className="faint" style={{ fontSize: 12.5 }}>{srv?.ridesPerDay ?? p.ridesPerDay} {t('sub_perDay')}</span>
                     </div>
                   </div>
@@ -2091,7 +2070,7 @@ function SubscriptionScreen({ onBack, onToast }: { onBack: () => void; onToast: 
                 <div className="divider" style={{ margin: '12px 0' }} />
                 <div className="stack" style={{ gap: 6 }}>
                   {avantages.map((b, i) => (
-                    <div key={i} className="row gap-sm" style={{ fontSize: 13 }}><IconCheck size={15} color={p.accent} /> <span className="muted">{b}</span></div>
+                    <div key={i} className="row gap-sm" style={{ fontSize: 13 }}><IconCheck size={15} color="var(--green)" /> <span className="muted">{b}</span></div>
                   ))}
                 </div>
                 <button
@@ -2159,7 +2138,7 @@ function WeddingScreen({ onBack, onToast, onLogin }: { onBack: () => void; onToa
         <span className="eyebrow">{t('wed_vehicle')}</span>
         <div className="stack" style={{ margin: '10px 0 18px' }}>
           {TIERS.map((v) => (
-            <button key={v.id} className={`veh${v.id === tier.id ? ' active' : ''}`} style={v.id === tier.id ? { borderColor: v.accent, boxShadow: `0 0 22px ${v.accent}44` } : {}} onClick={() => setTier(v)}>
+            <button key={v.id} className={`veh${v.id === tier.id ? ' active' : ''}`} aria-pressed={v.id === tier.id} onClick={() => setTier(v)}>
               <TierBadge tier={v.id} />
               <span className="col grow" style={{ textAlign: 'start' }}>
                 <strong style={{ fontSize: 15 }}>{t(v.key)}</strong>
@@ -2236,7 +2215,7 @@ function HelpScreen({ onBack, onSupport }: { onBack: () => void; onSupport: () =
         <div className="stack" style={{ margin: '10px 0 20px' }}>
           {numbers.map((n) => (
             <a key={n.num} className="opt list-btn" href={`tel:${n.num}`} style={{ textDecoration: 'none' }}>
-              <span className="list-ico" style={{ color: '#ff4d5e' }}><IconPhone size={18} /></span>
+              <span className="list-ico"><Objet nom={objetUrgence(n.num)} taille={34} /></span>
               <span className="grow" style={{ textAlign: 'start', fontWeight: 600 }}>{n.label}</span>
               <span className="plate">{n.num}</span>
             </a>
@@ -2246,11 +2225,11 @@ function HelpScreen({ onBack, onSupport }: { onBack: () => void; onSupport: () =
         <span className="eyebrow">{t('help_contact')}</span>
         <div className="stack" style={{ margin: '10px 0 20px' }}>
           <a className="opt list-btn" href="mailto:support@orion.ci" style={{ textDecoration: 'none' }}>
-            <span className="list-ico" style={{ color: 'var(--green)' }}><IconBell size={18} /></span>
+            <span className="list-ico"><Objet nom="message" taille={34} /></span>
             <span className="grow" style={{ textAlign: 'start' }}>support@orion.ci</span>
           </a>
           <a className="opt list-btn" href="tel:+2252700000000" style={{ textDecoration: 'none' }}>
-            <span className="list-ico" style={{ color: 'var(--green)' }}><IconPhone size={18} /></span>
+            <span className="list-ico"><Objet nom="telephone" taille={34} /></span>
             <span className="grow" style={{ textAlign: 'start' }}>+225 27 00 00 00 00</span>
           </a>
         </div>
@@ -2309,7 +2288,7 @@ function SupportChatScreen({ onBack }: { onBack: () => void }) {
         <div className="sup-chat">
           {messages.length === 0 && (
             <div className="sup-intro">
-              <span className="list-ico" style={{ color: 'var(--green)', width: 44, height: 44 }}><IconShieldCheck size={22} /></span>
+              <span className="list-ico" style={{ width: 44, height: 44 }}><Objet nom="assurance" taille={38} /></span>
               <p className="h-sub" style={{ textAlign: 'center' }}>{t('sup_intro')}</p>
             </div>
           )}
@@ -2491,7 +2470,7 @@ function WalletScreen({ onBack, onToast, onCommander, onLogin }: { onBack: () =>
 
             <div className="card" style={{ padding: 16, marginBottom: 16 }}>
               <div className="row gap-sm" style={{ marginBottom: 10 }}>
-                <span className="list-ico"><IconShieldCheck size={18} /></span>
+                <span className="list-ico"><Objet nom="assurance" taille={34} /></span>
                 <strong style={{ fontSize: 15 }}>ORION Assurance</strong>
               </div>
               <div className="fare-line"><span>{t('wal_ins_year')}</span><span>{formatXOF(cotis?.total ?? 0)}</span></div>

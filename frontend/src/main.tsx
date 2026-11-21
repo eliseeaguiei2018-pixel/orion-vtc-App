@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { App } from './App';
 import { I18nProvider } from './i18n';
 import { ThemeProvider } from './theme';
+import './polices.css';
 import './index.css';
 import './premium.css';
 import { demarrerDiagnosticFluidite } from './fps';

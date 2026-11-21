@@ -9,43 +9,43 @@ import { chargerML } from './chargerCarte';
 import { styleOrion } from './styleCarte';
 import { OrionMap } from './OrionMap';
 import { Sheet, TopBar } from './ui';
-import {
-  IconActivity, IconBag, IconBank, IconBriefcase, IconBuilding, IconBus, IconCarburant, IconCart, IconCar, IconCheck, IconClock, IconEcole,
-  IconEglise, IconHome, IconLeaf, IconLit, IconMap, IconMedical, IconMosquee, IconPin, IconPlane, IconSearch, IconShield, IconTicket, IconUtensils,
-} from '../icons';
+import { IconCheck, IconClock, IconPin, IconSearch } from '../icons';
+import { Objet, type Icone3D, type ObjetService } from './Vehicules';
 import { LIEUX_POPULAIRES, lieuEnregistre, lieuxRecents, quartierDe, rechercherLieux, type EtatPosition } from '../lieux';
 
 export type ModeChoix = 'destination' | 'depart' | 'livraison' | 'arret' | 'domicile' | 'bureau';
 
 /** Pictogramme d'un lieu : domicile, bureau, aéroport, ou sa catégorie (restaurant, église, banque…). */
-export function iconeLieu(p: Place, taille = 20) {
-  if (p.kind === 'home') return <IconHome size={taille} />;
-  if (p.kind === 'work') return <IconBriefcase size={taille} />;
-  if (p.kind === 'hub') return <IconPlane size={taille} />;
+/** Objet en volume d'un lieu, d'après sa nature ou sa catégorie. */
+function objetLieu(p: Place): ObjetService | Icone3D {
+  if (p.kind === 'home') return 'domicile';
+  if (p.kind === 'work') return 'bureau';
+  if (p.kind === 'hub') return 'aeroport';
   switch (p.categorie) {
-    case 'restaurant': case 'fast_food': case 'cafe': case 'bakery': case 'ice_cream': case 'bar': case 'music': return <IconUtensils size={taille} />;
-    case 'bank': return <IconBank size={taille} />;
-    case 'grocery': return <IconCart size={taille} />;
-    case 'shop': case 'clothing_store': case 'hairdresser': return <IconBag size={taille} />;
-    case 'commercial': return <IconBriefcase size={taille} />;
-    case 'building': return <IconBuilding size={taille} />;
-    case 'airport': return <IconPlane size={taille} />;
-    case 'religious_christian': return <IconEglise size={taille} />;
-    case 'religious_muslim': return <IconMosquee size={taille} />;
-    case 'place_of_worship': case 'town_hall': case 'embassy': case 'post': case 'cemetery': return <IconBuilding size={taille} />;
-    case 'school': case 'college': case 'library': return <IconEcole size={taille} />;
-    case 'hospital': case 'pharmacy': case 'doctors': case 'dentist': return <IconMedical size={taille} />;
-    case 'lodging': return <IconLit size={taille} />;
-    case 'fuel': return <IconCarburant size={taille} />;
-    case 'car': return <IconCar size={taille} />;
-    case 'cinema': case 'theatre': case 'museum': case 'art_gallery': return <IconTicket size={taille} />;
-    case 'stadium': return <IconActivity size={taille} />;
-    case 'attraction': case 'park': return <IconLeaf size={taille} />;
-    case 'police': case 'fire_station': return <IconShield size={taille} />;
-    case 'bus': case 'ferry': case 'railway': case 'harbor': return <IconBus size={taille} />;
-    case 'road': return <IconMap size={taille} />;
-    default: return <IconPin size={taille} />;
+    case 'restaurant': case 'fast_food': case 'cafe': case 'bakery': case 'ice_cream': case 'bar': case 'music': return 'food';
+    case 'bank': return 'banque';
+    case 'grocery': return 'supermarche';
+    case 'shop': case 'clothing_store': case 'hairdresser': return 'achat';
+    case 'commercial': return 'bureau';
+    case 'building': case 'town_hall': case 'embassy': case 'post': case 'cemetery': case 'place_of_worship': return 'immeuble';
+    case 'airport': return 'aeroport';
+    case 'religious_christian': return 'eglise';
+    case 'religious_muslim': return 'mosquee';
+    case 'school': case 'college': case 'library': return 'ecole';
+    case 'hospital': case 'pharmacy': case 'doctors': case 'dentist': return 'samu';
+    case 'lodging': return 'hotel';
+    case 'fuel': return 'carburant';
+    case 'cinema': case 'theatre': case 'museum': case 'art_gallery': case 'stadium': return 'loisirs';
+    case 'attraction': case 'park': return 'parc';
+    case 'police': return 'police';
+    case 'fire_station': return 'pompiers';
+    case 'bus': case 'ferry': case 'railway': case 'harbor': return 'bus';
+    case 'road': return 'mes-courses';
+    default: return 'lieu';
   }
+}
+export function iconeLieu(p: Place, taille = 20) {
+  return <Objet nom={objetLieu(p)} taille={Math.round(taille * 1.7)} />;
 }
 const icone = (p: Place) => iconeLieu(p);
 
@@ -92,7 +92,7 @@ export function ChoixLieu({ mode, centre, etatPosition, onMaPosition, onChoose, 
 
   const ligne = (p: Place) => (
     <button key={`${p.id}-${p.location.lat}`} className="list-row list-btn" onClick={() => onChoose(p)}>
-      <span className="list-ico" style={{ color: 'var(--green)' }}>{icone(p)}</span>
+      <span className="list-ico">{icone(p)}</span>
       <span className="col grow" style={{ textAlign: 'start', minWidth: 0 }}>
         <strong style={{ fontSize: 15 }}>{p.name}</strong>
         {p.area && <span className="faint" style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.area}</span>}
@@ -122,7 +122,7 @@ export function ChoixLieu({ mode, centre, etatPosition, onMaPosition, onChoose, 
             <>
               {mode === 'depart' && onMaPosition && (
                 <button className="list-row list-btn" onClick={onMaPosition}>
-                  <span className="list-ico" style={{ color: 'var(--green)' }}><IconPin size={20} /></span>
+                  <span className="list-ico"><Objet nom="lieu" taille={34} /></span>
                   <span className="col grow" style={{ textAlign: 'start' }}>
                     <strong style={{ fontSize: 15 }}>{t('lieu_ma_position')}</strong>
                     <span className="faint" style={{ fontSize: 13 }}>
@@ -135,7 +135,7 @@ export function ChoixLieu({ mode, centre, etatPosition, onMaPosition, onChoose, 
                 </button>
               )}
               <button className="list-row list-btn" onClick={() => setSurCarte(true)}>
-                <span className="list-ico" style={{ color: 'var(--green)' }}><IconPin size={20} /></span>
+                <span className="list-ico"><Objet nom="lieu" taille={34} /></span>
                 <span className="col grow" style={{ textAlign: 'start' }}>
                   <strong style={{ fontSize: 15 }}>{t('lieu_sur_carte')}</strong>
                   <span className="faint" style={{ fontSize: 13 }}>{t('lieu_sur_carte_d')}</span>

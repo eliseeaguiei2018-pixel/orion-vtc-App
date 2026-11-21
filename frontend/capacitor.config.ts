@@ -21,7 +21,7 @@ const config: CapacitorConfig = {
   appId: chauffeur ? 'ci.orion.chauffeur' : 'ci.orion.app',
   appName: chauffeur ? 'ORION Chauffeur' : 'ORION',
   webDir: chauffeur ? 'dist-chauffeur' : 'dist',
-  backgroundColor: '#04100b',
+  backgroundColor: '#0c0d0f',
   plugins: {
     SplashScreen: { launchShowDuration: 0 },
     PushNotifications: { presentationOptions: ['badge', 'sound', 'alert'] },
