@@ -1779,19 +1779,19 @@ button.menu-texte { cursor: pointer; }
 /* ==========================================================================================
    ACCUEIL 1.6 — des cartes de service, à la manière des grandes applications de transport
    ==========================================================================================
-   Chaque service est une CARTE : un fond rouge très léger (chaleur, sans crier), le nom
+   Chaque service est une CARTE : un fond d'un vrai rouge, le nom en blanc
    écrit dedans, l'objet en volume plus petit, entièrement contenu. Les deux services
    principaux portent leur nom en haut à gauche et leur objet en bas à droite. La couleur du
    système vient de trois couches : ces cartes, les objets, et le bandeau de la marque. */
 :root {
-  --tuile: linear-gradient(165deg, #fff4f2 0%, #fde6e3 100%);
-  --tuile-bord: rgba(204, 58, 44, 0.09);
-  --tuile-encre: #2a1210;
+  --tuile: linear-gradient(165deg, #ee3124 0%, #d41d12 100%);
+  --tuile-bord: rgba(255, 255, 255, 0.14);
+  --tuile-encre: #ffffff;
 }
 :root:not([data-theme='light']) {
-  --tuile: linear-gradient(165deg, rgba(255, 118, 105, 0.19) 0%, rgba(255, 118, 105, 0.11) 100%);
-  --tuile-bord: rgba(255, 140, 128, 0.16);
-  --tuile-encre: #ffeceb;
+  --tuile: linear-gradient(165deg, #e02a1e 0%, #bd170e 100%);
+  --tuile-bord: rgba(255, 255, 255, 0.12);
+  --tuile-encre: #ffffff;
 }
 .hub-greet { font-size: 27px; font-weight: 700; letter-spacing: -0.2px; line-height: 1.15; margin: 18px 0 14px; }
 :root .hub-search {
@@ -1817,15 +1817,15 @@ button.menu-texte { cursor: pointer; }
 .tuile-nom { color: var(--tuile-encre); font: 600 13px/1.2 var(--font-display); }
 .tuiles.quatre .tuile { padding: 8px 2px 10px; }
 .tuiles.quatre .tuile-nom { font-size: 11px; letter-spacing: -0.15px; overflow-wrap: normal; }
-.tuile-note { color: var(--tuile-encre); opacity: 0.62; font-size: 11px; }
+.tuile-note { color: var(--tuile-encre); opacity: 0.86; font-size: 11px; }
 .tuile:active .tuile-fond { filter: none; }
-.tuile:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.tuile:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .tuile:focus-visible .tuile-fond { outline: none; }
 
 /* Course et Livraison : le nom en haut à gauche, l'objet en bas à droite. */
 .tuile.grande { align-items: flex-start; text-align: start; padding: 14px 14px 8px; border-radius: 22px; min-height: 138px; }
 .tuile.grande .tuile-nom { order: 1; font-size: 18px; font-weight: 700; }
-.tuile.grande .tuile-note { order: 2; font-size: 12.5px; opacity: 0.7; color: var(--tuile-encre); }
+.tuile.grande .tuile-note { order: 2; font-size: 12.5px; opacity: 0.9; color: var(--tuile-encre); }
 .tuile.grande .tuile-fond { order: 3; align-self: flex-end; width: 84%; aspect-ratio: 1 / 0.56; margin: 2px -6px 0 0; }
 .tuile.grande .tuile-fond .vehicule { width: 100%; bottom: 0; }
 .tuile.grande .tuile-fond .scooter { width: 62%; bottom: 0; left: auto; right: 6%; translate: 0 0; }
