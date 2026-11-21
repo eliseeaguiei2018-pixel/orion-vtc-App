@@ -1704,7 +1704,7 @@ button.menu-texte { cursor: pointer; }
 /* La carte Google s'arrête au bord de la feuille (son logo et ses mentions restent visibles) :
    derrière les coins arrondis de la feuille, on voit la couleur du sol de la carte. */
 .carte-google, .screen.choix-carte:has(.choix-carte-google) { background: var(--sol-google, #f5f3f3); }
-[data-theme='dark'] .carte-google, [data-theme='dark'] .screen.choix-carte:has(.choix-carte-google) { --sol-google: #1b1c20; }
+[data-theme='dark'] .carte-google, [data-theme='dark'] .screen.choix-carte:has(.choix-carte-google) { --sol-google: #1c2a40; }
 .gm-repere { position: absolute; left: 0; top: 0; will-change: transform; pointer-events: none; }
 .carte-google .carte-ponts { top: calc(max(18px, env(safe-area-inset-top)) + 62px); }
 .choix-carte-google { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 0; }
