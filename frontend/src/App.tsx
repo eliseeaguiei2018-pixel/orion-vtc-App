@@ -31,8 +31,11 @@ import { ChoixLieu, iconeLieu, type ModeChoix } from './components/ChoixLieu';
 import { LIEUX_POPULAIRES, enregistrerLieu, lieuEnregistre, lieuxRecents, lirePositionGps, memoriserRecent, quartierDe, useDepart, type EtatPosition } from './lieux';
 import { AdressesScreen, CancelSheet, HistoryScreen, LegalScreen, PhotoScreen, PreferencesScreen, ProfileScreen, SecuriteScreen, SettingsScreen, SosHistoryScreen } from './components/CompteScreens';
 import { CarteFondScreen } from './components/CarteFondScreen';
-import { fondCarte, suivreFondCarte } from './carteGoogle';
+import { fondCarte, googleSeul, suivreFondCarte } from './carteGoogle';
+import { prechaufferCarte } from './components/CarteGoogle';
 import { GpsCarte, type GpsCarteValeur } from './components/gpsCarte';
+import { useTrajetTarif } from './tarifTrajet';
+import { useTheme } from './theme';
 
 const PAYMENTS = [
   { method: 'orange_money', label: 'Orange Money' },
@@ -97,6 +100,15 @@ export function App() {
   const position = useDepart({ maPosition: t('lieu_ma_position') });
   const origin = position.depart.place;
   const departAConfirmer = position.depart.source === 'defaut';
+  // La carte Google se prépare pendant que le client regarde l'accueil : à l'ouverture de la
+  // recherche elle est déjà là. Relancée quand la position GPS arrive, sans effet si elle existe.
+  const { resolved: themeResolu } = useTheme();
+  useEffect(() => {
+    if (!googleSeul()) return;
+    const id = window.setTimeout(() => prechaufferCarte(themeResolu !== 'light', origin.location), 700);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [origin.location.lat, origin.location.lng]);
   /** Écran de choix d'un lieu : ce qu'on choisit, et où revenir ensuite. */
   const [choix, setChoix] = useState<{ mode: ModeChoix; retour: Screen } | null>(null);
   /** Livraison : point de dépôt choisi (il survit au passage par le choix du point de retrait). */
@@ -315,12 +327,14 @@ export function App() {
     return true;
   };
 
+  // Le prix se calcule sur le trajet par la route (celui que la carte trace), pas à vol d'oiseau.
+  const trajetCourse = useTrajetTarif(destination ? [origin.location, ...stops.map((s) => s.location), destination.location] : null);
   useEffect(() => {
-    if (screen === 'confirm' && destination) {
+    if (screen === 'confirm' && destination && trajetCourse.pret) {
       void estimateWithCoverage(origin.location, destination.location, tier, { bodyType, stops: stops.map((s) => s.location), insurance, promoCode: promo || undefined })
         .then(({ quote: q, coverage: c }) => { setQuote(q); setCoverage(c); });
     }
-  }, [screen, destination, tier, bodyType, stops, insurance, promo, origin.location]);
+  }, [screen, destination, tier, bodyType, stops, insurance, promo, origin.location, trajetCourse.pret, trajetCourse.trajet]);
 
   const chooseDestination = (place: Place) => {
     memoriserRecent(place);
@@ -1364,6 +1378,7 @@ function HomeScreen({ announce, closed, deliveryOff, city, onSearch, onCourse, o
       <div className="page-body hub-body">
         {/* Services principaux : Course et Livraison. La livraison se masque si la console
             l'a désactivée (services.delivery = false) ; tout est grisé en maintenance. */}
+        <h3 className="hub-section rise rise-2">{t('accueil_services')}</h3>
         <div className="tuiles-duo rise rise-2">
           <Tuile grande off={closed} rang={0} objet={<Voiture modele="berline" peinture="accent" largeur={172} accueil />} label={t('svc_course')} note={t('svc_course_d')} onClick={onCourse} />
           {!deliveryOff && (
@@ -1385,6 +1400,16 @@ function HomeScreen({ announce, closed, deliveryOff, city, onSearch, onCourse, o
           <Tuile rang={7} objet={<Objet nom="location" volume />} label={t('rent_entry')} onClick={() => onNav('rental')} />
           <Tuile rang={8} objet={<Objet nom="mariage" volume />} label={t('menu_wedding')} onClick={() => onNav('wedding')} />
         </div>
+
+        {/* Bandeau de la marque : l'abonnement, en couleur franche (la couleur choisie par le client). */}
+        <button className="hub-promo rise rise-3" onClick={() => onNav('subscription')}>
+          <span className="hub-promo-texte">
+            <small>{t('sub_title')}</small>
+            <strong>{t('sub_subtitle')}</strong>
+            <em>{t('accueil_decouvrir')} <IconChevron size={15} /></em>
+          </span>
+          <Objet nom="abonnement" taille={104} volume />
+        </button>
 
         <span className="eyebrow" style={{ marginTop: 4 }}><IconPin size={13} /> {t('lieu_vos_lieux')}</span>
         <div className="stack" style={{ marginTop: 10 }}>
@@ -1421,7 +1446,8 @@ function DeliveryScreen({ origin, departAConfirmer, dropoff, pkgSize, onPickup, 
 }) {
   const { t } = useI18n();
   const [size, setSize] = useState<PkgSize>(pkgSize);
-  const quote = useMemo(() => (dropoff ? previewDelivery(origin.location, dropoff.location, size) : null), [dropoff, size, origin.location]);
+  const trajet = useTrajetTarif(dropoff ? [origin.location, dropoff.location] : null);
+  const quote = useMemo(() => (dropoff && trajet.pret ? previewDelivery(origin.location, dropoff.location, size) : null), [dropoff, size, origin.location, trajet.pret, trajet.trajet]);
   const sizes: PkgSize[] = ['petit', 'moyen', 'grand'];
 
   return (
@@ -1516,9 +1542,12 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
 }) {
   const { t } = useI18n();
   const stopLocs = stops.map((s) => s.location);
+  // Trajet par la route : tant qu'il n'est pas connu, aucun prix n'est annoncé (il ne changera plus ensuite).
+  const trajet = useTrajetTarif([origin.location, ...stopLocs, destination.location]);
   const apercus = useMemo(
     () => Object.fromEntries(TIERS.map((v) => [v.id, previewQuote(origin.location, destination.location, v, { bodyType, stops: stopLocs }).amount])) as Record<string, number>,
-    [origin.location, destination.location, bodyType, stops],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [origin.location, destination.location, bodyType, stops, trajet.pret, trajet.trajet],
   );
   // PRIX FIXE : l'aperçu local s'affiche sans attendre, puis le prix du serveur le
   // remplace (zone, majoration, frais de prise en charge). Sans cela, la liste annonçait
@@ -1527,6 +1556,7 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
   useEffect(() => {
     let annule = false;
     setServeur(null);
+    if (!trajet.pret) return;
     void Promise.all(TIERS.map((v) => estimateWithCoverage(origin.location, destination.location, v, { bodyType, stops: stopLocs })))
       .then((devis) => {
         if (annule) return;
@@ -1535,9 +1565,9 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
       .catch(() => { /* hors ligne : l'aperçu local reste affiché */ });
     return () => { annule = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origin.location, destination.location, bodyType, stops]);
+  }, [origin.location, destination.location, bodyType, stops, trajet.pret, trajet.trajet]);
   const prices = serveur?.prix ?? apercus;
-  const traffic = serveur?.trafic ?? previewQuote(origin.location, destination.location, tier).trafficLevel;
+  const traffic = serveur?.trafic ?? previewQuote(origin.location, destination.location, tier, { stops: stopLocs }).trafficLevel;
   return (
     <div className="screen">
       <OrionMap origin={origin.location} destination={destination.location} stops={stopLocs} />
@@ -1564,11 +1594,11 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
                 <strong style={{ fontSize: 16 }}>{t(v.key)}</strong>
                 <span className="faint" style={{ fontSize: 12.5 }}>{v.cars[0]}{v.cars.length > 1 ? ` +${v.cars.length - 1}` : ''} · {v.capacity} {t('seats')}</span>
               </span>
-              <span className="price">{formatXOF(prices[v.id] ?? 0)}</span>
+              <span className={`price${trajet.pret ? '' : ' attente'}`} aria-busy={!trajet.pret}>{trajet.pret ? formatXOF(prices[v.id] ?? 0) : '…'}</span>
             </button>
           ))}
         </div>
-        <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={onNext}>
+        <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={onNext} disabled={!trajet.pret}>
           {t('est_cta')} {t(tier.key)} · {t(`body_${bodyType}`)} <IconChevron size={18} />
         </button>
       </Sheet>

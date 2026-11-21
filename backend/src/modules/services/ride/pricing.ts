@@ -93,12 +93,30 @@ export interface PriceResult {
   breakdown: QuoteBreakdown;
 }
 
-/** Distance totale d'un trajet origine → arrêts → destination (mètres). */
+/** Distance à vol d'oiseau d'un trajet origine → arrêts → destination (mètres). */
 function routeDistanceMeters(origin: LatLng, destination: LatLng, stops: LatLng[]): number {
   const pts = [origin, ...stops, destination];
   let total = 0;
   for (let i = 1; i < pts.length; i++) total += haversineMeters(pts[i - 1]!, pts[i]!);
   return total;
+}
+
+/**
+ * Sans itinéraire calculé, la route est estimée à 1,3 fois le vol d'oiseau : le même facteur
+ * que le tracé de repli du module de routage et que l'application hors connexion.
+ */
+export const SINUOSITE = 1.3;
+
+/**
+ * DISTANCE FACTURÉE : celle du trajet par la route. Une course se paie sur ce que la voiture
+ * roule (routes, ponts de la lagune, sens de circulation), pas sur la ligne droite entre le
+ * départ et l'arrivée — à Abidjan l'écart atteint souvent la moitié. `routeMeters` vient du
+ * calcul d'itinéraire ; il est écarté s'il est plus court que la ligne droite ou démesuré.
+ */
+export function distanceFacturee(origin: LatLng, destination: LatLng, stops: LatLng[], routeMeters?: number): number {
+  const vol = routeDistanceMeters(origin, destination, stops);
+  const plausible = routeMeters !== undefined && Number.isFinite(routeMeters) && routeMeters >= vol * 0.98 && routeMeters <= vol * 6 + 3000;
+  return plausible ? routeMeters! : vol * SINUOSITE;
 }
 
 /** Le FCFA n'a pas de centimes : on arrondit au multiple de 50 le plus proche. */
@@ -117,6 +135,8 @@ export interface PricingContext {
   promoDiscount?: (subtotal: number) => number;
   /** Paramètres de prix pilotables (console Admin). Par défaut : DEFAULT_PRICING. */
   settings?: PricingSettings;
+  /** Distance du trajet par la route (calcul d'itinéraire), en mètres. Absente : estimation 1,3 × vol d'oiseau. */
+  routeMeters?: number;
   /** Facteur de zone (commune de prise en charge) intégré au prix fixe. 1 = neutre. */
   zoneFactor?: number;
   /** Frais de prise en charge du micro-secteur (F CFA), intégrés au prix fixe. */
@@ -138,7 +158,7 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
   const discountRate = Math.min(1, Math.max(0, ctx.discountRate ?? 0));
 
   const stops = req.stops ?? [];
-  const distanceMeters = routeDistanceMeters(req.origin, req.destination, stops);
+  const distanceMeters = distanceFacturee(req.origin, req.destination, stops, ctx.routeMeters);
   const distanceKm = distanceMeters / 1000;
   // ETA affichée : le trafic allonge la durée réelle (info au client, sans surfacturation).
   const etaSeconds = Math.round((distanceKm / tariff.avgSpeedKmh) * 3600 * trafficFactor);

@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { config } from '../../../config/index.js';
 import { badRequest } from '../../../core/errors.js';
-import { haversineMeters, type LatLng } from '../../../core/geo.js';
+import type { LatLng } from '../../../core/geo.js';
 import type { EstimateRequest, Quote, ServiceModule } from '../types.js';
-import { DEFAULT_PRICING, type PricingContext } from '../ride/pricing.js';
+import { DEFAULT_PRICING, distanceFacturee, type PricingContext } from '../ride/pricing.js';
 import { isWithinCotedIvoire } from '../../geo-ci/zones.js';
 
 /**
@@ -47,13 +47,6 @@ export type DeliveryContextProvider = (req: EstimateRequest) => PricingContext |
 
 const roundFcfa = (n: number) => Math.round(n / 50) * 50;
 
-/** Distance du trajet origine → arrêts → destination (mètres). */
-function routeDistanceMeters(origin: LatLng, destination: LatLng, stops: LatLng[]): number {
-  const pts = [origin, ...stops, destination];
-  let total = 0;
-  for (let i = 1; i < pts.length; i++) total += haversineMeters(pts[i - 1]!, pts[i]!);
-  return total;
-}
 
 export class DeliveryServiceModule implements ServiceModule {
   readonly type = 'delivery' as const;
@@ -76,7 +69,8 @@ export class DeliveryServiceModule implements ServiceModule {
     const sizeFactor = PACKAGE_FACTOR[size]!;
 
     const stops = req.stops ?? [];
-    const distanceMeters = routeDistanceMeters(req.origin, req.destination, stops);
+    // Distance par la route, comme pour une course (voir `distanceFacturee`).
+    const distanceMeters = distanceFacturee(req.origin, req.destination, stops, ctx.routeMeters);
     const distanceKm = distanceMeters / 1000;
     const trafficFactor = Math.max(1, ctx.trafficFactor ?? 1);
     // ETA informative : allongée par le trafic. Temps FACTURÉ : à vitesse libre, pour

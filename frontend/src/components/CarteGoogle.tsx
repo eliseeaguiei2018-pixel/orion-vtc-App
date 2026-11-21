@@ -73,6 +73,47 @@ const cap = (a: LatLng, b: LatLng) => {
   return (Math.atan2(y, x) * 180) / Math.PI;
 };
 
+/**
+ * UNE SEULE CARTE pour toute l'application. Créer une carte Google coûte cher (script,
+ * tuiles, une « carte chargée » facturée) : l'instance est créée une fois, puis déplacée
+ * d'écran en écran avec son élément. Passer de la recherche au choix du véhicule, puis au
+ * suivi, ne recharge plus rien : la carte est déjà là, au même endroit.
+ * `occupee` : un écran l'utilise ; un second écran affiché en même temps crée la sienne.
+ */
+let partagee: { carte: GMap; hote: HTMLDivElement; sombre: boolean; occupee: boolean } | null = null;
+
+/**
+ * Prépare la carte dès l'accueil, hors de l'écran : quand le client ouvre la recherche, elle
+ * est déjà chargée autour de lui et s'affiche sans attente ni écran blanc.
+ */
+export function prechaufferCarte(sombre: boolean, centre: LatLng): void {
+  if (partagee) return;
+  void chargerGoogle().then((g) => {
+    if (partagee) return;
+    const reserve = document.createElement('div');
+    reserve.className = 'carte-reserve';
+    reserve.setAttribute('aria-hidden', 'true');
+    const hote = document.createElement('div');
+    hote.className = 'carte-hote';
+    reserve.appendChild(hote);
+    document.body.appendChild(reserve);
+    partagee = { carte: new g.Map(hote, optionsCarte(g, sombre, centre, 15)), hote, sombre, occupee: false };
+  }).catch(() => { /* pas de réseau : la carte sera créée, ou signalée indisponible, à l'ouverture */ });
+}
+
+/** Rectangle englobant, en nombres : sert à savoir si un recadrage changerait quelque chose. */
+interface Cadre { s: number; o: number; n: number; e: number }
+function cadreDe(points: LatLng[]): Cadre {
+  let s = 90, o = 180, n = -90, e = -180;
+  for (const p of points) { if (p.lat < s) s = p.lat; if (p.lat > n) n = p.lat; if (p.lng < o) o = p.lng; if (p.lng > e) e = p.lng; }
+  return { s, o, n, e };
+}
+/** Deux cadres presque identiques (à 12 % près de leur étendue) : inutile de recadrer. */
+function memeCadre(a: Cadre, b: Cadre): boolean {
+  const h = Math.max(a.n - a.s, b.n - b.s, 0.002) * 0.12, l = Math.max(a.e - a.o, b.e - b.o, 0.002) * 0.12;
+  return Math.abs(a.s - b.s) < h && Math.abs(a.n - b.n) < h && Math.abs(a.o - b.o) < l && Math.abs(a.e - b.e) < l;
+}
+
 /** Itinéraire de Google s'il répond, sinon celui d'ORION. */
 const tracer = (points: LatLng[]): Promise<ItineraireRoute | null> => itineraireGoogle(points).then((r) => r ?? itineraire(points));
 
@@ -128,18 +169,37 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
   const traceExterne = trace !== undefined;
   const echec = useRef(onEchec);
   echec.current = onEchec;
-  /** Recadre la carte sur le trajet : rappelé quand la feuille du bas change de hauteur. */
-  const cadrer = useRef<() => void>(() => {});
+  /** Recadre la carte sur le trajet. `force` : la carte a changé de taille, on recadre même si le trajet est le même. */
+  const cadrer = useRef<(force?: boolean) => void>(() => {});
+  const dernierCadre = useRef<Cadre | null>(null);
+  const propre = useRef(false);        // cette instance a créé sa propre carte (la carte partagée était prise)
 
-  // 1. Création de la carte (recréée au changement clair/sombre : Google fixe le thème à la création).
+  // 1. La carte : celle de l'application si elle existe déjà (même thème), sinon on la crée.
+  //    Google fixe le thème à la création : un passage clair/sombre en crée une nouvelle.
   useEffect(() => {
     let annule = false;
+    const sombre = resolved !== 'light';
     void chargerGoogle().then((g) => {
       if (annule || !boite.current) return;
       api.current = g;
-      const m = new g.Map(boite.current, optionsCarte(g, resolved !== 'light', origin, 14));
+      if (partagee && partagee.sombre === sombre && !partagee.occupee) {
+        partagee.occupee = true;
+        boite.current.appendChild(partagee.hote);
+        carte.current = partagee.carte;
+        g.event.trigger(partagee.carte, 'resize');
+        partagee.carte.setCenter(origin);
+        setPrete(true);
+        return;
+      }
+      const libre = !partagee || !partagee.occupee;
+      if (partagee && libre) { partagee.hote.remove(); partagee = null; }       // l'ancienne était dans l'autre thème
+      const hote = document.createElement('div');
+      hote.className = 'carte-hote';
+      boite.current.appendChild(hote);
+      const m = new g.Map(hote, optionsCarte(g, sombre, origin, 14));
       carte.current = m;
-      g.event.addListenerOnce(m, 'tilesloaded', () => fermerAvisSansCle(boite.current));
+      if (libre) partagee = { carte: m, hote, sombre, occupee: true }; else propre.current = true;
+      g.event.addListenerOnce(m, 'tilesloaded', () => fermerAvisSansCle(hote));
       // Les surcouches ont besoin de la projection : elle arrive au premier « idle ».
       g.event.addListenerOnce(m, 'idle', () => { if (!annule) setPrete(true); });
     }).catch(() => { if (!annule) echec.current(); });
@@ -150,10 +210,14 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
       reperes.current = { arrets: [] };
       Object.values(lignes.current).forEach((l) => l?.setMap(null));
       lignes.current = {};
+      // La carte partagée est seulement détachée : le prochain écran la reprend telle quelle.
+      if (partagee && carte.current === partagee.carte) { partagee.hote.remove(); partagee.occupee = false; }
+      else if (propre.current && boite.current) boite.current.innerHTML = '';
+      propre.current = false;
       carte.current = null;
       derniere.current = null;
+      dernierCadre.current = null;
       setPrete(false);
-      if (boite.current) boite.current.innerHTML = '';
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolved]);
@@ -165,25 +229,40 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
     const env = enveloppe.current;
     const ecran = env?.closest('.screen');
     if (!env || !ecran) return;
+    let applique = -1;           // hauteur déjà appliquée (px entiers)
+    let cadree = -1;             // hauteur au dernier recadrage
+    let recadrage = 0;
     const caler = () => {
       const feuille = ecran.querySelector('.sheet')?.getBoundingClientRect();
       const cadre = ecran.getBoundingClientRect();
-      const bas = feuille ? Math.max(0, cadre.bottom - feuille.top) : 0;
-      if (boite.current && boite.current.style.bottom !== `${bas}px`) {
-        boite.current.style.bottom = `${bas}px`;
-        if (api.current && carte.current) api.current.event.trigger(carte.current, 'resize');
-        // La carte vient de changer de hauteur : sans recadrage, le départ ou l'arrivée
-        // pourrait se retrouver sous la feuille.
-        window.setTimeout(() => cadrer.current(), 80);
-      }
+      const bas = Math.round(feuille ? Math.max(0, cadre.bottom - feuille.top) : 0);
+      // Un écart d'un ou deux pixels (animation de la feuille, arrondis) ne vaut pas un redimensionnement.
+      if (!boite.current || Math.abs(bas - applique) < 3) return;
+      const premier = applique < 0;
+      applique = bas;
+      boite.current.style.bottom = `${bas}px`;
+      if (api.current && carte.current) api.current.event.trigger(carte.current, 'resize');
+      // La carte vient de changer de hauteur : on recadre le trajet, une seule fois quand la
+      // feuille s'est posée — et jamais pendant la saisie (clavier ouvert), où la carte doit
+      // rester immobile sous les doigts.
+      window.clearTimeout(recadrage);
+      if (premier) { cadree = bas; return; }
+      recadrage = window.setTimeout(() => {
+        const actif = document.activeElement;
+        if (actif instanceof HTMLInputElement || actif instanceof HTMLTextAreaElement) return;
+        // Quelques dizaines de pixels de plus ou de moins ne cachent rien : on laisse la carte tranquille.
+        if (Math.abs(applique - cadree) < 40) return;
+        cadree = applique;
+        cadrer.current(true);
+      }, 260);
     };
     caler();
     const obs = new ResizeObserver(caler);
     obs.observe(ecran);
     const feuille = ecran.querySelector('.sheet');
     if (feuille) obs.observe(feuille);
-    const id = window.setInterval(caler, 700); // la feuille peut apparaître ou changer après coup
-    return () => { obs.disconnect(); window.clearInterval(id); };
+    const id = window.setInterval(caler, 900); // la feuille peut apparaître ou changer après coup
+    return () => { obs.disconnect(); window.clearInterval(id); window.clearTimeout(recadrage); };
   }, []);
 
   // 3. Itinéraire réel (départ, arrêts, arrivée) et approche du chauffeur : ceux de Google,
@@ -219,12 +298,14 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
     L.bord.setPath(geo); L.trajet.setPath(geo);
     L.approche.setPath(routeApproche ?? []);
     const tous = [...geo, ...(routeApproche ?? []), origin, ...(moi ? [moi] : [])];
-    cadrer.current = () => {
+    cadrer.current = (force = false) => {
       if (carte.current !== m) return;
+      // Même trajet, même cadre : on ne touche pas à la carte (ni saut, ni tuiles rechargées).
+      const cadre = cadreDe(tous);
+      if (!force && dernierCadre.current && memeCadre(dernierCadre.current, cadre)) return;
+      dernierCadre.current = cadre;
       if (tous.length > 1) {
-        const b = new g.LatLngBounds();
-        tous.forEach((p) => b.extend(p));
-        m.fitBounds(b, { top: 150, bottom: 46, left: 46, right: 46 });
+        m.fitBounds({ south: cadre.s, west: cadre.o, north: cadre.n, east: cadre.e }, { top: 150, bottom: 46, left: 46, right: 46 });
       } else {
         m.panTo(origin);
         if (m.getZoom() < 13) m.setZoom(15);

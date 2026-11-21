@@ -204,6 +204,20 @@ export function createContainer(): Container {
   // Codes promo (remises) pilotés depuis la console.
   const promos = new PromoService(createRepository<Promo>('promos'));
 
+  /**
+   * Distance du trajet PAR LA ROUTE, base du prix : celle du calcul d'itinéraire (le même que
+   * celui tracé sur la carte), avec un délai court pour ne jamais retenir un devis. Sans
+   * réponse, le prix se calcule sur l'estimation 1,3 × vol d'oiseau. En test : pas d'appel réseau.
+   */
+  type Point = { lat: number; lng: number };
+  const distanceParLaRoute = async (req: { origin: Point; destination: Point; stops?: Point[] }): Promise<number | undefined> => {
+    if (config.NODE_ENV === 'test') return undefined;
+    const points = [req.origin, ...(req.stops ?? []), req.destination];
+    const delai = new Promise<null>((ok) => { setTimeout(() => ok(null), 1800).unref?.(); });
+    const trajet = await Promise.race([routage.itineraire(points).catch(() => null), delai]);
+    return trajet && trajet.provider === 'osrm' ? trajet.distanceMeters : undefined;
+  };
+
   // Tarification : paramètres pilotables (Admin) + trafic intégré + code promo éventuel.
   const registry = new ServiceRegistry().register(
     new RideServiceModule(async (req) => {
@@ -221,6 +235,7 @@ export function createContainer(): Container {
         trafficFactor: traffic.factor,
         trafficLevel: traffic.level,
         settings: settings.getPricing(),
+        routeMeters: await distanceParLaRoute(req),
         zoneFactor: settings.zoneFactor(req.origin),
         zonePickupFee: settings.zoneForPoint(req.origin)?.pickupFee ?? 0,
         flatAmount: trip.flatAmount,
@@ -244,6 +259,7 @@ export function createContainer(): Container {
         trafficFactor: traffic.factor,
         trafficLevel: traffic.level,
         settings: settings.getPricing(),
+        routeMeters: await distanceParLaRoute(req),
         zoneFactor: settings.zoneFactor(req.origin),
         surgeMultiplier: Math.min(Math.max(surgeRaw, surgeManual), ops.surgeCapGreen),
         promoDiscount: (subtotal: number) => promos.evaluate(req.promoCode, subtotal)?.discount ?? 0,

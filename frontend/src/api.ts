@@ -135,6 +135,45 @@ export interface EstimateOpts {
   promoCode?: string;
 }
 
+/**
+ * TRAJET PAR LA ROUTE — la base du prix.
+ *
+ * Une course se paie sur la distance réellement roulée (routes, ponts de la lagune, sens de
+ * circulation), pas sur la distance à vol d'oiseau entre le départ et l'arrivée : à Abidjan
+ * l'écart est souvent de moitié. Le trajet est celui que la carte trace (calcul routier
+ * d'ORION, ou itinéraire de Google sur la carte Google). `fluideSeconds` (durée sans
+ * circulation) permet de mesurer le trafic réel du moment.
+ */
+export interface TrajetTarif { distanceMeters: number; durationSeconds: number; fluideSeconds?: number }
+
+/** Sans trajet calculé (hors connexion) : la route est estimée à 1,3 fois le vol d'oiseau, comme le fait le serveur. */
+export const SINUOSITE = 1.3;
+
+let trajetConnu: (points: LatLng[]) => TrajetTarif | null = () => null;
+/** L'application indique où trouver le trajet déjà calculé pour une suite de points (voir tarifTrajet.ts). */
+export function definirTrajetTarif(f: (points: LatLng[]) => TrajetTarif | null): void { trajetConnu = f; }
+
+/** Distance, durée et trafic servant au prix : le trajet par la route s'il est connu et plausible, sinon l'estimation. */
+function baseTarifaire(points: LatLng[], vitesseKmh: number): { distanceMeters: number; etaSeconds: number; traffic: { level: 'fluid' | 'dense' | 'jam'; factor: number } } {
+  let vol = 0;
+  for (let i = 1; i < points.length; i++) vol += haversine(points[i - 1]!, points[i]!);
+  const t = trajetConnu(points);
+  // Garde-fou : un trajet plus court que la ligne droite, ou démesuré, n'est pas un trajet.
+  const plausible = t && t.distanceMeters >= vol * 0.98 && t.distanceMeters <= vol * 6 + 3000;
+  if (!t || !plausible) {
+    const traffic = localTraffic();
+    const distanceMeters = vol * SINUOSITE;
+    return { distanceMeters, etaSeconds: Math.round((distanceMeters / 1000 / vitesseKmh) * 3600 * traffic.factor), traffic };
+  }
+  // Trafic réel quand le trajet donne la durée avec et sans circulation ; sinon celui de l'heure.
+  let traffic = localTraffic();
+  if (t.fluideSeconds && t.fluideSeconds > 60) {
+    const rapport = t.durationSeconds / t.fluideSeconds;
+    traffic = { level: rapport < 1.1 ? 'fluid' : rapport < 1.3 ? 'dense' : 'jam', factor: Math.min(1.35, Math.max(1, rapport)) };
+  }
+  return { distanceMeters: t.distanceMeters, etaSeconds: Math.max(60, Math.round(t.durationSeconds)), traffic };
+}
+
 const BODY = { berline: 1, suv: 1.08 } as const;
 
 /** Détection de trafic locale (miroir du backend) selon l'heure. */
@@ -153,14 +192,11 @@ const TRAFFIC_PRICE_WEIGHT = 0.6;
 function localEstimate(origin: LatLng, destination: LatLng, tier: TierOption, opts: EstimateOpts = {}): Quote {
   const stops = opts.stops ?? [];
   const pts = [origin, ...stops, destination];
-  let dist = 0;
-  for (let i = 1; i < pts.length; i++) dist += haversine(pts[i - 1]!, pts[i]!);
-  const distanceMeters = dist;
+  // Distance par la route (et non à vol d'oiseau), durée et trafic du trajet.
+  const { distanceMeters, etaSeconds, traffic } = baseTarifaire(pts, 24);
   const km = distanceMeters / 1000;
   const bodyF = BODY[opts.bodyType ?? 'berline'];
-  const traffic = localTraffic();
   const m = tier.multiplier;
-  const etaSeconds = Math.round((km / 24) * 3600 * traffic.factor);
   const minutes = (km / 24) * 60; // temps facturé à vitesse libre (trafic non surfacturé)
   const base = 300 * m * bodyF + stops.length * 250 * m;
   const distance = km * 130 * m * bodyF;
@@ -204,11 +240,9 @@ export type PkgSize = keyof typeof PKG_FACTOR;
  * tarif au km + facteur taille de colis, TVA 5% + frais 10%.
  */
 export function previewDelivery(origin: LatLng, destination: LatLng, size: PkgSize): Quote {
-  const distanceMeters = haversine(origin, destination) * 1.3;
+  const { distanceMeters, etaSeconds, traffic } = baseTarifaire([origin, destination], 26); // moto plus rapide
   const km = distanceMeters / 1000;
-  const traffic = localTraffic();
   const f = PKG_FACTOR[size];
-  const etaSeconds = Math.round((km / 26) * 3600 * traffic.factor); // moto plus rapide
   const minutes = (km / 26) * 60;
   // Barème coursier : aligné sur DELIVERY_TARIFF du backend (moins cher qu'une course
   // voiture — la moto coûte moins à exploiter et ne transporte pas de passager).

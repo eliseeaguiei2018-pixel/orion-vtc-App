@@ -1574,35 +1574,6 @@ body { letter-spacing: 0; text-rendering: optimizeLegibility; }
   .tuile-fond .vehicule { animation: none !important; }
 }
 
-/* ---- Tuiles en verre ----
-   Le fond d'une tuile n'est plus un aplat clair : c'est une plaque translucide, dans l'esprit
-   des matières des interfaces Apple. Elle laisse voir la page ; on la lit à son reflet (en
-   haut à gauche), à son bord plus dense (en bas à droite) et à l'ombre douce qu'elle pose.
-   Aucune couleur : le verre prend celle de ce qu'il recouvre, en clair comme en sombre.
-   Pas de flou d'arrière-plan : rien ne passe derrière une tuile, il coûterait sans se voir. */
-.tuile-fond {
-  background:
-    linear-gradient(140deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.12) 36%, rgba(255, 255, 255, 0) 58%),
-    linear-gradient(320deg, rgba(118, 118, 128, 0.17) 0%, rgba(118, 118, 128, 0.075) 52%, rgba(118, 118, 128, 0.035) 100%);
-  box-shadow:
-    inset 0 0 0 1px rgba(118, 118, 128, 0.10),
-    inset 1.5px 1.5px 0.5px -0.5px rgba(255, 255, 255, 0.95),
-    inset -1px -1px 0.5px -0.5px rgba(60, 60, 67, 0.12),
-    0 18px 28px -22px rgba(0, 0, 0, 0.32),
-    0 3px 8px -4px rgba(0, 0, 0, 0.06);
-}
-:root:not([data-theme='light']) .tuile-fond {
-  background:
-    linear-gradient(140deg, rgba(255, 255, 255, 0.17) 0%, rgba(255, 255, 255, 0.045) 38%, rgba(255, 255, 255, 0) 60%),
-    rgba(255, 255, 255, 0.055);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
-    inset 1.5px 1.5px 0.5px -0.5px rgba(255, 255, 255, 0.30),
-    inset -1px -1px 0.5px -0.5px rgba(0, 0, 0, 0.40),
-    0 18px 30px -20px rgba(0, 0, 0, 0.80);
-}
-.tuile:active .tuile-fond { filter: brightness(0.97); }
-
 /* Paramètres : « Mes courses » et « Aide », au même format que sur l'accueil. */
 .set-tuiles { margin: 4px 0 18px; }
 .set-tuiles .tuile.grande .tuile-fond { aspect-ratio: 1 / 0.6; }
@@ -1734,6 +1705,10 @@ button.menu-texte { cursor: pointer; }
 
 /* ---- Carte Google : mêmes repères que la carte ORION, posés par une surcouche ---- */
 .carte-google .carte-ml { inset: 0; }
+/* La carte de l'application : un seul élément, déplacé d'écran en écran. */
+.carte-hote { position: absolute; inset: 0; }
+/* Avant le premier écran de carte, elle se charge hors de l'écran, à la taille du téléphone. */
+.carte-reserve { position: fixed; left: -200vw; top: 0; width: 100vw; height: 62vh; opacity: 0; pointer-events: none; }
 /* La carte Google s'arrête au bord de la feuille (son logo et ses mentions restent visibles) :
    derrière les coins arrondis de la feuille, on voit la couleur du sol de la carte. */
 .carte-google, .screen.choix-carte:has(.choix-carte-google) { background: var(--sol-google, #f5f3f3); }
@@ -1795,3 +1770,78 @@ button.menu-texte { cursor: pointer; }
 /* ---- Recherche : d'où viennent les lieux (Google ou ORION) ---- */
 .lieu-source { margin: 10px 6px 4px; font-size: 12px; line-height: 1.45; color: var(--text-faint); }
 .lieu-source.refus { color: var(--danger-ink, var(--danger)); }
+
+/* Prix en attente du trajet par la route : trois points discrets, pas de montant provisoire. */
+.price.attente { color: var(--text-faint); letter-spacing: 2px; animation: prix-attente 1.1s ease-in-out infinite; }
+@keyframes prix-attente { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.9; } }
+@media (prefers-reduced-motion: reduce) { .price.attente { animation: none; } }
+
+/* ==========================================================================================
+   ACCUEIL 1.6 — des cartes de service, à la manière des grandes applications de transport
+   ==========================================================================================
+   Chaque service est une CARTE : un fond rouge très léger (chaleur, sans crier), le nom
+   écrit dedans, l'objet en volume plus petit, entièrement contenu. Les deux services
+   principaux portent leur nom en haut à gauche et leur objet en bas à droite. La couleur du
+   système vient de trois couches : ces cartes, les objets, et le bandeau de la marque. */
+:root {
+  --tuile: linear-gradient(165deg, #fff4f2 0%, #fde6e3 100%);
+  --tuile-bord: rgba(204, 58, 44, 0.09);
+  --tuile-encre: #2a1210;
+}
+:root:not([data-theme='light']) {
+  --tuile: linear-gradient(165deg, rgba(255, 118, 105, 0.19) 0%, rgba(255, 118, 105, 0.11) 100%);
+  --tuile-bord: rgba(255, 140, 128, 0.16);
+  --tuile-encre: #ffeceb;
+}
+.hub-greet { font-size: 27px; font-weight: 700; letter-spacing: -0.2px; line-height: 1.15; margin: 18px 0 14px; }
+:root .hub-search {
+  border-radius: 999px; padding: 16px 20px; background: var(--surface-2); border: none; box-shadow: none; gap: 12px;
+}
+:root .hub-search span { font: 600 16px var(--font-display); color: var(--text); }
+.hub-section { margin: 6px 0 -4px; font: 700 19px/1.2 var(--font-display); color: var(--text); }
+
+.tuiles-duo { gap: 10px; }
+.tuiles { gap: 10px; margin-top: 0; }
+.tuiles.quatre { gap: 10px; margin-top: 0; }
+.tuile {
+  position: relative; align-items: center; gap: 1px; padding: 8px 6px 11px; border-radius: 18px;
+  background: var(--tuile); box-shadow: inset 0 0 0 1px var(--tuile-bord); color: var(--tuile-encre);
+}
+.tuile-fond, .tuile.grande .tuile-fond, .tuiles.quatre .tuile-fond {
+  background: none; box-shadow: none; border-radius: 0; margin-bottom: 2px; aspect-ratio: 1 / 0.8;
+}
+/* Objets un peu plus petits qu'avant, posés dans la carte sans en déborder. */
+.tuile-fond .vehicule, .tuile-fond .objet { width: 72%; bottom: 0; }
+.tuiles.quatre .tuile-fond { aspect-ratio: 1 / 0.86; }
+.tuiles.quatre .tuile-fond .objet { width: 76%; }
+.tuile-nom { color: var(--tuile-encre); font: 600 13px/1.2 var(--font-display); }
+.tuiles.quatre .tuile { padding: 8px 2px 10px; }
+.tuiles.quatre .tuile-nom { font-size: 11px; letter-spacing: -0.15px; overflow-wrap: normal; }
+.tuile-note { color: var(--tuile-encre); opacity: 0.62; font-size: 11px; }
+.tuile:active .tuile-fond { filter: none; }
+.tuile:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.tuile:focus-visible .tuile-fond { outline: none; }
+
+/* Course et Livraison : le nom en haut à gauche, l'objet en bas à droite. */
+.tuile.grande { align-items: flex-start; text-align: start; padding: 14px 14px 8px; border-radius: 22px; min-height: 138px; }
+.tuile.grande .tuile-nom { order: 1; font-size: 18px; font-weight: 700; }
+.tuile.grande .tuile-note { order: 2; font-size: 12.5px; opacity: 0.7; color: var(--tuile-encre); }
+.tuile.grande .tuile-fond { order: 3; align-self: flex-end; width: 84%; aspect-ratio: 1 / 0.56; margin: 2px -6px 0 0; }
+.tuile.grande .tuile-fond .vehicule { width: 100%; bottom: 0; }
+.tuile.grande .tuile-fond .scooter { width: 62%; bottom: 0; left: auto; right: 6%; translate: 0 0; }
+
+/* Bandeau de la marque : une couche de couleur franche sous les services. */
+.hub-promo {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 16px 8px 16px 18px; border: none; border-radius: 22px;
+  background: var(--accent-fill, var(--green)); color: #fff; text-align: start; cursor: pointer; font: inherit; overflow: hidden;
+  transition: transform 0.16s var(--ease-out); flex: none; min-height: 112px;
+}
+.hub-promo:active { transform: var(--press); }
+.hub-promo-texte { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.hub-promo-texte small { font: 600 12px var(--font-display); opacity: 0.85; }
+.hub-promo-texte strong { font: 700 17px/1.25 var(--font-display); text-wrap: balance; }
+.hub-promo-texte em { font-style: normal; display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; align-self: flex-start; padding: 7px 12px; border-radius: 999px; background: #fff; color: #10140f; font: 600 13px var(--font-display); }
+.hub-promo .objet { width: 104px; height: 104px; flex: none; margin: -14px 0 -18px; }
+
+/* Petites touches de la couleur de marque dans le système : repères de section, ajout d'un lieu. */
+.hub-body .eyebrow svg { color: var(--green); }
