@@ -777,15 +777,28 @@ changement de hauteur de la feuille du bas (donc à chaque lettre, clavier ouver
 ne recadre plus que si le trajet change ou si la hauteur utile varie de plus de 40 px, et
 jamais pendant la saisie.
 
+### Rappel de la palette dans le thème
+
+Dernière demande avant l'installation : la palette choisie (vert, bleu ou orange) doit se
+retrouver dans le visuel, mêlée légèrement au blanc et au sombre. Elle teinte maintenant
+le thème de quelques pour cent — pages, feuilles, surfaces et filets, en clair comme en
+sombre — et pose une lueur derrière le titre et la recherche de l'accueil, éteinte avant
+les tuiles. Un premier essai teintait aussi les tuiles translucides et posait une lueur
+sous chaque objet : le client ne l'a pas retenu, **les tuiles ne sont pas modifiées**.
+Cette règle revient sur celle de la version 1.2 (« aucune teinte dans les fonds »), à la
+demande du client. L'APK garde le numéro 1.5.2 ; son code interne passe à 9 pour
+s'installer par-dessus une 1.5.2 déjà posée.
+
 ### Vérifications (sur le contenu exact de l'APK 1.5.2)
 
-- Accueil comparé à la capture de la 1.5.1 : identique, aux objets animés près.
+- Accueil comparé à la capture de la 1.5.1 avant l'ajout de la teinte : identique, aux
+  objets animés près. Accueil et menu vus dans les trois palettes, en clair et en sombre.
 - Services Google et prix, en clair puis en sombre : 9 étapes sur 9, dont « la distance du
   détail du prix est celle affichée sur la carte ». Google seul : 7 sur 7 dans les deux
   thèmes. Menu et bulle GPS : 9 sur 9. Parcours complet : 20 sur 20. Aucune erreur JavaScript.
 - Serveur : 395 tests, 393 réussis, 2 ignorés (SQLite) ; quatre tests nouveaux sur la
   distance facturée.
-- APK 1.5.2 : `ci.orion.app`, code 8, même signature, 10,9 Mo ; ses 158 fichiers web sont
+- APK 1.5.2 : `ci.orion.app`, code 9, même signature, 10,9 Mo ; ses 158 fichiers web sont
   identiques à la version testée. La clé n'est ni dans le dépôt ni dans son historique.
 
 ### Limites
