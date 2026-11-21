@@ -40,8 +40,6 @@ export function distanceVol(a: Pt, b: Pt): number {
 export const BAREME = {
   baseFare: 300, perKm: 130, perMinute: 18, minFare: 600, avgSpeedKmh: 24,
   tvaRate: 0.05, feeRate: 0.1, insuranceRate: 0.02, trafficWeight: 0.6, stopFee: 250,
-  /** Supplément fixe ajouté à chaque course, toutes gammes (F CFA TTC). Pas sur les livraisons. */
-  rideFee: 300,
   bodySurcharge: { berline: 1, suv: 1.08 } as Record<string, number>,
 } as const;
 
@@ -185,8 +183,7 @@ export function prixCourse(d: {
   const plancher = Math.max(brut, s.minFare * m, regles.premiumFloor ?? 0);
 
   const tauxTtc = 1 + s.tvaRate + s.feeRate + (d.insurance ? s.insuranceRate : 0);
-  // Supplément de gamme puis supplément fixe par course : tous deux TTC, ajoutés après l'arrondi.
-  const amount = arrondi50(plancher * tauxTtc) + Math.max(0, d.supplement ?? 0) + s.rideFee;
+  const amount = arrondi50(plancher * tauxTtc) + Math.max(0, d.supplement ?? 0);
   const subtotal = amount / tauxTtc;
   return {
     amount, trafficLevel: trafic.level, trafficFactor: trafic.factor,

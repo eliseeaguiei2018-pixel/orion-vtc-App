@@ -23,12 +23,6 @@ export interface PricingSettings {
    * exactement cet écart entre deux gammes sur le même trajet (Or +700, Diamant +1 700).
    */
   supplements: Record<Tier, number>;
-  /**
-   * Supplément FIXE ajouté à chaque course, toutes gammes confondues, en F CFA TTC. Il s'ajoute
-   * après l'arrondi, comme le supplément de gamme : le prix affiché monte exactement de ce
-   * montant, quel que soit le trajet. Les livraisons à moto ne sont pas concernées.
-   */
-  rideFee: number;
   bodySurcharge: Record<string, number>;
   /* --- Frais annexes & pénalités (session Tarification S16) --- */
   /** Minutes d'attente offertes à l'arrivée du chauffeur (courtoisie). */
@@ -50,7 +44,6 @@ export const DEFAULT_PRICING: PricingSettings = {
   tvaRate: TVA_RATE, feeRate: APP_FEE_RATE, insuranceRate: INSURANCE_RATE, trafficWeight: 0.6, stopFee: 250,
   multipliers: { argent: FLEET.argent.multiplier, or: FLEET.or.multiplier, diamant: FLEET.diamant.multiplier },
   supplements: { argent: FLEET.argent.supplement, or: FLEET.or.supplement, diamant: FLEET.diamant.supplement },
-  rideFee: 300,
   bodySurcharge: { berline: 1.0, suv: 1.08 },
   freeWaitMinutes: 5, cancelGraceMinutes: 2, cancelFee: 500,
   cleaningLight: 10_000, cleaningMajor: 50_000,
@@ -207,9 +200,7 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
   const tauxTtc = 1 + s.tvaRate + s.feeRate + (req.insurance ? s.insuranceRate : 0);
   const sansSupplement = floored - discount;
   const montantArgent = roundFcfa(sansSupplement * tauxTtc);
-  // Supplément fixe par course (toutes gammes), TTC lui aussi, ajouté après l'arrondi.
-  const supplementCourse = Math.max(0, s.rideFee ?? 0);
-  const amount = montantArgent + supplementTtc + supplementCourse;
+  const amount = montantArgent + supplementTtc;
   const subtotal = amount / tauxTtc;
   const tva = subtotal * s.tvaRate;
   const fee = subtotal * s.feeRate;

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_PRICING, SINUOSITE, distanceFacturee, estimatePrice } from '../src/modules/services/ride/pricing.js';
+import { SINUOSITE, distanceFacturee, estimatePrice } from '../src/modules/services/ride/pricing.js';
 import { haversineMeters } from '../src/core/geo.js';
 
 /**
@@ -46,24 +46,3 @@ test('le prix suit la distance par la route, arrêts compris', () => {
   const ancien = estimatePrice({ origin: RIVIERA, destination: PLATEAU }, { routeMeters: vol });
   assert.ok(direct.amount > ancien.amount, `${direct.amount} F sur la route, ${ancien.amount} F à vol d’oiseau`);
 });
-
-test('supplément fixe par course : 300 F de plus sur chaque gamme, écarts entre gammes inchangés', () => {
-  assert.equal(DEFAULT_PRICING.rideFee, 300);
-  const sansSupplement = { ...DEFAULT_PRICING, rideFee: 0 };
-  const prix: Record<string, number> = {};
-  for (const gamme of ['argent', 'or', 'diamant']) {
-    const avec = estimatePrice({ origin: RIVIERA, destination: MARCORY, category: gamme });
-    const sans = estimatePrice({ origin: RIVIERA, destination: MARCORY, category: gamme }, { settings: sansSupplement });
-    assert.equal(avec.amount - sans.amount, 300, `${gamme} : exactement 300 F de plus`);
-    // Le détail reste juste : sous-total, TVA et frais retombent sur le montant affiché.
-    const b = avec.breakdown;
-    assert.ok(Math.abs(b.subtotal + b.tva + b.fee - avec.amount) <= 2, `${gamme} : détail cohérent avec ${avec.amount} F`);
-    prix[gamme] = avec.amount;
-  }
-  assert.equal(prix.or! - prix.argent!, 700);
-  assert.equal(prix.diamant! - prix.argent!, 1700);
-  // La console peut le régler : à 1 000 F, chaque course monte de 700 F de plus.
-  const regle = estimatePrice({ origin: RIVIERA, destination: MARCORY, category: 'argent' }, { settings: { ...DEFAULT_PRICING, rideFee: 1000 } });
-  assert.equal(regle.amount - prix.argent!, 700);
-});
-
