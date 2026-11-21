@@ -656,7 +656,7 @@ const rentals: RentalRow[] = [
     status: 'reservee', lieu: 'Aéroport Félix-Houphouët-Boigny',
     options: { cortege: 0, hotesses: 0, decoration: false, escorte: true },
     breakdown: { vehicule: 32_400_000, cortege: 0, options: 60_000, majorationJourJ: 0, remiseAbonnement: 0, ht: 32_460_000, tva: 1_623_000 },
-    societe: { nom: 'Ambassade du Ghana', bonCommande: 'BC-7741', contribuable: 'CI-2026-00881' },
+    societe: { nom: 'Groupe Ébrié Holding', bonCommande: 'BC-7741', contribuable: 'CI-2026-00881' },
     contact: { nom: 'Service du protocole', telephone: '+2250708091011' },
     events: [{ type: 'reservee', at: iso(300) }],
     createdAt: iso(300),
