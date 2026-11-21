@@ -240,7 +240,7 @@ test('console : session Location — suivi, affectation, bon PDF et abonnements'
   const res = await app.inject({
     method: 'POST', url: '/rental/reserve',
     payload: {
-      formula: 'entreprise', vehicleId: 'maextro-s800', debut, duree: 'journee',
+      formula: 'entreprise', vehicleId: 'maextro-s800', debut, duree: 'mois', mois: 6,
       userId: 'institution-1', lieu: 'Aéroport Félix-Houphouët-Boigny',
       societe: { nom: 'Ambassade du Ghana', bonCommande: 'BC-7741' },
       contact: { nom: 'Protocole', telephone: '+2250708091011' },
@@ -375,25 +375,25 @@ test('console : ajuster un prix de location change le devis client, sans redépl
   })).json().quote;
 
   const avant = await devis();
-  assert.equal(avant.breakdown.vehicule, 440_000);
+  assert.equal(avant.breakdown.vehicule, 90_000);
 
   // L'équipe ajuste le prix depuis la console.
   const maj = await app.inject({
     method: 'PUT', url: '/admin/rental/tarifs', headers: jeton,
-    payload: { vehicules: { 'stelato-s9': { prixJour: 470_000 } }, tarif: { decoration: 40_000 } },
+    payload: { vehicules: { 'stelato-s9': { prixJour: 95_000 } }, tarif: { decoration: 40_000 } },
   });
   assert.equal(maj.statusCode, 200);
   // La réponse montre l'ÉCART : c'est ce qu'un directeur relit six mois plus tard.
-  assert.deepEqual(maj.json().ecarts['stelato-s9.prixJour'], { avant: 440_000, apres: 470_000 });
-  assert.deepEqual(maj.json().ecarts['decoration'], { avant: 35_000, apres: 40_000 });
+  assert.deepEqual(maj.json().ecarts['stelato-s9.prixJour'], { avant: 90_000, apres: 95_000 });
+  assert.deepEqual(maj.json().ecarts['decoration'], { avant: 20_000, apres: 40_000 });
 
   const apres = await devis();
-  assert.equal(apres.breakdown.vehicule, 470_000, 'le devis client suit immédiatement');
+  assert.equal(apres.breakdown.vehicule, 95_000, 'le devis client suit immédiatement');
 
   // Le catalogue public expose le barème EN VIGUEUR : aucun écart affiché/facturé.
   const cat = await app.inject({ method: 'GET', url: '/rental/catalogue' });
   assert.equal(cat.json().bareme.decoration, 40_000);
-  assert.equal(cat.json().vehicles.find((v: { id: string }) => v.id === 'stelato-s9').prixJour, 470_000);
+  assert.equal(cat.json().vehicles.find((v: { id: string }) => v.id === 'stelato-s9').prixJour, 95_000);
 
   // Le changement est journalisé avec son auteur.
   const journal = await app.inject({ method: 'GET', url: '/admin/audit', headers: jeton });
@@ -414,5 +414,5 @@ test('console : ajuster un prix de location change le devis client, sans redépl
 
   // Remise à zéro : on retrouve la grille d'origine.
   await app.inject({ method: 'POST', url: '/admin/rental/tarifs/reset', headers: jeton });
-  assert.equal((await devis()).breakdown.vehicule, 440_000);
+  assert.equal((await devis()).breakdown.vehicule, 90_000);
 });

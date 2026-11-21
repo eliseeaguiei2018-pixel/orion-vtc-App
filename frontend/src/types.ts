@@ -130,6 +130,12 @@ export interface RentalQuote {
   fin: string;
   duree: RentalDuree;
   heures?: number;
+  /** Forfait mensuel : nombre de mois, reconduction et montant réglé chaque mois. */
+  mois?: number;
+  renouvelable?: boolean;
+  mensualite?: number;
+  /** Ce que la durée fait gagner face au tarif journalier plein. */
+  remiseDuree?: { taux: number; montant: number };
   heuresService: number;
   jours: number;
   options: Required<RentalOptions>;

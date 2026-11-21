@@ -17,7 +17,7 @@ import type {
 
 const LABEL_FORMULE: Record<string, string> = {
   evenement: 'Événement & mariage',
-  entreprise: 'Entreprise & institution',
+  entreprise: 'Entreprise — forfait mensuel',
   mise_a_disposition: 'Mise à disposition',
 };
 const LABEL_DUREE: Record<string, string> = {
@@ -144,7 +144,7 @@ export function RentalSection({ reservations, fleet, stats, dispos, drivers, can
                 return (
                   <tr key={r.id}>
                     <td className="mono">{r.id}</td>
-                    <td>{LABEL_FORMULE[r.formula] ?? r.formula}<br /><span className="adm-muted">{LABEL_DUREE[r.duree] ?? r.duree}{r.heures ? ` · ${r.heures} h` : ''}</span></td>
+                    <td>{LABEL_FORMULE[r.formula] ?? r.formula}<br /><span className="adm-muted">{LABEL_DUREE[r.duree] ?? r.duree}{r.heures ? ` · ${r.heures} h` : ''}{r.mois ? ` · ${r.mois} mois, ${r.renouvelable ? 'renouvelable' : 'non renouvelable'}` : ''}</span></td>
                     <td>{r.vehicle.name}{r.options.cortege > 0 && <><br /><span className="adm-muted">+ {r.options.cortege} cortège</span></>}</td>
                     <td>{dt(r.debut)}{r.jourJ && <><br /><span className="adm-pill av-on_trip">Jour J</span></>}</td>
                     <td>
@@ -437,7 +437,7 @@ export function RentalTarifsSection({ etat, canWrite, onSave, onReset }: {
         </div>
         <table className="adm-table">
           <thead>
-            <tr><th>Modèle</th><th>Classe</th><th className="r">Prix / jour (F)</th><th className="r">Exemplaires</th><th>Proposé à la location</th></tr>
+            <tr><th>Modèle</th><th>Classe</th><th className="r">Prix / jour (F) — de 60 000 à 300 000</th><th className="r">Exemplaires</th><th>Proposé à la location</th></tr>
           </thead>
           <tbody>
             {courant.vehicules.map((v) => (
@@ -446,7 +446,7 @@ export function RentalTarifsSection({ etat, canWrite, onSave, onReset }: {
                 <td><span className="adm-pill">{v.classe === 'presidentielle' ? 'Présidentielle' : 'Signature'}</span></td>
                 <td className="r">
                   <input
-                    className="adm-input-num" type="number" step={5000} value={v.prixJour} disabled={!canWrite}
+                    className="adm-input-num" type="number" step={5000} min={60000} max={300000} value={v.prixJour} disabled={!canWrite}
                     onChange={(e) => majVeh(v.id, { prixJour: Number(e.target.value) })}
                   />
                 </td>
@@ -478,7 +478,11 @@ export function RentalTarifsSection({ etat, canWrite, onSave, onReset }: {
           <ChampTarif label="Journée" aide="Multiplicateur du prix journée (référence = 1)" valeur={t.coefs.journee} pas={0.05} onChange={(v) => majCoef('journee', v)} />
           <ChampTarif label="Week-end" aide="Deux jours" valeur={t.coefs.weekend} pas={0.1} onChange={(v) => majCoef('weekend', v)} />
           <ChampTarif label="Semaine" aide="Sept jours — dégressif" valeur={t.coefs.semaine} pas={0.1} onChange={(v) => majCoef('semaine', v)} />
-          <ChampTarif label="Mois" aide="Trente jours — contrat entreprise" valeur={t.coefs.mois} pas={0.5} onChange={(v) => majCoef('mois', v)} />
+          <ChampTarif label="Mois" aide="Journées facturées sur 30 : 21 = −30 % dès le premier mois" valeur={t.coefs.mois} pas={0.5} onChange={(v) => majCoef('mois', v)} />
+          <ChampTarif label="Remise dès 3 mois" suffixe="part" aide="Par mois, face à 30 journées pleines" valeur={t.remiseMois3} pas={0.01} onChange={(v) => majT({ remiseMois3: v })} />
+          <ChampTarif label="Remise dès 6 mois" suffixe="part" aide="Palier d’entrée des contrats entreprise" valeur={t.remiseMois6} pas={0.01} onChange={(v) => majT({ remiseMois6: v })} />
+          <ChampTarif label="Remise dès 12 mois" suffixe="part" valeur={t.remiseMois12} pas={0.01} onChange={(v) => majT({ remiseMois12: v })} />
+          <ChampTarif label="Engagement entreprise" suffixe="mois min." aide="Une entreprise ne loue qu’au forfait mensuel" valeur={t.moisMinEntreprise} onChange={(v) => majT({ moisMinEntreprise: v })} />
           <ChampTarif label="Part horaire" suffixe="du prix journée" aide="17 % par heure par défaut, plafonné au tarif journée" valeur={t.ratioHeure} pas={0.01} onChange={(v) => majT({ ratioHeure: v })} />
           <ChampTarif label="Heures min." valeur={t.minHeures} onChange={(v) => majT({ minHeures: v })} />
           <ChampTarif label="Heures max." valeur={t.maxHeures} onChange={(v) => majT({ maxHeures: v })} />
@@ -510,7 +514,9 @@ export function RentalTarifsSection({ etat, canWrite, onSave, onReset }: {
             Simulation — {exemple.name}, journée nue : <strong>{fcfa(Math.round(exemple.prixJour * t.coefs.journee))}</strong> ·
             week-end : <strong>{fcfa(Math.round(exemple.prixJour * t.coefs.weekend))}</strong> ·
             semaine : <strong>{fcfa(Math.round(exemple.prixJour * t.coefs.semaine))}</strong> ·
-            3 h : <strong>{fcfa(Math.round(exemple.prixJour * Math.min(3 * t.ratioHeure, 1)))}</strong>
+            3 h : <strong>{fcfa(Math.round(exemple.prixJour * Math.min(3 * t.ratioHeure, 1)))}</strong> ·
+            mois : <strong>{fcfa(Math.round(exemple.prixJour * t.coefs.mois))}</strong> ·
+            entreprise {t.moisMinEntreprise} mois : <strong>{fcfa(Math.round(exemple.prixJour * 30 * (1 - Math.max(1 - t.coefs.mois / 30, t.remiseMois3, t.remiseMois6))))}</strong> / mois
           </p>
         )}
 

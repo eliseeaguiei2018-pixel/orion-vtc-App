@@ -17,7 +17,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 
 const racine = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'i18n');
-const fichiers = ['translations', 'complements', 'complements-langues', 'lieux'];
+const fichiers = ['translations', 'complements', 'complements-langues', 'nouveautes', 'lieux'];
 const tmp = mkdtempSync(path.join(tmpdir(), 'orion-langues-'));
 try {
   for (const f of fichiers) {

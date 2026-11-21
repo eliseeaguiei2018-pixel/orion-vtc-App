@@ -1,5 +1,6 @@
 import { COMPLEMENTS } from './complements';
 import { COMPLEMENTS_LANGUES } from './complements-langues';
+import { NOUVEAUTES } from './nouveautes';
 import { TEXTES_LIEUX } from './lieux';
 /* Traductions ORION — 8 langues. Clés communes à tous les écrans. */
 export type Lang = 'fr' | 'en' | 'es' | 'it' | 'ar' | 'zh' | 'de' | 'ru';
@@ -2876,6 +2877,8 @@ const ru: Dict = {
 Object.assign(fr, COMPLEMENTS.fr);
 Object.assign(en, COMPLEMENTS.en);
 for (const [code, d] of Object.entries(COMPLEMENTS_LANGUES)) Object.assign({ es, it, de, ar, zh, ru }[code as keyof typeof COMPLEMENTS_LANGUES], d);
+// Version 1.2 : ces textes remplacent, le cas échéant, une formulation antérieure.
+for (const [code, d] of Object.entries(NOUVEAUTES)) Object.assign({ fr, en, es, it, de, ar, zh, ru }[code as keyof typeof NOUVEAUTES], d);
 for (const [code, d] of Object.entries(TEXTES_LIEUX)) Object.assign({ fr, en, es, it, de, ar, zh, ru }[code as keyof typeof TEXTES_LIEUX], d);
 // Typographie française : espace insécable avant « : ; ? ! » et à l'intérieur des guillemets,
 // pour qu'un « : » ne se retrouve jamais seul en début de ligne sur un petit écran.

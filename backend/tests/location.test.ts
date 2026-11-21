@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PRESTIGE, prestigeById } from '../src/modules/fleet/prestige.js';
+import { PRESTIGE, PRIX_JOUR_MAX, PRIX_JOUR_MIN, prestigeById } from '../src/modules/fleet/prestige.js';
 import { RentalService, finDeLocation, quoteRental } from '../src/modules/rental/service.js';
 import { RentalSettingsService } from '../src/modules/rental/settings.js';
 import { FRAIS, HEURES_PAR_JOURNEE } from '../src/modules/rental/tariff.js';
@@ -87,7 +87,7 @@ test('privatiser la voiture : journée, week-end, semaine et mois sont dégressi
   const v = prestigeById('nio-et9')!;
   const prix = (duree: 'journee' | 'weekend' | 'semaine' | 'mois') =>
     quoteRental(
-      { formula: 'entreprise', vehicleId: v.id, debut: debut.toISOString(), duree },
+      { formula: 'mise_a_disposition', vehicleId: v.id, debut: debut.toISOString(), duree },
       ctx(s, v.id, debut, finDeLocation(debut, duree)),
     );
 
@@ -99,6 +99,101 @@ test('privatiser la voiture : journée, week-end, semaine et mois sont dégressi
   // Dégressivité : la semaine coûte moins que 7 journées, le mois moins que 30.
   assert.ok(sem.breakdown.vehicule < j.breakdown.vehicule * 7, 'semaine dégressive');
   assert.ok(mois.breakdown.vehicule < j.breakdown.vehicule * 30, 'mois dégressif');
+  // Le devis dit ce que la durée fait gagner : −30 % sur un mois, rien sur une journée.
+  assert.equal(mois.remiseDuree.taux, 0.3);
+  assert.equal(mois.remiseDuree.montant, Math.round(v.prixJour * 30 * 0.3));
+  assert.equal(j.remiseDuree.montant, 0);
+});
+
+test('grille : de 60 000 à 300 000 F la journée, bornes comprises', () => {
+  const prix = PRESTIGE.map((v) => v.prixJour);
+  assert.equal(Math.min(...prix), PRIX_JOUR_MIN);
+  assert.equal(Math.max(...prix), PRIX_JOUR_MAX);
+  assert.equal(PRIX_JOUR_MIN, 60_000);
+  assert.equal(PRIX_JOUR_MAX, 300_000);
+});
+
+test('forfait mensuel particulier : un mois ou plusieurs, remise croissante avec l’engagement', () => {
+  const s = nouveauService();
+  const debut = PLUS_TARD();
+  const v = prestigeById('zeekr-8x')!; // 60 000 F la journée
+  const forfait = (mois?: number) => quoteRental(
+    { formula: 'mise_a_disposition', vehicleId: v.id, debut: debut.toISOString(), duree: 'mois', mois },
+    ctx(s, v.id, debut, finDeLocation(debut, 'mois', undefined, mois)),
+  );
+  const m1 = forfait();
+  assert.equal(m1.mois, 1);
+  assert.equal(m1.breakdown.vehicule, 60_000 * 30 * 0.7, '−30 % dès le premier mois');
+  assert.equal(m1.renouvelable, false, 'un particulier ne reconduit que s’il le demande');
+  assert.equal(m1.mensualite, m1.total);
+
+  const paliers = [1, 3, 6, 12].map((m) => forfait(m).remiseDuree.taux);
+  assert.deepEqual(paliers, [0.3, 0.35, 0.4, 0.45]);
+  // Le prix d'un mois baisse quand l'engagement s'allonge.
+  assert.ok(forfait(12).mensualite! < forfait(6).mensualite! && forfait(6).mensualite! < forfait(3).mensualite!);
+  // Trois mois immobilisent le véhicule 90 jours.
+  assert.equal(Date.parse(forfait(3).fin) - Date.parse(forfait(3).debut), 90 * 86_400_000);
+  assert.throws(() => forfait(0), AppError);
+  assert.throws(() => forfait(40), AppError);
+});
+
+test('entreprise : forfait mensuel uniquement, six mois minimum, renouvelable ou non', () => {
+  const s = nouveauService();
+  const debut = PLUS_TARD();
+  const v = prestigeById('aito-m9')!; // 180 000 F la journée
+  const c = ctx(s, v.id, debut, finDeLocation(debut, 'mois', undefined, 6));
+  const base = { formula: 'entreprise', vehicleId: v.id, debut: debut.toISOString() };
+
+  // Ni à l'heure, ni à la journée, ni à la semaine : la formule est un contrat.
+  for (const duree of ['heures', 'journee', 'weekend', 'semaine']) {
+    assert.throws(() => quoteRental({ ...base, duree }, c), /forfait mensuel/);
+  }
+  // Moins de six mois : refusé, avec la raison.
+  assert.throws(() => quoteRental({ ...base, duree: 'mois', mois: 5 }, c), /6 mois/);
+
+  // Sans durée précisée, une entreprise obtient le forfait minimal : six mois, reconduits.
+  const q = quoteRental(base, c);
+  assert.equal(q.duree, 'mois');
+  assert.equal(q.mois, 6);
+  assert.equal(q.renouvelable, true);
+  assert.equal(q.breakdown.vehicule, 180_000 * 30 * 0.6 * 6, '−40 % par mois sur six mois');
+  assert.equal(q.mensualite, Math.round(q.total / 6));
+  // La caution garantit un mois, pas le contrat entier.
+  assert.equal(q.caution, Math.round((q.breakdown.ht / 6) * FRAIS.tauxCaution));
+  assert.equal(Date.parse(q.fin) - Date.parse(q.debut), 180 * 86_400_000);
+
+  // « Renouvelable ou non » : le choix du client est respecté.
+  assert.equal(quoteRental({ ...base, mois: 12, renouvelable: false }, c).renouvelable, false);
+  // Douze mois : la mensualité baisse encore.
+  assert.ok(quoteRental({ ...base, mois: 12 }, c).mensualite! < q.mensualite!);
+});
+
+test('forfait mensuel commencé aujourd’hui : la mobilisation express ne porte que sur le premier jour', () => {
+  const s = nouveauService();
+  const maintenant = new Date();
+  const v = prestigeById('nio-et9')!;
+  const q = quoteRental(
+    { formula: 'entreprise', vehicleId: v.id, debut: maintenant.toISOString(), mois: 6 },
+    ctx(s, v.id, maintenant, finDeLocation(maintenant, 'mois', undefined, 6)),
+  );
+  assert.equal(q.jourJ, true);
+  assert.equal(q.breakdown.majorationJourJ, Math.round(v.prixJour * FRAIS.majorationJourJ));
+});
+
+test('barème enregistré avant la refonte : les anciens prix ne reviennent pas au redémarrage', () => {
+  const ancien = {
+    id: 'rental_tarifs',
+    tarif: { coefs: { journee: 1, weekend: 1.8, semaine: 5.5, mois: 20 }, decoration: 35_000 },
+    vehicules: { 'maextro-s800': { prixJour: 900_000, exemplaires: 1, actif: false } },
+  };
+  const depot = { get: () => ancien, put: () => undefined, all: () => [ancien], delete: () => undefined };
+  const r = new RentalSettingsService(depot as never);
+  assert.equal(r.vehicule('maextro-s800')!.prixJour, 300_000, 'prix de la grille en vigueur');
+  assert.equal(r.getTarif().coefs.mois, 21);
+  assert.equal(r.getTarif().decoration, FRAIS.decoration);
+  // Ce que l'exploitation avait réglé (stock, retrait de la vente) est conservé.
+  assert.equal(r.vehicule('maextro-s800')!.exemplaires, 1);
+  assert.equal(r.estActif('maextro-s800'), false);
 });
 
 test('jour J : la mise à disposition reste possible, en quelques dizaines de minutes', () => {
@@ -188,7 +283,7 @@ test('caution et TVA : la caution n’est jamais ajoutée au total', () => {
   const debut = PLUS_TARD();
   const v = prestigeById('zeekr-8x')!;
   const q = quoteRental(
-    { formula: 'entreprise', vehicleId: v.id, debut: debut.toISOString(), duree: 'journee' },
+    { formula: 'evenement', vehicleId: v.id, debut: debut.toISOString(), duree: 'journee' },
     ctx(s, v.id, debut, finDeLocation(debut, 'journee')),
   );
   assert.equal(q.breakdown.tva, Math.round(q.breakdown.ht * TVA));
@@ -266,8 +361,8 @@ test('suivi console : statuts, chauffeur affecté et indicateurs', () => {
   const debut = PLUS_TARD();
   const v = prestigeById('aito-m9')!;
   const q = quoteRental(
-    { formula: 'entreprise', vehicleId: v.id, debut: debut.toISOString(), duree: 'semaine' },
-    ctx(s, v.id, debut, finDeLocation(debut, 'semaine')),
+    { formula: 'entreprise', vehicleId: v.id, debut: debut.toISOString(), duree: 'mois', mois: 6 },
+    ctx(s, v.id, debut, finDeLocation(debut, 'mois', undefined, 6)),
   );
   const r = s.reserve('societe-1', q, { societe: { nom: 'Ministère des Transports', bonCommande: 'BC-2026-118' } });
   assert.equal(r.status, 'reservee');
@@ -314,12 +409,12 @@ test('tarifs pilotés par la console : un prix ajusté s’applique au devis sui
   );
 
   const avant = prix();
-  assert.equal(avant.breakdown.vehicule, 480_000, 'prix du catalogue de départ');
+  assert.equal(avant.breakdown.vehicule, 150_000, 'prix du catalogue de départ');
 
   // L'équipe commerciale ajuste le prix journée. Aucun redéploiement.
-  r.update({ vehicules: { 'nio-es9': { prixJour: 525_000 } }, acteur: 'Direction commerciale' });
+  r.update({ vehicules: { 'nio-es9': { prixJour: 165_000 } }, acteur: 'Direction commerciale' });
   const apres = prix();
-  assert.equal(apres.breakdown.vehicule, 525_000, 'le nouveau prix s’applique immédiatement');
+  assert.equal(apres.breakdown.vehicule, 165_000, 'le nouveau prix s’applique immédiatement');
   assert.ok(apres.total > avant.total);
   assert.equal(r.getOrigine().modifiePar, 'Direction commerciale', 'l’auteur du changement est tracé');
 });
@@ -346,7 +441,12 @@ test('tarifs : les valeurs aberrantes sont bornées, jamais appliquées telles q
   const r = reglages();
   // Une faute de frappe ne doit ni brader la flotte ni la rendre inaccessible.
   r.update({ vehicules: { 'nio-es9': { prixJour: 1 } } });
-  assert.equal(r.vehicule('nio-es9')!.prixJour, 10_000, 'plancher appliqué');
+  assert.equal(r.vehicule('nio-es9')!.prixJour, 60_000, 'plancher de la grille appliqué');
+  r.update({ vehicules: { 'nio-es9': { prixJour: 9_000_000 } } });
+  assert.equal(r.vehicule('nio-es9')!.prixJour, 300_000, 'plafond de la grille appliqué');
+  // Une remise mensuelle saisie en pourcentage (40 au lieu de 0,4) ne rend pas la location gratuite.
+  r.update({ tarif: { remiseMois6: 40 } });
+  assert.equal(r.getTarif().remiseMois6, 0.7);
   r.update({ tarif: { majorationJourJ: 7, tauxCaution: -2, remiseCortege: 0.9 } });
   assert.equal(r.getTarif().majorationJourJ, 1);
   assert.equal(r.getTarif().tauxCaution, 0);
@@ -375,9 +475,9 @@ test('tarifs : un modèle retiré de la vente cesse d’être disponible', () =>
 
 test('tarifs : la remise à zéro restaure le barème d’origine', () => {
   const r = reglages();
-  r.update({ vehicules: { 'maextro-s800': { prixJour: 1_200_000 } }, tarif: { decoration: 99_000 } });
-  assert.equal(r.vehicule('maextro-s800')!.prixJour, 1_200_000);
+  r.update({ vehicules: { 'maextro-s800': { prixJour: 280_000 } }, tarif: { decoration: 99_000 } });
+  assert.equal(r.vehicule('maextro-s800')!.prixJour, 280_000);
   r.reset('DG');
-  assert.equal(r.vehicule('maextro-s800')!.prixJour, 900_000);
+  assert.equal(r.vehicule('maextro-s800')!.prixJour, 300_000);
   assert.equal(r.getTarif().decoration, FRAIS.decoration);
 });

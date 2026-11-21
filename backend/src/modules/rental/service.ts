@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { badRequest, conflict, notFound } from '../../core/errors.js';
 import type { Repository } from '../../core/db/repository.js';
 import type { PrestigeVehicle } from '../fleet/prestige.js';
-import { HEURES_PAR_JOURNEE, JOURS_DUREE, isDuree, tauxAnnulation, type RentalDuree, type RentalFormula, type RentalOptions } from './tariff.js';
+import {
+  HEURES_PAR_JOURNEE, JOURS_DUREE, JOURS_PAR_MOIS, MOIS_MAX, isDuree, remiseMensuelle, tauxAnnulation,
+  type RentalDuree, type RentalFormula, type RentalOptions,
+} from './tariff.js';
 import type { RentalSettingsService, RentalTarif } from './settings.js';
 
 /**
@@ -55,6 +58,17 @@ export interface RentalQuote {
   fin: string;
   duree: RentalDuree;
   heures?: number;
+  /** Forfait mensuel : nombre de mois d'engagement. */
+  mois?: number;
+  /** Forfait mensuel : le contrat se reconduit-il à l'échéance ? */
+  renouvelable?: boolean;
+  /** Forfait mensuel : ce que le client règle CHAQUE mois, toutes taxes comprises. */
+  mensualite?: number;
+  /**
+   * Ce que la durée fait gagner par rapport au tarif journalier plein : part (0–1) et
+   * montant en F CFA. Zéro pour une journée ou une location à l'heure.
+   */
+  remiseDuree: { taux: number; montant: number };
   /** Heures de service du chauffeur couvertes par le devis. */
   heuresService: number;
   jours: number;
@@ -96,9 +110,65 @@ const HEURE_MS = 3_600_000;
 const JOUR_MS = 86_400_000;
 
 /** Fin de la période d'immobilisation du véhicule. */
-export function finDeLocation(debut: Date, duree: RentalDuree, heures = 3): Date {
+export function finDeLocation(debut: Date, duree: RentalDuree, heures = 3, mois = 1): Date {
   if (duree === 'heures') return new Date(debut.getTime() + heures * HEURE_MS);
+  if (duree === 'mois') return new Date(debut.getTime() + Math.max(1, mois) * JOURS_PAR_MOIS * JOUR_MS);
   return new Date(debut.getTime() + JOURS_DUREE[duree] * JOUR_MS);
+}
+
+export interface PeriodeLocation {
+  formula: RentalFormula;
+  duree: RentalDuree;
+  heures?: number;
+  mois?: number;
+  debut: Date;
+  fin: Date;
+}
+
+/**
+ * Période RÉELLEMENT vendue pour une demande. C'est ici que vivent les règles de
+ * durée — une seule fois, pour que le devis, la réservation et le calcul de
+ * disponibilité ne puissent pas diverger :
+ *   • une ENTREPRISE ne loue qu'au forfait mensuel, six mois minimum ;
+ *   • un PARTICULIER loue à l'heure, à la journée, au week-end, à la semaine ou au mois.
+ */
+export function periodeDeLocation(
+  input: Pick<RentalQuoteInput, 'formula' | 'debut' | 'duree' | 'heures' | 'mois'>,
+  tarif: Pick<RentalTarif, 'minHeures' | 'maxHeures' | 'moisMinEntreprise'>,
+): PeriodeLocation {
+  const formula = input.formula as RentalFormula;
+  if (!['evenement', 'entreprise', 'mise_a_disposition'].includes(formula)) {
+    throw badRequest('Formule de location inconnue');
+  }
+  const entreprise = formula === 'entreprise';
+  const duree = (input.duree ?? (entreprise ? 'mois' : 'journee')) as RentalDuree;
+  if (!isDuree(duree)) throw badRequest('Durée de location inconnue');
+  if (entreprise && duree !== 'mois') {
+    throw badRequest(`La location entreprise se fait uniquement en forfait mensuel, ${tarif.moisMinEntreprise} mois minimum`);
+  }
+
+  let heures: number | undefined;
+  if (duree === 'heures') {
+    heures = Math.round(input.heures ?? tarif.minHeures);
+    if (heures < tarif.minHeures) throw badRequest(`Location à l’heure : ${tarif.minHeures} h minimum`);
+    if (heures > tarif.maxHeures) throw badRequest(`Au-delà de ${tarif.maxHeures} h, choisissez la journée entière`);
+  }
+
+  let mois: number | undefined;
+  if (duree === 'mois') {
+    const minimum = entreprise ? tarif.moisMinEntreprise : 1;
+    mois = Math.round(input.mois ?? minimum);
+    if (mois < minimum) {
+      throw badRequest(entreprise
+        ? `Forfait entreprise : ${minimum} mois d’engagement minimum`
+        : 'Forfait mensuel : 1 mois minimum');
+    }
+    if (mois > MOIS_MAX) throw badRequest(`Forfait mensuel : ${MOIS_MAX} mois maximum par contrat`);
+  }
+
+  const debut = input.debut ? new Date(input.debut) : new Date();
+  if (Number.isNaN(debut.getTime())) throw badRequest('Date de début invalide');
+  return { formula, duree, heures, mois, debut, fin: finDeLocation(debut, duree, heures, mois) };
 }
 
 const memeJour = (a: Date, b: Date) => a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
@@ -113,6 +183,10 @@ export interface RentalQuoteInput {
   debut?: string;
   duree?: string;
   heures?: number;
+  /** Forfait mensuel : nombre de mois (6 minimum pour une entreprise). */
+  mois?: number;
+  /** Forfait mensuel : reconduction à l'échéance (oui par défaut pour une entreprise). */
+  renouvelable?: boolean;
   options?: RentalOptions;
 }
 
@@ -139,34 +213,24 @@ export function quoteRental(input: RentalQuoteInput, ctx: RentalQuoteContext): R
   const T = ctx.tarif;
   if (!vehicle || vehicle.id !== input.vehicleId) throw badRequest('Véhicule de location inconnu');
 
-  const formula = input.formula as RentalFormula;
-  if (!['evenement', 'entreprise', 'mise_a_disposition'].includes(formula)) {
-    throw badRequest('Formule de location inconnue');
-  }
-
-  const duree = (input.duree ?? 'journee') as RentalDuree;
-  if (!isDuree(duree)) throw badRequest('Durée de location inconnue');
-
-  let heures: number | undefined;
-  if (duree === 'heures') {
-    heures = Math.round(input.heures ?? T.minHeures);
-    if (heures < T.minHeures) throw badRequest(`Location à l’heure : ${T.minHeures} h minimum`);
-    if (heures > T.maxHeures) throw badRequest(`Au-delà de ${T.maxHeures} h, choisissez la journée entière`);
-  }
-
-  const debutDate = input.debut ? new Date(input.debut) : new Date();
-  if (Number.isNaN(debutDate.getTime())) throw badRequest('Date de début invalide');
-  const finDate = finDeLocation(debutDate, duree, heures);
+  const { formula, duree, heures, mois, debut: debutDate, fin: finDate } = periodeDeLocation(input, T);
+  const mensuel = duree === 'mois';
 
   // Coefficient horaire PLAFONNÉ à 1 : le client ne paie jamais plus cher à l'heure
   // que la journée entière, quel que soit le ratio réglé dans la console.
-  const coef = duree === 'heures' ? Math.min(heures! * T.ratioHeure, 1) : T.coefs[duree];
-  const jours = duree === 'heures' ? heures! / HEURES_PAR_JOURNEE : JOURS_DUREE[duree];
+  // Forfait mensuel : chaque mois est remisé selon la durée de l'engagement (−30 % dès
+  // le premier mois, jusqu'à −45 % à partir de douze).
+  const coef = duree === 'heures'
+    ? Math.min(heures! * T.ratioHeure, 1)
+    : mensuel
+      ? JOURS_PAR_MOIS * (1 - remiseMensuelle(T, mois!)) * mois!
+      : T.coefs[duree];
+  const jours = duree === 'heures' ? heures! / HEURES_PAR_JOURNEE : mensuel ? JOURS_PAR_MOIS * mois! : JOURS_DUREE[duree];
   const joursFactures = Math.max(1, Math.ceil(jours));
 
   // Au-delà de 10 h de service, un relais est imposé par la réglementation du temps
   // de conduite : on le facture d'office plutôt que de le laisser au choix du client.
-  const heuresService = duree === 'heures' ? heures! : JOURS_DUREE[duree] * HEURES_PAR_JOURNEE;
+  const heuresService = duree === 'heures' ? heures! : jours * HEURES_PAR_JOURNEE;
   const secondChauffeurRequis = (duree === 'heures' ? heures! : HEURES_PAR_JOURNEE) > HEURES_PAR_JOURNEE;
 
   const opts: Required<RentalOptions> = {
@@ -183,7 +247,7 @@ export function quoteRental(input: RentalQuoteInput, ctx: RentalQuoteContext): R
 
   // Le cortège mobilise d'autres exemplaires du MÊME modèle : chacun est facturé à son
   // propre tarif (remisé), jamais au forfait — un forfait unique serait absurde entre
-  // un véhicule à 420 000 F et une limousine présidentielle à 900 000 F la journée.
+  // un SUV à 60 000 F et une limousine présidentielle à 300 000 F la journée.
   if (opts.cortege > 0 && opts.cortege + 1 > ctx.disponibilite.total) {
     throw badRequest(`La flotte ne compte que ${ctx.disponibilite.total} exemplaire(s) de ce modèle`);
   }
@@ -205,8 +269,12 @@ export function quoteRental(input: RentalQuoteInput, ctx: RentalQuoteContext): R
 
   const sousTotal = vehiculeBase + kilometrageIllimite + cortege + options;
 
+  // Mobilisation express : elle rémunère la préparation en urgence du PREMIER jour. Sur
+  // une semaine ou un forfait mensuel, la calculer sur tout le contrat reviendrait à
+  // facturer douze fois la même équipe d'astreinte.
   const jourJ = memeJour(debutDate, new Date());
-  const majorationJourJ = jourJ ? Math.round(sousTotal * T.majorationJourJ) : 0;
+  const assietteExpress = duree === 'semaine' || mensuel ? Math.min(sousTotal, vehicle.prixJour * (1 + opts.cortege)) : sousTotal;
+  const majorationJourJ = jourJ ? Math.round(assietteExpress * T.majorationJourJ) : 0;
 
   const tauxRemise = Math.max(0, Math.min(0.3, ctx.remiseAbonnement ?? 0));
   const remiseAbonnement = Math.round((sousTotal + majorationJourJ) * tauxRemise);
@@ -214,6 +282,13 @@ export function quoteRental(input: RentalQuoteInput, ctx: RentalQuoteContext): R
   const ht = sousTotal + majorationJourJ - remiseAbonnement;
   const tva = Math.round(ht * Math.max(0, ctx.tvaRate));
   const total = ht + tva;
+
+  // Ce que la durée fait gagner face au tarif journalier plein (transparence du devis).
+  const pleinTarif = duree === 'heures' ? vehiculeBase : Math.round(vehicle.prixJour * jours);
+  const remiseDuree = {
+    taux: pleinTarif > 0 ? Math.round((1 - vehiculeBase / pleinTarif) * 1000) / 1000 : 0,
+    montant: Math.max(0, pleinTarif - vehiculeBase),
+  };
 
   return {
     formula,
@@ -226,6 +301,11 @@ export function quoteRental(input: RentalQuoteInput, ctx: RentalQuoteContext): R
     fin: finDate.toISOString(),
     duree,
     heures,
+    mois,
+    // Une entreprise reconduit par défaut ; un particulier doit le demander.
+    renouvelable: mensuel ? (input.renouvelable ?? formula === 'entreprise') : undefined,
+    mensualite: mensuel ? Math.round(total / mois!) : undefined,
+    remiseDuree,
     heuresService,
     jours,
     options: opts,
@@ -234,7 +314,8 @@ export function quoteRental(input: RentalQuoteInput, ctx: RentalQuoteContext): R
     prixKmSupp: T.prixKmSupp,
     breakdown: { vehicule: vehiculeBase, kilometrageIllimite, cortege, options, majorationJourJ, remiseAbonnement, ht, tva },
     total,
-    caution: Math.round(ht * T.tauxCaution),
+    // Forfait mensuel : la caution garantit UN mois, pas le contrat entier.
+    caution: Math.round((mensuel ? ht / mois! : ht) * T.tauxCaution),
     jourJ,
     disponibilite: ctx.disponibilite,
     currency: 'XOF',

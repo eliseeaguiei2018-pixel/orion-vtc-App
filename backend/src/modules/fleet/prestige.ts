@@ -9,7 +9,13 @@
  * Le catalogue est VOLONTAIREMENT extensible : ajouter un modèle ici suffit, il
  * apparaît aussitôt dans l'app cliente et dans la console (aucune liste en dur
  * ailleurs). Les prix sont à la journée, en F CFA, chauffeur en tenue inclus.
+ *
+ * GRILLE : de 60 000 F à 300 000 F la journée. Aucun modèle ne sort de ces bornes —
+ * la console les applique aussi (voir rental/settings.ts).
  */
+export const PRIX_JOUR_MIN = 60_000;
+export const PRIX_JOUR_MAX = 300_000;
+
 export type PrestigeClass = 'signature' | 'presidentielle';
 
 export interface PrestigeVehicle {
@@ -41,7 +47,7 @@ export const PRESTIGE: PrestigeVehicle[] = [
     marque: 'Huawei',
     classe: 'presidentielle',
     places: 3,
-    prixJour: 900_000,
+    prixJour: 300_000,
     autonomieKm: 700,
     atouts: ['Limousine présidentielle', 'Sièges arrière à inclinaison totale', 'Isolation phonique renforcée'],
     exemplaires: 2,
@@ -52,7 +58,7 @@ export const PRESTIGE: PrestigeVehicle[] = [
     marque: 'BYD',
     classe: 'presidentielle',
     places: 4,
-    prixJour: 780_000,
+    prixJour: 250_000,
     autonomieKm: 650,
     atouts: ['Suspension active', 'Tenue de route exceptionnelle', 'Finitions sur mesure'],
     exemplaires: 2,
@@ -63,7 +69,7 @@ export const PRESTIGE: PrestigeVehicle[] = [
     marque: 'Huawei',
     classe: 'signature',
     places: 6,
-    prixJour: 520_000,
+    prixJour: 180_000,
     autonomieKm: 630,
     atouts: ['Grand SUV 6 places', 'Idéal cortège familial', 'Toit panoramique'],
     exemplaires: 4,
@@ -74,7 +80,7 @@ export const PRESTIGE: PrestigeVehicle[] = [
     marque: 'NIO',
     classe: 'signature',
     places: 5,
-    prixJour: 480_000,
+    prixJour: 150_000,
     autonomieKm: 640,
     atouts: ['SUV haut de gamme', 'Salon arrière', 'Échange de batterie rapide'],
     exemplaires: 4,
@@ -85,7 +91,7 @@ export const PRESTIGE: PrestigeVehicle[] = [
     marque: 'NIO',
     classe: 'signature',
     places: 4,
-    prixJour: 460_000,
+    prixJour: 120_000,
     autonomieKm: 620,
     atouts: ['Berline exécutive', 'Suspension pilotée', 'Silence de roulement'],
     exemplaires: 3,
@@ -96,7 +102,7 @@ export const PRESTIGE: PrestigeVehicle[] = [
     marque: 'Huawei',
     classe: 'signature',
     places: 4,
-    prixJour: 440_000,
+    prixJour: 90_000,
     autonomieKm: 600,
     atouts: ['Berline de prestige', 'Assistance de conduite avancée', 'Intérieur cuir clair'],
     exemplaires: 3,
@@ -107,7 +113,7 @@ export const PRESTIGE: PrestigeVehicle[] = [
     marque: 'Zeekr',
     classe: 'signature',
     places: 6,
-    prixJour: 420_000,
+    prixJour: 60_000,
     autonomieKm: 580,
     atouts: ['SUV 6 places', 'Coffre généreux', 'Confort de suspension'],
     exemplaires: 3,

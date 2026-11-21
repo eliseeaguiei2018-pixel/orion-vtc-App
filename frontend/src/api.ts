@@ -4,7 +4,7 @@ import type {
 } from './types';
 import {
   PRESTIGE_FALLBACK, RENTAL_COEF, RENTAL_DUREES, RENTAL_FORMULES, RENTAL_JOURS,
-  RENTAL_OPTION_KEYS, RENTAL_TARIFF,
+  RENTAL_MOIS_MAX, RENTAL_OPTION_KEYS, RENTAL_TARIFF, dureesPermises, remiseMensuelle,
 } from './data';
 import { repondreLocal, reserverLocationLocale } from './serveurLocal';
 
@@ -701,7 +701,9 @@ export function configSocketUrl(): string | null {
 
 export interface RentalCatalogue {
   vehicles: PrestigeVehicle[];
-  formules: Array<{ id: RentalFormula; label: string }>;
+  formules: Array<{ id: RentalFormula; label: string; durees?: RentalDuree[]; moisMin?: number }>;
+  /** Forfait mensuel : engagement minimal d'une entreprise et remise par palier. */
+  engagement?: { moisMinEntreprise: number; moisMax: number; paliers: Array<{ aPartirDeMois: number; remise: number }> };
   durees: Array<{ id: RentalDuree; label: string; coef: number | null; jours: number | null }>;
   options: Array<{ id: string; label: string }>;
   bareme: typeof RENTAL_TARIFF;
@@ -729,7 +731,12 @@ export async function fetchRentalCatalogue(): Promise<RentalCatalogue> {
   if (r?.vehicles?.length) return { ...r, live: true };
   return {
     vehicles: PRESTIGE_FALLBACK,
-    formules: RENTAL_FORMULES.map((id) => ({ id, label: id })),
+    formules: RENTAL_FORMULES.map((id) => ({ id, label: id, durees: dureesPermises(id), moisMin: id === 'entreprise' ? RENTAL_TARIFF.moisMinEntreprise : 1 })),
+    engagement: {
+      moisMinEntreprise: RENTAL_TARIFF.moisMinEntreprise,
+      moisMax: RENTAL_MOIS_MAX,
+      paliers: [1, 3, 6, 12].map((m) => ({ aPartirDeMois: m, remise: remiseMensuelle(m) })),
+    },
     durees: RENTAL_DUREES.map((id) => ({ id, label: id, coef: RENTAL_COEF[id] ?? null, jours: RENTAL_JOURS[id] ?? null })),
     options: RENTAL_OPTION_KEYS.map((id) => ({ id, label: id })),
     bareme: RENTAL_TARIFF,
@@ -739,16 +746,18 @@ export async function fetchRentalCatalogue(): Promise<RentalCatalogue> {
 }
 
 /** Fin de la période d'immobilisation (même règle que le serveur). */
-function rentalFin(debut: Date, duree: RentalDuree, heures?: number): Date {
+function rentalFin(debut: Date, duree: RentalDuree, heures?: number, mois = 1): Date {
   if (duree === 'heures') return new Date(debut.getTime() + (heures ?? RENTAL_TARIFF.minHeures) * 3_600_000);
+  if (duree === 'mois') return new Date(debut.getTime() + Math.max(1, mois) * 30 * 86_400_000);
   return new Date(debut.getTime() + (RENTAL_JOURS[duree] ?? 1) * 86_400_000);
 }
 
 const memeJour = (a: Date, b: Date) => a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
 
-export async function fetchRentalAvailability(debut: Date, duree: RentalDuree, heures?: number): Promise<RentalAvailability[]> {
+export async function fetchRentalAvailability(debut: Date, duree: RentalDuree, heures?: number, mois?: number): Promise<RentalAvailability[]> {
   const q = new URLSearchParams({ debut: debut.toISOString(), duree });
   if (heures) q.set('heures', String(heures));
+  if (mois && duree === 'mois') q.set('mois', String(mois));
   const r = await tryFetch<{ disponibilites: RentalAvailability[] }>(`/rental/disponibilites?${q.toString()}`);
   if (r?.disponibilites) return r.disponibilites;
   // Repli démo : la flotte du catalogue, entièrement libre.
@@ -764,6 +773,10 @@ export interface RentalQuoteInput {
   debut: Date;
   duree: RentalDuree;
   heures?: number;
+  /** Forfait mensuel : nombre de mois (6 minimum pour une entreprise). */
+  mois?: number;
+  /** Forfait mensuel : reconduction à l'échéance. */
+  renouvelable?: boolean;
   options?: RentalOptions;
   userId?: string;
 }
@@ -772,11 +785,19 @@ export interface RentalQuoteInput {
 export function previewRental(input: RentalQuoteInput, vehicles: PrestigeVehicle[], tvaRate = 0.05, remise = 0): RentalQuote {
   const v = vehicles.find((x) => x.id === input.vehicleId) ?? vehicles[0]!;
   const T = RENTAL_TARIFF;
-  const heures = input.duree === 'heures' ? Math.max(T.minHeures, Math.min(T.maxHeures, input.heures ?? T.minHeures)) : undefined;
-  const coef = input.duree === 'heures' ? Math.min(heures! * T.ratioHeure, 1) : (RENTAL_COEF[input.duree] ?? 1);
-  const jours = input.duree === 'heures' ? heures! / T.heuresParJournee : (RENTAL_JOURS[input.duree] ?? 1);
+  // Une entreprise ne loue qu'au forfait mensuel, six mois minimum (règle du serveur).
+  const entreprise = input.formula === 'entreprise';
+  const duree: RentalDuree = entreprise ? 'mois' : input.duree;
+  const mensuel = duree === 'mois';
+  const moisMin = entreprise ? T.moisMinEntreprise : 1;
+  const mois = mensuel ? Math.max(moisMin, Math.min(RENTAL_MOIS_MAX, Math.round(input.mois ?? moisMin))) : undefined;
+  const heures = duree === 'heures' ? Math.max(T.minHeures, Math.min(T.maxHeures, input.heures ?? T.minHeures)) : undefined;
+  const coef = duree === 'heures'
+    ? Math.min(heures! * T.ratioHeure, 1)
+    : mensuel ? 30 * (1 - remiseMensuelle(mois!)) * mois! : (RENTAL_COEF[duree] ?? 1);
+  const jours = duree === 'heures' ? heures! / T.heuresParJournee : mensuel ? 30 * mois! : (RENTAL_JOURS[duree] ?? 1);
   const joursFactures = Math.max(1, Math.ceil(jours));
-  const secondChauffeurRequis = (input.duree === 'heures' ? heures! : T.heuresParJournee) > T.heuresParJournee;
+  const secondChauffeurRequis = (duree === 'heures' ? heures! : T.heuresParJournee) > T.heuresParJournee;
 
   const o: Required<RentalOptions> = {
     decoration: input.options?.decoration ?? false,
@@ -801,22 +822,32 @@ export function previewRental(input: RentalQuoteInput, vehicles: PrestigeVehicle
 
   const sousTotal = vehicule + kilometrageIllimite + cortege + options;
   const jourJ = memeJour(input.debut, new Date());
-  const majorationJourJ = jourJ ? Math.round(sousTotal * T.majorationJourJ) : 0;
+  // La mobilisation express ne porte que sur le premier jour d'un contrat long.
+  const assietteExpress = duree === 'semaine' || mensuel ? Math.min(sousTotal, v.prixJour * (1 + o.cortege)) : sousTotal;
+  const majorationJourJ = jourJ ? Math.round(assietteExpress * T.majorationJourJ) : 0;
   const remiseAbonnement = Math.round((sousTotal + majorationJourJ) * Math.max(0, Math.min(0.3, remise)));
   const ht = sousTotal + majorationJourJ - remiseAbonnement;
   const tva = Math.round(ht * tvaRate);
-  const fin = rentalFin(input.debut, input.duree, heures);
+  const fin = rentalFin(input.debut, duree, heures, mois);
+  const pleinTarif = duree === 'heures' ? vehicule : Math.round(v.prixJour * jours);
 
   return {
     formula: input.formula, vehicleId: v.id,
     vehicle: { id: v.id, name: v.name, marque: v.marque, classe: v.classe, places: v.places, prixJour: v.prixJour, autonomieKm: v.autonomieKm },
-    debut: input.debut.toISOString(), fin: fin.toISOString(), duree: input.duree, heures,
-    heuresService: input.duree === 'heures' ? heures! : (RENTAL_JOURS[input.duree] ?? 1) * T.heuresParJournee,
+    debut: input.debut.toISOString(), fin: fin.toISOString(), duree, heures,
+    mois,
+    renouvelable: mensuel ? (input.renouvelable ?? entreprise) : undefined,
+    mensualite: mensuel ? Math.round((ht + tva) / mois!) : undefined,
+    remiseDuree: {
+      taux: pleinTarif > 0 ? Math.round((1 - vehicule / pleinTarif) * 1000) / 1000 : 0,
+      montant: Math.max(0, pleinTarif - vehicule),
+    },
+    heuresService: duree === 'heures' ? heures! : jours * T.heuresParJournee,
     jours, options: o, secondChauffeurRequis,
     kmInclus: o.kilometrageIllimite ? null : T.kmInclusParJour * joursFactures,
     prixKmSupp: T.prixKmSupp,
     breakdown: { vehicule, kilometrageIllimite, cortege, options, majorationJourJ, remiseAbonnement, ht, tva },
-    total: ht + tva, caution: Math.round(ht * T.tauxCaution), jourJ,
+    total: ht + tva, caution: Math.round((mensuel ? ht / mois! : ht) * T.tauxCaution), jourJ,
     disponibilite: { vehicleId: v.id, total: v.exemplaires, reserves: 0, restants: v.exemplaires, disponible: true, delaiMinutes: jourJ ? 25 : 0 },
     currency: 'XOF',
   };
@@ -828,7 +859,8 @@ export async function quoteRental(input: RentalQuoteInput, vehicles: PrestigeVeh
     method: 'POST',
     body: JSON.stringify({
       formula: input.formula, vehicleId: input.vehicleId, debut: input.debut.toISOString(),
-      duree: input.duree, heures: input.heures, options: input.options, userId: input.userId,
+      duree: input.duree, heures: input.heures, mois: input.duree === 'mois' ? input.mois : undefined,
+      renouvelable: input.duree === 'mois' ? input.renouvelable : undefined, options: input.options, userId: input.userId,
     }),
   });
   return r?.quote ?? previewRental(input, vehicles);
@@ -852,7 +884,8 @@ export async function reserveRental(input: RentalReserveInput): Promise<RentalRe
     method: 'POST',
     body: JSON.stringify({
       formula: input.formula, vehicleId: input.vehicleId, debut: input.debut.toISOString(),
-      duree: input.duree, heures: input.heures, options: input.options,
+      duree: input.duree, heures: input.heures, mois: input.duree === 'mois' ? input.mois : undefined,
+      renouvelable: input.duree === 'mois' ? input.renouvelable : undefined, options: input.options,
       userId: input.userId, lieu: input.lieu, contact: input.contact, societe: input.societe,
     }),
   }, 5000);

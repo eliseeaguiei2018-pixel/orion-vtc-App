@@ -5,10 +5,10 @@ import type { Container } from '../../container.js';
 import { parse } from '../../core/validate.js';
 import { badRequest, notFound } from '../../core/errors.js';
 
-import { finDeLocation, quoteRental } from './service.js';
+import { finDeLocation, periodeDeLocation, quoteRental } from './service.js';
 import {
   DUREES, HEURES_PAR_JOURNEE, JOURS_DUREE, LABEL_DUREE, LABEL_FORMULE, LABEL_OPTION,
-  MAX_HEURES, MIN_HEURES, type RentalDuree,
+  MAX_HEURES, MIN_HEURES, MOIS_MAX, dureesPermises, remiseMensuelle, type RentalDuree,
 } from './tariff.js';
 
 const optionsSchema = z.object({
@@ -29,6 +29,9 @@ const baseSchema = z.object({
   debut: z.string().optional(),
   duree: z.enum(['heures', 'journee', 'weekend', 'semaine', 'mois']).optional(),
   heures: z.number().int().min(MIN_HEURES).max(MAX_HEURES).optional(),
+  /** Forfait mensuel : nombre de mois (les minimums par formule sont vérifiés au devis). */
+  mois: z.number().int().min(1).max(MOIS_MAX).optional(),
+  renouvelable: z.boolean().optional(),
   options: optionsSchema.optional(),
   /** Client connu : sa remise d'abonné ORION s'applique automatiquement. */
   userId: z.string().min(1).max(64).optional(),
@@ -68,7 +71,19 @@ export async function rentalRoutes(app: FastifyInstance, container: Container): 
     const tarif = container.rentalSettings.getTarif();
     return {
     vehicles: container.rentalSettings.catalogue(),
-    formules: (['evenement', 'entreprise', 'mise_a_disposition'] as const).map((f) => ({ id: f, label: LABEL_FORMULE[f] })),
+    formules: (['evenement', 'entreprise', 'mise_a_disposition'] as const).map((f) => ({
+      id: f,
+      label: LABEL_FORMULE[f],
+      // Une entreprise ne loue qu'au forfait mensuel ; l'app n'affiche que ces durées.
+      durees: dureesPermises(f),
+      moisMin: f === 'entreprise' ? tarif.moisMinEntreprise : 1,
+    })),
+    // Forfait mensuel : remise par mois selon l'engagement, telle qu'elle sera facturée.
+    engagement: {
+      moisMinEntreprise: tarif.moisMinEntreprise,
+      moisMax: MOIS_MAX,
+      paliers: [1, 3, 6, 12].map((m) => ({ aPartirDeMois: m, remise: remiseMensuelle(tarif, m) })),
+    },
     durees: DUREES.map((d) => ({
       id: d,
       label: LABEL_DUREE[d],
@@ -90,12 +105,13 @@ export async function rentalRoutes(app: FastifyInstance, container: Container): 
         debut: z.string().optional(),
         duree: z.enum(['heures', 'journee', 'weekend', 'semaine', 'mois']).optional(),
         heures: z.coerce.number().int().min(MIN_HEURES).max(MAX_HEURES).optional(),
+        mois: z.coerce.number().int().min(1).max(MOIS_MAX).optional(),
       }),
       req.query,
     );
     const debut = q.debut ? new Date(q.debut) : new Date();
     const duree = (q.duree ?? 'journee') as RentalDuree;
-    const fin = finDeLocation(debut, duree, q.heures);
+    const fin = finDeLocation(debut, duree, q.heures, q.mois);
     return {
       debut: debut.toISOString(),
       fin: fin.toISOString(),
@@ -110,8 +126,7 @@ export async function rentalRoutes(app: FastifyInstance, container: Container): 
    */
   app.post('/rental/quote', async (req) => {
     const body = parse(baseSchema, req.body);
-    const debut = body.debut ? new Date(body.debut) : new Date();
-    const fin = finDeLocation(debut, (body.duree ?? 'journee') as RentalDuree, body.heures);
+    const { debut, fin } = periodeDeLocation(body, container.rentalSettings.getTarif());
     const quote = quoteRental(body, contexte(body.vehicleId, debut, fin, body.userId));
     return { quote };
   });
@@ -136,8 +151,7 @@ export async function rentalRoutes(app: FastifyInstance, container: Container): 
       req.body,
     );
     titulaire(req, body.userId);
-    const debut = body.debut ? new Date(body.debut) : new Date();
-    const fin = finDeLocation(debut, (body.duree ?? 'journee') as RentalDuree, body.heures);
+    const { debut, fin } = periodeDeLocation(body, container.rentalSettings.getTarif());
     const quote = quoteRental(body, contexte(body.vehicleId, debut, fin, body.userId));
     const reservation = container.rental.reserve(body.userId, quote, {
       contact: body.contact,

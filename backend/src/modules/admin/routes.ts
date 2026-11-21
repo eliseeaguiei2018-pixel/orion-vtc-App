@@ -2845,7 +2845,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         `Formule : ${r.formula}`,
         `Véhicule : ${r.vehicle.name} (${r.vehicle.places} places)`,
         `Période : du ${r.debut} au ${r.fin}`,
-        `Durée : ${r.duree}${r.heures ? ` (${r.heures} h)` : ''}`,
+        `Durée : ${r.duree}${r.heures ? ` (${r.heures} h)` : ''}${r.mois ? ` — ${r.mois} mois${r.renouvelable ? ', renouvelable' : ', non renouvelable'}` : ''}`,
+        r.mensualite ? `Mensualité : ${r.mensualite} F CFA TTC` : '',
         r.lieu ? `Lieu de prise en charge : ${r.lieu}` : 'Lieu de prise en charge : à préciser',
         r.societe ? `Société : ${r.societe.nom}${r.societe.bonCommande ? ` — BC ${r.societe.bonCommande}` : ''}` : '',
         r.contact ? `Contact : ${r.contact.nom} — ${r.contact.telephone}` : '',
@@ -2888,6 +2889,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
               semaine: nombre.optional(), mois: nombre.optional(),
             }).optional(),
             ratioHeure: nombre.optional(), minHeures: nombre.optional(), maxHeures: nombre.optional(),
+            remiseMois3: nombre.optional(), remiseMois6: nombre.optional(), remiseMois12: nombre.optional(),
+            moisMinEntreprise: nombre.optional(),
             decoration: nombre.optional(), tapisRouge: nombre.optional(), hotesse: nombre.optional(),
             escorte: nombre.optional(), plaque: nombre.optional(), secondChauffeur: nombre.optional(),
             rafraichissements: nombre.optional(), remiseCortege: nombre.optional(),
@@ -2985,7 +2988,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
 
     /* =================== TÉLÉMATIQUE DES VÉHICULES DE LOCATION ===================
      *
-     * Confier une voiture à 900 000 F la journée à quelqu'un qu'on a vu une fois,
+     * Confier une limousine présidentielle à quelqu'un qu'on a vu une fois,
      * sans savoir où elle est, est un risque qu'aucun loueur sérieux ne prend.
      *
      * Mais on ne suit pas un client, on suit un VÉHICULE : la position n'est

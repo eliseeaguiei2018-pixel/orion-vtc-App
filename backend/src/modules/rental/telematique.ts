@@ -4,7 +4,7 @@ import type { Repository } from '../../core/db/repository.js';
 /**
  * TÉLÉMATIQUE DES VÉHICULES DE LOCATION.
  *
- * Confier une Maextro S800 à 900 000 F la journée à quelqu'un qu'on a vu une fois,
+ * Confier une Maextro S800 à quelqu'un qu'on a vu une fois,
  * sans savoir où elle est, est un risque qu'aucun loueur sérieux ne prend. Les
  * véhicules Signature embarquent un boîtier : il remonte la position, l'état du
  * contact, le niveau de batterie, et accepte un ordre d'immobilisation.

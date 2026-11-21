@@ -133,7 +133,7 @@ test('journal des décisions : qui a changé quoi, avec les écarts', async (t) 
 
   await app.inject({
     method: 'PUT', url: '/admin/rental/tarifs', headers: DG,
-    payload: { vehicules: { 'nio-es9': { prixJour: 500_000 } } },
+    payload: { vehicules: { 'nio-es9': { prixJour: 170_000 } } },
   });
   const tb = await app.inject({ method: 'GET', url: '/admin/executive', headers: DG });
   const r = tb.json().recentes as Array<{ action: string; actor: string }>;

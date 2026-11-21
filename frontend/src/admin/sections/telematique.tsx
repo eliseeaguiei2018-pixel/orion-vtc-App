@@ -7,7 +7,7 @@ import { CarteLocation, type PointLocation } from '../SupervisionMap';
 /**
  * TÉLÉMATIQUE DES VÉHICULES DE LOCATION.
  *
- * Confier une voiture à 900 000 F la journée à quelqu'un qu'on a vu une fois, sans
+ * Confier une limousine présidentielle à quelqu'un qu'on a vu une fois, sans
  * savoir où elle est, est un risque qu'aucun loueur sérieux ne prend.
  *
  * Mais l'écran doit dire la vérité sur ce qu'il fait : on suit un VÉHICULE, chaque

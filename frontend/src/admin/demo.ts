@@ -607,34 +607,34 @@ const dans = (jours: number, h = 10) => {
 };
 
 const prestige: PrestigeUnit[] = [
-  { id: 'maextro-s800', name: 'Huawei Maextro S800', marque: 'Huawei', classe: 'presidentielle', places: 3, prixJour: 900000, autonomieKm: 700, exemplaires: 2, atouts: ['Limousine présidentielle', 'Sièges arrière à inclinaison totale'] },
-  { id: 'yangwang-altior', name: 'BYD Yangwang U7', marque: 'BYD', classe: 'presidentielle', places: 4, prixJour: 780000, autonomieKm: 650, exemplaires: 2, atouts: ['Suspension active', 'Finitions sur mesure'] },
-  { id: 'aito-m9', name: 'Huawei AITO M9', marque: 'Huawei', classe: 'signature', places: 6, prixJour: 520000, autonomieKm: 630, exemplaires: 4, atouts: ['Grand SUV 6 places', 'Toit panoramique'] },
-  { id: 'nio-es9', name: 'NIO ES9', marque: 'NIO', classe: 'signature', places: 5, prixJour: 480000, autonomieKm: 640, exemplaires: 4, atouts: ['SUV haut de gamme', 'Salon arrière'] },
-  { id: 'nio-et9', name: 'NIO ET9', marque: 'NIO', classe: 'signature', places: 4, prixJour: 460000, autonomieKm: 620, exemplaires: 3, atouts: ['Berline exécutive', 'Suspension pilotée'] },
-  { id: 'stelato-s9', name: 'Huawei Stelato S9', marque: 'Huawei', classe: 'signature', places: 4, prixJour: 440000, autonomieKm: 600, exemplaires: 3, atouts: ['Berline de prestige', 'Intérieur cuir clair'] },
-  { id: 'zeekr-8x', name: 'Zeekr 8X', marque: 'Zeekr', classe: 'signature', places: 6, prixJour: 420000, autonomieKm: 580, exemplaires: 3, atouts: ['SUV 6 places', 'Coffre généreux'] },
+  { id: 'maextro-s800', name: 'Huawei Maextro S800', marque: 'Huawei', classe: 'presidentielle', places: 3, prixJour: 300000, autonomieKm: 700, exemplaires: 2, atouts: ['Limousine présidentielle', 'Sièges arrière à inclinaison totale'] },
+  { id: 'yangwang-altior', name: 'BYD Yangwang U7', marque: 'BYD', classe: 'presidentielle', places: 4, prixJour: 250000, autonomieKm: 650, exemplaires: 2, atouts: ['Suspension active', 'Finitions sur mesure'] },
+  { id: 'aito-m9', name: 'Huawei AITO M9', marque: 'Huawei', classe: 'signature', places: 6, prixJour: 180000, autonomieKm: 630, exemplaires: 4, atouts: ['Grand SUV 6 places', 'Toit panoramique'] },
+  { id: 'nio-es9', name: 'NIO ES9', marque: 'NIO', classe: 'signature', places: 5, prixJour: 150000, autonomieKm: 640, exemplaires: 4, atouts: ['SUV haut de gamme', 'Salon arrière'] },
+  { id: 'nio-et9', name: 'NIO ET9', marque: 'NIO', classe: 'signature', places: 4, prixJour: 120000, autonomieKm: 620, exemplaires: 3, atouts: ['Berline exécutive', 'Suspension pilotée'] },
+  { id: 'stelato-s9', name: 'Huawei Stelato S9', marque: 'Huawei', classe: 'signature', places: 4, prixJour: 90000, autonomieKm: 600, exemplaires: 3, atouts: ['Berline de prestige', 'Intérieur cuir clair'] },
+  { id: 'zeekr-8x', name: 'Zeekr 8X', marque: 'Zeekr', classe: 'signature', places: 6, prixJour: 60000, autonomieKm: 580, exemplaires: 3, atouts: ['SUV 6 places', 'Coffre généreux'] },
 ];
 
 const rentals: RentalRow[] = [
   {
     id: 'LOC-4F2A', userId: 'client-mariage-1', formula: 'evenement', duree: 'journee',
     vehicle: { id: 'aito-m9', name: 'Huawei AITO M9', classe: 'signature', places: 6 },
-    debut: dans(4, 9), fin: dans(5, 9), total: 1_480_500, caution: 211_500, jourJ: false,
+    debut: dans(4, 9), fin: dans(5, 9), total: 583_800, caution: 83_400, jourJ: false,
     status: 'confirmee', driverId: 'd7', lieu: 'Cathédrale Saint-Paul, Plateau',
     options: { cortege: 2, hotesses: 2, decoration: true, escorte: false },
-    breakdown: { vehicule: 520_000, cortege: 884_000, options: 155_000, majorationJourJ: 0, remiseAbonnement: 0, ht: 1_409_000, tva: 70_450 },
+    breakdown: { vehicule: 180_000, cortege: 306_000, options: 70_000, majorationJourJ: 0, remiseAbonnement: 0, ht: 556_000, tva: 27_800 },
     contact: { nom: 'Famille Kouassi', telephone: '+2250102030405' },
     events: [{ type: 'reservee', at: iso(2880) }, { type: 'confirmee', at: iso(1440), note: 'acompte reçu' }],
     createdAt: iso(2880),
   },
   {
-    id: 'LOC-91C7', userId: 'institution-1', formula: 'entreprise', duree: 'semaine',
+    id: 'LOC-91C7', userId: 'institution-1', formula: 'entreprise', duree: 'mois', mois: 6, renouvelable: true, mensualite: 5_680_500,
     vehicle: { id: 'maextro-s800', name: 'Huawei Maextro S800', classe: 'presidentielle', places: 3 },
-    debut: dans(9, 8), fin: dans(16, 8), total: 5_197_500, caution: 742_500, jourJ: false,
+    debut: dans(9, 8), fin: dans(189, 8), total: 34_083_000, caution: 811_500, jourJ: false,
     status: 'reservee', lieu: 'Aéroport Félix-Houphouët-Boigny',
     options: { cortege: 0, hotesses: 0, decoration: false, escorte: true },
-    breakdown: { vehicule: 4_950_000, cortege: 0, options: 120_000, majorationJourJ: 0, remiseAbonnement: 0, ht: 4_950_000, tva: 247_500 },
+    breakdown: { vehicule: 32_400_000, cortege: 0, options: 60_000, majorationJourJ: 0, remiseAbonnement: 0, ht: 32_460_000, tva: 1_623_000 },
     societe: { nom: 'Ambassade du Ghana', bonCommande: 'BC-7741', contribuable: 'CI-2026-00881' },
     contact: { nom: 'Service du protocole', telephone: '+2250708091011' },
     events: [{ type: 'reservee', at: iso(300) }],
@@ -643,10 +643,10 @@ const rentals: RentalRow[] = [
   {
     id: 'LOC-C083', userId: 'client-9120', formula: 'mise_a_disposition', duree: 'heures', heures: 6,
     vehicle: { id: 'nio-es9', name: 'NIO ES9', classe: 'signature', places: 5 },
-    debut: dans(0, new Date().getHours() + 1), fin: dans(0, new Date().getHours() + 7), total: 541_632, caution: 77_376, jourJ: true,
+    debut: dans(0, new Date().getHours() + 1), fin: dans(0, new Date().getHours() + 7), total: 158_760, caution: 22_680, jourJ: true,
     status: 'en_cours', driverId: 'd8', lieu: 'Hôtel Ivoire, Cocody',
     options: { cortege: 0, hotesses: 0, decoration: false, escorte: false },
-    breakdown: { vehicule: 489_600, cortege: 0, options: 0, majorationJourJ: 58_752, remiseAbonnement: 54_835, ht: 515_840, tva: 25_792 },
+    breakdown: { vehicule: 150_000, cortege: 0, options: 0, majorationJourJ: 18_000, remiseAbonnement: 16_800, ht: 151_200, tva: 7_560 },
     contact: { nom: 'M. Diallo', telephone: '+2250506070809' },
     events: [{ type: 'reservee', at: iso(120) }, { type: 'confirmee', at: iso(100) }, { type: 'en_cours', at: iso(40) }],
     createdAt: iso(120),
@@ -1025,7 +1025,7 @@ const executive: ExecutiveBoard = {
     { id: 'securite', gravite: 'attention', titre: 'Tentatives d’accès non autorisé', detail: '2 tentative(s) signalée(s) à la direction (DG, CFO, DAA).', section: 'security' },
   ],
   recentes: [
-    { at: iso(60), actor: 'Direction commerciale', role: 'cfo', action: 'rental.tarifs', details: { ecarts: { 'nio-es9.prixJour': { avant: 480000, apres: 525000 } } } },
+    { at: iso(60), actor: 'Direction commerciale', role: 'cfo', action: 'rental.tarifs', details: { ecarts: { 'nio-es9.prixJour': { avant: 150000, apres: 165000 } } } },
     { at: iso(300), actor: 'Super Admin', role: 'super_admin', action: 'pricing.update', details: { perKm: 290 } },
     { at: iso(900), actor: 'Opérations', role: 'ops', action: 'dispatch.update', details: { radiusKm: 4 } },
   ],
@@ -1048,11 +1048,12 @@ const contacts: ContactUrgence[] = [
 
 const rentalTarifs: RentalTarifEtat = {
   tarif: {
-    coefs: { journee: 1, weekend: 1.8, semaine: 5.5, mois: 20 },
+    coefs: { journee: 1, weekend: 1.8, semaine: 5.5, mois: 21 },
+    remiseMois3: 0.35, remiseMois6: 0.4, remiseMois12: 0.45, moisMinEntreprise: 6,
     ratioHeure: 0.17, minHeures: 3, maxHeures: 12,
-    decoration: 35000, tapisRouge: 45000, hotesse: 60000, escorte: 120000, plaque: 25000,
-    secondChauffeur: 50000, rafraichissements: 30000,
-    remiseCortege: 0.15, kmInclusParJour: 100, prixKmSupp: 450,
+    decoration: 20000, tapisRouge: 15000, hotesse: 25000, escorte: 60000, plaque: 10000,
+    secondChauffeur: 20000, rafraichissements: 10000,
+    remiseCortege: 0.15, kmInclusParJour: 100, prixKmSupp: 300,
     majorationKmIllimite: 0.18, majorationJourJ: 0.12, tauxCaution: 0.15,
     delaiExpressMin: 25, delaiExpressMax: 45,
   },

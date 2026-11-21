@@ -6,7 +6,9 @@ import {
   IconPlus, IconUsers,
 } from '../icons';
 import { useI18n } from '../i18n';
-import { formatXOF, RENTAL_DUREES, RENTAL_FORMULES, RENTAL_OPTION_KEYS } from '../data';
+import {
+  dureesPermises, formatXOF, remiseMensuelle, RENTAL_FORMULES, RENTAL_MOIS_MAX, RENTAL_OPTION_KEYS, RENTAL_TARIFF,
+} from '../data';
 
 /**
  * Options pertinentes par formule. Proposer « décoration florale & rubans » à une
@@ -71,6 +73,8 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
   const [vehicleId, setVehicleId] = useState('');
   const [duree, setDuree] = useState<RentalDuree>('journee');
   const [heures, setHeures] = useState(3);
+  const [mois, setMois] = useState(1);
+  const [renouvelable, setRenouvelable] = useState(false);
   const [debut, setDebut] = useState(() => {
     const d = new Date();
     d.setMinutes(d.getMinutes() + 45, 0, 0); // mise à disposition du jour, délai express réaliste
@@ -104,13 +108,25 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
   const vehicles = catalogue?.vehicles ?? [];
   const vehicle = vehicles.find((v) => v.id === vehicleId);
 
+  // Forfait mensuel : une entreprise s'engage six mois au moins, un particulier un seul.
+  const entreprise = formula === 'entreprise';
+  const moisMinEntreprise = catalogue?.engagement?.moisMinEntreprise ?? RENTAL_TARIFF.moisMinEntreprise;
+  const moisMin = entreprise ? moisMinEntreprise : 1;
+  const moisMax = catalogue?.engagement?.moisMax ?? RENTAL_MOIS_MAX;
+  const paliers = catalogue?.engagement?.paliers
+    ?? [1, 3, 6, 12].map((m) => ({ aPartirDeMois: m, remise: remiseMensuelle(m) }));
+  /** Remise par mois pour un engagement donné, telle que le serveur la facturera. */
+  const remisePour = (m: number) => [...paliers].reverse().find((p) => m >= p.aPartirDeMois)?.remise ?? 0;
+  const mensuel = duree === 'mois';
+  const moisChoisis = mensuel ? Math.max(moisMin, mois) : undefined;
+
   // Disponibilité réelle sur la période choisie (et délai express le jour même).
   useEffect(() => {
     let vivant = true;
-    void fetchRentalAvailability(debut, duree, duree === 'heures' ? heures : undefined)
+    void fetchRentalAvailability(debut, duree, duree === 'heures' ? heures : undefined, moisChoisis)
       .then((d) => { if (vivant) setDispos(d); });
     return () => { vivant = false; };
-  }, [debut, duree, heures]);
+  }, [debut, duree, heures, moisChoisis]);
 
   const optionsCompletes = useMemo<RentalOptions>(() => ({ ...options, cortege, hotesses }), [options, cortege, hotesses]);
 
@@ -119,11 +135,15 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
     if (!vehicleId || vehicles.length === 0) return;
     let vivant = true;
     void quoteRental(
-      { formula, vehicleId, debut, duree, heures: duree === 'heures' ? heures : undefined, options: optionsCompletes, userId: clientId() },
+      {
+        formula, vehicleId, debut, duree, heures: duree === 'heures' ? heures : undefined,
+        mois: moisChoisis, renouvelable: mensuel ? renouvelable : undefined,
+        options: optionsCompletes, userId: clientId(),
+      },
       vehicles,
     ).then((q) => { if (vivant) setQuote(q); });
     return () => { vivant = false; };
-  }, [formula, vehicleId, debut, duree, heures, optionsCompletes, vehicles]);
+  }, [formula, vehicleId, debut, duree, heures, moisChoisis, mensuel, renouvelable, optionsCompletes, vehicles]);
 
   const dispoDe = (id: string) => dispos.find((d) => d.vehicleId === id);
   const jourJ = debut.toDateString() === new Date().toDateString();
@@ -134,6 +154,7 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
     setEnvoi(true);
     const r = await reserveRental({
       formula, vehicleId, debut, duree, heures: duree === 'heures' ? heures : undefined,
+      mois: moisChoisis, renouvelable: mensuel ? renouvelable : undefined,
       options: optionsCompletes, userId: clientId(),
       lieu: lieu.trim() || undefined,
       contact: contactNom.trim() && contactTel.trim() ? { nom: contactNom.trim(), telephone: contactTel.trim() } : undefined,
@@ -169,6 +190,14 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
                 ) as RentalOptions);
                 if (f !== 'evenement') setCortege(0);
                 if (f === 'mise_a_disposition') setHotesses(0);
+                // Une entreprise ne loue qu'au forfait mensuel : six mois, reconduits par défaut.
+                if (f === 'entreprise') {
+                  setDuree('mois');
+                  setMois((m) => Math.max(moisMinEntreprise, m));
+                  setRenouvelable(true);
+                } else if (formula === 'entreprise') {
+                  setRenouvelable(false);
+                }
               }}
             >
               <span className="veh-ico" style={{ width: 42, height: 42, color: 'var(--green)' }}>
@@ -208,10 +237,17 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
                     {d && d.delaiMinutes > 0 && !indispo ? ` · ${t('rent_eta', { min: String(d.delaiMinutes) })}` : ''}
                   </span>
                 </span>
-                <span className="col" style={{ alignItems: 'flex-end' }}>
-                  <span className="price" style={{ fontSize: 15 }}>{formatXOF(v.prixJour)}</span>
-                  <span className="faint" style={{ fontSize: 11 }}>{t('rent_perDay')}</span>
-                </span>
+                {mensuel ? (
+                  <span className="col" style={{ alignItems: 'flex-end' }}>
+                    <span className="price" style={{ fontSize: 15, whiteSpace: 'nowrap' }}>{formatXOF(Math.round(v.prixJour * 30 * (1 - remisePour(moisChoisis ?? 1))))}</span>
+                    <span className="faint" style={{ fontSize: 11 }}>{t('rent_perMonth')}</span>
+                  </span>
+                ) : (
+                  <span className="col" style={{ alignItems: 'flex-end' }}>
+                    <span className="price" style={{ fontSize: 15, whiteSpace: 'nowrap' }}>{formatXOF(v.prixJour)}</span>
+                    <span className="faint" style={{ fontSize: 11 }}>{t('rent_perDay')}</span>
+                  </span>
+                )}
               </button>
             );
           })}
@@ -220,12 +256,55 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
         {/* Durée */}
         <span className="eyebrow">{t('rent_duration')}</span>
         <div className="chips" style={{ margin: '10px 0 14px' }}>
-          {RENTAL_DUREES.map((d) => (
+          {dureesPermises(formula).map((d) => (
             <button key={d} className={`chip${d === duree ? ' active' : ''}`} onClick={() => setDuree(d)}>
               {d === 'heures' ? <IconClock size={15} /> : <IconCalendar size={15} />} {t(`rent_d_${d}`)}
             </button>
           ))}
         </div>
+        {entreprise && (
+          <p className="faint" style={{ fontSize: 11.5, marginBottom: 12 }}>{t('rent_monthlyOnly', { min: String(moisMinEntreprise) })}</p>
+        )}
+
+        {mensuel && (
+          <>
+            <div className="opt" style={{ marginBottom: 8 }}>
+              <span className="grow" style={{ textAlign: 'start' }}>{t('rent_months')}</span>
+              <div className="row gap-sm">
+                <button className="step" aria-label={`${t('rent_months')} −`} disabled={(moisChoisis ?? 1) <= moisMin} onClick={() => setMois(Math.max(moisMin, (moisChoisis ?? 1) - 1))}><IconMinus size={16} /></button>
+                <strong style={{ minWidth: 58, textAlign: 'center', whiteSpace: 'nowrap' }}>{t('rent_monthsN', { n: String(moisChoisis ?? 1) })}</strong>
+                <button className="step" aria-label={`${t('rent_months')} +`} disabled={(moisChoisis ?? 1) >= moisMax} onClick={() => setMois(Math.min(moisMax, (moisChoisis ?? 1) + 1))}><IconPlus size={16} /></button>
+              </div>
+            </div>
+            <div className="paliers" role="list" aria-label={t('rent_tiersLabel')}>
+              {paliers.filter((p) => p.aPartirDeMois >= moisMin).map((p) => {
+                const seuil = p.aPartirDeMois;
+                const actif = remisePour(moisChoisis ?? 1) === p.remise;
+                return (
+                  <button
+                    key={p.aPartirDeMois} role="listitem" type="button"
+                    className={`palier${actif ? ' actif' : ''}`}
+                    onClick={() => setMois(seuil)}
+                  >
+                    <strong>−{Math.round(p.remise * 100)} %</strong>
+                    <span>{t('rent_tierFrom', { n: String(seuil) })}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="opt" style={{ margin: '8px 0 6px' }}>
+              <span className="col grow" style={{ textAlign: 'start' }}>
+                <span>{t('rent_renew')}</span>
+                <span className="faint" style={{ fontSize: 11.5 }}>{t(renouvelable ? 'rent_renewOn' : 'rent_renewOff')}</span>
+              </span>
+              <button
+                className={`toggle${renouvelable ? ' on' : ''}`} role="switch" aria-checked={renouvelable}
+                aria-label={t('rent_renew')} onClick={() => setRenouvelable((r) => !r)}
+              ><span /></button>
+            </div>
+            <div style={{ height: 10 }} />
+          </>
+        )}
 
         {duree === 'heures' && (
           <>
@@ -354,7 +433,16 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
           <>
             <span className="eyebrow">{t('rent_detail')}</span>
             <div style={{ margin: '10px 0' }}>
-              <div className="fare-line"><span>{t('rent_lineVehicle')}</span><span>{formatXOF(b.vehicule)}</span></div>
+              {quote.remiseDuree && quote.remiseDuree.montant > 0 ? (
+                <>
+                  <div className="fare-line"><span>{t('rent_lineFull', { n: String(Math.round(quote.jours)) })}</span><span>{formatXOF(b.vehicule + quote.remiseDuree.montant)}</span></div>
+                  <div className="fare-line" style={{ color: 'var(--green)' }}>
+                    <span>{t('rent_lineDuration', { pct: String(Math.round(quote.remiseDuree.taux * 100)) })}</span><span>-{formatXOF(quote.remiseDuree.montant)}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="fare-line"><span>{t('rent_lineVehicle')}</span><span>{formatXOF(b.vehicule)}</span></div>
+              )}
               {b.cortege > 0 && <div className="fare-line"><span>{t('rent_lineConvoy')}</span><span>{formatXOF(b.cortege)}</span></div>}
               {b.kilometrageIllimite > 0 && <div className="fare-line"><span>{t('rent_lineKm')}</span><span>{formatXOF(b.kilometrageIllimite)}</span></div>}
               {b.options > 0 && <div className="fare-line"><span>{t('rent_lineOptions')}</span><span>{formatXOF(b.options)}</span></div>}
@@ -367,10 +455,21 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
               <div className="fare-line"><span>{t('rent_lineHt')}</span><span>{formatXOF(b.ht)}</span></div>
               <div className="fare-line"><span>{t('rent_lineTva')}</span><span>{formatXOF(b.tva)}</span></div>
             </div>
-            <div className="fare-total" style={{ marginBottom: 8 }}>
-              <span className="muted">{t('rent_total')}</span><span className="amt">{formatXOF(quote.total)}</span>
-            </div>
-            <p className="faint" style={{ fontSize: 11.5, marginBottom: 4 }}>{t('rent_deposit', { amount: formatXOF(quote.caution) })}</p>
+            {quote.mensualite && quote.mois ? (
+              <>
+                <div className="fare-total" style={{ marginBottom: 4 }}>
+                  <span className="muted">{t('rent_monthly')}</span><span className="amt">{formatXOF(quote.mensualite)}</span>
+                </div>
+                <div className="fare-line" style={{ marginBottom: 8 }}>
+                  <span>{t('rent_contractTotal', { n: String(quote.mois) })}</span><span>{formatXOF(quote.total)}</span>
+                </div>
+              </>
+            ) : (
+              <div className="fare-total" style={{ marginBottom: 8 }}>
+                <span className="muted">{t('rent_total')}</span><span className="amt">{formatXOF(quote.total)}</span>
+              </div>
+            )}
+            <p className="faint" style={{ fontSize: 11.5, marginBottom: 4 }}>{t(quote.mois ? 'rent_depositMonth' : 'rent_deposit', { amount: formatXOF(quote.caution) })}</p>
             <p className="faint" style={{ fontSize: 11.5, marginBottom: 4 }}>
               {quote.kmInclus === null ? t('rent_kmUnlimited') : t('rent_kmIncluded', { km: String(quote.kmInclus), price: formatXOF(quote.prixKmSupp) })}
             </p>
@@ -425,12 +524,14 @@ export function MyRentalsScreen({ onBack, onToast }: { onBack: () => void; onToa
                   <div className="col">
                     <strong style={{ fontSize: 15 }}>{r.vehicle.name}</strong>
                     <span className="faint" style={{ fontSize: 12 }}>
-                      {t(`rent_f_${r.formula}`)} · {t(`rent_d_${r.duree}`)}
+                      {t(`rent_f_${r.formula}`)} · {r.mois ? t('rent_monthsN', { n: String(r.mois) }) : t(`rent_d_${r.duree}`)}
+                      {r.mois ? ` · ${t(r.renouvelable ? 'rent_renewShort' : 'rent_noRenewShort')}` : ''}
                     </span>
                   </div>
                 </div>
                 <span className="col" style={{ alignItems: 'flex-end' }}>
-                  <span className="price" style={{ fontSize: 15, whiteSpace: 'nowrap' }}>{formatXOF(r.total)}</span>
+                  <span className="price" style={{ fontSize: 15, whiteSpace: 'nowrap' }}>{formatXOF(r.mensualite ?? r.total)}</span>
+                  {r.mensualite ? <span className="faint" style={{ fontSize: 11 }}>{t('rent_perMonth')}</span> : null}
                   <span className="faint mono" style={{ fontSize: 11 }}>{r.id}</span>
                 </span>
               </div>

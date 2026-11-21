@@ -1,7 +1,8 @@
 import type { Repository } from '../../core/db/repository.js';
-import { PRESTIGE, type PrestigeVehicle } from '../fleet/prestige.js';
+import { PRESTIGE, PRIX_JOUR_MAX, PRIX_JOUR_MIN, type PrestigeVehicle } from '../fleet/prestige.js';
 import {
-  COEF_DUREE, DELAI_EXPRESS_MAX, DELAI_EXPRESS_MIN, FRAIS, MAX_HEURES, MIN_HEURES, RATIO_HEURE,
+  COEF_DUREE, DELAI_EXPRESS_MAX, DELAI_EXPRESS_MIN, FRAIS, MAX_HEURES, MIN_HEURES, MOIS_MIN_ENTREPRISE,
+  RATIO_HEURE, REMISE_ENGAGEMENT,
   type RentalDuree,
 } from './tariff.js';
 
@@ -30,6 +31,12 @@ export interface VehiculeTarif {
 export interface RentalTarif {
   /** Coefficient appliqué au prix journée, par durée. */
   coefs: Record<Exclude<RentalDuree, 'heures'>, number>;
+  /** Forfait mensuel : remise par mois dès 3, 6 et 12 mois d'engagement (0–0,7). */
+  remiseMois3: number;
+  remiseMois6: number;
+  remiseMois12: number;
+  /** Engagement minimal d'un contrat entreprise, en mois. */
+  moisMinEntreprise: number;
   /** Part du prix journée facturée par heure (location à l'heure). */
   ratioHeure: number;
   minHeures: number;
@@ -59,6 +66,10 @@ export interface RentalTarif {
 
 export const DEFAUT_TARIF: RentalTarif = {
   coefs: { ...COEF_DUREE },
+  remiseMois3: REMISE_ENGAGEMENT.mois3,
+  remiseMois6: REMISE_ENGAGEMENT.mois6,
+  remiseMois12: REMISE_ENGAGEMENT.mois12,
+  moisMinEntreprise: MOIS_MIN_ENTREPRISE,
   ratioHeure: RATIO_HEURE,
   minHeures: MIN_HEURES,
   maxHeures: MAX_HEURES,
@@ -110,14 +121,23 @@ export class RentalSettingsService {
 
   constructor(private readonly repo?: Repository<RentalTarifRecord>) {
     const saved = repo?.get(RECORD_ID);
+    // ANCIENNE GRILLE (420 000 à 900 000 F la journée, sans forfait d'engagement) :
+    // un barème enregistré avant la refonte ferait revenir les anciens prix au premier
+    // redémarrage. On repart alors de la grille en vigueur ; les stocks et les modèles
+    // retirés de la vente, eux, restent ceux que l'exploitation a réglés.
+    const ancienneGrille = Boolean(saved) && (
+      saved!.tarif?.remiseMois6 === undefined ||
+      Object.values(saved!.vehicules ?? {}).some((v) => (v?.prixJour ?? 0) > PRIX_JOUR_MAX)
+    );
+    const tarifSauve = ancienneGrille ? undefined : saved?.tarif;
     // Fusion avec les défauts : un enregistrement écrit avant l'ajout d'un champ
     // reste valide, et un modèle ajouté au catalogue apparaît avec son prix d'origine.
-    this.tarif = { ...DEFAUT_TARIF, ...(saved?.tarif ?? {}), coefs: { ...DEFAUT_TARIF.coefs, ...(saved?.tarif?.coefs ?? {}) } };
+    this.tarif = { ...DEFAUT_TARIF, ...(tarifSauve ?? {}), coefs: { ...DEFAUT_TARIF.coefs, ...(tarifSauve?.coefs ?? {}) } };
     this.vehicules = {};
     for (const v of PRESTIGE) {
       const s = saved?.vehicules?.[v.id];
       this.vehicules[v.id] = {
-        prixJour: s?.prixJour ?? v.prixJour,
+        prixJour: ancienneGrille ? v.prixJour : borne(s?.prixJour ?? v.prixJour, PRIX_JOUR_MIN, PRIX_JOUR_MAX),
         exemplaires: s?.exemplaires ?? v.exemplaires,
         actif: s?.actif ?? true,
       };
@@ -185,8 +205,12 @@ export class RentalSettingsService {
           journee: borne(p.coefs?.journee ?? this.tarif.coefs.journee, 0.2, 3),
           weekend: borne(p.coefs?.weekend ?? this.tarif.coefs.weekend, 0.2, 6),
           semaine: borne(p.coefs?.semaine ?? this.tarif.coefs.semaine, 1, 20),
-          mois: borne(p.coefs?.mois ?? this.tarif.coefs.mois, 2, 60),
+          mois: borne(p.coefs?.mois ?? this.tarif.coefs.mois, 6, 30),
         },
+        remiseMois3: borne(p.remiseMois3 ?? this.tarif.remiseMois3, 0, 0.7),
+        remiseMois6: borne(p.remiseMois6 ?? this.tarif.remiseMois6, 0, 0.7),
+        remiseMois12: borne(p.remiseMois12 ?? this.tarif.remiseMois12, 0, 0.7),
+        moisMinEntreprise: Math.round(borne(p.moisMinEntreprise ?? this.tarif.moisMinEntreprise, 1, 24)),
         ratioHeure: borne(p.ratioHeure ?? this.tarif.ratioHeure, 0.05, 0.5),
         minHeures: Math.round(borne(p.minHeures ?? this.tarif.minHeures, 1, 12)),
         maxHeures: Math.round(borne(p.maxHeures ?? this.tarif.maxHeures, 2, 24)),
@@ -215,7 +239,8 @@ export class RentalSettingsService {
       const actuel = this.vehicules[id];
       if (!actuel) continue; // modèle inconnu : on ignore plutôt que d'inventer une ligne
       this.vehicules[id] = {
-        prixJour: Math.round(borne(v.prixJour ?? actuel.prixJour, 10_000, 50_000_000)),
+        // La grille est bornée : de 60 000 à 300 000 F la journée, pas au-delà.
+        prixJour: Math.round(borne(v.prixJour ?? actuel.prixJour, PRIX_JOUR_MIN, PRIX_JOUR_MAX)),
         exemplaires: Math.round(borne(v.exemplaires ?? actuel.exemplaires, 0, 200)),
         actif: v.actif ?? actuel.actif,
       };

@@ -279,6 +279,8 @@ export interface RentalAvailabilityRow {
 }
 export interface RentalRow {
   id: string; userId: string; formula: string; duree: string; heures?: number;
+  /** Forfait mensuel : mois d'engagement, reconduction, montant réglé chaque mois. */
+  mois?: number; renouvelable?: boolean; mensualite?: number;
   vehicle: { id: string; name: string; classe: 'signature' | 'presidentielle'; places: number };
   debut: string; fin: string; total: number; caution: number; jourJ: boolean;
   status: string; driverId?: string; lieu?: string;
@@ -415,6 +417,8 @@ export interface ExecutiveBoard {
 /** Barème de location réglé depuis la console. */
 export interface RentalTarif {
   coefs: { journee: number; weekend: number; semaine: number; mois: number };
+  /** Forfait mensuel : remise par mois dès 3, 6 et 12 mois, et engagement minimal entreprise. */
+  remiseMois3: number; remiseMois6: number; remiseMois12: number; moisMinEntreprise: number;
   ratioHeure: number; minHeures: number; maxHeures: number;
   decoration: number; tapisRouge: number; hotesse: number; escorte: number; plaque: number;
   secondChauffeur: number; rafraichissements: number;

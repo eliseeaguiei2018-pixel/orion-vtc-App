@@ -4,6 +4,7 @@
  * Trois formules, un seul barème :
  *   • « evenement »        — mariages, cérémonies, baptêmes, anniversaires.
  *   • « entreprise »       — sociétés, institutions, ambassades, délégations (facture TVA).
+ *     UNIQUEMENT en forfait mensuel, six mois minimum, renouvelable ou non.
  *   • « mise_a_disposition » — la COURSE sous forme de location : le client garde la
  *     voiture et son chauffeur pour N heures, ou privatise le véhicule toute la journée.
  *
@@ -20,15 +21,56 @@ export const isDuree = (v: string): v is RentalDuree => (DUREES as string[]).inc
 
 /**
  * Coefficient appliqué au prix journée. Les longues durées sont dégressives : une
- * semaine coûte 5,5 journées (et non 7), un mois 20 (et non 30) — c'est l'argument
- * commercial des contrats entreprise.
+ * semaine coûte 5,5 journées (et non 7), un mois 21 (et non 30, soit −30 %).
  */
 export const COEF_DUREE: Record<Exclude<RentalDuree, 'heures'>, number> = {
   journee: 1,
   weekend: 1.8,
   semaine: 5.5,
-  mois: 20,
+  mois: 21,
 };
+
+/** Un mois de location = 30 jours d'immobilisation. */
+export const JOURS_PAR_MOIS = 30;
+
+/** Forfait mensuel : engagement minimal d'une entreprise, et plafond de tout contrat. */
+export const MOIS_MIN_ENTREPRISE = 6;
+export const MOIS_MAX = 36;
+
+/**
+ * Remises d'ENGAGEMENT du forfait mensuel, par rapport à 30 journées au tarif plein.
+ * Le premier palier (1 à 2 mois) découle du coefficient « mois » ci-dessus (−30 %) ;
+ * les suivants récompensent la durée du contrat.
+ */
+export const REMISE_ENGAGEMENT = { mois3: 0.35, mois6: 0.4, mois12: 0.45 } as const;
+
+/** Barème minimal nécessaire au calcul de la remise mensuelle. */
+export interface BaremeMensuel {
+  coefs: { mois: number };
+  remiseMois3: number;
+  remiseMois6: number;
+  remiseMois12: number;
+}
+
+/**
+ * Remise appliquée à chaque mois d'un forfait de `mois` mois. Un palier long n'est
+ * jamais moins avantageux qu'un palier court, même si la console les règle à l'envers.
+ */
+export function remiseMensuelle(t: BaremeMensuel, mois: number): number {
+  const base = Math.min(0.9, Math.max(0, 1 - t.coefs.mois / JOURS_PAR_MOIS));
+  const p3 = Math.max(base, t.remiseMois3);
+  const p6 = Math.max(p3, t.remiseMois6);
+  const p12 = Math.max(p6, t.remiseMois12);
+  if (mois >= 12) return p12;
+  if (mois >= 6) return p6;
+  if (mois >= 3) return p3;
+  return base;
+}
+
+/** Durées qu'une formule a le droit de vendre. */
+export function dureesPermises(formula: RentalFormula): RentalDuree[] {
+  return formula === 'entreprise' ? ['mois'] : DUREES;
+}
 
 /** Nombre de jours d'immobilisation du véhicule par durée (calcul de disponibilité). */
 export const JOURS_DUREE: Record<Exclude<RentalDuree, 'heures'>, number> = {
@@ -78,20 +120,20 @@ export interface RentalOptions {
 }
 
 export const FRAIS = {
-  decoration: 35_000,
-  tapisRouge: 45_000,
+  decoration: 20_000,
+  tapisRouge: 15_000,
   /** Par hôtesse et par jour. */
-  hotesse: 60_000,
-  escorte: 120_000,
-  plaque: 25_000,
-  secondChauffeur: 50_000,
-  rafraichissements: 30_000,
+  hotesse: 25_000,
+  escorte: 60_000,
+  plaque: 10_000,
+  secondChauffeur: 20_000,
+  rafraichissements: 10_000,
   /** Remise sur chaque véhicule supplémentaire du cortège. */
   remiseCortege: 0.15,
   /** Kilomètres inclus par jour de location. */
   kmInclusParJour: 100,
   /** Supplément au-delà du forfait kilométrique. */
-  prixKmSupp: 450,
+  prixKmSupp: 300,
   /** Kilométrage illimité : majoration du poste véhicule. */
   majorationKmIllimite: 0.18,
   /**
@@ -124,7 +166,7 @@ export function tauxAnnulation(heuresAvantDebut: number): number {
 /** Libellés affichés dans l'app cliente et la console. */
 export const LABEL_FORMULE: Record<RentalFormula, string> = {
   evenement: 'Événement & mariage',
-  entreprise: 'Entreprise & institution',
+  entreprise: 'Entreprise & institution — forfait mensuel',
   mise_a_disposition: 'Course en mise à disposition',
 };
 
@@ -133,7 +175,7 @@ export const LABEL_DUREE: Record<RentalDuree, string> = {
   journee: 'Journée (10 h de service)',
   weekend: 'Week-end (2 jours)',
   semaine: 'Semaine (7 jours)',
-  mois: 'Mois (30 jours)',
+  mois: 'Forfait mensuel (30 jours)',
 };
 
 export const LABEL_OPTION: Record<keyof RentalOptions, string> = {

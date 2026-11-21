@@ -75,33 +75,57 @@ export const formatXOF = (n: number): string =>
  * joignable, pour que l'écran de location reste présentable sans infrastructure.
  */
 export const PRESTIGE_FALLBACK: PrestigeVehicle[] = [
-  { id: 'maextro-s800', name: 'Huawei Maextro S800', marque: 'Huawei', classe: 'presidentielle', places: 3, prixJour: 900000, autonomieKm: 700, exemplaires: 2,
+  { id: 'maextro-s800', name: 'Huawei Maextro S800', marque: 'Huawei', classe: 'presidentielle', places: 3, prixJour: 300000, autonomieKm: 700, exemplaires: 2,
     atouts: ['Limousine présidentielle', 'Sièges arrière à inclinaison totale', 'Isolation phonique renforcée'] },
-  { id: 'yangwang-altior', name: 'BYD Yangwang U7', marque: 'BYD', classe: 'presidentielle', places: 4, prixJour: 780000, autonomieKm: 650, exemplaires: 2,
+  { id: 'yangwang-altior', name: 'BYD Yangwang U7', marque: 'BYD', classe: 'presidentielle', places: 4, prixJour: 250000, autonomieKm: 650, exemplaires: 2,
     atouts: ['Suspension active', 'Tenue de route exceptionnelle', 'Finitions sur mesure'] },
-  { id: 'aito-m9', name: 'Huawei AITO M9', marque: 'Huawei', classe: 'signature', places: 6, prixJour: 520000, autonomieKm: 630, exemplaires: 4,
+  { id: 'aito-m9', name: 'Huawei AITO M9', marque: 'Huawei', classe: 'signature', places: 6, prixJour: 180000, autonomieKm: 630, exemplaires: 4,
     atouts: ['Grand SUV 6 places', 'Idéal cortège familial', 'Toit panoramique'] },
-  { id: 'nio-es9', name: 'NIO ES9', marque: 'NIO', classe: 'signature', places: 5, prixJour: 480000, autonomieKm: 640, exemplaires: 4,
+  { id: 'nio-es9', name: 'NIO ES9', marque: 'NIO', classe: 'signature', places: 5, prixJour: 150000, autonomieKm: 640, exemplaires: 4,
     atouts: ['SUV haut de gamme', 'Salon arrière', 'Échange de batterie rapide'] },
-  { id: 'nio-et9', name: 'NIO ET9', marque: 'NIO', classe: 'signature', places: 4, prixJour: 460000, autonomieKm: 620, exemplaires: 3,
+  { id: 'nio-et9', name: 'NIO ET9', marque: 'NIO', classe: 'signature', places: 4, prixJour: 120000, autonomieKm: 620, exemplaires: 3,
     atouts: ['Berline exécutive', 'Suspension pilotée', 'Silence de roulement'] },
-  { id: 'stelato-s9', name: 'Huawei Stelato S9', marque: 'Huawei', classe: 'signature', places: 4, prixJour: 440000, autonomieKm: 600, exemplaires: 3,
+  { id: 'stelato-s9', name: 'Huawei Stelato S9', marque: 'Huawei', classe: 'signature', places: 4, prixJour: 90000, autonomieKm: 600, exemplaires: 3,
     atouts: ['Berline de prestige', 'Assistance de conduite avancée', 'Intérieur cuir clair'] },
-  { id: 'zeekr-8x', name: 'Zeekr 8X', marque: 'Zeekr', classe: 'signature', places: 6, prixJour: 420000, autonomieKm: 580, exemplaires: 3,
+  { id: 'zeekr-8x', name: 'Zeekr 8X', marque: 'Zeekr', classe: 'signature', places: 6, prixJour: 60000, autonomieKm: 580, exemplaires: 3,
     atouts: ['SUV 6 places', 'Coffre généreux', 'Confort de suspension'] },
 ];
 
 /** Barème de location (repli démo — miroir de backend/src/modules/rental/tariff.ts). */
 export const RENTAL_TARIFF = {
-  decoration: 35000, tapisRouge: 45000, hotesse: 60000, escorte: 120000, plaque: 25000,
-  secondChauffeur: 50000, rafraichissements: 30000,
-  remiseCortege: 0.15, kmInclusParJour: 100, prixKmSupp: 450,
+  decoration: 20000, tapisRouge: 15000, hotesse: 25000, escorte: 60000, plaque: 10000,
+  secondChauffeur: 20000, rafraichissements: 10000,
+  remiseCortege: 0.15, kmInclusParJour: 100, prixKmSupp: 300,
   majorationKmIllimite: 0.18, majorationJourJ: 0.12, tauxCaution: 0.15,
   ratioHeure: 0.17, minHeures: 3, maxHeures: 12, heuresParJournee: 10,
+  /** Forfait mensuel : remise par mois dès 3, 6 et 12 mois d'engagement. */
+  remiseMois3: 0.35, remiseMois6: 0.4, remiseMois12: 0.45,
+  /** Une entreprise s'engage pour six mois au moins. */
+  moisMinEntreprise: 6,
 };
 
-export const RENTAL_COEF: Record<string, number> = { journee: 1, weekend: 1.8, semaine: 5.5, mois: 20 };
+export const RENTAL_COEF: Record<string, number> = { journee: 1, weekend: 1.8, semaine: 5.5, mois: 21 };
 export const RENTAL_JOURS: Record<string, number> = { journee: 1, weekend: 2, semaine: 7, mois: 30 };
+/** Un contrat mensuel ne dépasse pas trois ans. */
+export const RENTAL_MOIS_MAX = 36;
+
+/** Remise par mois d'un forfait de `mois` mois (même règle que le serveur). */
+export function remiseMensuelle(mois: number, t: { remiseMois3: number; remiseMois6: number; remiseMois12: number } = RENTAL_TARIFF, coefMois = RENTAL_COEF.mois ?? 21): number {
+  const base = Math.min(0.9, Math.max(0, 1 - coefMois / 30));
+  const p3 = Math.max(base, t.remiseMois3);
+  const p6 = Math.max(p3, t.remiseMois6);
+  const p12 = Math.max(p6, t.remiseMois12);
+  if (mois >= 12) return p12;
+  if (mois >= 6) return p6;
+  if (mois >= 3) return p3;
+  return base;
+}
+
+/** Durées qu'une formule peut vendre : une entreprise ne loue qu'au forfait mensuel. */
+export function dureesPermises(formula: RentalFormula): RentalDuree[] {
+  return formula === 'entreprise' ? ['mois'] : RENTAL_DUREES;
+}
+
 export const RENTAL_FORMULES: RentalFormula[] = ['evenement', 'entreprise', 'mise_a_disposition'];
 export const RENTAL_DUREES: RentalDuree[] = ['heures', 'journee', 'weekend', 'semaine', 'mois'];
 /** Options proposées à l'écran, dans l'ordre d'affichage. */
