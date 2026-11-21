@@ -504,3 +504,79 @@ partenaire) n'obtenait pas les mêmes résultats.
   au centre de contrôle.
 - **Google Maps ne fonctionne qu'avec une connexion.** Sans réseau, la carte ORION,
   livrée dans l'application, prend le relais.
+
+## 15. Version 1.4 : Google Maps, seule carte de l'app cliente (21 novembre)
+
+**Demande.** Le client a fourni sa clé Google (service « Maps JavaScript API ») et
+demandé que la carte de l'application soit celle de Google, et elle seule ; il souhaite
+aussi que les autres services de son compte Google Cloud soient mis à profit.
+
+### Ce que la clé permet (sonde depuis l'adresse de l'application Android)
+
+Une page de sonde, servie à l'adresse `https://localhost` (celle de l'application
+Android), a interrogé chaque service de Google Maps avec cette clé.
+
+| Service | Résultat |
+|---|---|
+| Maps JavaScript API (affichage de la carte) | **Accepté.** Carte nette, sans filigrane. |
+| Street View (inclus dans la carte) | Accepté. |
+| Places API (New) : recherche et détail de lieux | Refusé : service non activé sur le projet. |
+| Routes API : itinéraire avec trafic | Refusé : service non activé. |
+| Geocoding API : adresse d'une position | Refusé : service non activé. |
+| Places, Directions, Distance Matrix (anciennes versions), Elevation | Refusés : non activés. |
+
+La clé est acceptée depuis n'importe quelle adresse : elle n'a aucune restriction
+d'application. L'accès Google Cloud ouvert dans Claude est un connecteur BigQuery
+(requêtes SQL) ; il ne permet ni de voir ni d'activer les services du projet.
+
+### Ce qui a été fait
+
+| Fichier | Changement |
+|---|---|
+| `frontend/src/carteGoogle.ts` | Construction « Google seul » (`VITE_MAP_GOOGLE_SEUL=1` avec une clé) : `fondCarte()` répond toujours Google ; la clé de la construction prime sur toute clé saisie avec une version précédente ; `reessayerGoogle()` relance le chargement. |
+| `frontend/src/components/OrionMap.tsx`, `ChoixLieu.tsx` | Plus de repli sur la carte ORION dans cette construction. Si Google ne répond pas ou refuse la clé, un panneau le dit, donne le motif et propose « Réessayer ». La recherche, les prix et la commande restent utilisables. |
+| `frontend/src/components/CarteFondScreen.tsx` | Menu → Carte n'offre plus ni choix ni saisie de clé : une ligne « Google Maps », l'aperçu de la carte en service, son état. |
+| `frontend/src/components/CarteGoogle.tsx`, `index.css` | La carte s'arrête exactement au bord de la feuille du bas. Le logo et les mentions de Google passaient dessous : ils sont maintenant entièrement visibles, comme ses conditions l'exigent. |
+| `frontend/scripts/construire-client-google.sh` | Construit l'app cliente « Google seul ». La clé vient de l'environnement ; elle n'est écrite nulle part dans le dépôt. Les tuiles et polices de la carte ORION ne sont plus livrées. |
+| `.github/workflows/apk-client.yml` | Avec un secret `GOOGLE_MAPS_API_KEY`, l'APK compilé par GitHub est lui aussi « Google seul » ; sans ce secret, il garde la carte ORION. |
+| `frontend/android/app/build.gradle` | Version 1.4.0 (code 5). |
+
+**Ce qui ne change pas.** La recherche d'adresses reste celle d'ORION (48 924 lieux
+livrés avec l'application) et l'itinéraire reste celui du calcul ORION, tracé sur la
+carte Google : Places et Routes ne sont pas activés sur le projet. L'app chauffeur, la
+console, le tableau de bord et la version web de démonstration gardent la carte ORION.
+
+### Vérifications (avec la vraie clé)
+
+Tous les parcours tournent sur le contenu exact de l'APK 1.4.0, avec la clé du client.
+
+- **Google seul**, en clair puis en sombre, 7 étapes sur 7 chaque fois : Menu → Carte
+  (une seule ligne, aperçu de la vraie carte, sans filigrane) ; choix du véhicule,
+  commande et suivi sur Google Maps avec les repères ORION ; bulle GPS avant et pendant
+  la course ; choix d'un point sur la carte ; logo et mentions de Google visibles
+  au-dessus de la feuille sur les trois écrans ; Google coupé → panneau « Google Maps ne
+  répond pas », trois gammes toujours proposées ; « Réessayer » → la carte revient.
+- Aucune tuile ni police de la carte ORION n'est demandée pendant ces parcours.
+- Une clé fausse et un choix « carte ORION » laissés par la version 1.3 sur le téléphone
+  sont ignorés : la carte Google s'affiche.
+- Parcours du menu (trois traits, bulles, écrans, GPS) : 9 étapes sur 9.
+- Parcours complet (inscription, course, partage, SOS, paiement, assurance, abonnement,
+  location, mariage, suppression du compte) : 20 étapes sur 20.
+- Textes : 789 clés, toutes traduites dans les huit langues.
+- APK 1.4.0 : `ci.orion.app`, code 5, même signature que les précédents ; 10,7 Mo au lieu
+  de 26,6 ; ses 140 fichiers web sont identiques à la version testée ; aucune tuile ni
+  police de la carte ORION dedans. La clé y figure (c'est voulu) ; elle ne figure ni dans
+  le dépôt ni dans son historique.
+
+### Limites
+
+- **Rien n'a été essayé sur un téléphone.** Les parcours tournent dans le moteur de
+  Chrome, celui de l'application Android, à la même adresse (`https://localhost`).
+- **La clé est dans l'APK**, comme toute clé de carte affichée côté client : qui possède
+  le fichier peut la lire. Elle doit être restreinte dans Google Cloud (services
+  autorisés, adresse `https://localhost/*`) et son quota plafonné.
+- **Sans connexion, plus de carte** : c'est la conséquence de « Google seul ». L'écran
+  le dit ; la recherche et la commande restent possibles.
+- **Les lieux de Google ne sont pas encore dans la recherche** : il faut activer
+  « Places API (New) » sur le projet. De même « Routes API » pour un itinéraire tenant
+  compte du trafic, et « Geocoding API » pour l'adresse exacte d'une position.
