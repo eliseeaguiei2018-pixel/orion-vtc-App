@@ -913,3 +913,9 @@ dans le sous-total.
 contenu construit. Le client d'exemple renommé de la console y est aussi : plus aucune mention
 d'un autre pays hors des noms de lieux d'Abidjan.
 
+Parcours rejoués sur cette construction, tous réussis : services Google 9 sur 9 (clair et sombre),
+« Google seul » 7 sur 7 (clair et sombre), parcours complet 20 sur 20, parcours client 9 sur 9,
+fluidité inchangée (1 carte, 1 recentrage, 14 recadrages), aucune erreur JavaScript. Le supplément
+s'y lit sur le trajet d'essai de 5,4 km : 1 800 F en Argent, 2 500 F en Or, 3 500 F en Diamant
+(1 500, 2 200 et 3 200 F auparavant). Vérification automatique du dépôt verte sur l'envoi.
+
