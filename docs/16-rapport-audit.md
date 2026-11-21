@@ -875,3 +875,21 @@ sont identiques, un à un, au contenu sur lequel les parcours ont tourné.
 Aucune erreur JavaScript. Serveur : 412 tests réussis, 2 ignorés (SQLite). Rien n'est testé sur
 un téléphone réel.
 
+### APK 1.5.4 : plus aucune trace des autres pays
+
+Contrôle du contenu de l'APK 1.5.3 : l'écran des pays n'affichait bien que la Côte d'Ivoire,
+mais deux restes invisibles subsistaient. Le texte inutilisé « Expansion sous-régionale à venir »
+(huit langues) est retiré ; la route publique `/countries` du serveur ne publie plus que les pays
+actifs (les autres restent dans le catalogue, en réserve) ; le README ne promet plus d'autres pays.
+
+`ORION-client-1.5.4.apk` : version 1.5.4, code 11, même signature, SHA-256
+`3e54b6bb20c7bbb61d1e60dc95ae0f0d0f58804c0e5fb0073a20b44cb69e2e3a`, 167 fichiers web identiques au
+contenu testé. Mêmes parcours que la 1.5.3, tous réussis : services Google 9 sur 9 (clair et
+sombre), « Google seul » 7 sur 7 (clair et sombre), parcours complet 20 sur 20, parcours client
+9 sur 9, fluidité inchangée, aucune erreur JavaScript.
+
+Après cette construction, le client d'exemple de la console « Ambassade du Ghana » a été renommé
+« Groupe Ébrié Holding » : l'ancien nom figure encore dans les fichiers de l'APK 1.5.4 (données
+de démonstration de la console, non affichées dans l'application cliente). Les noms de lieux
+d'Abidjan qui citent un pays (ambassades, restaurants) sont conservés : ce sont des destinations.
+
