@@ -7,6 +7,8 @@ import {
   RENTAL_MOIS_MAX, RENTAL_OPTION_KEYS, RENTAL_TARIFF, dureesPermises, remiseMensuelle,
 } from './data';
 import { repondreLocal, reserverLocationLocale } from './serveurLocal';
+import { BAREME, BAREME_LIVRAISON, prixCourse, prixLivraison, traficServeur } from './tarifServeur';
+import { baseTempsReel, confirmerCodeGoogle, enTeteRecaptcha, enTetesPasserelle, envoyerCodeGoogle, identiteGoogleActive } from './securiteGoogle';
 
 /**
  * Client API ORION. Si VITE_API_URL est défini et joignable, on utilise le backend réel.
@@ -104,7 +106,7 @@ async function tryFetch<T>(path: string, init?: RequestInit, timeoutMs = 2500): 
     const jeton = (() => { try { return localStorage.getItem('orion.clientSession'); } catch { return null; } })();
     const res = await fetch(`${API}${path}`, {
       ...init,
-      headers: { 'content-type': 'application/json', ...(jeton ? { authorization: `Bearer ${jeton}` } : {}), ...(init?.headers ?? {}) },
+      headers: { 'content-type': 'application/json', ...enTetesPasserelle(), ...(jeton ? { authorization: `Bearer ${jeton}` } : {}), ...(init?.headers ?? {}) },
       signal: ctrl.signal,
     });
     clearTimeout(timer);
@@ -125,8 +127,6 @@ function haversine(a: LatLng, b: LatLng): number {
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-const round50 = (n: number) => Math.round(n / 50) * 50;
-
 export interface EstimateOpts {
   bodyType?: 'suv' | 'berline';
   stops?: LatLng[];
@@ -141,8 +141,8 @@ export interface EstimateOpts {
  * Une course se paie sur la distance réellement roulée (routes, ponts de la lagune, sens de
  * circulation), pas sur la distance à vol d'oiseau entre le départ et l'arrivée : à Abidjan
  * l'écart est souvent de moitié. Le trajet est celui que la carte trace (calcul routier
- * d'ORION, ou itinéraire de Google sur la carte Google). `fluideSeconds` (durée sans
- * circulation) permet de mesurer le trafic réel du moment.
+ * d'ORION, ou itinéraire de Google sur la carte Google) ; sa durée donne l'heure d'arrivée.
+ * Le trafic compté dans le prix suit la règle du serveur (heure et zones), pas la mesure du moment.
  */
 export interface TrajetTarif { distanceMeters: number; durationSeconds: number; fluideSeconds?: number }
 
@@ -153,75 +153,48 @@ let trajetConnu: (points: LatLng[]) => TrajetTarif | null = () => null;
 /** L'application indique où trouver le trajet déjà calculé pour une suite de points (voir tarifTrajet.ts). */
 export function definirTrajetTarif(f: (points: LatLng[]) => TrajetTarif | null): void { trajetConnu = f; }
 
-/** Distance, durée et trafic servant au prix : le trajet par la route s'il est connu et plausible, sinon l'estimation. */
-function baseTarifaire(points: LatLng[], vitesseKmh: number): { distanceMeters: number; etaSeconds: number; traffic: { level: 'fluid' | 'dense' | 'jam'; factor: number } } {
+/**
+ * Distance et durée servant au devis : le trajet par la route s'il est connu et plausible,
+ * sinon l'estimation (1,3 fois le vol d'oiseau, durée à la vitesse du barème).
+ * `facteurTrafic` n'allonge que la durée estimée ; un trajet calculé donne déjà sa durée réelle.
+ */
+function baseTarifaire(points: LatLng[], vitesseKmh: number, facteurTrafic: number): { distanceMeters: number; etaSeconds: number } {
   let vol = 0;
   for (let i = 1; i < points.length; i++) vol += haversine(points[i - 1]!, points[i]!);
   const t = trajetConnu(points);
   // Garde-fou : un trajet plus court que la ligne droite, ou démesuré, n'est pas un trajet.
   const plausible = t && t.distanceMeters >= vol * 0.98 && t.distanceMeters <= vol * 6 + 3000;
   if (!t || !plausible) {
-    const traffic = localTraffic();
     const distanceMeters = vol * SINUOSITE;
-    return { distanceMeters, etaSeconds: Math.round((distanceMeters / 1000 / vitesseKmh) * 3600 * traffic.factor), traffic };
+    return { distanceMeters, etaSeconds: Math.round((distanceMeters / 1000 / vitesseKmh) * 3600 * facteurTrafic) };
   }
-  // Trafic réel quand le trajet donne la durée avec et sans circulation ; sinon celui de l'heure.
-  let traffic = localTraffic();
-  if (t.fluideSeconds && t.fluideSeconds > 60) {
-    const rapport = t.durationSeconds / t.fluideSeconds;
-    traffic = { level: rapport < 1.1 ? 'fluid' : rapport < 1.3 ? 'dense' : 'jam', factor: Math.min(1.35, Math.max(1, rapport)) };
-  }
-  return { distanceMeters: t.distanceMeters, etaSeconds: Math.max(60, Math.round(t.durationSeconds)), traffic };
-}
-
-const BODY = { berline: 1, suv: 1.08 } as const;
-
-/** Détection de trafic locale (miroir du backend) selon l'heure. */
-function localTraffic(): { level: 'fluid' | 'dense' | 'jam'; factor: number } {
-  const h = new Date().getHours();
-  if ((h >= 6 && h < 9) || (h >= 17 && h < 20)) return { level: 'jam', factor: 1.35 };
-  if (h >= 9 && h < 17) return { level: 'dense', factor: 1.15 };
-  return { level: 'fluid', factor: 1 };
+  return { distanceMeters: t.distanceMeters, etaSeconds: Math.max(60, Math.round(t.durationSeconds)) };
 }
 
 /**
- * Estimation locale (miroir du backend). PRIX FIXE : le montant affiché = montant payé.
- * Trafic INTÉGRÉ au prix (adouci), jamais facturé à part. Tarifs abordables (< concurrence).
+ * Estimation locale : LE PRIX DU SERVEUR, calculé dans l'application (voir tarifServeur.ts).
+ * Mêmes règles que le serveur avec ses réglages d'origine : barème, zone de départ, frais de
+ * prise en charge, forfaits, retour à vide, plancher, trafic selon l'heure et les zones.
+ * PRIX FIXE : le montant affiché est le montant payé. Seuls la majoration de forte demande,
+ * les réglages modifiés depuis la console et les codes promo demandent un serveur relié.
  */
-const TRAFFIC_PRICE_WEIGHT = 0.6;
 function localEstimate(origin: LatLng, destination: LatLng, tier: TierOption, opts: EstimateOpts = {}): Quote {
   const stops = opts.stops ?? [];
-  const pts = [origin, ...stops, destination];
-  // Distance par la route (et non à vol d'oiseau), durée et trafic du trajet.
-  const { distanceMeters, etaSeconds, traffic } = baseTarifaire(pts, 24);
-  const km = distanceMeters / 1000;
-  const bodyF = BODY[opts.bodyType ?? 'berline'];
-  const m = tier.multiplier;
-  const minutes = (km / 24) * 60; // temps facturé à vitesse libre (trafic non surfacturé)
-  const base = 300 * m * bodyF + stops.length * 250 * m;
-  const distance = km * 130 * m * bodyF;
-  const time = minutes * 18 * m * bodyF;
-  const trafficMult = 1 + (traffic.factor - 1) * TRAFFIC_PRICE_WEIGHT;
-  const sansSupplement = Math.max((base + distance + time) * trafficMult, 600 * m);
-  // Supplément de gamme : écart FIXE et TTC par rapport à l'Argent (même règle que le serveur).
-  const tauxTtc = 1 + 0.05 + 0.1 + (opts.insurance ? 0.02 : 0);
-  const amount = round50(sansSupplement * tauxTtc) + (tier.supplement ?? 0);
-  const subtotal = amount / tauxTtc;
-  const tva = subtotal * 0.05;
-  const fee = subtotal * 0.1;
-  const insurance = opts.insurance ? subtotal * 0.02 : 0;
+  const trafic = traficServeur(origin, destination);
+  // Distance par la route (et non à vol d'oiseau) et durée du trajet.
+  const { distanceMeters, etaSeconds } = baseTarifaire([origin, ...stops, destination], BAREME.avgSpeedKmh, trafic.factor);
+  const prix = prixCourse({
+    origin, destination, stops, distanceMeters,
+    multiplier: tier.multiplier, supplement: tier.supplement, bodyType: opts.bodyType, insurance: opts.insurance,
+  });
   return {
     lockId: `local-${Date.now()}`,
-    amount,
+    amount: prix.amount,
     currency: 'XOF',
     distanceMeters: Math.round(distanceMeters),
     etaSeconds,
-    trafficLevel: traffic.level,
-    breakdown: {
-      base: Math.round(base), distance: Math.round(distance), time: Math.round(time), surge: 1,
-      traffic: 0, discount: 0, subtotal: Math.round(subtotal),
-      tva: Math.round(tva), fee: Math.round(fee), insurance: Math.round(insurance),
-    },
+    trafficLevel: prix.trafficLevel,
+    breakdown: prix.breakdown,
   };
 }
 
@@ -240,31 +213,18 @@ export type PkgSize = keyof typeof PKG_FACTOR;
  * tarif au km + facteur taille de colis, TVA 5% + frais 10%.
  */
 export function previewDelivery(origin: LatLng, destination: LatLng, size: PkgSize): Quote {
-  const { distanceMeters, etaSeconds, traffic } = baseTarifaire([origin, destination], 26); // moto plus rapide
-  const km = distanceMeters / 1000;
-  const f = PKG_FACTOR[size];
-  const minutes = (km / 26) * 60;
-  // Barème coursier : aligné sur DELIVERY_TARIFF du backend (moins cher qu'une course
-  // voiture — la moto coûte moins à exploiter et ne transporte pas de passager).
-  const base = 220 * f;
-  const distance = km * 88 * f;
-  const time = minutes * 8 * f;
-  const trafficMult = 1 + (traffic.factor - 1) * TRAFFIC_PRICE_WEIGHT;
-  const subtotal = Math.max((base + distance + time) * trafficMult, 500);
-  const tva = subtotal * 0.05;
-  const fee = subtotal * 0.1;
+  const trafic = traficServeur(origin, destination);
+  const { distanceMeters, etaSeconds } = baseTarifaire([origin, destination], BAREME_LIVRAISON.avgSpeedKmh, trafic.factor); // moto plus rapide
+  // Barème coursier du serveur (moins cher qu'une course en voiture), zone de départ comprise.
+  const prix = prixLivraison({ origin, destination, distanceMeters, tailleFacteur: PKG_FACTOR[size] });
   return {
     lockId: `delivery-${Date.now()}`,
-    amount: round50(subtotal + tva + fee),
+    amount: prix.amount,
     currency: 'XOF',
     distanceMeters: Math.round(distanceMeters),
     etaSeconds,
-    trafficLevel: traffic.level,
-    breakdown: {
-      base: Math.round(base), distance: Math.round(distance), time: Math.round(time), surge: 1,
-      traffic: 0, discount: 0, subtotal: Math.round(subtotal),
-      tva: Math.round(tva), fee: Math.round(fee), insurance: 0,
-    },
+    trafficLevel: prix.trafficLevel,
+    breakdown: prix.breakdown,
   };
 }
 
@@ -371,7 +331,7 @@ async function appel<T>(path: string, init: RequestInit = {}, timeoutMs = 8000):
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     const res = await fetch(`${API}${path}`, {
       ...init,
-      headers: { ...(init.body ? { 'content-type': 'application/json' } : {}), ...(jeton ? { authorization: `Bearer ${jeton}` } : {}), ...(init.headers ?? {}) },
+      headers: { ...(init.body ? { 'content-type': 'application/json' } : {}), ...enTetesPasserelle(), ...(jeton ? { authorization: `Bearer ${jeton}` } : {}), ...(init.headers ?? {}) },
       signal: ctrl.signal,
     });
     clearTimeout(timer);
@@ -385,15 +345,31 @@ async function appel<T>(path: string, init: RequestInit = {}, timeoutMs = 8000):
 }
 
 export async function demanderCode(phone: string): Promise<{ ok: true; devCode?: string; compteExistant: boolean } | { ok: false; error: string }> {
-  const r = await appel<{ devCode?: string; compteExistant: boolean }>('/clients/auth/otp', { method: 'POST', body: JSON.stringify({ phone }) });
+  // Identity Platform (si réglé, avec un serveur relié) : c'est Google qui envoie et contrôle le code SMS.
+  if (identiteGoogleActive && API) {
+    const g = await envoyerCodeGoogle(phone);
+    return g.ok ? { ok: true, compteExistant: false } : g;
+  }
+  // reCAPTCHA Enterprise (si réglé) : le serveur n'envoie pas de SMS à un robot.
+  const r = await appel<{ devCode?: string; compteExistant: boolean }>('/clients/auth/otp', {
+    method: 'POST', body: JSON.stringify({ phone }), headers: API ? await enTeteRecaptcha('connexion_client') : {},
+  });
   return r.ok ? { ok: true, devCode: r.data.devCode, compteExistant: r.data.compteExistant } : { ok: false, error: r.error };
 }
 
 /** Vérifie le code ; en cas de succès, l'appareil adopte le compte (et sa session). */
 export async function verifierCode(phone: string, code: string, name?: string, email?: string): Promise<{ ok: true; client: ProfilClient; compteRetrouve: boolean } | { ok: false; error: string }> {
-  const r = await appel<{ token: string; client: ProfilClient; compteRetrouve: boolean }>('/clients/auth/verify', {
-    method: 'POST', body: JSON.stringify({ clientId: clientId(), phone, code, name: name?.trim() || undefined, email: email?.trim() || undefined }),
-  });
+  type Session = { token: string; client: ProfilClient; compteRetrouve: boolean };
+  const identite = { clientId: clientId(), name: name?.trim() || undefined, email: email?.trim() || undefined };
+  let r: Awaited<ReturnType<typeof appel<Session>>>;
+  if (identiteGoogleActive && API) {
+    // Le code est vérifié par Google ; le serveur ORION reçoit le jeton d'identité et ouvre le compte du numéro.
+    const g = await confirmerCodeGoogle(phone, code);
+    if (!g.ok) return g;
+    r = await appel<Session>('/clients/auth/identity', { method: 'POST', body: JSON.stringify({ ...identite, idToken: g.idToken }) });
+  } else {
+    r = await appel<Session>('/clients/auth/verify', { method: 'POST', body: JSON.stringify({ ...identite, phone, code }) });
+  }
   if (!r.ok) return { ok: false, error: r.error };
   try {
     localStorage.setItem(SESSION_KEY, r.data.token);
@@ -772,13 +748,8 @@ export async function listAnnouncements(): Promise<Announcement[]> {
 /** Construit une URL WebSocket vers un chemin de l'API (null si pas de backend). */
 function wsUrl(path: string): string | null {
   if (!API) return null;
-  try {
-    const u = new URL(API);
-    const proto = u.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${proto}//${u.host}${path}`;
-  } catch {
-    return null;
-  }
+  const base = baseTempsReel(API);
+  return base ? `${base}${path}` : null;
 }
 
 /** URL WebSocket de suivi d'une course (null si pas de backend configuré). */

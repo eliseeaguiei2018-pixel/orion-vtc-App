@@ -1841,3 +1841,24 @@ button.menu-texte { cursor: pointer; }
 .hub { background: linear-gradient(180deg, color-mix(in srgb, var(--rappel) 12%, var(--bg-0)) 0%, var(--bg-0) 196px); }
 .hub .hub-hero, .hub .page-body { background: none; }
 [data-theme='light'] .hub-search { background: color-mix(in srgb, var(--rappel) 4%, #ffffff); }
+
+/* ==========================================================================================
+   COULEURS VIVES — les mêmes couleurs, en plus franc
+   ==========================================================================================
+   Aucune couleur ne change de place ni de teinte : les icônes au trait restent noires, les
+   sélections restent neutres, les tuiles translucides de l'accueil ne sont pas touchées.
+   Seule l'intensité monte : la teinte de la couleur choisie (vert, bleu ou orange), déjà
+   présente dans les fonds, est posée sur du blanc pur plutôt que sur du gris et un peu plus
+   soutenue ; la lueur du haut de l'accueil est plus nette. Les objets de l'accueil sont ceux
+   de la palette urbaine, plus saturés (rendus/vif/). */
+:root[data-theme='light'] {
+  --bg-2: color-mix(in srgb, var(--rappel) 10%, #ffffff);
+  --surface: color-mix(in srgb, var(--rappel) 11%, #ffffff);
+  --surface-2: color-mix(in srgb, var(--rappel) 17%, #ffffff);
+  --stroke: color-mix(in srgb, var(--rappel) 26%, #e8e8ec);
+}
+:root:not([data-theme='light']) {
+  --surface: color-mix(in srgb, var(--rappel) 11%, #1c1d21);
+  --surface-2: color-mix(in srgb, var(--rappel) 14%, #25272c);
+}
+.hub { background: linear-gradient(180deg, color-mix(in srgb, var(--rappel) 22%, var(--bg-0)) 0%, var(--bg-0) 196px); }

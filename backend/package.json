@@ -13,6 +13,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "hash-password": "tsx scripts/hash-password.ts",
     "totp-secret": "tsx scripts/totp-secret.ts",
+    "gcp:controle": "tsx scripts/gcp-controle.ts",
     "code-synchro": "tsx scripts/code-synchro.ts",
     "index-lieux": "node scripts/synchroniser-index-lieux.mjs",
     "test": "NODE_ENV=test SIMULATE_RIDES=false GEOCODEUR_URL=off tsx --test tests/**/*.test.ts",

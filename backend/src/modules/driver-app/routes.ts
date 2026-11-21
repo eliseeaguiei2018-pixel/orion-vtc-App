@@ -1,3 +1,4 @@
+import { exigerHumain } from '../gcp/securite.js';
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -50,6 +51,8 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
     const body = parse(z.object({ phone: z.string().min(6).max(25) }), req.body);
     const phone = normalizePhone(body.phone);
     if (!phone) throw badRequest('Numéro de téléphone invalide');
+    // reCAPTCHA Enterprise (si configuré) : pas de SMS pour un robot.
+    await exigerHumain(container.securiteGoogle, req, 'connexion_chauffeur');
     // Envoi par l'opérateur SMS (Orange Côte d'Ivoire ou Twilio) : on ne journalise
     // jamais le code ni le numéro complet.
     const issued = await emettreCode({ sms: container.sms, otps, phone, pour: 'chauffeur', log: req.log });

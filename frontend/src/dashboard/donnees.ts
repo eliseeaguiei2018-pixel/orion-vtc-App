@@ -1,3 +1,4 @@
+import { enTeteRecaptcha } from '../securiteGoogle';
 import { API, H, LIVE, clearSession, expKey, logout, setCsrf } from '../admin/api';
 import type { AnalysePeriode, AnalyseTableau, EntreeJournal, EtatTableau, JourCommandes, ObjectifsFinanciers, PointCommandes, PointCourbe } from './types';
 
@@ -80,7 +81,7 @@ export async function lireAnalyse(): Promise<AnalyseTableau> {
 
 export async function seConnecter(username: string, password: string, code?: string): Promise<'ok' | 'code' | string> {
   const r = await fetch(`${API}/admin/login`, {
-    method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include',
+    method: 'POST', headers: { 'content-type': 'application/json', ...(await enTeteRecaptcha('connexion_console')) }, credentials: 'include',
     body: JSON.stringify({ username, password, ...(code ? { code } : {}) }),
   });
   if (r.status === 429) return 'Compte temporairement verrouillé : réessayez plus tard.';

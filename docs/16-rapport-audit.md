@@ -811,3 +811,49 @@ s'installer par-dessus une 1.5.2 déjà posée.
 - **Les prix montent** d'environ 10 à 60 % selon le détour imposé par la route (ponts de
   la lagune) : c'est l'effet voulu, à surveiller sur les premiers trajets réels.
 - **La page partageable** montre encore la version 1.4.
+
+## 19. Prix du serveur dans l'application, Côte d'Ivoire seule, couleurs plus vives, sécurité Google Cloud (21 novembre)
+
+### Le prix affiché hors serveur est celui du serveur
+
+Sans serveur relié, l'application calculait le prix avec le barème seul. Le serveur, lui, ajoute
+le facteur de la commune de départ (Yopougon et Abobo 0,92 ; Treichville et Adjamé 0,95 ; Plateau
+1,05 ; aéroport 1,10 ; secteurs résidentiels 1,08 à 1,18), les frais de prise en charge de ces
+secteurs (100 à 250 F) et un trafic estimé selon l'heure **et** la densité des zones du trajet.
+Ces règles sont désormais recopiées dans l'application (`frontend/src/tarifServeur.ts`) et
+`backend/tests/prix-application.test.ts` demande le même devis aux deux : 108 devis de course
+(12 trajets, 3 gammes, berline, SUV, arrêt) et 36 devis de livraison, identiques au franc près.
+Le test échoue dès qu'un côté change sans l'autre.
+
+Ce qui reste propre à un serveur relié : la majoration de forte demande (plafonnée à 1,3), les
+réglages modifiés depuis la console et les codes promo. Conséquence pour le trafic : le prix suit
+la règle du serveur (heure et zones) et non plus la circulation mesurée par Google ; la durée
+affichée reste celle de l'itinéraire réel.
+
+Repère, trajet de 20,5 km au départ de Yopougon, gamme Argent : 3 700 F la nuit, 4 050 F en
+journée, 4 050 à 4 500 F aux heures de pointe ; avec la majoration maximale, 5 250 à 5 800 F.
+Sur le même trajet, la capture Yango fournie affichait 6 600 à 8 900 F. Cas extrême où ORION
+dépasserait le tarif le plus bas de cette capture : départ d'un secteur résidentiel à 1,18,
+heure de pointe saturée et majoration maximale (environ 7 750 F).
+
+### Pays
+
+Seule la Côte d'Ivoire est affichée dans les paramètres ; Ghana, Sénégal, Togo, Bénin et Nigeria
+(« Bientôt ») sont retirés.
+
+### Couleurs plus vives, sans changement de teinte
+
+Les objets de l'accueil sont ceux de la palette urbaine, plus saturés (`rendus/vif/`, produits
+par `publier.py` avec `ORION_VIVACITE=1.6 ORION_CONTRASTE=1.06`) : voiture et scooter restent
+blancs, sacs et panier anthracite ; le kraft, l'or, le cuir et les aliments sont plus francs.
+La teinte de la couleur choisie dans les fonds est posée sur du blanc pur et un peu plus
+soutenue. Icônes au trait, sélections et tuiles translucides : inchangées. Un premier essai qui
+changeait les couleurs (voiture à la couleur choisie, panier rouge, icônes colorées) a été écarté.
+
+### Sécurité Google Cloud
+
+Six services, un besoin chacun : voir `deploy/gcp/README.md`. Code serveur dans
+`backend/src/modules/gcp/`, inactif sans réglage ; 14 tests avec Google simulé. Rien n'a été
+exécuté sur un projet Google réel (aucun accès depuis l'atelier) : les scripts sont à lancer sur
+un projet d'essai avant la production.
+

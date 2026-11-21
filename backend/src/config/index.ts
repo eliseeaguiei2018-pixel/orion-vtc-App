@@ -184,6 +184,31 @@ const schema = z.object({
   PERSISTENCE: z.enum(['memory', 'sqlite']).default('memory'),
   // Bus temps réel entre instances (plusieurs serveurs derrière un répartiteur) :
   // redis://hote:6379. Vide : une seule instance, le temps réel reste dans le processus.
+  // ---- Sécurité Google Cloud (facultative ; rien n'est actif sans ces variables) ----
+  // Projet Google Cloud. Inutile sur Cloud Run (lu auprès de l'instance), requis ailleurs.
+  GCP_PROJECT_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().regex(/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/, 'GCP_PROJECT_ID : identifiant de projet Google Cloud').optional()),
+  // reCAPTCHA Enterprise avant l'envoi d'un code SMS et la connexion à la console.
+  // off : aucune vérification · observe : évalue et journalise sans bloquer · enforce : bloque.
+  RECAPTCHA_MODE: z.preprocess((v) => (v === '' ? undefined : v), z.enum(['off', 'observe', 'enforce']).default('off')),
+  RECAPTCHA_SITE_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(20).max(80).optional()),
+  // Score minimal accepté (0 = robot, 1 = humain).
+  RECAPTCHA_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.5),
+  // Identity Platform : accepter les jetons d'identité de Google sur /clients/auth/identity.
+  IDENTITY_PLATFORM: z.string().default('false').transform((v) => v.toLowerCase() === 'true'),
+  IDENTITY_PLATFORM_TENANT: z.preprocess((v) => (v === '' ? undefined : v), z.string().max(80).optional()),
+  // API Gateway : compte de service de la passerelle et destinataire de son jeton (adresse du serveur).
+  GCP_GATEWAY_SERVICE_ACCOUNT: z.preprocess((v) => (v === '' ? undefined : v), z.string().email().optional()),
+  GCP_GATEWAY_AUDIENCE: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(8).max(300).optional()),
+  // true : toute requête qui n'arrive pas par la passerelle est refusée (hors santé et temps réel).
+  GCP_GATEWAY_REQUIRED: z.string().default('false').transform((v) => v.toLowerCase() === 'true'),
+  // Débuts de chemins dispensés de passerelle : sonde de santé, canaux temps réel (connexions longues,
+  // servies par l'équilibreur) et console (navigateurs du personnel, derrière Cloud Armor).
+  GCP_GATEWAY_EXEMPT: z.string().default('/health,/ws,/admin,/appareils,/share'),
+  // Nombre de relais de confiance devant le serveur (équilibreur, passerelle) : sans lui, le
+  // limiteur de débit voit l'adresse du relais et compte tous les clients comme un seul.
+  // 0 : aucun (serveur exposé directement). Cloud Run seul : 1. Équilibreur + Cloud Run : 2.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+
   REDIS_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
   DB_PATH: z.string().default('./data/orion.db'),
 }).superRefine((c, ctx) => {
@@ -208,6 +233,19 @@ const schema = z.object({
     if (!c.ADMIN_USERS && (c.ADMIN_PASSWORD === 'orion-admin-dev' || c.ADMIN_PASSWORD.length < 12)) {
       ctx.addIssue({ code: 'custom', path: ['ADMIN_PASSWORD'], message: 'ADMIN_PASSWORD : le mot de passe de développement est public ; en définir un de 12 caractères au moins (ou ADMIN_USERS)' });
     }
+  }
+  // Sécurité Google Cloud : une protection activée à moitié ne protège pas — on refuse de démarrer.
+  if (c.RECAPTCHA_MODE !== 'off' && !c.RECAPTCHA_SITE_KEY) {
+    ctx.addIssue({ code: 'custom', path: ['RECAPTCHA_SITE_KEY'], message: 'RECAPTCHA_MODE actif : RECAPTCHA_SITE_KEY (clé de site reCAPTCHA Enterprise) est requise' });
+  }
+  if (c.IDENTITY_PLATFORM && !c.GCP_PROJECT_ID) {
+    ctx.addIssue({ code: 'custom', path: ['GCP_PROJECT_ID'], message: 'IDENTITY_PLATFORM=true : GCP_PROJECT_ID est requis (les jetons sont vérifiés pour ce projet)' });
+  }
+  if (Boolean(c.GCP_GATEWAY_SERVICE_ACCOUNT) !== Boolean(c.GCP_GATEWAY_AUDIENCE)) {
+    ctx.addIssue({ code: 'custom', path: ['GCP_GATEWAY_AUDIENCE'], message: 'API Gateway : GCP_GATEWAY_SERVICE_ACCOUNT et GCP_GATEWAY_AUDIENCE vont ensemble' });
+  }
+  if (c.GCP_GATEWAY_REQUIRED && !c.GCP_GATEWAY_SERVICE_ACCOUNT) {
+    ctx.addIssue({ code: 'custom', path: ['GCP_GATEWAY_REQUIRED'], message: 'GCP_GATEWAY_REQUIRED=true : GCP_GATEWAY_SERVICE_ACCOUNT et GCP_GATEWAY_AUDIENCE sont requis' });
   }
   // Un opérateur choisi sans ses identifiants : le serveur refuse de démarrer, plutôt que
   // de laisser les clients attendre un SMS qui ne partira jamais.

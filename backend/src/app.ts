@@ -9,6 +9,7 @@ import { loggerOptions } from './core/logger.js';
 import { AppError } from './core/errors.js';
 import { createContainer, type Container } from './container.js';
 import { healthRoutes } from './modules/health/routes.js';
+import { brancherPasserelle } from './modules/gcp/securite.js';
 import { appareilsRoutes } from './modules/appareils/routes.js';
 import { pricingRoutes } from './modules/pricing/routes.js';
 import { driverRoutes, greenTelemetryRoutes } from './modules/drivers/routes.js';
@@ -60,7 +61,12 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
     // Corrélation des logs/traces : chaque requête a un id propagé (observabilité).
     genReqId: (req) => (req.headers['x-request-id'] as string) ?? randomUUID(),
     disableRequestLogging: config.NODE_ENV === 'test',
+    // Derrière un équilibreur ou une passerelle : l'adresse du client vient de X-Forwarded-For.
+    trustProxy: config.TRUST_PROXY_HOPS > 0 ? (_adresse: string, rang: number) => rang < config.TRUST_PROXY_HOPS : false,
   });
+
+  // API Gateway : reconnaît les requêtes relayées par la passerelle (inactif sans configuration).
+  brancherPasserelle(app);
 
   // CORS : autorise l'app cliente (autre origine) à appeler l'API.
   //

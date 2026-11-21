@@ -46,14 +46,12 @@ export const SUB_PLANS: SubPlan[] = [
     benefits: ['4 courses incluses / jour', 'Toutes les gammes (Diamant inclus)', 'Priorité maximale', '-15% au-delà du quota', 'Annulation gratuite'] },
 ];
 
-/** Pays : CI actif + expansion sous-régionale. */
+/**
+ * Pays : ORION opère en Côte d'Ivoire. Les autres pays ne sont pas affichés tant que
+ * l'ouverture n'est pas décidée — une promesse « Bientôt » sans date n'apporte rien au client.
+ */
 export const COUNTRIES: Country[] = [
   { code: 'CI', name: "Côte d'Ivoire", flag: '🇨🇮', currency: 'XOF', dialCode: '+225', status: 'active' },
-  { code: 'GH', name: 'Ghana', flag: '🇬🇭', currency: 'GHS', dialCode: '+233', status: 'coming_soon' },
-  { code: 'SN', name: 'Sénégal', flag: '🇸🇳', currency: 'XOF', dialCode: '+221', status: 'coming_soon' },
-  { code: 'TG', name: 'Togo', flag: '🇹🇬', currency: 'XOF', dialCode: '+228', status: 'coming_soon' },
-  { code: 'BJ', name: 'Bénin', flag: '🇧🇯', currency: 'XOF', dialCode: '+229', status: 'coming_soon' },
-  { code: 'NG', name: 'Nigeria', flag: '🇳🇬', currency: 'NGN', dialCode: '+234', status: 'coming_soon' },
 ];
 
 export const DRIVERS: Driver[] = [

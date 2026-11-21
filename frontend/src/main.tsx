@@ -12,9 +12,10 @@ import { definirStyle } from './components/Vehicules';
 
 // Style de l'app cliente : toutes les icônes des listes au trait, sans couleur ; à l'accueil,
 // des objets en volume sur une base neutre, où la couleur vient des matières (kraft, or, cuir,
-// aliments) — palette « urbain ». Autres jeux livrés : `accueil: 'nb'` (noir, gris et blanc)
-// et `accueil: 'couleur'` (vert, blanc et violet).
-definirStyle({ icones: 'trait', accueil: 'urbain' });
+// aliments) — palette « vif » : les objets et les couleurs de la palette « urbain », en plus
+// saturé. Autres jeux livrés : `accueil: 'urbain'`, `'nb'` (noir, gris et blanc) et `'couleur'`
+// (vert, blanc et violet).
+definirStyle({ icones: 'trait', accueil: 'vif' });
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

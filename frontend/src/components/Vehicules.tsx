@@ -27,11 +27,13 @@ export const rendu = (nom: string): string => `${import.meta.env.BASE_URL}rendus
  *  - `icones` : 'volume' (objets rendus en 3D, comme dans l'app chauffeur et la console) ou
  *    'trait' (pictogrammes au trait, sans couleur, ceux du menu) pour toutes les icônes des
  *    listes : packs, urgences, lieux, compte. Les tuiles de l'accueil gardent leur volume.
- *  - `accueil` : 'couleur' (vert, blanc, violet) ou 'nb' (noir, gris, blanc : rendus/nb/).
+ *  - `accueil` : 'couleur' (vert, blanc, violet), 'nb' (noir, gris, blanc : rendus/nb/), 'urbain'
+ *    (base neutre, couleurs naturelles : rendus/urbain/) ou 'vif' (les mêmes objets et les mêmes
+ *    couleurs que 'urbain', en plus saturé : rendus/vif/, produits par publier.py).
  *
  * Revenir à l'ancien accueil : `accueil: 'couleur'` dans src/main.tsx, rien d'autre.
  */
-export interface StyleOrion { icones: 'volume' | 'trait'; accueil: 'couleur' | 'nb' | 'urbain' }
+export interface StyleOrion { icones: 'volume' | 'trait'; accueil: 'couleur' | 'nb' | 'urbain' | 'vif' }
 const style: StyleOrion = { icones: 'volume', accueil: 'couleur' };
 export function definirStyle(s: Partial<StyleOrion>): void { Object.assign(style, s); }
 const dossierAccueil = (): string => (style.accueil === 'couleur' ? '' : `${style.accueil}/`);

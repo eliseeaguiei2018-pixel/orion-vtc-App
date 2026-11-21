@@ -13,6 +13,14 @@ interface ImportMetaEnv {
   readonly VITE_MAP_TILE_URL?: string;
   readonly VITE_MAP_ATTRIBUTION?: string;
   readonly VITE_MAPTILER_KEY?: string;
+  /** Clé de site reCAPTCHA Enterprise : jeton joint aux demandes de code SMS et à la connexion console. */
+  readonly VITE_RECAPTCHA_SITE_KEY?: string;
+  /** Clé de l'application pour API Gateway (en-tête x-api-key de chaque appel). */
+  readonly VITE_ORION_API_KEY?: string;
+  /** Adresse des canaux temps réel quand elle diffère de l'API (suivi en direct par l'équilibreur plutôt que par API Gateway). */
+  readonly VITE_WS_URL?: string;
+  /** Clé web Identity Platform : la vérification du numéro du client est confiée à Google. */
+  readonly VITE_IDENTITY_PLATFORM_KEY?: string;
 }
 interface ImportMeta {
   readonly env: ImportMetaEnv;

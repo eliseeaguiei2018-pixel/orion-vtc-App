@@ -1,3 +1,4 @@
+import { enTeteRecaptcha } from '../securiteGoogle';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { avis, demander, demanderLieu } from './dialogues';
 import { LogoApp } from '../components/Logo';
@@ -140,7 +141,8 @@ function Login({ onDone }: { onDone: () => void }) {
     if (!LIVE) { setDemoSession(); localStorage.setItem(expKey, String(Date.now() + 12 * 3600e3)); onDone(); return; }
     try {
       const res = await fetch(`${API}/admin/login`, {
-        method: 'POST', headers: { 'content-type': 'application/json' },
+        // reCAPTCHA Enterprise (si réglé) : pas d'essais de mots de passe en série par un robot.
+        method: 'POST', headers: { 'content-type': 'application/json', ...(await enTeteRecaptcha('connexion_console')) },
         // Le serveur répond avec le cookie de session HttpOnly : il faut l'accepter.
         credentials: 'include',
         body: JSON.stringify({ username: username.trim(), password, ...(mfa && code.trim() ? { code: code.trim() } : {}) }),

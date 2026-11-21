@@ -1,3 +1,4 @@
+import { baseTempsReel, enTeteRecaptcha, enTetesPasserelle } from '../securiteGoogle';
 import { configSocketUrl, fetchAppConfig, isLiveBackend, sosRepondre, sosSocketUrl, sosSuivi, type AppConfig, type SosSuivi } from '../api';
 import type {
   EtapeLocation, LocationChauffeur, MessagesChef, MotifAnnulationChauffeur, NouvelleRequete, Poste, RequeteVue,
@@ -95,13 +96,8 @@ export interface DriverBackend {
 
 const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
 function wsBase(): string | null {
-  if (!API) return null;
-  try {
-    const u = new URL(API);
-    return `${u.protocol === 'https:' ? 'wss:' : 'ws:'}//${u.host}`;
-  } catch {
-    return null;
-  }
+  // Canaux temps réel : adresse de l'API, ou VITE_WS_URL quand l'API passe par API Gateway.
+  return API ? baseTempsReel(API) : null;
 }
 
 /** Socket avec reconnexion automatique (4 s, comme l'app cliente). */
@@ -150,7 +146,8 @@ function createLiveBackend(): DriverBackend {
   async function call<T>(path: string, init: RequestInit = {}, auth = true, accept: number[] = []): Promise<T> {
     const ctrl = new AbortController();
     const timer = window.setTimeout(() => ctrl.abort(), 10_000);
-    const headers: Record<string, string> = { ...(init.headers as Record<string, string> | undefined) };
+    // Clé de l'application pour API Gateway (si la passerelle est utilisée).
+    const headers: Record<string, string> = { ...enTetesPasserelle(), ...(init.headers as Record<string, string> | undefined) };
     if (init.body !== undefined) headers['content-type'] = 'application/json';
     if (auth && current) headers['authorization'] = `Bearer ${current.token}`;
     let res: Response;
@@ -187,7 +184,8 @@ function createLiveBackend(): DriverBackend {
     session: () => current,
     logout: () => { current = null; saveSession(null); },
 
-    requestOtp: (phone) => call('/drivers/auth/otp', { method: 'POST', body: JSON.stringify({ phone }) }, false),
+    // reCAPTCHA Enterprise (si réglé) : le serveur n'envoie pas de SMS à un robot.
+    requestOtp: async (phone) => call('/drivers/auth/otp', { method: 'POST', body: JSON.stringify({ phone }), headers: await enTeteRecaptcha('connexion_chauffeur') }, false),
     async verifyOtp(phone, code, name, category) {
       const r = await call<{ token: string; expiresAt: string; driver: DriverProfile; created: boolean }>(
         '/drivers/auth/verify', { method: 'POST', body: JSON.stringify({ phone, code, name, category }) }, false);

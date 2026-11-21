@@ -3,9 +3,17 @@ Met les rendus à la taille de l'application et les enregistre en WebP (avec tra
 
 Usage : python publier.py <dossier-des-png> <frontend/public/rendus>
 Dépendance : Pillow.
+
+Couleurs avivées (facultatif) : ORION_VIVACITE=1.5 renforce la saturation des couleurs du rendu
+sans changer leur teinte (le kraft reste kraft, en plus franc ; le blanc et le noir, sans couleur,
+ne bougent pas) et ORION_CONTRASTE=1.06 creuse légèrement le contraste. C'est ainsi que sont
+produits les objets de rendus/vif/ à partir des rendus de la palette urbaine.
 """
 import os, sys
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageEnhance
+
+VIVACITE = float(os.environ.get('ORION_VIVACITE', '1'))
+CONTRASTE = float(os.environ.get('ORION_CONTRASTE', '1'))
 
 SOURCE, CIBLE = sys.argv[1:3]
 os.makedirs(CIBLE, exist_ok=True)
@@ -13,6 +21,12 @@ total = 0
 for fichier in sorted(os.listdir(SOURCE)):
     if not fichier.endswith('.png') or fichier == 'planche.png': continue
     im = Image.open(os.path.join(SOURCE, fichier)).convert('RGBA')
+    if VIVACITE != 1 or CONTRASTE != 1:
+        # Les couleurs seules sont retouchées ; la transparence (détourage, ombre) est conservée telle quelle.
+        alpha = im.getchannel('A'); couleurs = im.convert('RGB')
+        if VIVACITE != 1: couleurs = ImageEnhance.Color(couleurs).enhance(VIVACITE)
+        if CONTRASTE != 1: couleurs = ImageEnhance.Contrast(couleurs).enhance(CONTRASTE)
+        im = couleurs.convert('RGBA'); im.putalpha(alpha)
     l, h = im.size
     # Largeur utile : trois fois la taille affichée la plus grande (écrans très denses).
     # Icônes de liste (rendues à 360 px) : 168 px suffisent pour 48 px affichés sur écran très dense.

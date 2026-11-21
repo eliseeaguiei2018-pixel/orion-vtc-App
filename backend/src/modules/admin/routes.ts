@@ -1,3 +1,4 @@
+import { exigerHumain } from '../gcp/securite.js';
 import { Readable } from 'node:stream';
 import { nearestZone } from '../geo-ci/zones.js';
 import { timingSafeEqual } from 'node:crypto';
@@ -92,6 +93,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     // vérifié AVANT le mot de passe, pour qu'un appareil inconnu ne puisse même pas
     // tester des identifiants.
     const appareil = exigerAppareil(container, req, body.username);
+    // reCAPTCHA Enterprise (si configuré) : pas d'essais de mots de passe en série par un robot.
+    await exigerHumain(container.securiteGoogle, req, 'connexion_console');
     const lock = lockedFor(body.username);
     if (lock > 0) {
       container.audit.log({ actor: body.username, role: 'viewer', action: 'login.locked' });

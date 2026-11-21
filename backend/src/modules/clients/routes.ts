@@ -12,6 +12,8 @@ import { vueUsager } from '../safety/service.js';
 import type { Client } from './store.js';
 import { issueClientToken, requireClient, validerPhoto } from './auth.js';
 import { lieuDe } from '../maps/lieux.js';
+import { exigerHumain } from '../gcp/securite.js';
+import { JetonRefuse } from '../gcp/jetons.js';
 
 /**
  * COMPTE CLIENT : inscription par numéro vérifié, profil, photo, historique.
@@ -55,6 +57,8 @@ export async function clientAccountRoutes(app: FastifyInstance, container: Conta
     const body = parse(z.object({ phone: z.string().min(6).max(25) }), req.body);
     const phone = normalizePhone(body.phone);
     if (!phone) throw badRequest('Numéro de téléphone invalide');
+    // reCAPTCHA Enterprise (si configuré) : pas de SMS pour un robot.
+    await exigerHumain(container.securiteGoogle, req, 'connexion_client');
     // Numéro de vérification des stores : code fixe, connu des seuls vérificateurs.
     const revue = config.CLIENT_REVIEW_PHONE && config.CLIENT_REVIEW_CODE
       && normalizePhone(config.CLIENT_REVIEW_PHONE) === phone ? config.CLIENT_REVIEW_CODE : undefined;
@@ -87,6 +91,41 @@ export async function clientAccountRoutes(app: FastifyInstance, container: Conta
     if (r === 'locked') throw unauthorized('Trop d’essais — demandez un nouveau code');
     if (r === 'invalid') throw unauthorized('Code incorrect');
 
+    return ouvrirSession(phone, body, existant);
+  });
+
+  /**
+   * IDENTITY PLATFORM : le numéro a été vérifié par Google (connexion par SMS d'Identity
+   * Platform). L'application présente le jeton d'identité reçu ; le serveur le vérifie
+   * (signature, projet, dates) et ouvre le compte ORION de ce numéro. Route absente tant que
+   * IDENTITY_PLATFORM n'est pas activé.
+   */
+  app.post('/clients/auth/identity', async (req) => {
+    const identite = container.securiteGoogle.identite;
+    if (!identite) throw notFound('Connexion par Identity Platform non activée sur ce serveur');
+    const body = parse(z.object({
+      clientId: z.string().min(1).max(64),
+      idToken: z.string().min(100).max(4096),
+      name: z.string().trim().min(2).max(80).optional(),
+      email: z.string().trim().email().max(120).optional(),
+    }), req.body);
+    let verifiee;
+    try { verifiee = await identite.verifier(body.idToken); } catch (e) {
+      if (e instanceof JetonRefuse) { req.log.warn({ raison: e.raison }, 'Jeton Identity Platform refusé'); throw unauthorized('Session Google invalide ou expirée — reconnectez-vous'); }
+      throw e;
+    }
+    // Seule une connexion par téléphone ouvre un compte ORION : un compte = un numéro vérifié.
+    const phone = verifiee.telephone ? normalizePhone(verifiee.telephone) : null;
+    if (!phone) throw badRequest('Cette session Google ne porte pas de numéro de téléphone vérifié');
+    const prefixes = config.SMS_ALLOWED_PREFIXES.split(',').map((x) => x.trim()).filter(Boolean);
+    if (prefixes.length && !prefixes.some((x) => phone.startsWith(x))) throw forbidden('Numéro hors de la zone de service ORION');
+    const existant = container.clients.findByVerifiedPhone(phone);
+    if (!existant && !body.name) throw badRequest('Indiquez votre nom pour créer votre compte');
+    return ouvrirSession(phone, body, existant, 'identity-platform');
+  });
+
+  /** Ouvre (ou crée) le compte du numéro vérifié et délivre le jeton de session ORION. */
+  function ouvrirSession(phone: string, body: { clientId: string; name?: string; email?: string }, existant: Client | undefined, preuve: 'sms-orion' | 'identity-platform' = 'sms-orion') {
     if (existant?.status === 'blocked') throw forbidden('Ce compte est suspendu. Contactez le support ORION.');
     const now = new Date().toISOString();
     // Numéro déjà connu : le client retrouve SON compte (et son historique).
@@ -101,11 +140,11 @@ export async function clientAccountRoutes(app: FastifyInstance, container: Conta
       : container.clients.updateProfile(idNeuf, { name: body.name, email: body.email, phone, phoneVerifiedAt: now });
     container.audit.log({
       actor: client.name ?? 'Client', role: 'super_admin', action: existant ? 'client.login' : 'client.signup',
-      target: client.id, details: { phone: masquer(phone) },
+      target: client.id, details: { phone: masquer(phone), preuve },
     });
     const { token, expiresAt } = issueClientToken(client.id);
     return { token, expiresAt, compteRetrouve: Boolean(existant), client: profil(client, container) };
-  });
+  }
 
   /* ------------------------------------ Profil ------------------------------------ */
 

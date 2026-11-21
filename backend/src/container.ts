@@ -16,6 +16,7 @@ import { RideSimulator } from './modules/rides/simulator.js';
 import { CodesPriseEnCharge, type CodeCourse } from './modules/rides/code-prise-en-charge.js';
 import { RideReleaseService } from './modules/rides/release.js';
 import { trafficInfo } from './modules/geo-ci/zones.js';
+import { creerSecuriteGoogle, type SecuriteGoogle } from './modules/gcp/securite.js';
 import { WalletService } from './modules/wallet/service.js';
 import { SubscriptionService } from './modules/subscriptions/service.js';
 import { RentalService } from './modules/rental/service.js';
@@ -121,6 +122,8 @@ export interface Container {
   /** Boîtiers embarqués des véhicules Signature : position, vol, coupure moteur. */
   telematique: TelematiqueService;
   settings: SettingsService;
+  /** Protections Google Cloud branchées selon la configuration (reCAPTCHA Enterprise, Identity Platform). */
+  securiteGoogle: SecuriteGoogle;
   clients: ClientStore;
   promos: PromoService;
   support: SupportService;
@@ -373,6 +376,7 @@ export function createContainer(): Container {
     rentalSettings,
     telematique,
     settings,
+    securiteGoogle: creerSecuriteGoogle(),
     promos,
     clients: new ClientStore(createRepository<Client>('clients')),
     treasury: new TreasuryService(createRepository<Transfer>('treasury')),

@@ -30,6 +30,13 @@ Niveau de sécurité élevé pour protéger les données personnelles des client
 - Logs structurés sans données sensibles ; audit log immuable des actions admin.
 - Secrets hors du code (variables d'environnement / coffre).
 
+### Protections Google Cloud (facultatives)
+
+Secret Manager (secrets du serveur), API Keys (restriction de la clé Maps), reCAPTCHA Enterprise
+(codes SMS et connexion console), API Gateway (clé d'application et quotas), Identity Platform
+(vérification du numéro) et Cloud Armor (pare-feu et anti-saturation) : voir
+[`deploy/gcp/README.md`](deploy/gcp/README.md). Inactives sans réglage.
+
 ## 6. Limitations connues (à corriger avant mise en production)
 Audit interne — points identifiés, à traiter avant lancement public :
 - **Authentification client non appliquée côté API** : les endpoints acceptent un `clientId`/
