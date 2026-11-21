@@ -812,7 +812,7 @@ s'installer par-dessus une 1.5.2 déjà posée.
   la lagune) : c'est l'effet voulu, à surveiller sur les premiers trajets réels.
 - **La page partageable** montre encore la version 1.4.
 
-## 19. Prix du serveur dans l'application, Côte d'Ivoire seule, couleurs plus vives, sécurité Google Cloud (21 novembre)
+## 19. Version 1.5.3 : prix du serveur dans l'application, Côte d'Ivoire seule, couleurs plus vives, sécurité Google Cloud (21 novembre)
 
 ### Le prix affiché hors serveur est celui du serveur
 
