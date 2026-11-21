@@ -444,10 +444,20 @@ npx cap sync android && (cd android && ./gradlew assembleDebug)
 Pour l'APK compilé par GitHub (workflow « APK client à installer »), ajouter la clé comme
 secret du dépôt nommé `GOOGLE_MAPS_API_KEY` ; sans ce secret, l'APK garde la carte ORION.
 
-Seul le service « Maps JavaScript API » est nécessaire pour afficher la carte. La
-recherche d'adresses reste celle d'ORION (48 924 lieux) et l'itinéraire celui du calcul
-ORION tant que « Places API (New) », « Routes API » et « Geocoding API » ne sont pas
-activés sur le projet Google Cloud.
+Seul le service « Maps JavaScript API » est nécessaire pour afficher la carte. Trois
+autres services, à activer sur le même projet Google Cloud, enrichissent l'app cliente ;
+chacun est essayé au premier besoin et l'application retient la réponse :
+
+| Service Google | Ce qu'il apporte | Sans lui |
+|---|---|---|
+| Places API (New) | Les lieux de Google Maps dans la recherche (suggestions, puis liste complète avec « Voir tous les lieux ») | Recherche dans les 48 924 lieux d'ORION |
+| Routes API | Trajet tracé sur les routes de Google ; durée avec le trafic du moment et distance affichées sur la carte | Tracé du calcul ORION |
+| Geocoding API | Nom de la rue de la position du téléphone et du point choisi sur la carte | Quartier seul |
+
+Menu → Carte → « Services Google » indique, pour chacun, s'il répond pour la clé de
+l'application, et « Vérifier maintenant » refait l'essai. Le prix des courses ne dépend
+pas de ces services : il reste calculé par ORION. Google facture ces services à l'usage,
+au-delà de son quota gratuit mensuel : plafonner les quotas du projet.
 
 Restriction de la clé : l'application Android charge la carte depuis `https://localhost/`.
 Une clé limitée par « sites web » doit donc autoriser `https://localhost/*` ; une clé

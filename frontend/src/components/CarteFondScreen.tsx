@@ -4,7 +4,11 @@ import { IconCheck, IconMap, IconPin } from '../icons';
 import { useI18n } from '../i18n';
 import { useTheme } from '../theme';
 import { fermerAvisSansCle, optionsCarte } from './CarteGoogle';
-import { IconRefresh } from '../icons';
+import { IconCompass, IconRefresh, IconSearch } from '../icons';
+import { verifierPlaces } from '../lieuxGoogle';
+import { verifierItineraires } from '../itineraireGoogle';
+import { verifierAdresses } from '../adressesGoogle';
+import { etatService, suivreServices, type EtatService, type ServiceGoogle } from '../servicesGoogle';
 import {
   causeRefus, chargerGoogle, choisirFond, cleGoogleIntegree, cleGoogleSaisie, cleRefusee, definirCleGoogle, essaiSansCle, fondCarte, googleDejaCharge,
   googleSeul, motifRefus, reessayerGoogle, suivreFondCarte,
@@ -33,6 +37,25 @@ export function CarteFondScreen({ onBack }: { onBack: () => void }) {
   const [injoignable, setInjoignable] = useState(false);
   const apercu = useRef<HTMLDivElement>(null);
   const [essai, setEssai] = useState(0);
+  // Lieux, itinéraires, adresses : trois services distincts de la carte chez Google ; l'écran
+  // dit lesquels répondent pour la clé de l'application.
+  const lireServices = (): Record<ServiceGoogle, EtatService> => ({ lieux: etatService('lieux'), itineraires: etatService('itineraires'), adresses: etatService('adresses') });
+  const [services, setServices] = useState(lireServices);
+  const [verif, setVerif] = useState(false);
+  useEffect(() => suivreServices(() => setServices(lireServices())), []);
+  const verifier = (lesquels: (e: EtatService) => boolean) => {
+    const essais: Array<[ServiceGoogle, () => Promise<unknown>]> = [['lieux', verifierPlaces], ['itineraires', verifierItineraires], ['adresses', verifierAdresses]];
+    const aFaire = essais.filter(([nom]) => lesquels(etatService(nom)));
+    if (!aFaire.length) return;
+    setVerif(true);
+    void Promise.all(aFaire.map(([, essai]) => essai())).finally(() => setVerif(false));
+  };
+  useEffect(() => { if (googleSeul()) verifier((e) => e === 'inconnu'); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  const LIGNES: Array<{ nom: ServiceGoogle; icone: typeof IconSearch; titre: string; cle: string }> = [
+    { nom: 'lieux', icone: IconSearch, titre: 'lieux_google_titre', cle: 'lieux_google' },
+    { nom: 'itineraires', icone: IconCompass, titre: 'itineraires_google_titre', cle: 'itineraires_google' },
+    { nom: 'adresses', icone: IconPin, titre: 'adresses_google_titre', cle: 'adresses_google' },
+  ];
   useEffect(() => suivreFondCarte(() => { setFond(fondCarte()); setRefus(cleRefusee()); setMotif(motifRefus()); setEssai((n) => n + 1); }), []);
 
   // Aperçu : la vraie carte Google, centrée sur le Plateau.
@@ -90,6 +113,23 @@ export function CarteFondScreen({ onBack }: { onBack: () => void }) {
           <p className={refus || motif || injoignable ? 'carte-etat refus' : 'carte-etat'} role="status" aria-live="polite">{etat}</p>
           {(refus || motif || injoignable) && (
             <button className="btn btn-ghost" onClick={reessayerGoogle}><IconRefresh size={17} /> {t('carte_reessayer')}</button>
+          )}
+          <span className="eyebrow set-titre">{t('services_google_titre')}</span>
+          <div className="menu-groupe">
+            {LIGNES.map(({ nom, icone: Icone, titre, cle: base }) => {
+              const e = services[nom];
+              return (
+                <div key={nom} className="menu-ligne etat-service" role="group" data-service={nom} data-etat={e}>
+                  <span className="menu-ico"><Icone size={27} strokeWidth={1.9} /></span>
+                  <span className="menu-texte"><strong>{t(titre)}</strong>
+                    <small>{t(e === 'actif' ? `${base}_actif` : e === 'refuse' ? `${base}_refuse` : e === 'injoignable' ? `${base}_injoignable` : 'lieux_google_inconnu')}</small></span>
+                  {e === 'actif' && <IconCheck size={20} strokeWidth={2.4} />}
+                </div>
+              );
+            })}
+          </div>
+          {Object.values(services).some((e) => e !== 'actif') && (
+            <button className="btn btn-ghost" style={{ marginTop: 8 }} disabled={verif} onClick={() => verifier((e) => e !== 'actif')}><IconRefresh size={17} /> {t('lieux_google_verifier')}</button>
           )}
           <p className="faint" style={{ fontSize: 11.5, lineHeight: 1.5, marginTop: 14 }}>{t('carte_legal_google')}</p>
         </div>

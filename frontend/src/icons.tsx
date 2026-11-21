@@ -277,3 +277,23 @@ export const IconHeadset = ({ size, strokeWidth }: P) => (
 export const IconInfo = ({ size, strokeWidth }: P) => (
   <svg {...base(size, strokeWidth)}><circle cx="12" cy="12" r="9" /><path d="M12 11v5.5" /><circle cx="12" cy="7.6" r="0.9" fill="currentColor" stroke="none" /></svg>
 );
+/** Médaille : le premier pack. */
+export const IconAward = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><circle cx="12" cy="9" r="5.5" /><path d="M8.6 13.4 7.2 21l4.8-2.6 4.8 2.6-1.4-7.6" /></svg>
+);
+/** Flamme : les pompiers. */
+export const IconFlame = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M12 3c.6 3.4 5.2 5.3 5.2 10.4a5.2 5.2 0 0 1-10.4 0c0-2.3 1-3.9 2.3-5.1.1 1.8.8 2.9 1.9 3.3C10.6 8.6 11 5.4 12 3Z" /><path d="M12 21a2.3 2.3 0 0 0 2.3-2.4c0-1.3-1.2-2-2.3-3.5-1.1 1.5-2.3 2.2-2.3 3.5A2.3 2.3 0 0 0 12 21Z" /></svg>
+);
+/** Insigne : la police. */
+export const IconBadge = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M12 3 5 6v5c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Z" /><path d="m12 8.4.95 1.95 2.15.3-1.55 1.5.37 2.15L12 13.28l-1.92 1.02.37-2.15-1.55-1.5 2.15-.3L12 8.4Z" /></svg>
+);
+/** Drapeau : la destination. */
+export const IconFlag = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M6 21V4" /><path d="M6 4.5h11.5l-2 3.75 2 3.75H6" /></svg>
+);
+/** Arbre : parcs et jardins. */
+export const IconTree = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M12 21v-5" /><path d="M12 3 6.8 10h2.7L6 16h12l-3.5-6h2.7L12 3Z" /></svg>
+);

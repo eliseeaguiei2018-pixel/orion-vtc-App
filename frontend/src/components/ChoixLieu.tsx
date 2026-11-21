@@ -13,7 +13,8 @@ import { OrionMap } from './OrionMap';
 import { Sheet, TopBar } from './ui';
 import { IconCheck, IconClock, IconPin, IconSearch } from '../icons';
 import { Objet, type Icone3D, type ObjetService } from './Vehicules';
-import { LIEUX_POPULAIRES, lieuEnregistre, lieuxRecents, quartierDe, rechercherLieux, type EtatPosition } from '../lieux';
+import { LIEUX_POPULAIRES, lieuEnregistre, lieuxRecents, adresseDe, rechercherLieux, rechercherTousLesLieux, type EtatPosition } from '../lieux';
+import { etatPlaces, resoudreLieuGoogle, suivreEtatPlaces } from '../lieuxGoogle';
 
 export type ModeChoix = 'destination' | 'depart' | 'livraison' | 'arret' | 'domicile' | 'bureau';
 
@@ -65,20 +66,49 @@ export function ChoixLieu({ mode, centre, etatPosition, onMaPosition, onChoose, 
   const [resultats, setResultats] = useState<Place[] | null>(null);
   const [cherche, setCherche] = useState(false);
   const [surCarte, setSurCarte] = useState(false);
+  // Lieux de Google : état du service (actif, refusé par Google…), recherche complète, choix en cours.
+  const [places, setPlaces] = useState(etatPlaces);
+  const [complet, setComplet] = useState(false);
+  const [echec, setEchec] = useState(false);
+  const choix = useRef(0);
+  useEffect(() => suivreEtatPlaces(() => setPlaces(etatPlaces())), []);
 
   // Recherche au fil de la frappe (250 ms), la requête précédente est annulée.
   useEffect(() => {
     const requete = q.trim();
+    setComplet(false); setEchec(false);
     if (requete.length < 2) { setResultats(null); setCherche(false); return; }
     const ctrl = new AbortController();
     setCherche(true);
     const minuteur = window.setTimeout(() => {
-      rechercherLieux(requete, centre, ctrl.signal)
+      rechercherLieux(requete, centre, ctrl.signal, { google: true })
         .then((r) => { setResultats(r); setCherche(false); })
         .catch(() => { /* annulée */ });
     }, 250);
     return () => { ctrl.abort(); window.clearTimeout(minuteur); };
   }, [q, centre]);
+
+  /** Recherche validée (touche « Rechercher » ou ligne « tous les lieux ») : la liste complète, comme dans Google Maps. */
+  const toutChercher = () => {
+    const requete = q.trim();
+    if (requete.length < 2) return;
+    const tour = ++choix.current;
+    setCherche(true); setEchec(false);
+    void rechercherTousLesLieux(requete, centre).then((r) => {
+      if (tour !== choix.current) return;
+      setResultats(r); setComplet(true); setCherche(false);
+    });
+  };
+
+  /** Une suggestion Google n'a pas encore de position : on la demande avant de valider le lieu. */
+  const choisir = (p: Place) => {
+    if (!p.aResoudre) { onChoose(p); return; }
+    const tour = ++choix.current;
+    setCherche(true); setEchec(false);
+    resoudreLieuGoogle(p)
+      .then((lieu) => { if (tour === choix.current) onChoose(lieu); })
+      .catch(() => { if (tour === choix.current) { setCherche(false); setEchec(true); } });
+  };
 
   const domicile = lieuEnregistre('home');
   const bureau = lieuEnregistre('work');
@@ -93,7 +123,7 @@ export function ChoixLieu({ mode, centre, etatPosition, onMaPosition, onChoose, 
   }
 
   const ligne = (p: Place) => (
-    <button key={`${p.id}-${p.location.lat}`} className="list-row list-btn" onClick={() => onChoose(p)}>
+    <button key={`${p.id}-${p.location.lat}`} className="list-row list-btn" onClick={() => choisir(p)}>
       <span className="list-ico">{icone(p)}</span>
       <span className="col grow" style={{ textAlign: 'start', minWidth: 0 }}>
         <strong style={{ fontSize: 15 }}>{p.name}</strong>
@@ -117,6 +147,7 @@ export function ChoixLieu({ mode, centre, etatPosition, onMaPosition, onChoose, 
         <div className="field" style={{ marginBottom: 8 }}>
           <IconSearch size={20} color="var(--text-faint)" />
           <input autoFocus placeholder={t('lieu_recherche')} value={q} onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); toutChercher(); (e.target as HTMLInputElement).blur(); } }}
             aria-label={t('lieu_recherche')} enterKeyHint="search" autoComplete="off" />
         </div>
         <div style={{ maxHeight: 'min(46vh, 380px)', overflowY: 'auto', overscrollBehavior: 'contain' }}>
@@ -151,6 +182,15 @@ export function ChoixLieu({ mode, centre, etatPosition, onMaPosition, onChoose, 
             <>
               {resultats.map(ligne)}
               {resultats.length === 0 && !cherche && <p className="faint" style={{ padding: 20, textAlign: 'center' }}>{t('lieu_aucun')}</p>}
+              {echec && <p className="lieu-source refus" role="alert">{t('lieu_google_echec')}</p>}
+              {places === 'actif' && !complet && !cherche && (
+                <button className="list-row list-btn lieu-tout" onClick={toutChercher}>
+                  <span className="list-ico"><IconSearch size={22} strokeWidth={1.9} /></span>
+                  <span className="col grow" style={{ textAlign: 'start', minWidth: 0 }}><strong style={{ fontSize: 15 }}>{t('lieu_tous_resultats', { q: q.trim() })}</strong></span>
+                </button>
+              )}
+              {places === 'actif' && resultats.some((r) => r.googleId) && <p className="lieu-source">{t('lieu_source_google')}</p>}
+              {places === 'refuse' && !cherche && <p className="lieu-source">{t('lieu_source_orion')}</p>}
             </>
           )}
           {cherche && <p className="faint" style={{ padding: 12, textAlign: 'center', fontSize: 13 }}><IconClock size={13} /> {t('lieu_recherche_encours')}</p>}
@@ -225,7 +265,7 @@ function ChoixSurCarteGoogle({ centre, onBack, onValider, onEchec }: { centre: L
 
   useEffect(() => {
     let actif = true;
-    const minuteur = window.setTimeout(() => { void quartierDe(point).then((q) => { if (actif) setQuartier(q?.nom ?? ''); }); }, 300);
+    const minuteur = window.setTimeout(() => { void adresseDe(point).then((q) => { if (actif) setQuartier(q?.nom ?? ''); }); }, 300);
     return () => { actif = false; window.clearTimeout(minuteur); };
   }, [point]);
 
@@ -289,7 +329,7 @@ function ChoixSurCarteOrion({ centre, onBack, onValider }: { centre: LatLng; onB
   // Quartier du point, à l'arrêt de la carte.
   useEffect(() => {
     let actif = true;
-    const minuteur = window.setTimeout(() => { void quartierDe(point).then((q) => { if (actif) setQuartier(q?.nom ?? ''); }); }, 300);
+    const minuteur = window.setTimeout(() => { void adresseDe(point).then((q) => { if (actif) setQuartier(q?.nom ?? ''); }); }, 300);
     return () => { actif = false; window.clearTimeout(minuteur); };
   }, [point]);
 

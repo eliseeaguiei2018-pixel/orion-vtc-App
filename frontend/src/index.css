@@ -1678,6 +1678,10 @@ button.menu-ligne:active { background: var(--surface-2); }
 button.menu-texte { cursor: pointer; }
 .menu-texte strong { font: 500 17px/1.3 var(--font-body); color: var(--text); overflow: hidden; text-overflow: ellipsis; }
 .menu-texte small { font-size: 13.5px; line-height: 1.35; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.menu-ligne.etat-service { align-items: flex-start; }
+.menu-ligne.etat-service .menu-ico { margin-top: 2px; }
+.menu-ligne.etat-service .menu-texte small { display: block; overflow: visible; -webkit-line-clamp: unset; }
+.menu-ligne.etat-service > svg:last-child { margin-top: 4px; flex: none; }
 .menu-ligne > svg { flex: none; color: var(--text); }
 .menu-pastille { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--danger); color: #fff; font: 600 12px/22px var(--font-body); text-align: center; flex: none; }
 .menu-action { flex: none; display: inline-grid; place-items: center; min-width: 44px; min-height: 44px; padding: 0 12px; border-radius: 999px; border: 0; background: var(--plein); color: var(--text); font: 600 13px var(--font-body); cursor: pointer; }
@@ -1707,6 +1711,13 @@ button.menu-texte { cursor: pointer; }
 [data-theme='dark'] .carte-google, [data-theme='dark'] .screen.choix-carte:has(.choix-carte-google) { --sol-google: #1c2a40; }
 .gm-repere { position: absolute; left: 0; top: 0; will-change: transform; pointer-events: none; }
 .carte-google .carte-ponts { top: calc(max(18px, env(safe-area-inset-top)) + 62px); }
+/* Trajet de Google : la durée d'abord (jamais coupée), puis la distance, puis la voie empruntée. */
+.carte-trajet { display: flex; align-items: baseline; gap: 8px; max-width: 86%; font-weight: 500; }
+.carte-trajet strong { font-weight: 700; flex: none; }
+.carte-trajet i { font-style: normal; flex: none; color: var(--text-dim); }
+.carte-trajet i::before, .carte-trajet em::before { content: "·"; margin-right: 8px; color: var(--text-faint); }
+.carte-trajet em { font-style: normal; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-faint); }
+.carte-trajet em span { color: inherit; font-weight: 500; margin-right: 0; }
 .choix-carte-google { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 0; }
 .choix-carte-google .choix-carte-ml { position: absolute; inset: 0; }
 .choix-carte-google .choix-carte-repere { top: 50%; }
@@ -1744,3 +1755,14 @@ button.menu-texte { cursor: pointer; }
 .carte-indispo-boite strong { font-size: 17px; }
 .carte-indispo-boite p { margin: 0 0 6px; font-size: 13.5px; line-height: 1.5; color: var(--text-dim); }
 .carte-indispo-boite .btn { width: auto; padding-inline: 20px; }
+
+/* ---- Icônes des listes au trait (app cliente) : même dessin que le menu, sans couleur ---- */
+.objet-trait { display: inline-grid; place-items: center; flex: none; color: var(--text); }
+.objet-trait svg { display: block; }
+:root .list-ico:has(.objet-trait), :root .veh-ico.pack-ico:has(.objet-trait) { background: none; border: 0; box-shadow: none; color: var(--text); }
+/* Numéros d'urgence : le pictogramme prend la couleur du texte qui l'entoure. */
+.sos-num .objet-trait, .sos-direct .objet-trait { color: currentColor; }
+
+/* ---- Recherche : d'où viennent les lieux (Google ou ORION) ---- */
+.lieu-source { margin: 10px 6px 4px; font-size: 12px; line-height: 1.45; color: var(--text-faint); }
+.lieu-source.refus { color: var(--danger-ink, var(--danger)); }

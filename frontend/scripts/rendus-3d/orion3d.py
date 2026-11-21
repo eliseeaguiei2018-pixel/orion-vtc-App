@@ -7,8 +7,15 @@ module fournit le studio (lumières, caméra, sol qui ne garde que l'ombre) et l
 de modélisation ; `rendre.py` compose chaque objet et lance les rendus.
 
 Dépendance : le module Python `bpy` (pip install bpy), aucune interface graphique.
+
+PALETTE « nb » (variable d'environnement ORION_PALETTE=nb) : les mêmes objets en noir, gris
+et blanc — noir laqué, graphite satiné, céramique blanche, acier — pour l'accueil de l'app
+cliente. Toute couleur demandée est alors ramenée à sa valeur de gris ; l'éclairage gagne
+une grande boîte zénithale et un rendu plus fin (reflets doux sur les laques, grain léger
+sur les matières mates).
 """
 import math
+import os
 import bpy
 import bmesh
 from mathutils import Vector
@@ -28,6 +35,20 @@ BLANC = hexa('#F2F3F5')
 NOIR = hexa('#17181C')
 GRIS = hexa('#8B9099')
 
+PALETTE = os.environ.get('ORION_PALETTE', 'couleur')
+NB = PALETTE == 'nb'
+if NB:
+    # Noir, gris, blanc : le vert devient un noir profond, le violet un gris moyen.
+    VERT, VERT_CLAIR = hexa('#0B0B0D'), hexa('#3B3D42')
+    VIOLET, VIOLET_CLAIR = hexa('#6E7178'), hexa('#B9BCC2')
+    BLANC, NOIR, GRIS = hexa('#F4F4F5'), hexa('#101114'), hexa('#8B8E94')
+
+
+def gris(couleur):
+    """Valeur de gris d'une couleur (luminance), pour la palette noir, gris et blanc."""
+    y = 0.2126 * couleur[0] + 0.7152 * couleur[1] + 0.0722 * couleur[2]
+    return (y, y, y * 1.012)        # une pointe de froid : le gris ne tire pas vers le jaune
+
 
 def vider():
     """Scène neuve : rien ne traîne d'un rendu au suivant."""
@@ -35,10 +56,27 @@ def vider():
     return bpy.context.scene
 
 
-def matiere(nom, couleur, rugosite=0.4, metal=0.0, vernis=0.0, emission=0.0, verre=False, satin=0.0):
+def matiere(nom, couleur, rugosite=0.4, metal=0.0, vernis=0.0, emission=0.0, verre=False, satin=0.0, grain=None, brosse=0.0, nb=None):
+    """`grain` : relief fin procédural (papier, carton, mie). `brosse` : métal brossé (reflets étirés).
+    `nb` : teinte imposée dans la palette noir, gris et blanc (sinon la valeur de gris de `couleur`)."""
+    if NB:
+        couleur = hexa(nb) if nb else gris(couleur)
+        if emission:                                                              # feux : verre, plus de rouge
+            clair = couleur[0] > 0.6
+            couleur, emission, rugosite = ((0.92, 0.92, 0.94), 0.9, 0.08) if clair else ((0.10, 0.10, 0.11), 0.0, 0.06)
+            vernis = 1.0
+        if grain is None and metal < 0.5 and vernis < 0.3 and rugosite >= 0.5: grain = 0.35   # les mats ont un grain
     m = bpy.data.materials.new(nom)
     m.use_nodes = True
     p = m.node_tree.nodes['Principled BSDF']
+    if grain:
+        arbre = m.node_tree
+        bruit = arbre.nodes.new('ShaderNodeTexNoise'); bruit.inputs['Scale'].default_value = 420; bruit.inputs['Detail'].default_value = 6
+        relief = arbre.nodes.new('ShaderNodeBump'); relief.inputs['Strength'].default_value = grain; relief.inputs['Distance'].default_value = 0.004
+        arbre.links.new(bruit.outputs['Fac'], relief.inputs['Height']); arbre.links.new(relief.outputs['Normal'], p.inputs['Normal'])
+    if brosse:
+        try: p.inputs['Anisotropic'].default_value = brosse
+        except KeyError: pass
     p.inputs['Base Color'].default_value = (*couleur, 1)
     p.inputs['Roughness'].default_value = rugosite
     p.inputs['Metallic'].default_value = metal
@@ -165,7 +203,7 @@ def studio(scene, largeur=640, hauteur=640, echantillons=96, ombre=True):
     scene.cycles.use_denoising = True
     try: scene.cycles.denoiser = 'OPENIMAGEDENOISE'
     except TypeError: pass
-    scene.cycles.max_bounces = 6
+    scene.cycles.max_bounces = 10 if NB else 6
     scene.render.film_transparent = True
     scene.render.resolution_x, scene.render.resolution_y = largeur, hauteur
     scene.render.image_settings.file_format = 'PNG'
@@ -174,6 +212,14 @@ def studio(scene, largeur=640, hauteur=640, echantillons=96, ombre=True):
     scene.view_settings.view_transform = 'Standard'
     try: scene.view_settings.look = 'Medium High Contrast'
     except TypeError: pass
+    if NB:
+        # Réponse photographique : les blancs gardent leur modelé au lieu de brûler, les noirs
+        # restent profonds. C'est ce qui fait la différence entre un rendu et une photo.
+        try:
+            scene.view_settings.view_transform = 'AgX'
+            scene.view_settings.look = os.environ.get('ORION_LOOK', 'AgX - Medium High Contrast')
+        except TypeError: pass
+        scene.view_settings.exposure = float(os.environ.get('ORION_EXPO', '0.35'))
     monde = bpy.data.worlds.new('studio'); monde.use_nodes = True; scene.world = monde
     fond = monde.node_tree.nodes['Background']
     fond.inputs['Color'].default_value = (1, 1, 1, 1); fond.inputs['Strength'].default_value = 0.34
@@ -190,6 +236,12 @@ def studio(scene, largeur=640, hauteur=640, echantillons=96, ombre=True):
     # éclairent sans salir le sol d'un voile gris.
     boite_a_lumiere('debouchage', (6.5, -4.0, 3.5), (5, 5), 190, (1.0, 0.98, 0.96)).data.use_shadow = False
     boite_a_lumiere('lisere', (1.5, 6.5, 5.5), (7, 3), 300).data.use_shadow = False
+    if NB:
+        # Noir laqué et céramique vivent de leurs reflets : une grande boîte zénithale dessine
+        # un reflet doux sur le dessus des objets, une bande latérale en ourle les flancs.
+        boite_a_lumiere('zenith', (0.5, -0.5, 11.0), (9, 9), 420).data.use_shadow = False
+        boite_a_lumiere('bande', (-7.0, 1.5, 2.6), (1.4, 7), 260).data.use_shadow = False
+        fond.inputs['Strength'].default_value = 0.46
     # Le sol n'apparaît pas : il ne garde que l'ombre portée, douce, sous l'objet.
     bpy.ops.mesh.primitive_plane_add(size=60, location=(0, 0, 0))
     sol = bpy.context.object; sol.name = 'sol'; sol.is_shadow_catcher = True

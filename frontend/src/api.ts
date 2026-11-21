@@ -1067,7 +1067,10 @@ export interface ItineraireRoute {
   distanceMeters: number;
   durationSeconds: number;
   ponts: string[];
-  provider: 'osrm' | 'repli';
+  provider: 'osrm' | 'repli' | 'google';
+  /** Itinéraire de Google : durée sans circulation, et grande voie empruntée. */
+  fluideSeconds?: number;
+  via?: string;
   /** Guidage pas à pas (serveurs récents ; absent d'un tracé de repli). */
   manoeuvres?: Manoeuvre[];
 }

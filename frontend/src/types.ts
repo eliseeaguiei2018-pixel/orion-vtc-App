@@ -11,6 +11,10 @@ export interface Place {
   kind?: 'home' | 'work' | 'recent' | 'hub';
   /** Catégorie du lieu (pictogramme) : restaurant, bank, religious_muslim, road… */
   categorie?: string;
+  /** Lieu venu de la recherche Google : son identifiant chez Google. */
+  googleId?: string;
+  /** Suggestion Google sans position encore connue : à résoudre au moment du choix. */
+  aResoudre?: boolean;
 }
 
 export type TierId = 'argent' | 'or' | 'diamant';

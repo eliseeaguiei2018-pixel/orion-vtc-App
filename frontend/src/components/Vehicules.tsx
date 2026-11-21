@@ -1,5 +1,11 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { useAccentSur } from '../theme';
+import {
+  IconAlarm, IconAward, IconBadge, IconBag, IconBank, IconBriefcase, IconBuilding, IconBus, IconCar, IconCarburant, IconCart, IconChart,
+  IconClock, IconCrown, IconEcole, IconEglise, IconFile, IconFlag, IconFlame, IconGem, IconHeadset, IconHome, IconKey, IconLeaf, IconLit, IconLock,
+  IconMap, IconMedical, IconMessage, IconMonitor, IconMosquee, IconPackage, IconPhone, IconPin, IconPlane, IconRing, IconSettings, IconShieldCheck,
+  IconSteering, IconTarget, IconTicket, IconTree, IconUsers, IconUtensils, IconWallet, IconWifi,
+} from '../icons';
 
 /**
  * VÉHICULES ET OBJETS D'ORION — des rendus en volume, pas des dessins.
@@ -14,6 +20,21 @@ export type Peinture = 'accent' | 'bronze' | 'argent' | 'or' | 'diamant' | 'nuit
 
 /** Adresse d'un rendu livré avec l'application (chemin relatif : il suit l'app partout). */
 export const rendu = (nom: string): string => `${import.meta.env.BASE_URL}rendus/${nom}.webp`;
+
+/**
+ * STYLE DE L'APPLICATION CLIENTE (réglé une fois, au démarrage, par `definirStyle`).
+ *
+ *  - `icones` : 'volume' (objets rendus en 3D, comme dans l'app chauffeur et la console) ou
+ *    'trait' (pictogrammes au trait, sans couleur, ceux du menu) pour toutes les icônes des
+ *    listes : packs, urgences, lieux, compte. Les tuiles de l'accueil gardent leur volume.
+ *  - `accueil` : 'couleur' (vert, blanc, violet) ou 'nb' (noir, gris, blanc : rendus/nb/).
+ *
+ * Revenir à l'ancien accueil : `accueil: 'couleur'` dans src/main.tsx, rien d'autre.
+ */
+export interface StyleOrion { icones: 'volume' | 'trait'; accueil: 'couleur' | 'nb' }
+const style: StyleOrion = { icones: 'volume', accueil: 'couleur' };
+export function definirStyle(s: Partial<StyleOrion>): void { Object.assign(style, s); }
+const dossierAccueil = (): string => (style.accueil === 'nb' ? 'nb/' : '');
 
 /** Objets des services de l'accueil. */
 export type ObjetService =
@@ -63,21 +84,44 @@ function Rendu({ nom, largeur, ratio, classe = '' }: { nom: string; largeur: num
   );
 }
 
-/** Voiture vue de trois quarts. `phares` est conservé pour les appels existants. */
-export function Voiture({ modele = 'berline', peinture = 'accent', largeur = 120 }: {
-  modele?: Modele; peinture?: Peinture; largeur?: number; phares?: boolean;
+/** Voiture vue de trois quarts. `accueil` : la voiture de la tuile d'accueil (suit la palette de l'accueil). */
+export function Voiture({ modele = 'berline', peinture = 'accent', largeur = 120, accueil = false }: {
+  modele?: Modele; peinture?: Peinture; largeur?: number; phares?: boolean; accueil?: boolean;
 }) {
   const accent = useAccentSur();
+  if (accueil && style.accueil === 'nb') return <Rendu nom="nb/berline-orion" largeur={largeur} ratio={0.58} />;
   return <Rendu nom={fichierVoiture(modele, peinture, accent)} largeur={largeur} ratio={0.58} />;
 }
 
-/** Scooter électrique de livraison, avec son coffre. */
-export function Scooter({ largeur = 120 }: { largeur?: number }) {
-  return <Rendu nom="scooter" largeur={largeur * 0.82} ratio={0.875} classe="scooter" />;
+/** Scooter électrique de livraison, avec son coffre : le même objet qu'à l'accueil, partout où il apparaît. */
+export function Scooter({ largeur = 120 }: { largeur?: number; accueil?: boolean }) {
+  return <Rendu nom={`${dossierAccueil()}scooter`} largeur={largeur * 0.82} ratio={0.875} classe="scooter" />;
 }
 
-/** Objet d'un service (repas, sacs, panier, colis, carte, clé, alliances, itinéraire, casque). */
-export function Objet({ nom, taille = 96 }: { nom: ObjetService | Icone3D; taille?: number }) {
+/** Chaque objet a son pictogramme au trait : même sens, sans couleur ni volume. */
+const TRAITS: Record<ObjetService | Icone3D, (p: { size?: number; strokeWidth?: number }) => JSX.Element> = {
+  food: IconUtensils, achat: IconBag, supermarche: IconCart, colis: IconPackage, abonnement: IconCrown, location: IconKey, mariage: IconRing,
+  'mes-courses': IconCar, aide: IconHeadset,
+  'pack-argent': IconAward, 'pack-or': IconCrown, 'pack-diamant': IconGem, samu: IconMedical, police: IconBadge, pompiers: IconFlame,
+  reglages: IconSettings, assurance: IconShieldCheck, historique: IconClock, 'alertes-sos': IconAlarm, portefeuille: IconWallet, cadenas: IconLock,
+  document: IconFile, serveur: IconMonitor, telephone: IconPhone, message: IconMessage, wifi: IconWifi,
+  lieu: IconPin, destination: IconFlag, domicile: IconHome, bureau: IconBriefcase, banque: IconBank, aeroport: IconPlane, ecole: IconEcole,
+  eglise: IconEglise, mosquee: IconMosquee, hotel: IconLit, carburant: IconCarburant, bus: IconBus, loisirs: IconTicket, immeuble: IconBuilding, parc: IconTree,
+  eco: IconLeaf, chauffeur: IconSteering, clients: IconUsers, finances: IconChart, objectif: IconTarget, carte: IconMap,
+};
+
+/**
+ * Objet d'un service ou icône d'une liste. `volume` : toujours le rendu 3D (tuiles de
+ * l'accueil), dans la palette de l'accueil. Sinon l'app cliente affiche le pictogramme
+ * au trait ; l'app chauffeur, la console et le tableau de bord gardent l'objet en volume.
+ */
+export function Objet({ nom, taille = 96, volume = false }: { nom: ObjetService | Icone3D; taille?: number; volume?: boolean }) {
+  if (volume) return <Rendu nom={`${dossierAccueil()}${nom}`} largeur={taille} ratio={1} classe="objet" />;
+  if (style.icones === 'trait') {
+    const Trait = TRAITS[nom];
+    const cote = Math.max(18, Math.min(30, Math.round(taille * 0.78)));
+    return <span className="objet-trait" style={{ width: taille, height: taille }} aria-hidden="true"><Trait size={cote} strokeWidth={1.9} /></span>;
+  }
   return <Rendu nom={nom} largeur={taille} ratio={1} classe="objet" />;
 }
 

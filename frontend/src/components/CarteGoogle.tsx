@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { LatLng } from '../types';
 import { useTheme } from '../theme';
 import { itineraire, type ItineraireRoute } from '../api';
+import { itineraireGoogle } from '../itineraireGoogle';
 import { rendu } from './Vehicules';
 import { causeRefus, chargerGoogle, cleRefusee, essaiSansCle, motifRefus, reessayerGoogle, type GMap, type GoogleMaps, type GPolyline } from '../carteGoogle';
 import { useI18n } from '../i18n';
@@ -11,9 +12,11 @@ import { IconMap, IconRefresh } from '../icons';
  * CARTE GOOGLE MAPS (API officielle Maps JavaScript) — même rôle que la carte ORION :
  * départ, arrêts, arrivée, itinéraire, véhicule qui glisse et s'oriente, position du client.
  *
- * Le fond et tous ses lieux viennent de Google. L'itinéraire reste celui d'ORION (serveur,
- * ou calcul public sans serveur). Les repères sont les mêmes éléments que sur la carte
- * ORION, posés sur la carte par une surcouche.
+ * Le fond et tous ses lieux viennent de Google. L'itinéraire aussi quand son service « Routes
+ * API » répond : tracé sur les routes de Google, distance et durée avec le trafic du moment,
+ * affichées sur la carte. Sinon l'itinéraire reste celui d'ORION (serveur, ou calcul public
+ * sans serveur). Les repères sont les mêmes éléments que sur la carte ORION, posés sur la
+ * carte par une surcouche.
  *
  * La carte s'arrête au-dessus de la feuille du bas : le logo et les mentions de Google
  * restent visibles, comme ses conditions l'exigent.
@@ -70,6 +73,9 @@ const cap = (a: LatLng, b: LatLng) => {
   return (Math.atan2(y, x) * 180) / Math.PI;
 };
 
+/** Itinéraire de Google s'il répond, sinon celui d'ORION. */
+const tracer = (points: LatLng[]): Promise<ItineraireRoute | null> => itineraireGoogle(points).then((r) => r ?? itineraire(points));
+
 /** Options communes aux cartes Google de l'application. */
 export function optionsCarte(g: GoogleMaps, sombre: boolean, centre: LatLng, zoom: number): Record<string, unknown> {
   return {
@@ -108,6 +114,7 @@ export function GoogleIndisponible() {
 
 export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'car', approche = false, moi, trace, basCouvert = 0.46, onEchec }: Props) {
   const { resolved, accent } = useTheme();
+  const { t, lang } = useI18n();
   const enveloppe = useRef<HTMLDivElement>(null);
   const boite = useRef<HTMLDivElement>(null);
   const api = useRef<GoogleMaps | null>(null);
@@ -121,6 +128,8 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
   const traceExterne = trace !== undefined;
   const echec = useRef(onEchec);
   echec.current = onEchec;
+  /** Recadre la carte sur le trajet : rappelé quand la feuille du bas change de hauteur. */
+  const cadrer = useRef<() => void>(() => {});
 
   // 1. Création de la carte (recréée au changement clair/sombre : Google fixe le thème à la création).
   useEffect(() => {
@@ -163,6 +172,9 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
       if (boite.current && boite.current.style.bottom !== `${bas}px`) {
         boite.current.style.bottom = `${bas}px`;
         if (api.current && carte.current) api.current.event.trigger(carte.current, 'resize');
+        // La carte vient de changer de hauteur : sans recadrage, le départ ou l'arrivée
+        // pourrait se retrouver sous la feuille.
+        window.setTimeout(() => cadrer.current(), 80);
       }
     };
     caler();
@@ -174,12 +186,13 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
     return () => { obs.disconnect(); window.clearInterval(id); };
   }, []);
 
-  // 3. Itinéraire réel (départ, arrêts, arrivée) et approche du chauffeur : ceux d'ORION.
+  // 3. Itinéraire réel (départ, arrêts, arrivée) et approche du chauffeur : ceux de Google,
+  //    sinon ceux d'ORION.
   const cleTrajet = destination ? [origin, ...stops, destination].map((p) => `${p.lat},${p.lng}`).join(';') : '';
   useEffect(() => {
     if (!destination || traceExterne) { setRoute(null); return; }
     let actif = true;
-    void itineraire([origin, ...stops, destination]).then((r) => { if (actif) setRoute(r); });
+    void tracer([origin, ...stops, destination]).then((r) => { if (actif) setRoute(r); });
     return () => { actif = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cleTrajet]);
@@ -187,7 +200,7 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
   useEffect(() => {
     if (!approche || !car || approcheCalculee.current) { if (!approche) { setRouteApproche(null); approcheCalculee.current = false; } return; }
     approcheCalculee.current = true;
-    void itineraire([car, origin]).then((r) => setRouteApproche(r?.geometrie ?? [car, origin]));
+    void tracer([car, origin]).then((r) => setRouteApproche(r?.geometrie ?? [car, origin]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [approche, car]);
 
@@ -206,14 +219,18 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
     L.bord.setPath(geo); L.trajet.setPath(geo);
     L.approche.setPath(routeApproche ?? []);
     const tous = [...geo, ...(routeApproche ?? []), origin, ...(moi ? [moi] : [])];
-    if (tous.length > 1) {
-      const b = new g.LatLngBounds();
-      tous.forEach((p) => b.extend(p));
-      m.fitBounds(b, { top: 110, bottom: 46, left: 46, right: 46 });
-    } else {
-      m.panTo(origin);
-      if (m.getZoom() < 13) m.setZoom(15);
-    }
+    cadrer.current = () => {
+      if (carte.current !== m) return;
+      if (tous.length > 1) {
+        const b = new g.LatLngBounds();
+        tous.forEach((p) => b.extend(p));
+        m.fitBounds(b, { top: 150, bottom: 46, left: 46, right: 46 });
+      } else {
+        m.panTo(origin);
+        if (m.getZoom() < 13) m.setZoom(15);
+      }
+    };
+    cadrer.current();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prete, route, routeApproche, cleTrajet, traceExterne ? trace : null, accent, basCouvert, moi?.lat, moi?.lng]);
 
@@ -270,7 +287,14 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
   return (
     <div ref={enveloppe} className="map-wrap carte-reelle carte-google">
       <div ref={boite} className="carte-ml" />
-      {route?.ponts && route.ponts.length > 0 && !traceExterne && (
+      {route?.provider === 'google' && !traceExterne && !car ? (
+        // Trajet de Google : durée avec le trafic du moment, distance par la route, grande voie empruntée.
+        <div className="carte-ponts carte-trajet" aria-live="polite">
+          <strong>{Math.max(1, Math.round(route.durationSeconds / 60))} {t('est_min')}</strong>
+          <i>{new Intl.NumberFormat(lang, { maximumFractionDigits: 1 }).format(route.distanceMeters / 1000)} km</i>
+          {route.via && <em><span>via</span> {route.via}</em>}
+        </div>
+      ) : route?.ponts && route.ponts.length > 0 && !traceExterne && (
         <div className="carte-ponts" aria-live="polite"><span>via</span> {route.ponts.slice(0, 2).join(' · ')}</div>
       )}
     </div>

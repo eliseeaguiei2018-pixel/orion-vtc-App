@@ -3,6 +3,8 @@ import type { Map as CarteML } from 'maplibre-gl';
 import type { LatLng, Place } from './types';
 import { ABIDJAN_PLACES, DEFAULT_ORIGIN } from './data';
 import { isLiveBackend, urlApi } from './api';
+import { rechercheTexteGoogle, suggestionsGoogle } from './lieuxGoogle';
+import { rueGoogle } from './adressesGoogle';
 import { COMMUNES_ABIDJAN, QUARTIERS_ABIDJAN, type NiveauLieu } from './lieux-abidjan';
 
 /**
@@ -212,9 +214,11 @@ export function rechercheLocale(q: string, pres?: LatLng): Place[] {
  * répond toujours, connecté ou non, dans les quatre interfaces. Relié au serveur, on y
  * ajoute ce que lui seul connaît : les adresses hors du district (géocodage), sans doublon.
  */
-export async function rechercherLieux(q: string, pres?: LatLng, signal?: AbortSignal): Promise<Place[]> {
+export async function rechercherLieux(q: string, pres?: LatLng, signal?: AbortSignal, options: { google?: boolean } = {}): Promise<Place[]> {
   const requete = q.trim();
   if (requete.length < 2) return [];
+  // App cliente avec une clé Google : les lieux de Google d'abord, ceux d'ORION ensuite.
+  const deGoogle = options.google ? suggestionsGoogle(requete, pres) : Promise.resolve<Place[]>([]);
   const duServeur = async (): Promise<Place[]> => {
     if (!isLiveBackend()) return [];
     try {
@@ -229,17 +233,33 @@ export async function rechercherLieux(q: string, pres?: LatLng, signal?: AbortSi
       return [];
     }
   };
-  const [serveur] = await Promise.all([duServeur(), chargerIndexLieux()]);
+  const [serveur, google] = await Promise.all([duServeur(), deGoogle, chargerIndexLieux()]);
+  if (signal?.aborted) throw new DOMException('annulée', 'AbortError');
   const locaux = rechercheLocale(requete, pres);
-  if (!serveur.length) return locaux;
-  if (!locaux.length) return serveur;
-  const fusion = [...locaux];
-  for (const l of serveur) {
-    if (fusion.length >= 12) break;
-    if (fusion.some((r) => sansAccents(r.name) === sansAccents(l.name) && distanceM(r.location, l.location) < 300)) continue;
+  return fusionnerLieux(google, [...locaux, ...serveur]);
+}
+
+/**
+ * Lieux de Google en tête, puis les autres, sans doublon : même nom à moins de 300 m, ou
+ * même nom qu'une suggestion Google (dont la position n'est connue qu'au moment du choix).
+ */
+export function fusionnerLieux(google: Place[], autres: Place[], maximum = 12): Place[] {
+  const fusion = [...google];
+  for (const l of autres) {
+    if (fusion.length >= maximum) break;
+    const nom = sansAccents(l.name);
+    if (fusion.some((r) => sansAccents(r.name) === nom && (r.aResoudre || distanceM(r.location, l.location) < 300))) continue;
     fusion.push(l);
   }
   return fusion;
+}
+
+/** Tous les lieux d'une recherche validée (« FAO ») : Google s'il répond, puis ORION. */
+export async function rechercherTousLesLieux(q: string, pres?: LatLng): Promise<Place[]> {
+  const requete = q.trim();
+  if (requete.length < 2) return [];
+  const [google] = await Promise.all([rechercheTexteGoogle(requete, pres), chargerIndexLieux()]);
+  return fusionnerLieux(google, rechercheLocale(requete, pres), 30);
 }
 
 /** Lieu le plus proche (quartier, village…) à moins de 1,2 km, d'après le répertoire livré. */
@@ -271,6 +291,21 @@ export async function quartierDe(p: LatLng): Promise<{ nom: string; enZone: bool
   }
 }
 
+/**
+ * Adresse lisible d'un point : la rue d'après Google (si son service répond) et le quartier
+ * d'ORION — « Rue des Jardins, Deux Plateaux ». Sans Google : le quartier seul, comme avant.
+ */
+export async function adresseDe(p: LatLng): Promise<{ nom: string; enZone: boolean } | null> {
+  const [q, rue] = await Promise.all([quartierDe(p), rueGoogle(p)]);
+  if (!rue) return q;
+  const complet = rue.commune ? `${rue.rue}, ${rue.commune}` : rue.rue;
+  if (!q) return EN_COTE_D_IVOIRE(p) ? { nom: complet, enZone: true } : null;
+  if (!q.enZone) return q;
+  const quartier = q.nom.split(',')[0]!.trim();
+  const connu = quartier && quartier !== 'Abidjan' && quartier !== 'Côte d’Ivoire' && !quartier.toLowerCase().includes(rue.rue.toLowerCase());
+  return { nom: connu ? `${rue.rue}, ${quartier}` : complet, enZone: true };
+}
+
 /** Lecture fraîche du GPS du téléphone (rien de mémorisé). Rejette avec l'erreur du navigateur (code 1 = refus). */
 export function lirePositionGps(): Promise<LatLng> {
   return new Promise((ok, ko) => {
@@ -299,7 +334,7 @@ export function useDepart(libelles: { maPosition: string }) {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        const q = await quartierDe(p);
+        const q = await adresseDe(p);
         if (q && !q.enZone) { setEtat('hors_zone'); return; }
         setEtat('ok');
         if (manuel.current) return; // le client a choisi lui-même : on ne l'écrase pas
@@ -328,7 +363,7 @@ export function useDepart(libelles: { maPosition: string }) {
     setEtat('attente');
     try {
       const p = await lirePositionGps();
-      const q = await quartierDe(p);
+      const q = await adresseDe(p);
       if (q && !q.enZone) { setEtat('hors_zone'); return { etat: 'hors_zone' }; }
       const place: Place = { id: 'gps', name: libelles.maPosition, area: q?.nom ?? '', location: p };
       manuel.current = false;

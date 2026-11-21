@@ -12,7 +12,8 @@ def rendu(nom, largeur=600, hauteur=600, azimut=35, elevation=20, marge=0.06, or
 # ---------------------------------------------------------------- véhicules
 def _peinture(nom, couleur, metal=0.6, rugosite=0.22): return o3.matiere(nom, couleur, rugosite=rugosite, metal=metal, vernis=1.0)
 PEINTURES = {
-    'orion': lambda: _peinture('vert ORION', o3.VERT, metal=0.1, rugosite=0.24),
+    # En noir, gris et blanc : une laque noire profonde, métallisée, comme une berline de maître.
+    'orion': lambda: _peinture('noir ORION', (0.010, 0.010, 0.012), metal=0.55, rugosite=0.17) if o3.NB else _peinture('vert ORION', o3.VERT, metal=0.1, rugosite=0.24),
     # L'accent choisi par le client (vert, bleu ou orange) habille la voiture ORION.
     'bleu': lambda: _peinture('bleu', o3.hexa('#1463FF'), metal=0.1, rugosite=0.24),
     'orange': lambda: _peinture('orange', o3.hexa('#FF6A00'), metal=0.1, rugosite=0.24),
@@ -39,6 +40,16 @@ rendu('scooter-dessus', 256, 512, azimut=90, elevation=89.9, marge=0.10, ortho=T
 # ---------------------------------------------------------------- objets des services
 M = o3.matiere
 def _teintes():
+    if o3.NB:
+        # Noir laqué, graphite satiné, gris moyen et perle, céramique blanche, acier brossé.
+        return dict(
+            vert=M('noir laqué', o3.VERT, rugosite=0.16, vernis=1.0), vert_clair=M('graphite', o3.VERT_CLAIR, rugosite=0.42, vernis=0.25),
+            violet=M('gris moyen', o3.VIOLET, rugosite=0.36, vernis=0.35), violet_clair=M('gris perle', o3.VIOLET_CLAIR, rugosite=0.34, vernis=0.4),
+            blanc=M('céramique', o3.BLANC, rugosite=0.22, vernis=0.8), noir=M('noir mat', o3.NOIR, rugosite=0.5, grain=0.2),
+            metal=M('acier', o3.hexa('#D4D6DA'), rugosite=0.24, metal=1.0, brosse=0.6), papier=M('papier', o3.hexa('#F1F1F2'), rugosite=0.66, grain=0.3),
+            # Pièces maîtresses : sac en papier noir mat, carte et écrin en laque noire.
+            sac=M('papier noir', o3.hexa('#121316'), rugosite=0.58, grain=0.45), laque=M('laque noire', o3.hexa('#08080A'), rugosite=0.14, vernis=1.0),
+        )
     return dict(
         vert=M('vert', o3.VERT, rugosite=0.30, vernis=0.5), vert_clair=M('vert clair', o3.VERT_CLAIR, rugosite=0.35, vernis=0.3),
         violet=M('violet', o3.VIOLET, rugosite=0.30, vernis=0.5), violet_clair=M('violet clair', o3.VIOLET_CLAIR, rugosite=0.35, vernis=0.3),
@@ -58,8 +69,8 @@ def _sac(pos, corps, anse, taille=(0.62, 0.30, 0.74), pastille=None):
 @rendu('food', azimut=118, elevation=22)
 def food():
     t = _teintes()
-    pain = M('pain', o3.hexa('#E0A34A'), rugosite=0.55); viande = M('viande', o3.hexa('#4A2A1A'), rugosite=0.75)
-    fromage = M('fromage', o3.hexa('#FFC531'), rugosite=0.4); tomate = M('tomate', o3.hexa('#E5372B'), rugosite=0.35)
+    pain = M('pain', o3.hexa('#E0A34A'), rugosite=0.55, nb='#A3A5AA', grain=0.5 if o3.NB else None); viande = M('viande', o3.hexa('#4A2A1A'), rugosite=0.75, nb='#17171A')
+    fromage = M('fromage', o3.hexa('#FFC531'), rugosite=0.4, nb='#F3F3F4', vernis=0.5 if o3.NB else 0.0); tomate = M('tomate', o3.hexa('#E5372B'), rugosite=0.35, nb='#55575C', vernis=0.6 if o3.NB else 0.0)
     o3.cylindre('pain bas', 0.36, 0.14, (0.42, -0.30, 0.07), pain, arrondi=0.06)
     o3.cylindre('salade', 0.40, 0.035, (0.42, -0.30, 0.165), t['vert_clair'], arrondi=0.015, cotes=11)
     o3.cylindre('viande', 0.37, 0.10, (0.42, -0.30, 0.235), viande, arrondi=0.04)
@@ -71,7 +82,7 @@ def food():
         a, r = i * 2.4, 0.07 + (i % 4) * 0.055
         z = 0.38 + 0.229 * math.sqrt(max(0, 1 - (r / 0.37) ** 2))
         o3.sphere('sésame', 0.016, (0.42 + r * math.cos(a), -0.30 + r * math.sin(a), z), t['papier'], echelle=(1.5, 0.9, 0.5), rot=(0, 0, a))
-    _sac((-0.22, 0.16, 0), t['violet'], t['blanc'], taille=(0.60, 0.34, 0.80), pastille=t['vert'])
+    _sac((-0.22, 0.16, 0), t.get('sac', t['violet']), t['blanc'], taille=(0.60, 0.34, 0.80), pastille=t['blanc'] if o3.NB else t['vert'])
 
 @rendu('achat', azimut=112, elevation=20)
 def achat():
@@ -97,9 +108,9 @@ def supermarche():
     o3.cylindre('bouteille', 0.085, 0.42, (0.10, 0.12, 0.34), t['violet_clair'], arrondi=0.03)
     o3.cylindre('goulot', 0.035, 0.14, (0.10, 0.12, 0.60), t['violet_clair'], arrondi=0.01)
     o3.cylindre('bouchon', 0.042, 0.04, (0.10, 0.12, 0.68), t['blanc'], arrondi=0.01)
-    o3.sphere('pomme', 0.115, (0.30, -0.12, 0.42), M('pomme', o3.hexa('#7BD13C'), rugosite=0.3, vernis=0.5), echelle=(1, 1, 0.92))
-    o3.sphere('orange', 0.105, (0.06, -0.14, 0.44), M('orange', o3.hexa('#FF9A1F'), rugosite=0.5))
-    o3.cylindre('baguette', 0.05, 0.62, (-0.02, 0.02, 0.50), M('pain', o3.hexa('#DDA050'), rugosite=0.6), rot=(0.15, 0.5, 0.4), arrondi=0.045)
+    o3.sphere('pomme', 0.115, (0.30, -0.12, 0.42), M('pomme', o3.hexa('#7BD13C'), rugosite=0.3, vernis=0.5, nb='#E6E6E8'), echelle=(1, 1, 0.92))
+    o3.sphere('orange', 0.105, (0.06, -0.14, 0.44), M('orange', o3.hexa('#FF9A1F'), rugosite=0.5, nb='#77797F', grain=0.6 if o3.NB else None))
+    o3.cylindre('baguette', 0.05, 0.62, (-0.02, 0.02, 0.50), M('pain', o3.hexa('#DDA050'), rugosite=0.6, nb='#B4B6BB'), rot=(0.15, 0.5, 0.4), arrondi=0.045)
 
 @rendu('colis', azimut=120, elevation=24)
 def colis():
@@ -116,12 +127,12 @@ def colis():
 def abonnement():
     t = _teintes()
     o3.boite('carte arrière', (0.98, 0.022, 0.62), (0.06, 0.12, 0.40), t['blanc'], rayon=0.045, rot=(-0.20, 0, -0.10))
-    o3.boite('carte', (0.98, 0.024, 0.62), (-0.04, -0.06, 0.36), t['violet'], rayon=0.045, rot=(-0.20, 0, 0.12))
-    o3.boite('puce', (0.15, 0.012, 0.11), (-0.30, -0.115, 0.42), M('or', o3.hexa('#F2C14E'), rugosite=0.2, metal=1.0), rayon=0.02, rot=(-0.20, 0, 0.12))
+    o3.boite('carte', (0.98, 0.024, 0.62), (-0.04, -0.06, 0.36), t.get('laque', t['violet']), rayon=0.045, rot=(-0.20, 0, 0.12))
+    o3.boite('puce', (0.15, 0.012, 0.11), (-0.30, -0.115, 0.42), M('or', o3.hexa('#F2C14E'), rugosite=0.2, metal=1.0, nb='#E2E3E6'), rayon=0.02, rot=(-0.20, 0, 0.12))
     for k in range(2): o3.boite('ligne', (0.46 - k * 0.14, 0.008, 0.03), (-0.10 - k * 0.07, -0.075, 0.23 - k * 0.07), t['violet_clair'], rayon=0.01, rot=(-0.20, 0, 0.12))
     # Médaille à couronne : ce que l'abonnement donne en plus.
-    o3.cylindre('médaille', 0.20, 0.05, (0.40, -0.28, 0.20), t['vert'], rot=(math.pi / 2 - 0.25, 0, 0.3), arrondi=0.018)
-    o3.tore('bord', 0.20, 0.016, (0.40, -0.28, 0.20), t['vert_clair'], rot=(math.pi / 2 - 0.25, 0, 0.3))
+    o3.cylindre('médaille', 0.20, 0.05, (0.40, -0.28, 0.20), t['metal'] if o3.NB else t['vert'], rot=(math.pi / 2 - 0.25, 0, 0.3), arrondi=0.018)
+    o3.tore('bord', 0.20, 0.016, (0.40, -0.28, 0.20), t['blanc'] if o3.NB else t['vert_clair'], rot=(math.pi / 2 - 0.25, 0, 0.3))
     for k, h in enumerate((0.07, 0.11, 0.07)):
         o3.cylindre('pointe', 0.03, h, (0.33 + k * 0.07, -0.318, 0.215 + h / 2 - 0.035), t['blanc'], rot=(-0.25, 0, 0), rayon_haut=0.004, cotes=20)
     o3.boite('socle', (0.20, 0.022, 0.035), (0.40, -0.318, 0.165), t['blanc'], rayon=0.008, rot=(-0.25, 0, 0))
@@ -142,16 +153,16 @@ def location():
 def mariage():
     t = _teintes()
     or_blanc = M('or blanc', o3.hexa('#F1EEE6'), rugosite=0.12, metal=1.0)
-    o3.boite('écrin', (0.80, 0.66, 0.22), (0, 0, 0.11), t['violet'], rayon=0.05)
+    o3.boite('écrin', (0.80, 0.66, 0.22), (0, 0, 0.11), t.get('laque', t['violet']), rayon=0.05)
     o3.boite('coussin', (0.68, 0.54, 0.10), (0, 0, 0.24), t['blanc'], rayon=0.045)
-    o3.boite('couvercle', (0.80, 0.05, 0.62), (0, 0.33, 0.50), t['violet'], rayon=0.022, rot=(-0.20, 0, 0))
+    o3.boite('couvercle', (0.80, 0.05, 0.62), (0, 0.33, 0.50), t.get('laque', t['violet']), rayon=0.022, rot=(-0.20, 0, 0))
     o3.boite('doublure', (0.68, 0.02, 0.50), (0, 0.300, 0.50), t['blanc'], rayon=0.02, rot=(-0.20, 0, 0))
     o3.tore('alliance', 0.15, 0.030, (-0.13, -0.02, 0.42), or_blanc, rot=(math.pi / 2 - 0.25, 0, 0.5))
     o3.tore('alliance', 0.13, 0.026, (0.15, -0.04, 0.40), or_blanc, rot=(math.pi / 2 - 0.2, 0, -0.5))
     bpy = o3.bpy
     bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=0.062, location=(0.15, -0.04, 0.575))
     gemme = bpy.context.object; gemme.scale = (1, 1, 0.8)
-    gemme.data.materials.append(M('gemme', o3.VERT_CLAIR, rugosite=0.03, vernis=1.0, metal=0.2))
+    gemme.data.materials.append(M('gemme', (0.93, 0.94, 0.96) if o3.NB else o3.VERT_CLAIR, rugosite=0.03, vernis=1.0, metal=0.2))
     o3.cylindre('griffe', 0.035, 0.05, (0.15, -0.04, 0.535), or_blanc, rayon_haut=0.055, cotes=6)
 
 @rendu('mes-courses', azimut=108, elevation=34)

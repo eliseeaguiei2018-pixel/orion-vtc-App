@@ -599,3 +599,93 @@ la visionneuse elle-même, depuis un téléphone, reste non vérifiée d'ici.
 - **Les lieux de Google ne sont pas encore dans la recherche** : il faut activer
   « Places API (New) » sur le projet. De même « Routes API » pour un itinéraire tenant
   compte du trafic, et « Geocoding API » pour l'adresse exacte d'une position.
+
+## 16. Version 1.5 : les lieux, les itinéraires et les adresses de Google ; accueil noir, gris et blanc ; icônes au trait (21 novembre)
+
+**Demande.** Trois points : (1) hors de l'accueil, toutes les icônes de l'app cliente
+dans le style des paramètres, sans couleur, le bouton SOS restant rouge ; (2) à
+l'accueil, les neuf objets en volume refaits en noir, gris et blanc, plus réalistes, à
+titre d'essai (la version en couleur doit pouvoir revenir) ; (3) la « vraie » carte
+Google : dans l'APK 1.4, chercher « FAO » ne donnait rien alors que l'application Google
+Maps en montre plusieurs.
+
+### Pourquoi « FAO » ne sortait pas
+
+La carte et la recherche sont deux services distincts chez Google. La clé de la version
+1.4 n'autorisait que l'affichage de la carte : la recherche restait celle d'ORION. Le
+client a depuis activé trois services sur son projet ; la sonde, relancée depuis
+l'adresse de l'application Android, le confirme :
+
+| Service | Version 1.4 | Aujourd'hui |
+|---|---|---|
+| Maps JavaScript API (carte) | Accepté | Accepté |
+| Places API (New) : lieux | Refusé | **Accepté** |
+| Routes API : itinéraire avec trafic | Refusé | **Accepté** |
+| Geocoding API : adresse d'une position | Refusé | **Accepté** |
+| Places, Directions, Distance Matrix (anciennes versions) | Refusés | Refusés (inutiles) |
+
+### Ce qui a été fait
+
+| Sujet | Changement |
+|---|---|
+| Recherche | Les suggestions viennent de Google (cinq au plus, règle de Google), suivies des lieux d'ORION. « Voir tous les lieux pour « FAO » » (ou la touche Entrée) donne la liste complète de Google, chaque lieu avec sa position. Le nom affiché reste celui que le client a touché. |
+| Itinéraire | Sur la carte Google, le trajet est celui de Google : il suit ses routes et la pastille du haut donne la durée avec le trafic du moment, la distance par la route et la grande voie empruntée (« 12 min · 4,7 km · via Bd de France »). |
+| Adresse | La position du téléphone et le point choisi sur la carte portent le nom de la rue, d'après Google, suivi du quartier d'ORION (« Rue Moro Bitty, Cité des Arts »). Les références de voirie (« C 20 ») sont écartées. Le SOS continue de transmettre le quartier. |
+| Menu → Carte | Une rubrique « Services Google » dit, pour les lieux, les itinéraires et les adresses, si Google répond pour la clé, avec le motif en cas de refus et un bouton « Vérifier maintenant ». |
+| Repli | Chaque service est indépendant. Refus (service non activé) ou silence de Google : la recherche, le tracé ou le quartier d'ORION prennent le relais, sans message d'erreur ni blocage. |
+| Cadrage | La carte se recadre sur le trajet quand la feuille du bas change de hauteur : le départ ou l'arrivée ne glissent plus dessous. |
+| Accueil | Neuf rendus refaits dans une palette noir laqué, graphite, gris perle, céramique et acier brossé (`public/rendus/nb/`, 187 ko). Le scooter de l'écran Livraison suit. |
+| Icônes | Packs Argent, Or et Diamant, SAMU, police, pompiers, domicile, bureau, banque et tous les lieux des listes, assurance, historique, alertes SOS, portefeuille, abonnement, Wi-Fi : pictogrammes au trait, sans couleur. Le bouton SOS et l'écran SOS restent rouges. |
+| Retour en arrière | Une ligne dans `src/main.tsx` : `accueil: 'couleur'` rétablit les objets vert, blanc et violet ; `icones: 'volume'` rétablit les icônes en volume. Les rendus en couleur sont toujours livrés. |
+
+Fichiers : `src/servicesGoogle.ts` (état de chaque service), `src/lieuxGoogle.ts`,
+`src/itineraireGoogle.ts`, `src/adressesGoogle.ts`, `src/lieux.ts`,
+`src/components/{CarteGoogle,ChoixLieu,CarteFondScreen,Vehicules}.tsx`, `src/icons.tsx`,
+`scripts/rendus-3d/{orion3d,rendre}.py`. Version 1.5.0 (code 6).
+
+**Ce qui ne change pas.** Le prix d'une course reste calculé par ORION, sur la même
+distance qu'avant : la durée et la distance de Google sont une information affichée sur
+la carte, pas une base de facturation. Les véhicules des gammes (Argent, Or, Diamant) et
+de la location gardent leur teinte, qui désigne la gamme. L'app chauffeur, la console et
+le tableau de bord gardent la carte ORION et les objets en couleur.
+
+### Vérifications (avec la vraie clé, sur le contenu exact de l'APK)
+
+- **Services Google**, en clair puis en sombre, 8 étapes sur 8 : « FAO » → 13 lignes dont
+  « FAO CI (bureau officiel) », « FAO CONSEIL », « FIDA » ; le lieu choisi est localisé
+  par Google puis mène au choix du véhicule avec le trajet Google affiché ; « Voir tous
+  les lieux » → 15 lieux pour « FAO », 30 pour « Sococé » ; Menu → Carte : lieux,
+  itinéraires et adresses actifs, aucun texte coupé ; point choisi sur la carte nommé par
+  sa rue ; neuf tuiles d'accueil en noir, gris et blanc, aucune image manquante ; aide et
+  packs au trait, aucune icône en volume.
+- **Google seul**, en clair puis en sombre, 7 étapes sur 7 : version 1.5.0 affichée, logo
+  et mentions de Google visibles au-dessus de la feuille, Google coupé → panneau
+  « Google Maps ne répond pas » et commande toujours possible, « Réessayer » → la carte
+  revient. Aucune tuile ni police de la carte ORION demandée.
+- Parcours du menu et de la bulle GPS : 9 étapes sur 9. Parcours complet (inscription,
+  course, partage, SOS, paiement, assurance, abonnement, location, mariage, suppression
+  du compte) : 20 étapes sur 20. Trente écrans capturés, aucune erreur JavaScript.
+- Ce parcours complet a révélé un défaut, corrigé avant l'envoi : en touchant « Riviéra
+  Golf », la destination prenait le nom « Riviéra 1 » renvoyé par Google.
+- Textes : 808 clés, toutes traduites dans les huit langues.
+- APK 1.5.0 : `ci.orion.app`, code 6, même signature que les précédents, 11,0 Mo ; ses
+  149 fichiers web sont identiques à la version testée. La clé y figure (c'est voulu) ;
+  elle ne figure ni dans le dépôt ni dans son historique.
+
+### Limites
+
+- **Rien n'a été essayé sur un téléphone.** Les parcours tournent dans le moteur de
+  Chrome, celui de l'application Android, à la même adresse (`https://localhost`).
+- **La recherche Google exige une connexion** ; sans réponse de Google, la recherche est
+  celle d'ORION (48 924 lieux), sans que le client ait à le demander.
+- **Google facture ces services à l'usage** au-delà de son quota gratuit mensuel. Une
+  session ordinaire en appelle peu (quelques recherches, un trajet par itinéraire
+  affiché, une adresse par position lue), mais la clé est dans l'APK et sans restriction :
+  la limiter aux quatre services utilisés et à l'adresse `https://localhost/*`, et
+  plafonner les quotas.
+- **Le prix n'utilise pas la distance de Google** : le serveur et l'application calculent
+  toujours sur la distance à vol d'oiseau entre les points. L'aligner sur la distance par
+  la route est une décision tarifaire, non prise ici.
+- **L'APK compilé par GitHub** garde la carte ORION tant que le secret
+  `GOOGLE_MAPS_API_KEY` n'est pas ajouté au dépôt.
+- **La page partageable** montre encore la version 1.4.
