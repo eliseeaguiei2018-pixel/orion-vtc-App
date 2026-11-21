@@ -2,7 +2,8 @@ import type { LatLng } from '../../core/geo.js';
 import { haversineMeters } from '../../core/geo.js';
 import { ALL_ZONES } from '../geo-ci/zones.js';
 import { QUARTIERS_ABIDJAN } from './quartiers-abidjan.js';
-import { LIBELLE_NIVEAU, communeParIndice } from './lieux.js';
+import { LIBELLE_NIVEAU, communeParIndice, quartierProche } from './lieux.js';
+import { indexLieux, sansAccents } from './index-lieux.js';
 
 /**
  * RECHERCHE DE LIEUX (adresse de départ ou de destination).
@@ -12,9 +13,13 @@ import { LIBELLE_NIVEAU, communeParIndice } from './lieux.js';
  * était introuvable. Deux sources, fusionnées :
  *
  *  1. le RÉPERTOIRE ORION, local et toujours disponible : communes, grandes villes, gares,
- *     aéroport, et les lieux du Grand Abidjan extraits d'OpenStreetMap et NETTOYÉS (doublons
+ *     aéroport, les lieux du Grand Abidjan extraits d'OpenStreetMap et NETTOYÉS (doublons
  *     fusionnés, niveau de chaque lieu, commune selon les limites OSM) : « Riviéra 2 —
- *     Quartier · Cocody » ; insensible aux accents (« adjame » trouve « Adjamé ») ;
+ *     Quartier · Cocody », et l'INDEX DÉTAILLÉ du district (48 924 lieux : commerces,
+ *     banques, sièges, écoles, lieux de culte, rues…), le même que celui des applications ;
+ *     insensible aux accents (« adjame » trouve « Adjamé ») ; un nom de catégorie
+ *     (« pharmacie », « mosquée », « banque ») donne les lieux de cette catégorie les plus
+ *     proches, même si leur nom ne contient pas le mot ;
  *  2. OPENSTREETMAP via un service Photon (adresses, rues, commerces, établissements),
  *     limité à la Côte d'Ivoire et classé près de l'utilisateur. Hors ligne ou lent, il
  *     est simplement ignoré : la recherche ne reste jamais vide par sa faute.
@@ -30,6 +35,8 @@ export interface LieuTrouve {
   secteur: string;
   location: LatLng;
   source: 'repertoire' | 'osm';
+  /** Pictogramme du lieu (« pharmacy », « bank », « road »…), quand il vient de l'index détaillé. */
+  categorie?: string;
 }
 
 /** Emprise de la Côte d'Ivoire (ouest, sud, est, nord). */
@@ -37,8 +44,7 @@ const EMPRISE_CI = [-8.61, 4.34, -2.49, 10.74] as const;
 const CACHE_MS = 10 * 60_000;
 const CACHE_MAX = 500;
 const DELAI_MS = 4_000;
-
-const sansAccents = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[-'’]/g, ' ').replace(/\s+/g, ' ').trim();
+const MAX_RESULTATS = 12;
 
 type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -52,33 +58,74 @@ export class Geocodeur {
 
   constructor(private readonly urlPhoton: string | null, private readonly fetcher: Fetcher = fetch) {}
 
-  /** Répertoire local : communes, villes, gares, aéroport, quartiers d'Abidjan. */
+  /** Répertoire local : communes, villes, gares, aéroport, quartiers d'Abidjan, index détaillé du district. */
   repertoire(q: string, pres?: LatLng): LieuTrouve[] {
     const cle = sansAccents(q);
     if (!cle) return [];
-    const rang = (nom: string) => {
-      const n = sansAccents(nom);
-      return n === cle ? 0 : n.startsWith(cle) ? 1 : n.split(' ').some((m) => m.startsWith(cle)) ? 2 : n.includes(cle) ? 3 : -1;
-    };
-    const candidats: Array<LieuTrouve & { rang: number; poids: number }> = [];
+    const rang = (n: string) => (n === cle ? 0 : n.startsWith(cle) ? 1 : n.split(' ').some((m) => m.startsWith(cle)) ? 2 : n.includes(cle) ? 3 : -1);
+    type Candidat = LieuTrouve & { rang: number; poids: number; detail?: boolean };
+    const candidats: Candidat[] = [];
     for (const z of ALL_ZONES) {
-      const r = rang(z.name);
+      const r = rang(sansAccents(z.name));
       if (r >= 0) candidats.push({ id: `zone:${z.id}`, nom: z.name, secteur: z.kind === 'commune' ? `Commune · ${z.region}` : z.region, location: z.center, source: 'repertoire', rang: r, poids: 0 });
     }
+    const dejaQuartiers = new Set<string>();
     for (const [nom, lat, lng, niveau, iCommune] of QUARTIERS_ABIDJAN) {
-      const r = rang(nom);
+      const n = sansAccents(nom);
+      const r = rang(n);
       if (r < 0) continue;
+      dejaQuartiers.add(n);
       const commune = communeParIndice(iCommune);
       // Les quartiers passent avant leurs subdivisions (« Zone 4 » avant « Zone 4a »).
       const poids = niveau === 'quartier' ? 1 : niveau === 'sous-quartier' ? 2 : 3;
-      candidats.push({ id: `osm-lieu:${sansAccents(nom).replace(/ /g, '-')}:${lat}`, nom, secteur: `${LIBELLE_NIVEAU[niveau]} · ${commune ?? 'Grand Abidjan'}`, location: { lat, lng }, source: 'repertoire', rang: r, poids });
+      candidats.push({ id: `osm-lieu:${n.replace(/ /g, '-')}:${lat}`, nom, secteur: `${LIBELLE_NIVEAU[niveau]} · ${commune ?? 'Grand Abidjan'}`, location: { lat, lng }, source: 'repertoire', categorie: 'marker', rang: r, poids });
     }
-    return candidats
-      // À rang égal : la commune avant le quartier, puis le plus proche de l'utilisateur.
-      .sort((a, b) => a.rang - b.rang || a.poids - b.poids
-        || (pres ? haversineMeters(pres, a.location) - haversineMeters(pres, b.location) : 0))
-      .slice(0, 8)
-      .map(({ rang: _r, poids: _p, ...l }) => l);
+    const ix = cle.length >= 2 ? indexLieux() : null;
+    if (ix) {
+      // Catégories demandées par leur nom (« pharmacie », « eglise », « supermarche »…).
+      const visees = new Set<number>();
+      if (cle.length >= 4) ix.motsCategories.forEach((mots, i) => { if (mots.some((m) => m.startsWith(cle))) visees.add(i); });
+      const parCategorie: Candidat[] = [];
+      for (let i = 0; i < ix.lieux.length; i++) {
+        const r = rang(ix.cles[i]!);
+        const c = ix.lieux[i]![3];
+        const visee = visees.has(c);
+        if (r < 0 && !visee) continue;
+        const [libelle, pictogramme, rangCat] = ix.categories[c] ?? ['Lieu', 'dot', 3];
+        if (rangCat === 0 && dejaQuartiers.has(ix.cles[i]!)) continue;
+        const [nom, lat, lng, , iCommune] = ix.lieux[i]!;
+        const lieu: Candidat = {
+          id: `osm-poi:${i}`, nom, secteur: `${libelle} · ${ix.communes[iCommune] ?? 'Grand Abidjan'}`, location: { lat, lng },
+          source: 'repertoire', categorie: pictogramme, detail: rangCat !== 0,
+          // Un arrêt de bus porte souvent le nom d'un lieu (« Pharmacie », « Mosquée ») : il
+          // passe après les vrais lieux de même nom.
+          rang: visee ? 0.5 : r + (rangCat >= 5 ? 1.5 : 0) + (visees.size ? 1 : 0), poids: rangCat === 0 ? 1 : rangCat,
+        };
+        (visee ? parCategorie : candidats).push(lieu);
+      }
+      // « pharmacie », « mosquée »… : les plus proches de cette catégorie d'abord (il y en a des centaines).
+      if (pres) parCategorie.sort((a, b) => haversineMeters(pres, a.location) - haversineMeters(pres, b.location));
+      candidats.push(...parCategorie.slice(0, 10));
+    }
+    // À rang égal : la commune avant le quartier, puis le plus proche de l'utilisateur.
+    candidats.sort((a, b) => a.rang - b.rang || (a.rang === 0.5 ? 0 : a.poids - b.poids)
+      || (pres ? haversineMeters(pres, a.location) - haversineMeters(pres, b.location) : 0));
+    // Un même nom à moins de 300 m (arrêt de bus et école « Riviéra Golf ») : un seul résultat.
+    const retenus: Candidat[] = [];
+    for (const c of candidats) {
+      if (retenus.length >= MAX_RESULTATS) break;
+      const n = sansAccents(c.nom);
+      if (retenus.some((x) => sansAccents(x.nom) === n && haversineMeters(x.location, c.location) < 300)) continue;
+      retenus.push(c);
+    }
+    return retenus.map(({ rang: _r, poids: _p, detail, ...l }) => {
+      // Le quartier précis d'un commerce ou d'une rue : « Pharmacie · Riviéra 2, Cocody ».
+      if (!detail) return l;
+      const [libelle, commune] = l.secteur.split(' · ');
+      const proche = quartierProche(l.location);
+      const ou = proche && proche.distanceMeters < 1_200 ? (commune && commune !== 'Grand Abidjan' && commune !== proche.nom ? `${proche.nom}, ${commune}` : proche.nom) : commune;
+      return { ...l, secteur: `${libelle} · ${ou}` };
+    });
   }
 
   /** Recherche complète : OpenStreetMap (précis) puis le répertoire, sans doublon. */
@@ -95,7 +142,7 @@ export class Geocodeur {
       if (tous.some((t) => sansAccents(t.nom) === n && haversineMeters(t.location, l.location) < 1_500)) continue;
       tous.push(l);
     }
-    return tous.slice(0, 10);
+    return tous.slice(0, MAX_RESULTATS);
   }
 
   private async photon(q: string, pres?: LatLng): Promise<LieuTrouve[]> {

@@ -13,6 +13,8 @@ ENV NODE_ENV=production
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
+# Index des lieux du district d'Abidjan (recherche d'adresses), lu par dist/modules/maps
+COPY data ./data
 # Utilisateur non-root (sécurité)
 USER node
 EXPOSE 3000

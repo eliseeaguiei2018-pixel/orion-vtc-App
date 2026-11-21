@@ -4,7 +4,9 @@ dist/
 *.log
 coverage/
 .DS_Store
-data/
+# Bases locales ignorées ; l'index des lieux (recherche d'adresses) est versionné.
+data/*
+!data/lieux-index.json.gz
 .tmp/
 *.db
 *.db-*

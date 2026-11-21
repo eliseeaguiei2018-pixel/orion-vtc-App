@@ -4,7 +4,9 @@ import { Geocodeur } from '../src/modules/maps/geocodage.js';
 import { QUARTIERS_ABIDJAN } from '../src/modules/maps/quartiers-abidjan.js';
 import { communeDe, lieuDe } from '../src/modules/maps/lieux.js';
 import { buildApp } from '../src/app.js';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
+import { indexLieux } from '../src/modules/maps/index-lieux.js';
 
 const PLATEAU = { lat: 5.3236, lng: -4.0217 };
 
@@ -112,4 +114,77 @@ test("app cliente : sa copie des lieux (recherche sans serveur) est identique à
   const serveur = readFileSync(new URL('../src/modules/maps/quartiers-abidjan.ts', import.meta.url), 'utf8');
   const app = readFileSync(new URL('../../frontend/src/lieux-abidjan.ts', import.meta.url), 'utf8');
   assert.equal(app, serveur, 'régénérer avec scripts/lieux-osm (README) : les deux copies ont divergé');
+});
+
+/* ---------------- Index détaillé du district (48 924 lieux), côté serveur ---------------- */
+
+const RIVIERA = { lat: 5.3458, lng: -4.0010 };
+
+test('index détaillé : chargé par le serveur, chaque lieu a un nom, une position et une catégorie', () => {
+  const ix = indexLieux();
+  assert.ok(ix, 'data/lieux-index.json.gz est lisible');
+  assert.ok(ix.lieux.length > 40_000, `${ix.lieux.length} lieux`);
+  assert.equal(ix.cles.length, ix.lieux.length);
+  for (const [nom, lat, lng, c] of ix.lieux) {
+    assert.ok(nom && lat > 4.9 && lat < 5.8 && lng > -4.6 && lng < -3.5, `${nom} ${lat},${lng}`);
+    assert.ok(ix.categories[c], `catégorie ${c} de ${nom}`);
+  }
+});
+
+test('index détaillé : un commerce, une banque, une rue sont trouvés par leur nom, avec leur quartier', () => {
+  const g = new Geocodeur(null);
+  const ix = indexLieux()!;
+  // Un lieu de chaque famille, pris dans l'index lui-même : il doit ressortir de la recherche.
+  for (const pictogramme of ['pharmacy', 'bank', 'school', 'road', 'lodging']) {
+    const c = ix.categories.findIndex(([, p]) => p === pictogramme);
+    const lieu = ix.lieux.find((l) => l[3] === c && l[0].length > 12 && l[0].split(' ').length >= 3);
+    assert.ok(lieu, `un lieu « ${pictogramme} » dans l'index`);
+    const r = g.repertoire(lieu[0], { lat: lieu[1], lng: lieu[2] });
+    const trouve = r.find((l) => l.nom === lieu[0]);
+    assert.ok(trouve, `« ${lieu[0]} » → ${r.map((l) => l.nom).join(' | ')}`);
+    assert.equal(trouve.categorie, pictogramme);
+    assert.equal(trouve.source, 'repertoire');
+    assert.match(trouve.secteur, / · /, 'catégorie · quartier ou commune');
+  }
+});
+
+test('index détaillé : « pharmacie », « banque », « mosquée » donnent les lieux de la catégorie les plus proches', () => {
+  const g = new Geocodeur(null);
+  for (const [q, pictogrammes] of [['pharmacie', ['pharmacy']], ['banque', ['bank']], ['mosquee', ['religious_muslim', 'place_of_worship']], ['supermarche', ['grocery', 'shop']]] as const) {
+    const r = g.repertoire(q, RIVIERA);
+    assert.ok(r.length >= 8, `« ${q} » : ${r.length} résultats`);
+    const duType = r.filter((l) => (pictogrammes as readonly string[]).includes(l.categorie ?? ''));
+    assert.ok(duType.length >= 6, `« ${q} » → ${r.map((l) => `${l.nom} (${l.categorie})`).join(' | ')}`);
+    // Les plus proches d'abord : les premiers sont à quelques kilomètres, pas à l'autre bout du district.
+    const km = (l: { location: { lat: number; lng: number } }) => Math.hypot((l.location.lat - RIVIERA.lat) * 110.6, (l.location.lng - RIVIERA.lng) * 110.3);
+    assert.ok(km(duType[0]!) < 3, `le premier « ${q} » est à ${km(duType[0]!).toFixed(1)} km`);
+  }
+});
+
+test('index détaillé : les communes et quartiers restent en tête, sans doublon avec l’index', () => {
+  const g = new Geocodeur(null);
+  assert.equal(g.repertoire('cocody', RIVIERA)[0]?.nom, 'Cocody');
+  assert.equal(g.repertoire('cocody', RIVIERA)[0]?.secteur.startsWith('Commune'), true);
+  const riviera = g.repertoire('riviera golf', RIVIERA);
+  assert.match(riviera[0]!.nom, /^Rivi[ée]ra Golf/i, riviera.map((l) => l.nom).join(' | '));
+  const noms = riviera.map((l) => `${l.nom}|${l.location.lat.toFixed(3)},${l.location.lng.toFixed(3)}`);
+  assert.equal(new Set(noms).size, noms.length, 'aucun doublon');
+  assert.ok(g.repertoire('a').length <= 12 && g.repertoire('pharmacie', RIVIERA).length <= 12, '12 résultats au plus');
+});
+
+test('route /maps/recherche : l’index détaillé répond, avec la catégorie de chaque lieu', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+  const r = await app.inject({ method: 'GET', url: `/maps/recherche?q=pharmacie&lat=${RIVIERA.lat}&lng=${RIVIERA.lng}` });
+  assert.equal(r.statusCode, 200, r.body);
+  const lieux = r.json().lieux as Array<{ nom: string; categorie?: string; secteur: string; location: { lat: number; lng: number } }>;
+  assert.ok(lieux.filter((l) => l.categorie === 'pharmacy').length >= 6, lieux.map((l) => l.nom).join(' | '));
+  assert.ok(lieux.every((l) => Number.isFinite(l.location.lat) && Number.isFinite(l.location.lng)));
+});
+
+test('index détaillé : la copie du serveur est celle livrée avec les applications', () => {
+  const app = new URL('../../frontend/public/carte/lieux-index.json', import.meta.url);
+  if (!existsSync(app)) return; // image du serveur seule : pas de copie à comparer
+  const serveur = gunzipSync(readFileSync(new URL('../data/lieux-index.json.gz', import.meta.url)));
+  assert.ok(serveur.equals(readFileSync(app)), 'relancer « npm run index-lieux » : les deux copies ont divergé');
 });
