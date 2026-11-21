@@ -734,3 +734,67 @@ objets sont les modèles d'ORION.
   fluidité sans se voir.
 - **Rien n'a été essayé sur un téléphone**, comme pour les versions précédentes.
 - **La page partageable** montre encore la version 1.4.
+
+## 18. Version 1.5.2 : prix sur le trajet par la route, carte Google fluide (21 novembre)
+
+**Demande.** Après essai de la 1.5.1 : les prix ont paru trop bas depuis la carte Google ;
+la carte « bugge » au démarrage et pendant la recherche de lieux ; l'accueil ne convenait
+pas encore. Plusieurs pistes d'accueil ont été montrées en images (cartes à fond rouge
+léger, puis rouge franc, puis de nouveau translucides avec le nom dans la carte et un
+bandeau de marque) : le client a choisi de **revenir à l'interface de la 1.5.1**, telle
+quelle. La feuille de style est celle de la 1.5.1, plus neuf lignes.
+
+### Prix
+
+La carte Google n'avait pas changé le calcul : depuis la première version, le prix était
+calculé sur la distance **à vol d'oiseau**. La carte Google affiche désormais la distance
+par la route, d'où l'écart devenu visible (4,7 km affichés, prix calculé sur 3,1 km).
+
+| Où | Changement |
+|---|---|
+| App cliente | Le prix se calcule sur le trajet tracé sur la carte : itinéraire de Google s'il répond, sinon calcul routier d'ORION (`src/tarifTrajet.ts`). Sans trajet (hors connexion), 1,3 fois le vol d'oiseau. Un trajet invraisemblable est écarté. Le trafic est celui du trajet quand Google donne la durée avec et sans circulation. Tant que le trajet n'est pas connu, l'écran affiche « … » au lieu d'un montant provisoire. |
+| Serveur | `distanceFacturee()` : même règle pour les courses et les livraisons ; la distance vient du module de routage (`routeMeters`), avec un délai de 1,8 s, sinon 1,3 fois le vol d'oiseau. |
+
+Exemples mesurés depuis la Cité des Arts : FAO, 4,7 km par la route, Argent 1 150 F au
+lieu de 950 F ; Sococé, 3,9 km, 1 050 F. Le barème lui-même (prise en charge, prix au
+kilomètre et à la minute, suppléments de gamme) n'est pas modifié.
+
+### Carte
+
+Mesures dans le moteur de l'application, écran réduit pendant la saisie pour simuler le
+clavier d'un téléphone :
+
+| Mesure | 1.5.1 | 1.5.2 |
+|---|---|---|
+| Recentrages de la carte pendant la frappe de 13 lettres | 9 | 0 |
+| Ouverture de la recherche → carte avec ses tuiles | 634 ms | 145 ms |
+| Cartes Google créées sur un trajet complet (recherche → suivi) | 5 | 1 |
+| Recadrages sur ce trajet | 28 | 14 |
+
+Causes et corrections : la carte était recréée à chaque écran — elle est maintenant unique,
+préparée dès l'accueil et déplacée d'écran en écran ; elle se recentrait à chaque
+changement de hauteur de la feuille du bas (donc à chaque lettre, clavier ouvert) — elle
+ne recadre plus que si le trajet change ou si la hauteur utile varie de plus de 40 px, et
+jamais pendant la saisie.
+
+### Vérifications (sur le contenu exact de l'APK 1.5.2)
+
+- Accueil comparé à la capture de la 1.5.1 : identique, aux objets animés près.
+- Services Google et prix, en clair puis en sombre : 9 étapes sur 9, dont « la distance du
+  détail du prix est celle affichée sur la carte ». Google seul : 7 sur 7 dans les deux
+  thèmes. Menu et bulle GPS : 9 sur 9. Parcours complet : 20 sur 20. Aucune erreur JavaScript.
+- Serveur : 395 tests, 393 réussis, 2 ignorés (SQLite) ; quatre tests nouveaux sur la
+  distance facturée.
+- APK 1.5.2 : `ci.orion.app`, code 8, même signature, 10,9 Mo ; ses 158 fichiers web sont
+  identiques à la version testée. La clé n'est ni dans le dépôt ni dans son historique.
+
+### Limites
+
+- **Rien n'a été essayé sur un téléphone.** La fluidité est mesurée dans le moteur de
+  Chrome sur une machine de test, pas sur l'appareil du client.
+- **Vertex AI n'est pas utilisé.** La clé Maps du client y est refusée (« API keys are not
+  supported by this API ») et l'API Gemini est refusée sur son projet : les objets 3D
+  restent ceux de l'atelier du dépôt.
+- **Les prix montent** d'environ 10 à 60 % selon le détour imposé par la route (ponts de
+  la lagune) : c'est l'effet voulu, à surveiller sur les premiers trajets réels.
+- **La page partageable** montre encore la version 1.4.
