@@ -49,7 +49,34 @@ Le plus rapide pour un test sur le terrain : **Twilio**.
 Pour la production : Orange Côte d'Ivoire (section « Opérateur SMS » plus bas). Saisissez
 ces valeurs uniquement dans Render, jamais dans une conversation ni dans le dépôt.
 
-### Codes par WhatsApp (Twilio)
+### Codes par WhatsApp (Meta, API officielle — recommandé)
+Le bouton « Recevoir le code via WhatsApp » (app client et app chauffeur) n'apparaît que
+lorsque le serveur sait envoyer par WhatsApp. Il apparaît tout seul, sans réinstaller les apps.
+Meta impose, pour un code de connexion, un modèle de message « Authentification » approuvé.
+
+1. **developers.facebook.com** → connexion avec Facebook → **Mes apps → Créer une app** →
+   cas d'usage WhatsApp (« Communiquer avec les clients via WhatsApp ») → nom `ORION`.
+2. Menu **WhatsApp → Configuration de l'API** (API Setup) :
+   - champ **À** → *Gérer la liste des numéros* : ajouter les numéros des testeurs (5 au plus) ;
+     chacun reçoit un code de vérification **sur WhatsApp** ;
+   - noter l'**identifiant du numéro de téléphone** (Phone number ID) ;
+   - **Générer un jeton d'accès** (valable 24 h ; jeton permanent : point 5).
+3. **WhatsApp Manager → Modèles de message → Créer** : catégorie **Authentification**, nom
+   `orion_code`, langue **Français**, bouton **Copier le code** → Envoyer (validation en
+   quelques minutes en général).
+4. Render → `orion-backend` → **Environment** : `META_WHATSAPP_PHONE_ID` = l'identifiant,
+   `META_WHATSAPP_TOKEN` = le jeton → **Save**.
+5. Jeton permanent : **Paramètres business → Utilisateurs système → Ajouter** (admin) →
+   *Ajouter des actifs* : l'app ORION et le compte WhatsApp → **Générer un jeton** pour l'app
+   ORION, autorisations `whatsapp_business_messaging` et `whatsapp_business_management`,
+   expiration **Jamais** → remplacer `META_WHATSAPP_TOKEN` dans Render.
+
+Pour le lancement public : ajouter le vrai numéro WhatsApp Business d'ORION (WhatsApp →
+Numéros de téléphone), faire vérifier l'entreprise par Meta, puis remplacer
+`META_WHATSAPP_PHONE_ID` par l'identifiant de ce numéro. La liste des 5 testeurs ne s'applique
+plus.
+
+### Codes par WhatsApp (Twilio, secours)
 Le bouton « Recevoir le code via WhatsApp » de l'app client n'apparaît que lorsque le serveur
 sait envoyer par WhatsApp. Il apparaît tout seul dès que c'est réglé, sans réinstaller l'app.
 

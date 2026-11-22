@@ -118,6 +118,9 @@ test('production, code par WhatsApp : refus clair sans numéro WhatsApp, envoi e
   const pasInscrit = await app.inject({ method: 'POST', url: '/clients/auth/otp', payload: { phone: '0101010101', canal: 'whatsapp' } });
   assert.equal(pasInscrit.statusCode, 502, pasInscrit.body);
   assert.match(pasInscrit.json().error.message, /message d’inscription/);
+  refusWhatsApp = 131030;
+  const pasAutorise = await app.inject({ method: 'POST', url: '/clients/auth/otp', payload: { phone: '0101010101', canal: 'whatsapp' } });
+  assert.match(pasAutorise.json().error.message, /pas encore autorisé sur le WhatsApp de test/);
   refusWhatsApp = 63003;
   const sansWhatsApp = await app.inject({ method: 'POST', url: '/clients/auth/otp', payload: { phone: '0101010101', canal: 'whatsapp' } });
   assert.match(sansWhatsApp.json().error.message, /ne semble pas utiliser WhatsApp/);

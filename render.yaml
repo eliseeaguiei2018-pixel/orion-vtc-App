@@ -103,6 +103,13 @@ services:
       # Twilio : SMS de secours (SMS_PROVIDER=twilio) et codes par WhatsApp. Le bouton
       # « Recevoir le code via WhatsApp » n'apparaît dans l'app que si TWILIO_WHATSAPP_FROM
       # est défini (bac à sable : +14155238886). Voir DEPLOIEMENT.md, « Codes par WhatsApp ».
+      # Codes par WhatsApp, API officielle de Meta (prioritaire sur Twilio). Voir DEPLOIEMENT.md.
+      - key: META_WHATSAPP_PHONE_ID
+        sync: false
+      - key: META_WHATSAPP_TOKEN
+        sync: false
+      - key: META_WHATSAPP_TEMPLATE
+        value: orion_code
       - key: TWILIO_ACCOUNT_SID
         sync: false
       - key: TWILIO_AUTH_TOKEN

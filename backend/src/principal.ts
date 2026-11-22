@@ -25,6 +25,12 @@ export async function main(): Promise<void> {
   } else if (config.NODE_ENV === 'production') {
     logger.warn('Aucun opérateur SMS (SMS_PROVIDER=console) : les connexions par code sont refusées. Configurer SMS_PROVIDER=orange.');
   }
+  // Codes par WhatsApp : actifs, ou réglage Meta incomplet (un seul des deux renseigné).
+  if (container.whatsapp) {
+    logger.warn({ fournisseur: container.whatsapp.fournisseur, modele: config.META_WHATSAPP_TEMPLATE }, 'Codes de connexion par WhatsApp actifs');
+  } else if (Boolean(config.META_WHATSAPP_PHONE_ID) !== Boolean(config.META_WHATSAPP_TOKEN)) {
+    logger.warn('WhatsApp (Meta) désactivé : META_WHATSAPP_PHONE_ID et META_WHATSAPP_TOKEN doivent être renseignés tous les deux.');
+  }
 
   let shuttingDown = false;
   const shutdown = async (signal: string): Promise<void> => {

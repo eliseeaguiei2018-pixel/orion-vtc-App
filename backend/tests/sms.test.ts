@@ -1,6 +1,6 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { OrangeSms, TwilioSms, TwilioWhatsApp, creerWhatsApp, SmsError, messageCode, messageCodeWhatsApp } from '../src/modules/sms/index.js';
+import { OrangeSms, TwilioSms, TwilioWhatsApp, MetaWhatsApp, creerWhatsApp, SmsError, messageCode, messageCodeWhatsApp } from '../src/modules/sms/index.js';
 import { OtpStore } from '../src/modules/driver-app/auth.js';
 
 /**
@@ -108,6 +108,37 @@ test('WhatsApp (Twilio) : un refus signalé après l’envoi remonte avec son co
   const refus = faux([{ status: 400, body: { code: 21211, message: 'Invalid To' } }]);
   await assert.rejects(new TwilioWhatsApp({ accountSid: 'AC1', authToken: 'tok', de: '+1' }, refus.fn, async () => {}).envoyer('+2250708091011', '1', 'x'),
     (e: unknown) => e instanceof SmsError && e.codeOperateur === 21211 && /400 · Invalid To/.test(e.message));
+});
+
+test('WhatsApp (Meta, API officielle) : modèle d’authentification, code dans le texte et dans le bouton « Copier »', async () => {
+  const f = faux([{ status: 200, body: { messaging_product: 'whatsapp', messages: [{ id: 'wamid.ABC' }] } }]);
+  const wa = new MetaWhatsApp({ phoneId: '1234567890', jeton: 'jeton-meta', modele: 'orion_code', langue: 'fr', version: 'v23.0' }, f.fn);
+  assert.equal((await wa.envoyer('+2250708091011', '240726', 'ignoré')).id, 'wamid.ABC');
+  const a = f.appels[0]!;
+  assert.equal(a.url, 'https://graph.facebook.com/v23.0/1234567890/messages');
+  assert.equal((a.init.headers as Record<string, string>).authorization, 'Bearer jeton-meta');
+  assert.deepEqual(JSON.parse(String(a.init.body)), {
+    messaging_product: 'whatsapp', recipient_type: 'individual', to: '2250708091011', type: 'template',
+    template: {
+      name: 'orion_code', language: { code: 'fr' },
+      components: [
+        { type: 'body', parameters: [{ type: 'text', text: '240726' }] },
+        { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: '240726' }] },
+      ],
+    },
+  });
+});
+
+test('WhatsApp (Meta) : un refus remonte avec son code (131030 : numéro pas dans la liste de test)', async () => {
+  const f = faux([{ status: 400, body: { error: { message: '(#131030) Recipient phone number not in allowed list', code: 131030, error_data: { details: 'Recipient phone number not in allowed list' } } } }]);
+  const wa = new MetaWhatsApp({ phoneId: '1234567890', jeton: 'j', modele: 'orion_code', langue: 'fr' }, f.fn);
+  await assert.rejects(wa.envoyer('+2250708091011', '1', ''), (e: unknown) => e instanceof SmsError && e.codeOperateur === 131030 && /400 · 131030/.test(e.message));
+});
+
+test('WhatsApp : Meta est choisi en priorité dès que l’identifiant du numéro et le jeton sont réglés', () => {
+  const meta = creerWhatsApp({ META_WHATSAPP_PHONE_ID: '1234567890', META_WHATSAPP_TOKEN: 'j', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't', TWILIO_WHATSAPP_FROM: '+1' });
+  assert.equal(meta?.fournisseur, 'meta');
+  assert.equal(creerWhatsApp({ META_WHATSAPP_PHONE_ID: '1234567890' }), null, 'jeton manquant : WhatsApp désactivé, sans bloquer le serveur');
 });
 
 test('WhatsApp : absent tant que le numéro d’expédition n’est pas réglé ; message au code en gras', () => {

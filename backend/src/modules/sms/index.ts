@@ -162,7 +162,7 @@ export class TwilioSms implements SmsSender {
  * dire au client tout de suite, au lieu de le laisser attendre un code qui n'arrivera pas.
  */
 export interface WhatsAppSender {
-  readonly fournisseur: 'twilio';
+  readonly fournisseur: 'twilio' | 'meta';
   /** Envoie le code au numéro E.164 (+225…). Lève une SmsError en cas d'échec. */
   envoyer(numero: string, code: string, message: string): Promise<{ id?: string }>;
 }
@@ -240,15 +240,86 @@ export class TwilioWhatsApp implements WhatsAppSender {
   }
 }
 
+/**
+ * CODES PAR WHATSAPP, API OFFICIELLE DE META (WhatsApp Cloud API).
+ *
+ * Règle de Meta : un code de connexion part toujours dans un modèle de catégorie
+ * « Authentification » approuvé (bouton « Copier le code »). Le code y figure deux fois :
+ * dans le texte du message et dans le bouton. Le numéro de test de Meta n'écrit qu'aux
+ * numéros ajoutés dans sa liste de destinataires (refus 131030 sinon).
+ */
+export interface MetaWhatsAppOptions {
+  phoneId: string;
+  jeton: string;
+  modele: string;
+  langue: string;
+  version?: string;
+  baseUrl?: string;
+}
+
+export class MetaWhatsApp implements WhatsAppSender {
+  readonly fournisseur = 'meta' as const;
+  private readonly base: string;
+
+  constructor(private readonly o: MetaWhatsAppOptions, private readonly fetchFn: Fetch = fetch) {
+    this.base = (o.baseUrl ?? 'https://graph.facebook.com').replace(/\/$/, '');
+  }
+
+  // Le texte libre est ignoré : le message est celui du modèle approuvé par Meta.
+  async envoyer(numero: string, code: string, _message?: string): Promise<{ id?: string }> {
+    const corps = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: numero.replace(/\D/g, ''),
+      type: 'template',
+      template: {
+        name: this.o.modele,
+        language: { code: this.o.langue },
+        components: [
+          { type: 'body', parameters: [{ type: 'text', text: code }] },
+          { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: code }] },
+        ],
+      },
+    };
+    const r = await appel(this.fetchFn, `${this.base}/${this.o.version ?? 'v23.0'}/${encodeURIComponent(this.o.phoneId)}/messages`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${this.o.jeton}`, 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify(corps),
+    });
+    if (r.statut !== 200 && r.statut !== 201) {
+      const err = (r.corps.error ?? {}) as { code?: number; message?: string; error_data?: { details?: string } };
+      const detail = err.error_data?.details ?? err.message ?? '';
+      throw new SmsError(`Meta WhatsApp : envoi refusé (${r.statut}${err.code ? ` · ${err.code}` : ''}${detail ? ` · ${detail}` : ''})`, r.statut, err.code);
+    }
+    const messages = r.corps.messages as Array<{ id?: string }> | undefined;
+    return { id: messages?.[0]?.id };
+  }
+}
+
 export interface WhatsAppConfig {
   TWILIO_ACCOUNT_SID?: string;
   TWILIO_AUTH_TOKEN?: string;
   TWILIO_WHATSAPP_FROM?: string;
   TWILIO_WHATSAPP_CONTENT_SID?: string;
+  META_WHATSAPP_PHONE_ID?: string;
+  META_WHATSAPP_TOKEN?: string;
+  META_WHATSAPP_TEMPLATE?: string;
+  META_WHATSAPP_LANGUE?: string;
+  META_GRAPH_VERSION?: string;
 }
 
-/** Envoi des codes par WhatsApp, ou `null` si le numéro WhatsApp n'est pas réglé. */
+/**
+ * Envoi des codes par WhatsApp, ou `null` si rien n'est réglé : Meta (API officielle) en
+ * priorité, sinon Twilio.
+ */
 export function creerWhatsApp(c: WhatsAppConfig, fetchFn: Fetch = fetch): WhatsAppSender | null {
+  if (c.META_WHATSAPP_PHONE_ID && c.META_WHATSAPP_TOKEN) {
+    return new MetaWhatsApp({
+      phoneId: c.META_WHATSAPP_PHONE_ID, jeton: c.META_WHATSAPP_TOKEN,
+      modele: c.META_WHATSAPP_TEMPLATE ?? 'orion_code', langue: c.META_WHATSAPP_LANGUE ?? 'fr',
+      version: c.META_GRAPH_VERSION,
+    }, fetchFn);
+  }
   if (!c.TWILIO_WHATSAPP_FROM || !c.TWILIO_ACCOUNT_SID || !c.TWILIO_AUTH_TOKEN) return null;
   return new TwilioWhatsApp({
     accountSid: c.TWILIO_ACCOUNT_SID, authToken: c.TWILIO_AUTH_TOKEN,

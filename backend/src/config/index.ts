@@ -148,6 +148,16 @@ const schema = z.object({
   // Modèle WhatsApp « authentification » approuvé par Meta (identifiant HX…, Content Template
   // Builder de Twilio) : obligatoire hors bac à sable. Vide : message libre (bac à sable).
   TWILIO_WHATSAPP_CONTENT_SID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  // CODES PAR WHATSAPP, API OFFICIELLE DE META (WhatsApp Cloud API) — prioritaire sur Twilio.
+  // Identifiant du numéro WhatsApp (« Phone number ID », page WhatsApp → API Setup de l'app
+  // Meta) et jeton d'accès (secret). Les deux ensemble, sinon WhatsApp reste désactivé.
+  META_WHATSAPP_PHONE_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().regex(/^\d{6,20}$/, 'META_WHATSAPP_PHONE_ID : identifiant numérique du numéro WhatsApp').optional()),
+  META_WHATSAPP_TOKEN: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  // Modèle « Authentification » (bouton « Copier le code ») approuvé par Meta : son nom et sa langue.
+  META_WHATSAPP_TEMPLATE: z.string().default('orion_code'),
+  META_WHATSAPP_LANGUE: z.string().default('fr'),
+  // Version de l'API Graph de Meta.
+  META_GRAPH_VERSION: z.string().regex(/^v\d+\.\d+$/).default('v23.0'),
   // Validité d'un code SMS de connexion (secondes).
   DRIVER_OTP_TTL_SECONDS: z.coerce.number().int().positive().default(300),
   // Mode STRICT : si "true", le jeton chauffeur devient OBLIGATOIRE sur toutes les routes

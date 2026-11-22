@@ -15,6 +15,11 @@ export type CanalCode = 'sms' | 'whatsapp';
  */
 function messageEchecWhatsApp(e: unknown): string {
   const code = e instanceof SmsError ? e.codeOperateur : undefined;
+  // Meta (WhatsApp Cloud API)
+  if (code === 131030) return 'Ce numéro n’est pas encore autorisé sur le WhatsApp de test d’ORION. Recevez le code par SMS, ou demandez à ORION de l’ajouter.';
+  if (code === 131026) return 'Ce numéro ne semble pas utiliser WhatsApp. Recevez le code par SMS.';
+  if (code === 131056 || code === 130429 || code === 80007) return 'Trop de codes WhatsApp envoyés pour le moment. Réessayez dans quelques minutes ou recevez le code par SMS.';
+  // Twilio
   if (code === 63015) return 'Ce numéro n’a pas encore rejoint le WhatsApp de test d’ORION : envoyez d’abord le message d’inscription, ou recevez le code par SMS.';
   if (code === 63016) return 'WhatsApp n’accepte ce message qu’après un message de votre part : écrivez d’abord au numéro WhatsApp d’ORION, ou recevez le code par SMS.';
   if (code === 63003 || code === 63024 || code === 21211) return 'Ce numéro ne semble pas utiliser WhatsApp. Recevez le code par SMS.';
@@ -65,11 +70,11 @@ export async function emettreCode(o: {
   if (canal === 'whatsapp' && whatsapp) {
     try {
       const r = await whatsapp.envoyer(phone, issued.code, messageCodeWhatsApp(issued.code, minutes, pour));
-      log.info({ phone: masquer(phone), fournisseur: 'twilio-whatsapp', id: r.id }, 'Code envoyé par WhatsApp');
+      log.info({ phone: masquer(phone), fournisseur: `${whatsapp.fournisseur}-whatsapp`, id: r.id }, 'Code envoyé par WhatsApp');
       return { ...issued, envoye: true };
     } catch (e) {
       otps.revoke(phone);
-      log.error({ phone: masquer(phone), fournisseur: 'twilio-whatsapp', err: (e as Error).message }, 'Échec d’envoi du code par WhatsApp');
+      log.error({ phone: masquer(phone), fournisseur: `${whatsapp.fournisseur}-whatsapp`, err: (e as Error).message }, 'Échec d’envoi du code par WhatsApp');
       throw new AppError(502, 'WHATSAPP_ECHEC', messageEchecWhatsApp(e));
     }
   }
