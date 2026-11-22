@@ -56,10 +56,14 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
     await exigerHumain(container.securiteGoogle, req, 'connexion_chauffeur');
     // Envoi par l'opérateur SMS (Orange Côte d'Ivoire ou Twilio) : on ne journalise
     // jamais le code ni le numéro complet.
-    const issued = await emettreCode({ sms: container.sms, whatsapp: container.whatsapp, canal: body.canal, otps, phone, pour: 'chauffeur', log: req.log });
-    req.log.info({ phone: maskPhone(phone), sms: issued.envoye }, 'Code de connexion chauffeur émis');
+    // Testeur invité par la direction : son code d'invitation tient lieu de code SMS.
+    const invitation = container.testeurs.codePour(phone);
+    if (invitation) container.testeurs.noterUtilisation(phone);
+    const issued = await emettreCode({ sms: container.sms, whatsapp: container.whatsapp, canal: body.canal, otps, phone, pour: 'chauffeur', log: req.log, codeImpose: invitation });
+    req.log.info({ phone: maskPhone(phone), sms: issued.envoye, invitation: Boolean(invitation) }, 'Code de connexion chauffeur émis');
     return {
       sent: true,
+      invitation: Boolean(invitation),
       phone,
       expiresAt: issued.expiresAt,
       registered: Boolean(container.drivers.findByPhone(phone)),

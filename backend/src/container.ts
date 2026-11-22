@@ -3,6 +3,7 @@ import { Geocodeur } from './modules/maps/geocodage.js';
 import { ServiceObjectifs } from './modules/dashboard/objectifs.js';
 import { ServiceHabilitations, type Habilitation } from './modules/dashboard/habilitations.js';
 import { creerSms, creerWhatsApp, type SmsSender, type WhatsAppSender } from './modules/sms/index.js';
+import { AccesTesteurs, type AccesTesteur } from './modules/admin/testeurs.js';
 import { randomUUID } from 'node:crypto';
 import { createGeoIndex, type GeoIndex } from './core/geo.js';
 import { IdempotencyStore } from './core/idempotency.js';
@@ -173,6 +174,8 @@ export interface Container {
   sms: SmsSender;
   /** Codes de connexion par WhatsApp (Twilio) ; null si le numéro WhatsApp n'est pas réglé. */
   whatsapp: WhatsAppSender | null;
+  /** Accès testeurs : numéros invités par la direction, connexion par code d'invitation. */
+  testeurs: AccesTesteurs;
 }
 
 export function createContainer(): Container {
@@ -416,6 +419,7 @@ export function createContainer(): Container {
     habilitations: new ServiceHabilitations(createRepository<Habilitation>('habilitations_tableau')),
     sms: creerSms(config),
     whatsapp: creerWhatsApp(config),
+    testeurs: new AccesTesteurs(createRepository<AccesTesteur>('acces_testeurs')),
   };
   // La direction générale ne stocke rien, elle lit les autres modules. On la câble
   // après coup pour qu'elle voie l'intégralité du conteneur.

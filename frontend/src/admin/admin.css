@@ -694,6 +694,20 @@ html[data-adm-theme='light'] .adm-alarme .adm-btn.ghost { background: transparen
   background: var(--a-panel2); color: var(--a-text); font: inherit; cursor: pointer; }
 .adm-attribution-ligne:hover:not(:disabled) { border-color: var(--a-green2); }
 .adm-attribution-ligne:disabled { opacity: 0.6; cursor: default; }
+/* Accès testeurs (Personnel & accès) : un numéro, son code à transmettre. */
+.adm-testeurs { margin-bottom: 16px; }
+.adm-testeurs-form { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto auto; gap: 8px; }
+.adm-testeurs-liste { display: grid; gap: 8px; margin-top: 12px; }
+.adm-testeur { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--a-stroke); background: var(--a-panel2); }
+.adm-testeur.expire { opacity: 0.55; }
+.adm-testeur-code { font-size: 20px; letter-spacing: 0.12em; font-weight: 600; padding: 6px 12px; border-radius: 10px;
+  border: 1px solid var(--a-stroke); background: var(--a-panel); color: var(--a-text); cursor: pointer; font-variant-numeric: tabular-nums; }
+.adm-testeur-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 560px) {
+  .adm-testeurs-form { grid-template-columns: 1fr 1fr; }
+  .adm-testeur { flex-wrap: wrap; }
+  .adm-testeur-actions { width: 100%; justify-content: flex-start; }
+}
 
 /* ---- Application console sur téléphone : serveur ORION réglable à la connexion ---- */
 .adm-serveur { margin-top: 14px; display: grid; gap: 8px; justify-items: center; }

@@ -130,3 +130,63 @@ test('production, code par WhatsApp : refus clair sans numéro WhatsApp, envoi e
   assert.equal(sms.statusCode, 503, sms.body);
   assert.match(sms.json().error.message, /SMS n’est pas encore activé/);
 });
+
+test('production sans SMS : un testeur invité par la direction se connecte avec son code, et lui seul', async (t) => {
+  const { buildApp } = await import('../src/app.js');
+  const { app } = await buildApp();
+  t.after(() => app.close());
+  const DIRECTION = { 'x-admin-token': 'jeton-admin-de-test-suffisamment-long' };
+
+  // La direction invite un chauffeur testeur et un client testeur.
+  const ch = await app.inject({ method: 'POST', url: '/admin/testeurs', headers: DIRECTION, payload: { phone: '07 11 22 33 44', nom: 'Chauffeur testeur' } });
+  assert.equal(ch.statusCode, 200, ch.body);
+  const codeChauffeur = ch.json().testeur.code as string;
+  assert.match(codeChauffeur, /^\d{6}$/);
+  const cl = await app.inject({ method: 'POST', url: '/admin/testeurs', headers: DIRECTION, payload: { phone: '0555667788', nom: 'Client testeur', jours: 2 } });
+  const codeClient = cl.json().testeur.code as string;
+  const liste = await app.inject({ method: 'GET', url: '/admin/testeurs', headers: DIRECTION });
+  assert.equal(liste.json().testeurs.length, 2);
+
+  // Chauffeur invité : la demande de code passe (pas d'erreur SMS), le code d'invitation ouvre le compte.
+  const otpCh = await app.inject({ method: 'POST', url: '/drivers/auth/otp', payload: { phone: '0711223344' } });
+  assert.equal(otpCh.statusCode, 200, otpCh.body);
+  assert.equal(otpCh.json().invitation, true);
+  assert.equal(otpCh.json().devCode, undefined, 'le code ne revient jamais dans la réponse');
+  const okCh = await app.inject({ method: 'POST', url: '/drivers/auth/verify', payload: { phone: '0711223344', code: codeChauffeur, name: 'Konan Yao' } });
+  assert.ok([200, 201].includes(okCh.statusCode), okCh.body);
+  assert.equal(okCh.json().driver.phone, '+2250711223344');
+
+  // Client invité : idem, par le canal WhatsApp comme par SMS.
+  const otpCl = await app.inject({ method: 'POST', url: '/clients/auth/otp', payload: { phone: '0555667788', canal: 'whatsapp' } });
+  assert.equal(otpCl.statusCode, 200, otpCl.body);
+  const mauvais = await app.inject({ method: 'POST', url: '/clients/auth/verify', payload: { clientId: 'appareil-t', phone: '0555667788', code: codeChauffeur === '000000' ? '111111' : '000000', name: 'Awa' } });
+  assert.equal(mauvais.statusCode, 401, 'un autre code ne passe pas');
+  const okCl = await app.inject({ method: 'POST', url: '/clients/auth/verify', payload: { clientId: 'appareil-t', phone: '0555667788', code: codeClient, name: 'Awa Koné' } });
+  assert.equal(okCl.statusCode, 200, okCl.body);
+
+  // Le code d'un testeur ne vaut rien pour un autre numéro : celui-ci reste soumis au SMS.
+  const autre = await app.inject({ method: 'POST', url: '/clients/auth/otp', payload: { phone: '0101010199' } });
+  assert.equal(autre.statusCode, 503, autre.body);
+
+  // Invitation retirée : retour au SMS.
+  const retrait = await app.inject({ method: 'DELETE', url: `/admin/testeurs/${encodeURIComponent('+2250711223344')}`, headers: DIRECTION });
+  assert.equal(retrait.statusCode, 200, retrait.body);
+  const apres = await app.inject({ method: 'POST', url: '/drivers/auth/otp', payload: { phone: '0711223344' } });
+  assert.equal(apres.statusCode, 503, apres.body);
+});
+
+test('accès testeurs : réservé à la direction, code expiré refusé', async () => {
+  const { AccesTesteurs } = await import('../src/modules/admin/testeurs.js');
+  const memoire = new Map<string, { id: string }>();
+  const repo = { get: (id: string) => memoire.get(id), put: (x: { id: string }) => { memoire.set(x.id, x); }, delete: (id: string) => { memoire.delete(id); }, all: () => [...memoire.values()] };
+  let maintenant = Date.parse('2026-11-22T10:00:00Z');
+  const acces = new AccesTesteurs(repo as never, () => maintenant);
+  const a = acces.inviter({ phone: '+2250700000001', nom: 'Testeur', jours: 1, par: 'PDG' });
+  assert.equal(acces.codePour('+2250700000001'), a.code);
+  assert.equal(acces.codePour('+2250700000002'), undefined);
+  maintenant += 86_400_000 + 1;
+  assert.equal(acces.codePour('+2250700000001'), undefined, 'expiré au bout de la durée choisie');
+  assert.equal(acces.liste()[0]!.actif, false);
+  // Rechargé depuis le stockage (redémarrage du serveur) : l'invitation est toujours là.
+  assert.equal(new AccesTesteurs(repo as never, () => maintenant).liste().length, 1);
+});

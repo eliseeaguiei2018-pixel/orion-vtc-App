@@ -8,7 +8,9 @@ import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { exigerAppareil } from '../appareils/routes.js';
 import { parse } from '../../core/validate.js';
-import { AppError, notFound, unauthorized, forbidden } from '../../core/errors.js';
+import { AppError, badRequest, notFound, unauthorized, forbidden } from '../../core/errors.js';
+import { normalizePhone } from '../driver-app/auth.js';
+import { JOURS_MAX, JOURS_PAR_DEFAUT } from './testeurs.js';
 import { driverRoom, CONFIG_ROOM, DASHBOARD_ROOM } from '../realtime/hub.js';
 import { AdminService, paginate } from './service.js';
 import { can, resolveAccount, ROLE_PERMISSIONS, ROLE_LABEL, type AdminAccount, type Permission, type Role } from './roles.js';
@@ -3967,6 +3969,40 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         throw forbidden('Un chef d’équipe ne gère que les comptes de ses propres équipes.');
       }
     };
+
+    /* ---------------------- Accès testeurs (connexion sans SMS) ---------------------- */
+    // Réservé à la direction (PDG, DG, super-administrateur) : inviter un numéro lui ouvre
+    // la connexion avec un code transmis à la main, sans passer par le SMS.
+    const exigerDirection = (req: FastifyRequest) => {
+      require(req, 'accounts:write');
+      const { admin } = req as FastifyRequest & { admin: AdminAccount };
+      if (!['super_admin', 'ceo', 'dg'].includes(admin.role)) throw forbidden('Seule la direction invite des testeurs.');
+      return admin;
+    };
+    scoped.get('/admin/testeurs', async (req) => {
+      exigerDirection(req);
+      return { testeurs: container.testeurs.liste(), joursParDefaut: JOURS_PAR_DEFAUT, joursMax: JOURS_MAX };
+    });
+    scoped.post('/admin/testeurs', async (req) => {
+      const admin = exigerDirection(req);
+      const body = parse(z.object({
+        phone: z.string().min(8).max(25),
+        nom: z.string().trim().min(2).max(80),
+        jours: z.number().int().min(1).max(JOURS_MAX).optional(),
+      }), req.body);
+      const phone = normalizePhone(body.phone);
+      if (!phone) throw badRequest('Numéro de téléphone invalide');
+      const testeur = container.testeurs.inviter({ phone, nom: body.nom, jours: body.jours, par: admin.name });
+      audit(req, 'testeur.invitation', `${phone.slice(0, 6)}••••${phone.slice(-2)}`, { nom: testeur.nom, expireLe: testeur.expireLe });
+      return { testeur: { ...testeur, actif: true } };
+    });
+    scoped.delete('/admin/testeurs/:phone', async (req) => {
+      exigerDirection(req);
+      const phone = normalizePhone(decodeURIComponent((req.params as { phone: string }).phone));
+      if (!phone || !container.testeurs.retirer(phone)) throw notFound('Invitation introuvable');
+      audit(req, 'testeur.retrait', `${phone.slice(0, 6)}••••${phone.slice(-2)}`);
+      return { ok: true };
+    });
 
     scoped.get('/admin/accounts', async (req) => {
       require(req, 'accounts:read');

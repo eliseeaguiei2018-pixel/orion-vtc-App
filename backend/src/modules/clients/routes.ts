@@ -62,11 +62,14 @@ export async function clientAccountRoutes(app: FastifyInstance, container: Conta
     // Numéro de vérification des stores : code fixe, connu des seuls vérificateurs.
     const revue = config.CLIENT_REVIEW_PHONE && config.CLIENT_REVIEW_CODE
       && normalizePhone(config.CLIENT_REVIEW_PHONE) === phone ? config.CLIENT_REVIEW_CODE : undefined;
+    // Testeur invité par la direction : son code d'invitation tient lieu de code SMS.
+    const invitation = revue ? undefined : container.testeurs.codePour(phone);
+    if (invitation) container.testeurs.noterUtilisation(phone);
     // Envoi par l'opérateur SMS ; ni le code ni le numéro complet ne sont journalisés.
-    const issued = await emettreCode({ sms: container.sms, whatsapp: container.whatsapp, canal: body.canal, otps, phone, pour: 'client', log: req.log, codeImpose: revue });
-    req.log.info({ phone: masquer(phone), revue: Boolean(revue), canal: body.canal ?? 'sms', envoye: issued.envoye }, 'Code de connexion client émis');
+    const issued = await emettreCode({ sms: container.sms, whatsapp: container.whatsapp, canal: body.canal, otps, phone, pour: 'client', log: req.log, codeImpose: revue ?? invitation });
+    req.log.info({ phone: masquer(phone), revue: Boolean(revue), invitation: Boolean(invitation), canal: body.canal ?? 'sms', envoye: issued.envoye }, 'Code de connexion client émis');
     return {
-      sent: true, phone, expiresAt: issued.expiresAt, canal: body.canal ?? 'sms',
+      sent: true, phone, expiresAt: issued.expiresAt, canal: body.canal ?? 'sms', invitation: Boolean(invitation),
       compteExistant: Boolean(container.clients.findByVerifiedPhone(phone)),
       // Développement uniquement : le code revient dans la réponse pour tester sans SMS.
       ...(config.NODE_ENV !== 'production' ? { devCode: issued.code } : {}),

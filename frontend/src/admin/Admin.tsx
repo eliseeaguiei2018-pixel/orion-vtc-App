@@ -25,6 +25,7 @@ import { TelematiqueSection } from './sections/telematique';
 import { AnnuaireSection, ChangerMotDePasse } from './sections/annuaire';
 import type { AccountsStats, ActiveSession, Alert, Amortization, Announcement, AssistantSujet, CaisseConsolidation, CaisseEtat, CaisseReferentiel, CrewTableau, DossierEquipage, EquipageRow, PosteEquipe, RoleOption, StaffAccountRow, SuiviFlotte, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, ContactJournal, ContactUrgence, CopilotAnswer, ExecutiveBoard, MonPoste, MouvementPage, SanteVigilance, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, RentalTarifEtat, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
 import { ClientDrawer, DriverDrawer } from './ui';
+import { AccesTesteursSection } from './sections/testeurs';
 import { DialogueAttribution, DialogueAttribuerCourse, type FicheAttribution } from './attribution';
 import { PrimesSection } from './sections/primes';
 import { consoleNative, enTetesNatifs, garderJetonNatif } from './natif';
@@ -1750,6 +1751,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
             peutAgir={can('rental:write')}
           />
         )}
+        {section === 'comptes' && me && ['super_admin', 'ceo', 'dg'].includes(me.role) && <AccesTesteursSection />}
         {section === 'comptes' && (
           <AnnuaireSection
             comptes={comptes}
