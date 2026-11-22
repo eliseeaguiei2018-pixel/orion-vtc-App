@@ -28,46 +28,31 @@ test('le prix inclut TVA 5% + frais 10% (= 15%) sur le sous-total', () => {
   assert.ok(Math.abs(r.amount - b.subtotal * 1.15) <= 50);
 });
 
-test('trois gammes : Or à 100–200 F de plus que l’Argent, Diamant à 500–1 000 F de plus que l’Or', () => {
-  // Trajet court (moins de 2 km) : les écarts sont à leur minimum.
-  const pres = { lat: origin.lat + 0.008, lng: origin.lng };
-  const prix = (dest: { lat: number; lng: number }, extra: object = {}) => {
-    const de = (category: string) => estimatePrice({ origin, destination: dest, category, ...extra });
-    return { argent: de('argent'), or: de('or'), diamant: de('diamant') };
-  };
-  const court = prix(pres);
-  assert.ok(court.argent.distanceMeters < 2_000);
-  assert.equal(court.or.amount - court.argent.amount, 100, 'écart Argent → Or, trajet court');
-  assert.equal(court.diamant.amount - court.or.amount, 500, 'écart Or → Diamant, trajet court');
-  // Trajet long (plus de 20 km) : les écarts sont à leur maximum.
-  const loin = { lat: 5.2118, lng: -3.7388 };
-  const long = prix(loin);
-  assert.ok(long.argent.distanceMeters > 20_000);
-  assert.equal(long.or.amount - long.argent.amount, 200, 'écart Argent → Or, trajet long');
-  assert.equal(long.diamant.amount - long.or.amount, 1_000, 'écart Or → Diamant, trajet long');
-  // Entre les deux, l'écart monte avec la distance sans jamais sortir de ses bornes, et il
-  // ne dépend ni de la carrosserie ni de l'assurance.
-  let precedent = { or: 0, diamant: 0 };
+test('trois gammes : Or à 5 % de plus que l’Argent, Diamant à 15 % de plus, jamais le même prix', () => {
+  const arrondi = (n: number) => Math.round(n / 50) * 50;
   for (let km = 0.5; km <= 40; km += 0.5) {
     const dest = { lat: origin.lat + km / 111.2 / 1.3, lng: origin.lng };
-    const base = prix(dest);
-    const or = base.or.amount - base.argent.amount, diamant = base.diamant.amount - base.or.amount;
-    assert.ok(or >= 100 && or <= 200, `Argent → Or à ${km} km : ${or}`);
-    assert.ok(diamant >= 500 && diamant <= 1_000, `Or → Diamant à ${km} km : ${diamant}`);
-    assert.ok(or >= precedent.or && diamant >= precedent.diamant, `écarts croissants à ${km} km`);
-    precedent = { or, diamant };
-    for (const extra of [{ bodyType: 'suv' as const }, { insurance: true }]) {
-      const p = prix(dest, extra);
-      assert.equal(p.or.amount - p.argent.amount, or); assert.equal(p.diamant.amount - p.or.amount, diamant);
+    for (const extra of [{}, { bodyType: 'suv' as const }, { insurance: true }, { stops: [destination] }]) {
+      const [a, o, d] = (['argent', 'or', 'diamant'] as const).map((category) => estimatePrice({ origin, destination: dest, category, ...extra }).amount) as [number, number, number];
+      const cas = `${km} km ${JSON.stringify(extra).slice(0, 30)}`;
+      // Le pourcentage du prix Argent, arrondi à 50 F, avec au moins un pas d'écart entre deux gammes.
+      assert.equal(o - a, Math.max(50, arrondi(a * 0.05)), `Argent → Or, ${cas}`);
+      assert.equal(d - a, Math.max(o - a + 50, arrondi(a * 0.15)), `Argent → Diamant, ${cas}`);
+      assert.ok(a < o && o < d, `prix croissants, ${cas}`);
+      assert.ok(a % 50 === 0 && o % 50 === 0 && d % 50 === 0);
     }
   }
-  // Barème des écarts : 100 F jusqu'à 6,5 km, 150 F ensuite, 200 F à partir de 15,5 km.
-  assert.equal(supplementGamme('argent', 30), 0);
-  assert.deepEqual([1, 6, 7, 15, 16, 30].map((km) => supplementGamme('or', km)), [100, 100, 150, 150, 200, 200]);
-  assert.deepEqual([1, 11, 30].map((km) => supplementGamme('diamant', km) - supplementGamme('or', km)), [500, 750, 1_000]);
+  // Repères : la majoration reste légère sur une petite course et suit le prix sur une longue.
+  assert.deepEqual([600, 850, 1_500, 3_700, 7_850].map((m) => supplementGamme('or', m)), [50, 50, 100, 200, 400]);
+  assert.deepEqual([600, 850, 1_500, 3_700, 7_850].map((m) => supplementGamme('diamant', m)), [100, 150, 250, 550, 1_200]);
+  assert.equal(supplementGamme('argent', 3_700), 0);
+  // Une course gratuite reste gratuite dans toutes les gammes ; un prix minuscule garde des gammes distinctes.
+  assert.equal(supplementGamme('diamant', 0), 0);
+  assert.deepEqual([supplementGamme('or', 100), supplementGamme('diamant', 100)], [50, 100]);
   // Le détail reste juste : sous-total + TVA + frais = montant payé (à l'arrondi près).
-  const b = long.diamant.breakdown;
-  assert.ok(Math.abs(b.subtotal + b.tva + b.fee + b.insurance - long.diamant.amount) <= 2);
+  const r = estimatePrice({ origin, destination, category: 'diamant', insurance: true });
+  const b = r.breakdown;
+  assert.ok(Math.abs(b.subtotal + b.tva + b.fee + b.insurance - r.amount) <= 2);
 });
 
 test('la gamme Bronze n’existe plus : une demande « bronze » est servie en Argent', () => {

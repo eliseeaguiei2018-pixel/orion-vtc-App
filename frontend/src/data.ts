@@ -25,9 +25,8 @@ export const ABIDJAN_PLACES: Place[] = [
 
 /**
  * Trois gammes de course (Argent, Or, Diamant), flottes 100 % électriques. Miroir du
- * catalogue du serveur : l'Argent est la grille de référence (l'ancienne grille Bronze),
- * l'Or coûte 100 à 200 F de plus sur le même trajet, le Diamant 500 à 1 000 F de plus que
- * l'Or, selon la longueur du trajet (barème dans tarifServeur.ts).
+ * catalogue du serveur : l'Argent est le prix de référence, l'Or coûte 5 % de plus sur le
+ * même trajet et le Diamant 15 % de plus (barème dans tarifServeur.ts).
  */
 export const TIERS: TierOption[] = [
   { id: 'argent', key: 'tier_argent', multiplier: 0.9, capacity: 4, eta: 3, accent: '#c8d2dc', weddingDayPrice: 60000, cars: ['Geely Galaxy E8', 'Dongfeng 007', 'Changan Qiyuan A07', 'Deepal S07', 'AVATR 06'] },

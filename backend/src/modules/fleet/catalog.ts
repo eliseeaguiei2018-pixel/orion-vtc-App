@@ -6,10 +6,10 @@
  * (la gamme Bronze a été supprimée : sa grille tarifaire est devenue celle de l'Argent,
  * et ses véhicules ont rejoint la flotte Argent).
  *
- * PRIX : l'Argent est la grille de référence (multiplicateur). L'Or coûte 100 à 200 F de
- * plus que l'Argent sur le même trajet, le Diamant 500 à 1 000 F de plus que l'Or : l'écart
- * (`ecart`) part du minimum sur un trajet court et atteint le maximum sur un trajet long.
- * Il se règle depuis la console comme le reste des tarifs.
+ * PRIX : l'Argent est le prix de référence (grille et multiplicateur). L'Or coûte 5 % de
+ * plus que l'Argent sur le même trajet, le Diamant 15 % de plus (`majorationPct`) : un écart
+ * léger, proportionnel au prix de la course, qui a remplacé les suppléments fixes (trop
+ * lourds sur les petites courses face à la concurrence). Il se règle depuis la console.
  * Chaque gamme a aussi son tarif de location mariage (à la journée).
  */
 export type Tier = 'argent' | 'or' | 'diamant';
@@ -17,16 +17,13 @@ export type Tier = 'argent' | 'or' | 'diamant';
 /** Les gammes, de la plus accessible à la plus haut de gamme. */
 export const TIER_ORDER: readonly Tier[] = ['argent', 'or', 'diamant'];
 
-/** Écart de prix TTC avec la gamme précédente (F CFA) : du trajet court au trajet long. */
-export interface EcartGamme { min: number; max: number }
-
 export interface TierDefinition {
   tier: Tier;
   label: string;
   /** Multiplicateur appliqué au tarif de base (course). */
   multiplier: number;
-  /** Écart TTC avec la gamme précédente (F CFA) ; nul pour l'Argent, la référence. */
-  ecart: EcartGamme;
+  /** Majoration du prix par rapport à l'Argent, en pour cent ; nulle pour l'Argent, la référence. */
+  majorationPct: number;
   capacity: number;
   /** ETA indicatif (min) — disponibilité moyenne. */
   eta: number;
@@ -46,7 +43,7 @@ export const FLEET: Record<Tier, TierDefinition> = {
     tier: 'argent',
     label: 'Argent',
     multiplier: GRILLE_REFERENCE,
-    ecart: { min: 0, max: 0 },
+    majorationPct: 0,
     capacity: 4,
     eta: 3,
     cars: ['Geely Galaxy E8', 'Dongfeng 007', 'Changan Qiyuan A07', 'Deepal S07', 'AVATR 06'],
@@ -57,7 +54,7 @@ export const FLEET: Record<Tier, TierDefinition> = {
     tier: 'or',
     label: 'Or',
     multiplier: GRILLE_REFERENCE,
-    ecart: { min: 100, max: 200 },
+    majorationPct: 5,
     capacity: 4,
     eta: 4,
     cars: ['AVATR 11', 'AVATR 12', 'Xiaomi YU7', 'XPENG G9'],
@@ -68,7 +65,7 @@ export const FLEET: Record<Tier, TierDefinition> = {
     tier: 'diamant',
     label: 'Diamant',
     multiplier: GRILLE_REFERENCE,
-    ecart: { min: 500, max: 1_000 },
+    majorationPct: 15,
     capacity: 4,
     eta: 5,
     cars: ['XPENG GX 750 Ultra', 'Huawei Stelato S9', 'NIO ET9', 'NIO ES9', 'Zeekr 8X'],

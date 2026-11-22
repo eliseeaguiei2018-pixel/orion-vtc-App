@@ -84,33 +84,12 @@ export interface PricingRecord extends PricingSettings {
 }
 
 /** Patch partiel (les multiplicateurs peuvent n'être fournis que partiellement). */
-export interface PricingPatch extends Partial<Omit<PricingSettings, 'multipliers' | 'ecarts' | 'ecartKm' | 'bodySurcharge'>> {
+export interface PricingPatch extends Partial<Omit<PricingSettings, 'multipliers' | 'majorationsPct' | 'bodySurcharge'>> {
   multipliers?: Partial<Record<string, number>>;
-  ecarts?: Partial<Record<string, Partial<{ min: number; max: number }>>>;
-  ecartKm?: Partial<{ court: number; long: number }>;
+  majorationsPct?: Partial<Record<string, number>>;
   bodySurcharge?: Record<string, number>;
 }
 const PRICING_ID = 'pricing';
-
-type Ecarts = PricingSettings['ecarts'];
-const copieEcarts = (e: Ecarts): Ecarts => ({ argent: { ...e.argent }, or: { ...e.or }, diamant: { ...e.diamant } });
-/** Fusionne les écarts reçus de la console : jamais négatifs, et un maximum au moins égal au minimum. */
-function fusionEcarts(actuels: Ecarts, patch?: PricingPatch['ecarts']): Ecarts {
-  const suite = copieEcarts(actuels);
-  for (const gamme of ['or', 'diamant'] as const) {
-    const p = patch?.[gamme];
-    if (!p) continue;
-    const min = Math.max(0, p.min ?? suite[gamme].min);
-    suite[gamme] = { min, max: Math.max(min, p.max ?? suite[gamme].max) };
-  }
-  return suite;
-}
-/** Bornes de distance des écarts : le trajet long reste plus long que le trajet court. */
-function fusionEcartKm(actuel: PricingSettings['ecartKm'], patch?: PricingPatch['ecartKm']): PricingSettings['ecartKm'] {
-  const court = Math.max(0, patch?.court ?? actuel.court);
-  return { court, long: Math.max(court + 1, patch?.long ?? actuel.long) };
-}
-
 const stripId = (r: PricingRecord): PricingSettings => {
   const { id: _id, ...rest } = r;
   return rest;
@@ -218,19 +197,18 @@ export class SettingsService {
     // Fusion avec les défauts : les enregistrements persistés avant l'ajout d'un
     // champ (frais annexes, forfaits) restent valides.
     this.pricing = saved ? { ...DEFAULT_PRICING, ...stripId(saved) } : { ...DEFAULT_PRICING };
-    // Tarifs enregistrés avant la suppression de la gamme Bronze (quatre multiplicateurs) :
-    // la grille a changé de modèle (Argent de référence + écarts fixes), on repart des
-    // valeurs par défaut pour les gammes en gardant le reste des réglages de la console.
-    // Tarifs enregistrés avec l'ancien supplément fixe (Or +700, Diamant +1 700) : il est
-    // remplacé par les écarts bornés entre gammes, qui repartent de leurs valeurs par défaut.
-    const ancien = this.pricing as PricingSettings & { supplements?: unknown };
-    const sansEcarts = !saved || !('ecarts' in saved);
-    if ('bronze' in (this.pricing.multipliers as Record<string, number>) || 'supplements' in ancien || (saved && sansEcarts)) {
-      const { supplements: _abandonne, ...reste } = ancien;
+    // Tarifs enregistrés avec un ancien modèle de gammes : quatre multiplicateurs du temps de
+    // la gamme Bronze (on repart alors de la grille de référence), supplément fixe (Or +700 F,
+    // Diamant +1 700 F) ou écarts bornés (retirés : les gammes se distinguent maintenant par
+    // une majoration en pour cent). Le reste des réglages de la console est gardé.
+    const ancien = this.pricing as PricingSettings & { supplements?: unknown; ecarts?: unknown; ecartKm?: unknown };
+    const bronze = 'bronze' in (ancien.multipliers as Record<string, number>);
+    if (bronze || 'supplements' in ancien || 'ecarts' in ancien || 'ecartKm' in ancien) {
+      const { supplements: _s, ecarts: _e, ecartKm: _k, ...reste } = ancien;
       this.pricing = {
         ...reste,
-        ...('bronze' in (reste.multipliers as Record<string, number>) ? { multipliers: { ...DEFAULT_PRICING.multipliers } } : {}),
-        ecarts: copieEcarts(DEFAULT_PRICING.ecarts), ecartKm: { ...DEFAULT_PRICING.ecartKm },
+        ...(bronze ? { multipliers: { ...DEFAULT_PRICING.multipliers } } : {}),
+        majorationsPct: { ...DEFAULT_PRICING.majorationsPct },
       };
       this.repo?.put({ id: PRICING_ID, ...this.pricing });
     }
@@ -402,8 +380,8 @@ export class SettingsService {
       ...this.pricing,
       ...patch,
       multipliers: { ...this.pricing.multipliers, ...(patch.multipliers ?? {}) },
-      ecarts: fusionEcarts(this.pricing.ecarts, patch.ecarts),
-      ecartKm: fusionEcartKm(this.pricing.ecartKm, patch.ecartKm),
+      // L'Argent est la référence : sa majoration reste nulle, quoi qu'envoie la console.
+      majorationsPct: { ...this.pricing.majorationsPct, ...(patch.majorationsPct ?? {}), argent: 0 } as PricingSettings['majorationsPct'],
       bodySurcharge: { ...this.pricing.bodySurcharge, ...(patch.bodySurcharge ?? {}) },
     };
     this.repo?.put({ id: PRICING_ID, ...this.pricing });

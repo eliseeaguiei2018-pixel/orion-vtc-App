@@ -1175,3 +1175,60 @@ croissants avec la distance), position retrouvée au retour de treize options du
 (jusqu'à 1 500 px de défilement), option rouverte en haut, volets de la barre du bas. Serveur :
 419 tests, 417 réussis, 2 ignorés, dont les écarts bornés sur 80 distances, leur réglage depuis
 la console et la reprise d'un ancien tarif.
+
+## 23. Version 1.5.9 : plus de supplément fixe, une majoration en pour cent par gamme (22 novembre)
+
+Les écarts resserrés de la 1.5.8 laissaient encore les gammes Or et Diamant trop chères aux yeux
+du fondateur, surtout sur les petites courses. Deux essais dans la même journée :
+
+1. suppléments entièrement retirés, les trois gammes au même prix — construit, non livré : le
+   fondateur a précisé que les gammes doivent garder des prix différents ;
+2. **retenu, choisi par le fondateur parmi trois propositions chiffrées** : une majoration
+   légère en pour cent du prix de la course, le prix de l'Argent restant inchangé.
+
+| Gamme | Prix |
+|---|---|
+| Argent | prix de référence, inchangé |
+| Or | Argent + 5 % |
+| Diamant | Argent + 15 % |
+
+La majoration est calculée sur le prix Argent déjà arrondi, puis arrondie à 50 F
+(`supplementGamme`, `backend/src/modules/services/ride/pricing.ts`). Elle suit donc tout ce qui
+fait le prix : zone, forfait, trafic, carrosserie, assurance, remise. Deux gammes ne tombent
+jamais au même prix : chacune coûte au moins 50 F de plus que la précédente, même sur la plus
+petite course. Une course gratuite (code promo) reste gratuite dans les trois gammes.
+
+Relevé dans l'application 1.5.9 (berline, en journée, Argent / Or / Diamant) :
+
+| Destination | Distance | Prix | Écarts avec l'Argent |
+|---|---|---|---|
+| Cocody Danga | 1,8 km | 850 / 900 / 1 000 F | + 50, + 150 |
+| Plateau | 3,9 km | 1 300 / 1 350 / 1 500 F | + 50, + 200 |
+| Riviera Golf | 5,4 km | 1 500 / 1 600 / 1 750 F | + 100, + 250 |
+| Aéroport | 16,6 km | 3 700 / 3 900 / 4 250 F | + 200, + 550 |
+| Grand-Bassam | 37,7 km | 7 850 / 8 250 / 9 050 F | + 400, + 1 200 |
+
+Par rapport à la 1.5.8, le Diamant baisse sur tous ces trajets sauf le plus long, où il revient
+au même prix (9 050 F) ; l'Or baisse sur les petites courses, ne change pas sur les trajets
+moyens et monte de 200 F sur le très long trajet (8 250 F contre 8 050 F).
+
+Les deux pourcentages se règlent dans la console (Tarification, « Gammes — majoration par rapport
+à l'Argent »). Les réglages `ecarts` et `ecartKm` de la 1.5.8 n'existent plus ; un tarif
+enregistré avec l'ancien supplément fixe ou avec ces écarts est repris au démarrage sans eux,
+avec les pourcentages par défaut, le reste des réglages étant gardé. La copie du barème dans
+l'application (`frontend/src/tarifServeur.ts`) suit, et le test qui compare les deux calculs au
+franc près passe toujours.
+
+Limite : aucun tarif du concurrent n'a été relevé pour ce réglage ; les prix n'ont pas été
+comparés aux siens, gamme par gamme. Le seul repère reste la capture fournie plus tôt (20,5 km au
+départ de Yopougon : 6 600 à 8 900 F chez le concurrent, 3 700 à 4 050 F en Argent chez ORION).
+
+`ORION-client-1.5.9.apk` : version 1.5.9, code 16, même signature, SHA-256
+`68103549bf2722f0ccc34f79d4b10dd2acdb8d5d32a520f288918b422b2c8a15`, 14,5 Mo, contenu web
+identique au contenu construit. Sur ce contenu, en clair et en sombre, sans erreur JavaScript :
+11 contrôles sur 11 (prix des trois gammes vers cinq destinations en berline et en SUV, prix
+Argent inchangé, position gardée dans les volets). Serveur : 418 tests, 416 réussis, 2 ignorés,
+dont la majoration sur 80 distances, son réglage depuis la console et la reprise des anciens
+tarifs.
+Parcours rejoués sur ce contenu, tous réussis : parcours client 9 sur 9, volets et compte 13 sur
+13, parcours complet 20 sur 20.
