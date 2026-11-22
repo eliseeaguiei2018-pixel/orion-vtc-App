@@ -10,14 +10,17 @@ import { tr } from '../i18n';
 
 /**
  * Connexion / inscription par téléphone + code SMS.
- * Nouveau numéro → inscription (nom + gamme), le dossier est ensuite complété dans l'app.
+ *
+ * Les chauffeurs ORION sont des salariés d'ORION et roulent sur les véhicules d'ORION. Un
+ * nouveau chauffeur ne donne que SES informations (nom, puis date de naissance et permis
+ * dans son profil) : il ne choisit ni gamme ni type de course, et ne saisit rien sur le
+ * véhicule. ORION lui attribue son matricule, son véhicule et sa gamme depuis la console.
  */
 export function Login({ app }: { app: DriverApp }) {
   const [step, setStep] = useState<'phone' | 'code'>('phone');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
-  const [category, setCategory] = useState('argent');
   const [registered, setRegistered] = useState(true);
   const [devCode, setDevCode] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
@@ -38,7 +41,8 @@ export function Login({ app }: { app: DriverApp }) {
 
   const verify = async () => {
     setBusy(true);
-    await app.actions.verifyOtp(phone, code, registered ? undefined : name.trim(), registered ? undefined : category);
+    // Aucune gamme envoyée : ORION l'attribue avec le véhicule (console).
+    await app.actions.verifyOtp(phone, code, registered ? undefined : name.trim(), undefined);
     setBusy(false);
   };
 
@@ -53,15 +57,15 @@ export function Login({ app }: { app: DriverApp }) {
         <div className="grabber" />
         <div className="row between dv-auth-icone">
           <LogoApp size={56} />
-          <div className="dv-auth-veh" aria-hidden="true"><VehiculeChauffeur category={category} largeur={120} /></div>
+          <div className="dv-auth-veh" aria-hidden="true"><VehiculeChauffeur category="argent" largeur={120} /></div>
         </div>
         <div className="eyebrow">{tr('ORION Chauffeur · {0}', [app.appConfig?.city ?? 'Abidjan'])}</div>
-        <h1 className="h-title" style={{ fontSize: 26, margin: '4px 0 6px' }}>{tr('Roulez vert, gagnez plus.')}</h1>
-        <p className="h-sub" style={{ marginBottom: 12 }}>{tr('Commission réduite sur l’électrique, offres claires, paiement rapide sur mobile money.')}</p>
+        <h1 className="h-title" style={{ fontSize: 26, margin: '4px 0 6px' }}>{tr('Votre poste de chauffeur ORION.')}</h1>
+        <p className="h-sub" style={{ marginBottom: 12 }}>{tr('Connectez-vous avec votre numéro. Votre véhicule, votre gamme et votre matricule sont attribués par ORION.')}</p>
         <div className="row gap-sm" style={{ marginBottom: 14, flexWrap: 'wrap' }}>
           <span className="badge green"><IconLeaf size={13} /> {tr('Mobilité verte')}</span>
           <span className="badge"><IconShield size={13} /> {tr('Sécurité chauffeur')}</span>
-          <span className="badge"><IconBolt size={13} /> {tr('Paiement rapide')}</span>
+          <span className="badge"><IconBolt size={13} /> {tr('Véhicule fourni par ORION')}</span>
         </div>
 
       {!app.live && <Banner tone="info" title={tr('Mode démo')}>{tr('Aucun serveur configuré : offres et console simulées. Code : 123456.')}</Banner>}
@@ -93,18 +97,10 @@ export function Login({ app }: { app: DriverApp }) {
           {devCode && <p className="otp-dev">{tr('Code de test (hors production) :')} <strong>{devCode}</strong></p>}
           {!registered && (
             <>
-              <Banner tone="success" title={tr('Nouveau chauffeur ORION')}>{tr('Créez votre compte : votre dossier sera ensuite à compléter dans l’app.')}</Banner>
+              <Banner tone="success" title={tr('Nouveau chauffeur ORION')}>{tr('Créez votre compte avec vos informations. ORION vous attribue ensuite votre matricule, votre véhicule et votre gamme.')}</Banner>
               <div className="field">
                 <input autoComplete="name" aria-label={tr('Nom complet')} placeholder={tr('Nom complet (ex. Konan Yao)')} value={name} onChange={(e) => setName(e.target.value)} />
               </div>
-              <label className="dv-label">{tr('Gamme de véhicule')}
-                <select className="dv-select" value={category} onChange={(e) => setCategory(e.target.value)}>
-                  <option value="argent">{tr('Argent — berline confort')}</option>
-                  <option value="or">{tr('Or — berline premium')}</option>
-                  <option value="diamant">{tr('Diamant — prestige')}</option>
-                  <option value="moto">{tr('Moto — coursier (livraison de colis)')}</option>
-                </select>
-              </label>
             </>
           )}
           <button className="btn btn-primary" disabled={busy || code.length !== 6 || (!registered && name.trim().length < 2)}>

@@ -45,6 +45,8 @@ rendu('voiture-dessus', 256, 512, azimut=90, elevation=89.9, marge=0.08, ortho=T
 for teinte in ('bleu', 'orange'):
     rendu(f'berline-{teinte}', 760, 440, azimut=58, elevation=12)(lambda t=teinte: o3.voiture('berline', PEINTURES[t]()))
     rendu(f'voiture-dessus-{teinte}', 256, 512, azimut=90, elevation=89.9, marge=0.08, ortho=True)(lambda t=teinte: o3.voiture('berline', PEINTURES[t]()))
+# Repère de carte des palettes sans voiture à leur couleur (blanc, jaune, marron, violet, rose) : la berline nacrée.
+rendu('voiture-dessus-perle', 256, 512, azimut=90, elevation=89.9, marge=0.08, ortho=True)(lambda: o3.voiture('berline', PEINTURES['perle']()))
 rendu('scooter-dessus', 256, 512, azimut=90, elevation=89.9, marge=0.10, ortho=True)(lambda: o3.scooter())
 
 

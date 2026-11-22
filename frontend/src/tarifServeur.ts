@@ -23,6 +23,8 @@
  * Fichier sans dépendance (ni navigateur, ni réglages de build) : le test du serveur l'importe tel quel.
  */
 
+import { PEAGES, dansDistrictAbidjan, sortDAbidjan, type Peage } from './routesAbidjan';
+
 export interface Pt { lat: number; lng: number }
 export type NiveauTrafic = 'fluid' | 'dense' | 'jam';
 
@@ -39,11 +41,17 @@ export function distanceVol(a: Pt, b: Pt): number {
 /** Barème des courses (DEFAULT_PRICING du serveur). */
 export const BAREME = {
   baseFare: 300, perKm: 130, perMinute: 18, minFare: 600, avgSpeedKmh: 24,
-  tvaRate: 0.05, feeRate: 0.1, insuranceRate: 0.02, trafficWeight: 0.6, stopFee: 250,
+  tvaRate: 0.05, feeRate: 0.1, insuranceRate: 0.04, trafficWeight: 0.6, stopFee: 250,
   bodySurcharge: { berline: 1, suv: 1.08 } as Record<string, number>,
   /** Majoration de chaque gamme par rapport à l'Argent, en pour cent du prix de la course. */
   majorationsPct: { argent: 0, or: 5, diamant: 15 },
+  /** Même majoration quand la course sort du district d'Abidjan : 10 % entre les gammes. */
+  majorationsPctHorsAbidjan: { argent: 0, or: 10, diamant: 20 },
+  /** Mise à disposition à l'heure (Abidjan) : prix TTC d'une heure en Argent, durée permise. */
+  miseADisposition: { tarifHeure: 5000, minHeures: 2, maxHeures: 12 },
 } as const;
+/** Postes de péage et montants (DEFAULT_PRICING.peages du serveur). */
+export const PEAGES_TARIF: readonly Peage[] = PEAGES;
 
 export type Gamme = 'argent' | 'or' | 'diamant';
 const ORDRE_GAMMES: readonly Gamme[] = ['argent', 'or', 'diamant'];
@@ -53,11 +61,12 @@ const ORDRE_GAMMES: readonly Gamme[] = ['argent', 'or', 'diamant'];
  * du serveur : le pourcentage de la gamme (Or 5 %, Diamant 15 %) arrondi à 50 F, avec au
  * moins 50 F d'écart entre deux gammes ; une course gratuite le reste.
  */
-export function supplementGamme(gamme: Gamme, montantArgent: number): number {
+export function supplementGamme(gamme: Gamme, montantArgent: number, horsAbidjan = false): number {
   if (montantArgent <= 0) return 0;
+  const grille = horsAbidjan ? BAREME.majorationsPctHorsAbidjan : BAREME.majorationsPct;
   let supplement = 0, pctPrecedent = 0;
   for (const g of ORDRE_GAMMES) {
-    const pct = Math.max(0, BAREME.majorationsPct[g]);
+    const pct = Math.max(0, grille[g]);
     const calcule = arrondi50((montantArgent * pct) / 100);
     supplement = pct > pctPrecedent ? Math.max(calcule, supplement + 50) : calcule;
     pctPrecedent = pct;
@@ -177,8 +186,41 @@ export interface DetailPrix {
   breakdown: {
     base: number; distance: number; time: number; surge: number; traffic: number; discount: number; subtotal: number; tva: number; fee: number; insurance: number;
     approche?: number; approcheKm?: number; approcheMin?: number; approcheGoogle?: boolean; minutesTrafic?: number; minutesFluide?: number; traficReel?: number; traficFacteur?: number; traficNiveau?: 'fluid' | 'dense' | 'jam';
+    /** Péages de l'itinéraire choisi (F CFA). */
+    peage?: number;
+    /** La course sort d'Abidjan : 10 % entre les gammes. */
+    horsAbidjan?: boolean;
+    /** Mise à disposition : heures facturées. */
+    heures?: number;
   };
 }
+
+/** Heures de mise à disposition ramenées dans les bornes (par demi-heure), comme le serveur. */
+export function heuresMiseADisposition(heures: number): number {
+  const m = BAREME.miseADisposition;
+  const h = Number.isFinite(heures) ? Math.round(heures * 2) / 2 : m.minHeures;
+  return Math.min(m.maxHeures, Math.max(m.minHeures, h));
+}
+
+/** Mise à disposition à l'heure (Abidjan), comme `estimateMiseADisposition` du serveur. */
+export function prixMiseADisposition(d: { heures: number; gamme?: Gamme; insurance?: boolean }): DetailPrix {
+  const s = BAREME;
+  const heures = heuresMiseADisposition(d.heures);
+  const tauxSansAssurance = 1 + s.tvaRate + s.feeRate;
+  const tauxTtc = tauxSansAssurance + (d.insurance ? s.insuranceRate : 0);
+  const montantArgent = arrondi50(((heures * s.miseADisposition.tarifHeure) / tauxSansAssurance) * tauxTtc);
+  const amount = montantArgent + supplementGamme(d.gamme ?? 'argent', montantArgent, false);
+  const subtotal = amount / tauxTtc;
+  return {
+    amount, trafficLevel: 'fluid', trafficFactor: 1, zoneFactor: 1, pickupFee: 0,
+    breakdown: {
+      base: Math.round(subtotal), distance: 0, time: 0, surge: 1, traffic: 0, discount: 0, subtotal: Math.round(subtotal),
+      tva: Math.round(subtotal * s.tvaRate), fee: Math.round(subtotal * s.feeRate),
+      insurance: d.insurance ? Math.round(subtotal * s.insuranceRate) : 0, heures,
+    },
+  };
+}
+export { dansDistrictAbidjan, sortDAbidjan };
 
 /**
  * Données du « temps réel » (APK de test, voir tempsReel.ts) : durées du trajet avec et
@@ -200,6 +242,8 @@ export function prixCourse(d: {
   bodyType?: string; insurance?: boolean; at?: Date;
   /** APK de test temps réel uniquement : trafic réel et approche réelle. */
   reel?: DonneesTempsReel;
+  /** Itinéraire choisi quand un pont à péage est sur le trajet, et péages qu'il franchit. */
+  itineraire?: 'peage' | 'normal'; peages?: string[];
 }): DetailPrix {
   const s = BAREME;
   const m = d.multiplier;
@@ -224,8 +268,12 @@ export function prixCourse(d: {
 
   const tauxTtc = 1 + s.tvaRate + s.feeRate + (d.insurance ? s.insuranceRate : 0);
   const montantArgent = arrondi50(plancher * tauxTtc);
-  const amount = montantArgent + supplementGamme(d.gamme ?? 'argent', montantArgent);
-  const subtotal = amount / tauxTtc;
+  // Hors d'Abidjan, l'écart entre gammes passe à 10 % ; les péages de l'itinéraire choisi s'ajoutent tels quels.
+  const horsAbidjan = sortDAbidjan([d.origin, ...(d.stops ?? []), d.destination]);
+  const peage = d.itineraire === 'normal' ? 0 : PEAGES_TARIF.filter((p) => d.peages?.includes(p.id)).reduce((t, p) => t + p.montant, 0);
+  const prixCourse = montantArgent + supplementGamme(d.gamme ?? 'argent', montantArgent, horsAbidjan);
+  const amount = prixCourse + peage;
+  const subtotal = prixCourse / tauxTtc;
   return {
     amount, trafficLevel: trafic.level, trafficFactor: trafic.factor,
     zone: regles.zone?.name, zoneFactor: regles.zoneFactor, pickupFee: regles.pickupFee,
@@ -234,6 +282,8 @@ export function prixCourse(d: {
       traffic: 0, discount: 0, subtotal: Math.round(subtotal),
       tva: Math.round(subtotal * s.tvaRate), fee: Math.round(subtotal * s.feeRate),
       insurance: d.insurance ? Math.round(subtotal * s.insuranceRate) : 0,
+      ...(peage > 0 ? { peage } : {}),
+      ...(horsAbidjan ? { horsAbidjan: true } : {}),
       ...(d.reel ? {
         minutesTrafic: Math.round(d.reel.durationSeconds / 60), minutesFluide: Math.round(d.reel.fluideSeconds / 60), traficReel: Math.round(d.reel.trafic.ratio * 100) / 100, traficFacteur: d.reel.trafic.factor, traficNiveau: d.reel.trafic.level,
         ...(d.reel.approche ? { approche: Math.round(coutApprocheHt), approcheKm: Math.round(d.reel.approche.distanceMeters / 100) / 10, approcheMin: Math.round(d.reel.approche.durationSeconds / 60), approcheGoogle: d.reel.approche.google } : {}),

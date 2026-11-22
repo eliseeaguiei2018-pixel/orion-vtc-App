@@ -21,8 +21,8 @@ export function Green({ app, unread, openNotices }: ScreenProps) {
   const driver = app.driver!;
   const cfg = app.driverConfig;
   const electric = (driver.engine ?? 'electric') === 'electric';
-  const [soc, setSoc] = useState(driver.batteryPct ?? 80);
-  const [soh, setSoh] = useState(driver.batteryHealthPct ?? 100);
+  const soc = driver.batteryPct ?? 80;
+  const soh = driver.batteryHealthPct ?? 100;
   const [history, setHistory] = useState<RideHistory | null>(null);
   const [training, setTraining] = useState<Training | null>(null);
   const [answers, setAnswers] = useState<number[]>([]);
@@ -30,7 +30,6 @@ export function Green({ app, unread, openNotices }: ScreenProps) {
   const [videoOk, setVideoOk] = useState(true);
 
   useEffect(() => { void app.backend.history().then(setHistory).catch(() => undefined); }, [app.backend, app.settled]);
-  useEffect(() => { setSoc(driver.batteryPct ?? 80); setSoh(driver.batteryHealthPct ?? 100); }, [driver.batteryPct, driver.batteryHealthPct]);
 
   const capacity = driver.batteryKwh ?? 50;
   const rangeKm = Math.round((soc / 100) * capacity * (soh / 100) * KM_PER_KWH);
@@ -72,15 +71,12 @@ export function Green({ app, unread, openNotices }: ScreenProps) {
           <Stat label={tr('Autonomie')} value={`${rangeKm} km`} sub={tr('{0} kWh', [capacity])} />
           <Stat label={tr('Santé')} value={`${soh} %`} sub={tr('SoH')} />
         </div>
+        {/* Véhicule d'ORION : la batterie est relevée par la télématique du véhicule et
+            suivie par ORION. Le chauffeur n'a rien à saisir. */}
         <div className="card" style={{ padding: 14 }}>
-          <label className="dv-label">{tr('Niveau de charge : {0} %', [soc])}
-            <input className="dv-range" type="range" min={0} max={100} value={soc} onChange={(e) => setSoc(Number(e.target.value))} />
-          </label>
-          <label className="dv-label" style={{ marginTop: 8 }}>{tr('Santé de la batterie : {0} %', [soh])}
-            <input className="dv-range" type="range" min={50} max={100} value={soh} onChange={(e) => setSoh(Number(e.target.value))} />
-          </label>
-          <button className="btn btn-primary" style={{ marginTop: 10 }} disabled={app.busy}
-            onClick={() => void app.actions.telemetry({ batteryPct: soc, batteryHealthPct: soh })}>{tr('Transmettre à ORION')}</button>
+          <div className="faint" style={{ fontSize: 12.5 }}>
+            {tr('Relevé transmis par votre véhicule ORION. La recharge et l’entretien sont pris en charge par ORION.')}
+          </div>
           <div className="faint" style={{ fontSize: 12, marginTop: 8 }}>
             {tr('Le dispatch ne vous propose que des courses que votre batterie peut couvrir (environ {0} km avec la charge actuelle, réserve de 10 % incluse).', [maxTripKm])}
           </div>

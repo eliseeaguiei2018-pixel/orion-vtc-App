@@ -5,10 +5,11 @@ import { chargerML } from './chargerCarte';
 import type { LatLng } from '../types';
 import { useTheme } from '../theme';
 import type { VectorConfig } from '../mapConfig';
+import { ajouterFeuxEtPeages, marquerPeages } from '../carteFeux';
 import { itineraire, type ItineraireRoute } from '../api';
 import { styleOrion } from './styleCarte';
 import { comblerCarte } from '../lieux';
-import { rendu } from './Vehicules';
+import { nomVoitureDessus, rendu } from './Vehicules';
 
 /**
  * VRAIE CARTE (MapLibre, données OpenStreetMap) : l'itinéraire suit les routes,
@@ -43,6 +44,8 @@ interface Props {
   libelleRecentrer?: string;
   /** Position réelle du téléphone (« vous êtes ici »), après une actualisation du GPS. */
   moi?: LatLng | null;
+  /** Péages de l'itinéraire choisi : mis en avant sur la carte. */
+  peages?: { id: string }[];
 }
 
 
@@ -69,7 +72,7 @@ const cap = (a: LatLng, b: LatLng) => {
   return (Math.atan2(y, x) * 180) / Math.PI;
 };
 
-export function CarteReelle({ origin, destination, stops = [], car, vehicle = 'car', approche = false, config, onEchec, basCouvert = 0.46, trace, ponts, suivi = false, libelleRecentrer = 'Recentrer', moi }: Props) {
+export function CarteReelle({ origin, destination, stops = [], car, vehicle = 'car', approche = false, config, onEchec, basCouvert = 0.46, trace, ponts, suivi = false, libelleRecentrer = 'Recentrer', moi, peages }: Props) {
   const { resolved, accent } = useTheme();
   const boite = useRef<HTMLDivElement>(null);
   const carte = useRef<CarteML | null>(null);
@@ -126,6 +129,8 @@ export function CarteReelle({ origin, destination, stops = [], car, vehicle = 'c
         m.addLayer({ id: 'approche', type: 'line', source: 'approche', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': couleur('--green', '#00e08a'), 'line-width': 4, 'line-dasharray': [0.1, 1.8], 'line-opacity': 0.9 } });
         m.addLayer({ id: 'route-bord', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': resolved === 'light' ? '#ffffff' : '#04100b', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 7, 16, 13], 'line-opacity': 0.95 } });
         m.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 4.5, 16, 8.5], 'line-gradient': ['interpolate', ['linear'], ['line-progress'], 0, couleur('--green-bright', '#2bffa6'), 1, couleur('--green-deep', '#00b46e')] } });
+        // Feux tricolores du district et postes de péage (visibles en zoomant).
+        ajouterFeuxEtPeages(m, resolved !== 'light', [config.policesLocales ? 'NotoSansRegular' : 'Noto Sans Regular']);
         // Carte « comblée » : dès que l'index des lieux est chargé, la carte affiche tous ses
         // lieux et masque ceux des tuiles (un sous-ensemble du même répertoire).
         if (config.lieuxIndex) comblerCarte(m, () => annule);
@@ -248,7 +253,7 @@ export function CarteReelle({ origin, destination, stops = [], car, vehicle = 'c
     void chargerML().then((ml) => {
       const M = marqueurs.current;
       if (!M.vehicule) {
-        M.vehicule = new ml.Marker({ element: element(`carte-vehicule ${vehicle}`, `<span class="halo"></span><i>${vehicle === 'moto' ? repere('scooter-dessus', 24) : repere(accent === 'vert' ? 'voiture-dessus' : `voiture-dessus-${accent}`, 30)}</i>`), rotationAlignment: 'map' })
+        M.vehicule = new ml.Marker({ element: element(`carte-vehicule ${vehicle}`, `<span class="halo"></span><i>${vehicle === 'moto' ? repere('scooter-dessus', 24) : repere(nomVoitureDessus(accent), 30)}</i>`), rotationAlignment: 'map' })
           .setLngLat([car.lng, car.lat]).addTo(m);
         derniere.current = { pos: car, angle: 0 };
         return;
@@ -274,6 +279,12 @@ export function CarteReelle({ origin, destination, stops = [], car, vehicle = 'c
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prete, car?.lat, car?.lng, suit]);
+
+  // Péages de l'itinéraire choisi par le client : cercle plein orange.
+  const clePeages = (peages ?? []).map((p) => p.id).join(',');
+  useEffect(() => {
+    if (prete && carte.current) marquerPeages(carte.current, clePeages ? clePeages.split(',') : []);
+  }, [prete, clePeages]);
 
   return (
     <div className="map-wrap carte-reelle">

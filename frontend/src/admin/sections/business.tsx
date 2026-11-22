@@ -554,6 +554,8 @@ export function exampleFare(p: Pricing, tier: string, km: number): number {
 }
 
 const MAJORATIONS_DEFAUT: Record<string, number> = { argent: 0, or: 5, diamant: 15 };
+const MAJORATIONS_HORS_DEFAUT: Record<string, number> = { argent: 0, or: 10, diamant: 20 };
+const DISPO_DEFAUT = { tarifHeure: 5000, minHeures: 2, maxHeures: 12 };
 
 /** Supplément d'une gamme quand l'Argent coûte `montantArgent` (copie de `supplementGamme` du serveur). */
 export function supplementGamme(p: Pricing, tier: string, montantArgent: number): number {
@@ -593,6 +595,9 @@ export function PricingEditor({ pricing, canWrite, onSave, onShadow, onMatrixCsv
         avgSpeedKmh: form.avgSpeedKmh, tvaRate: form.tvaRate, feeRate: form.feeRate,
         insuranceRate: form.insuranceRate, trafficWeight: form.trafficWeight, stopFee: form.stopFee,
         multipliers: form.multipliers, majorationsPct: form.majorationsPct,
+        majorationsPctHorsAbidjan: form.majorationsPctHorsAbidjan,
+        peages: form.peages?.map((p) => ({ id: p.id, montant: p.montant })) as Pricing['peages'],
+        miseADisposition: form.miseADisposition,
         freeWaitMinutes: form.freeWaitMinutes, cancelGraceMinutes: form.cancelGraceMinutes, cancelFee: form.cancelFee,
         cleaningLight: form.cleaningLight, cleaningMajor: form.cleaningMajor,
         longPickupPerKm: form.longPickupPerKm, longPickupThresholdKm: form.longPickupThresholdKm,
@@ -621,6 +626,7 @@ export function PricingEditor({ pricing, canWrite, onSave, onShadow, onMatrixCsv
           <label className="price-field"><span>TVA (%)</span><input type="number" step={1} value={Math.round(form.tvaRate * 100)} onChange={(e) => setForm((f) => ({ ...f, tvaRate: Number(e.target.value) / 100 }))} disabled={!canWrite} /></label>
           <label className="price-field"><span>Frais ORION (%)</span><input type="number" step={1} value={Math.round(form.feeRate * 100)} onChange={(e) => setForm((f) => ({ ...f, feeRate: Number(e.target.value) / 100 }))} disabled={!canWrite} /></label>
           <label className="price-field"><span>Poids trafic (0–1)</span><input type="number" step={0.1} value={form.trafficWeight} onChange={num('trafficWeight')} disabled={!canWrite} /></label>
+          <label className="price-field"><span>ORION Assurance (%)</span><input type="number" step={0.5} min={0} max={20} value={Math.round(form.insuranceRate * 1000) / 10} onChange={(e) => setForm((f) => ({ ...f, insuranceRate: Number(e.target.value) / 100 }))} disabled={!canWrite} /></label>
         </div>
 
         <div className="adm-card-h" style={{ marginTop: 18 }}><h3 style={{ fontSize: 14 }}>Gammes — majoration par rapport à l’Argent (%)</h3><span className="adm-muted">Pourcentage du prix de la course, arrondi à 50 F</span></div>
@@ -628,6 +634,13 @@ export function PricingEditor({ pricing, canWrite, onSave, onShadow, onMatrixCsv
           {tiers.map((t) => (
             <label key={t} className="price-field cap"><span>{t}</span><input type="number" step={1} min={0} value={(form.majorationsPct ?? MAJORATIONS_DEFAUT)[t] ?? 0}
               onChange={(e) => setForm((f) => ({ ...f, majorationsPct: { ...(f.majorationsPct ?? MAJORATIONS_DEFAUT), [t]: Number(e.target.value) } }))} disabled={!canWrite || t === 'argent'} /></label>
+          ))}
+        </div>
+        <div className="adm-card-h" style={{ marginTop: 18 }}><h3 style={{ fontSize: 14 }}>Gammes — course qui sort du district d’Abidjan (%)</h3><span className="adm-muted">Grand-Bassam, Dabou, Jacqueville, Yamoussoukro… : la grille passe à ces valeurs</span></div>
+        <div className="price-grid">
+          {tiers.map((t) => (
+            <label key={t} className="price-field cap"><span>{t}</span><input type="number" step={1} min={0} value={(form.majorationsPctHorsAbidjan ?? MAJORATIONS_HORS_DEFAUT)[t] ?? 0}
+              onChange={(e) => setForm((f) => ({ ...f, majorationsPctHorsAbidjan: { ...(f.majorationsPctHorsAbidjan ?? MAJORATIONS_HORS_DEFAUT), [t]: Number(e.target.value) } }))} disabled={!canWrite || t === 'argent'} /></label>
           ))}
         </div>
         <div className="adm-card-h" style={{ marginTop: 18 }}><h3 style={{ fontSize: 14 }}>Multiplicateur de la grille par gamme</h3></div>
@@ -644,6 +657,46 @@ export function PricingEditor({ pricing, canWrite, onSave, onShadow, onMatrixCsv
             {saved && <span className="adm-live on" style={{ alignSelf: 'center' }}>✓ Enregistré — appliqué</span>}
           </div>
         )}
+      </div>
+
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Ponts et péages</h3><span className="adm-muted">Le client choisit le pont à péage ou la voie normale ; le péage s’ajoute au prix, sans majoration de gamme</span></div>
+        <table className="adm-table">
+          <thead><tr><th>Poste</th><th>Type</th><th>Position</th><th className="r">Montant (F)</th></tr></thead>
+          <tbody>
+            {(form.peages ?? []).map((p) => (
+              <tr key={p.id}>
+                <td><strong>{p.nom}</strong></td>
+                <td><span className="adm-pill">{p.pont ? 'Pont à péage' : 'Autoroute'}</span></td>
+                <td className="adm-muted">{p.lat.toFixed(4)}, {p.lng.toFixed(4)}</td>
+                <td className="r"><input className="adm-input xs" style={{ width: 96, textAlign: 'right' }} type="number" min={0} step={50} value={p.montant} disabled={!canWrite}
+                  onChange={(e) => setForm((f) => ({ ...f, peages: (f.peages ?? []).map((x) => x.id === p.id ? { ...x, montant: Math.max(0, Number(e.target.value)) } : x) }))} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="adm-card">
+        <div className="adm-card-h"><h3>Mise à disposition à l’heure</h3><span className="adm-muted">Courses VTC, district d’Abidjan seulement : le chauffeur reste avec le client</span></div>
+        <div className="price-grid">
+          <label className="price-field"><span>Tarif d’une heure en Argent (F TTC)</span><input type="number" min={500} step={500} value={form.miseADisposition?.tarifHeure ?? 5000} disabled={!canWrite}
+            onChange={(e) => setForm((f) => ({ ...f, miseADisposition: { ...(f.miseADisposition ?? DISPO_DEFAUT), tarifHeure: Number(e.target.value) } }))} /></label>
+          <label className="price-field"><span>Durée minimum (h)</span><input type="number" min={1} max={24} step={1} value={form.miseADisposition?.minHeures ?? 2} disabled={!canWrite}
+            onChange={(e) => setForm((f) => ({ ...f, miseADisposition: { ...(f.miseADisposition ?? DISPO_DEFAUT), minHeures: Number(e.target.value) } }))} /></label>
+          <label className="price-field"><span>Durée maximum (h)</span><input type="number" min={1} max={24} step={1} value={form.miseADisposition?.maxHeures ?? 12} disabled={!canWrite}
+            onChange={(e) => setForm((f) => ({ ...f, miseADisposition: { ...(f.miseADisposition ?? DISPO_DEFAUT), maxHeures: Number(e.target.value) } }))} /></label>
+        </div>
+        <div className="adm-mini-kpis" style={{ marginTop: 12 }}>
+          {[2, 4, 8].map((h) => {
+            const argent = Math.round((h * (form.miseADisposition?.tarifHeure ?? 5000)) / 50) * 50;
+            return (
+              <div key={h} className="adm-mini-kpi"><span>{h} h — Argent · Or · Diamant</span>
+                <strong>{fcfa(argent)} · {fcfa(argent + supplementGamme(form, 'or', argent))} · {fcfa(argent + supplementGamme(form, 'diamant', argent))}</strong></div>
+            );
+          })}
+        </div>
+        <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>Enregistrez avec « Enregistrer les prix » ci-dessus. L’app cliente, l’app chauffeur et le tableau de bord lisent ces réglages.</p>
       </div>
 
       <div className="adm-card">

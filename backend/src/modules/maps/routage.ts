@@ -1,4 +1,5 @@
 import { haversineMeters, type LatLng } from '../../core/geo.js';
+import { classerItineraires, PEAGES, type Peage } from '../geo-ci/abidjan.js';
 
 /**
  * ITINÉRAIRE ROUTIER RÉEL (Côte d'Ivoire).
@@ -137,14 +138,45 @@ export class Routage {
     }
   }
 
+  /**
+   * ITINÉRAIRE CHOISI PAR LE CLIENT : par le pont à péage, ou par la voie normale.
+   * OSRM propose des variantes ; on garde la plus rapide de la famille choisie. Sans voie
+   * normale parmi elles, on passe par le contournement connu du péage (pont gratuit,
+   * ancienne route). Faute de mieux, l'itinéraire habituel.
+   */
+  async itineraireSelonChoix(points: LatLng[], choix: 'peage' | 'normal', liste: Peage[] = PEAGES): Promise<Itineraire> {
+    const habituel = await this.itineraire(points);
+    if (!this.baseUrl || habituel.provider !== 'osrm') return habituel;
+    const variantes = points.length === 2 ? await this.osrmTous(points, true).catch(() => [] as Itineraire[]) : [];
+    let classe = classerItineraires([habituel, ...variantes], liste);
+    const voulu = choix === 'peage' ? classe.peage : classe.normal;
+    if (voulu) return voulu.route;
+    if (choix === 'normal' && classe.peage) {
+      const via = classe.peage.peages.map((p) => PEAGES.find((x) => x.id === p.id)?.contournement).filter((v): v is LatLng => Boolean(v));
+      if (via.length > 0) {
+        const detour = await this.itineraire([points[0]!, ...via, ...points.slice(1)]);
+        classe = classerItineraires([detour], liste);
+        if (classe.normal) return classe.normal.route;
+      }
+    }
+    return habituel;
+  }
+
   private async osrm(points: LatLng[]): Promise<Itineraire | null> {
+    return (await this.osrmTous(points, false))[0] ?? null;
+  }
+
+  private async osrmTous(points: LatLng[], alternatives: boolean): Promise<Itineraire[]> {
     const coords = points.map((p) => `${p.lng.toFixed(6)},${p.lat.toFixed(6)}`).join(';');
-    const url = `${this.baseUrl!.replace(/\/$/, '')}/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true`;
+    const url = `${this.baseUrl!.replace(/\/$/, '')}/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true${alternatives ? '&alternatives=3' : ''}`;
     const r = await this.fetchFn(url, { signal: AbortSignal.timeout(this.delaiMs), headers: { accept: 'application/json' } });
-    if (!r.ok) return null;
+    if (!r.ok) return [];
     const json = (await r.json()) as OsrmReponse;
-    const route = json.routes?.[0];
-    if (json.code !== 'Ok' || !route) return null;
+    if (json.code !== 'Ok' || !json.routes?.length) return [];
+    return json.routes.map((route) => this.lire(route));
+  }
+
+  private lire(route: NonNullable<OsrmReponse['routes']>[number]): Itineraire {
     const etapes: EtapeItineraire[] = route.legs.flatMap((l) => l.steps.map((s) => ({
       nom: s.name || s.ref || '',
       distanceMeters: Math.round(s.distance),

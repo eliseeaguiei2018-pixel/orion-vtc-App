@@ -2137,3 +2137,163 @@ button.menu-texte { cursor: pointer; }
   background: #f59e0b; color: #1b1300; font: 600 11px/1.4 var(--font-body); letter-spacing: 0.01em; }
 .test-reel-ligne { margin: -4px 0 10px; font-size: 12.5px; line-height: 1.4; color: var(--text-dim); }
 .fare-line.test-reel span:first-child { color: var(--text-dim); }
+
+/* ==========================================================================================
+   HUIT PALETTES (version 1.6) — vert, orange, bleu, blanc, jaune, marron, violet, rose
+   ==========================================================================================
+   Chaque palette donne l'encre (--green), l'aplat des boutons (--accent-fill) et le texte posé
+   dessus (--btn-on), en clair et en sombre. Les fonds se teintent légèrement de la palette
+   (« rappel », plus haut) — sauf « blanc » : ses thèmes restent purs, sans aucune teinte. */
+[data-theme='light'][data-accent='jaune'] {
+  --green: #946b00; --green-bright: #f5b800; --green-deep: #7a5800;
+  --accent-fill: #f5b800; --accent-soft: #fff6d6; --accent-shade: #fff6d6;
+  --accent-rgb: 148, 107, 0; --accent-bright-rgb: 245, 184, 0;
+  --accent-dark: #7a5800; --accent-darker: #3d2c00; --btn-on: #1f1600;
+}
+:root:not([data-theme='light'])[data-accent='jaune'] {
+  --green: #ffd23f; --green-bright: #ffe07a; --green-deep: #f5b800;
+  --accent-fill: #ffc400; --accent-soft: #24262b; --accent-shade: #24262b;
+  --accent-rgb: 255, 210, 63; --accent-bright-rgb: 255, 224, 122;
+  --accent-dark: #b88a00; --accent-darker: #5c4500; --btn-on: #1f1600;
+}
+[data-theme='light'][data-accent='marron'] {
+  --green: #7a4a24; --green-bright: #a8693a; --green-deep: #5e3619;
+  --accent-fill: #8b5a2b; --accent-soft: #f6ece2; --accent-shade: #f6ece2;
+  --accent-rgb: 122, 74, 36; --accent-bright-rgb: 168, 105, 58;
+  --accent-dark: #5e3619; --accent-darker: #2e1a0b; --btn-on: #ffffff;
+}
+:root:not([data-theme='light'])[data-accent='marron'] {
+  --green: #d8a274; --green-bright: #e6bb95; --green-deep: #b5713b;
+  --accent-fill: #a8693a; --accent-soft: #24262b; --accent-shade: #24262b;
+  --accent-rgb: 216, 162, 116; --accent-bright-rgb: 230, 187, 149;
+  --accent-dark: #8b5a2b; --accent-darker: #4a2d14; --btn-on: #ffffff;
+}
+[data-theme='light'][data-accent='violet'] {
+  --green: #5b2fd6; --green-bright: #7c4dff; --green-deep: #4a22b8;
+  --accent-fill: #7c4dff; --accent-soft: #efe9ff; --accent-shade: #efe9ff;
+  --accent-rgb: 91, 47, 214; --accent-bright-rgb: 124, 77, 255;
+  --accent-dark: #4a22b8; --accent-darker: #241060; --btn-on: #ffffff;
+}
+:root:not([data-theme='light'])[data-accent='violet'] {
+  --green: #b69cff; --green-bright: #cbb8ff; --green-deep: #8a5cff;
+  --accent-fill: #8a5cff; --accent-soft: #24262b; --accent-shade: #24262b;
+  --accent-rgb: 182, 156, 255; --accent-bright-rgb: 203, 184, 255;
+  --accent-dark: #6a3df0; --accent-darker: #33197a; --btn-on: #ffffff;
+}
+[data-theme='light'][data-accent='rose'] {
+  --green: #c2185b; --green-bright: #e94b8a; --green-deep: #9c1149;
+  --accent-fill: #d6336c; --accent-soft: #fde8f0; --accent-shade: #fde8f0;
+  --accent-rgb: 194, 24, 91; --accent-bright-rgb: 233, 75, 138;
+  --accent-dark: #9c1149; --accent-darker: #4f0824; --btn-on: #ffffff;
+}
+:root:not([data-theme='light'])[data-accent='rose'] {
+  --green: #ff8fbd; --green-bright: #ffadcf; --green-deep: #ff5c9a;
+  --accent-fill: #ff5c9a; --accent-soft: #24262b; --accent-shade: #24262b;
+  --accent-rgb: 255, 143, 189; --accent-bright-rgb: 255, 173, 207;
+  --accent-dark: #d6336c; --accent-darker: #6b1535; --btn-on: #22050f;
+}
+/* Blanc : les thèmes clair et sombre restent PURS. Aucune teinte dans les fonds (le rappel de
+   couleur est neutralisé), boutons à l'encre : noirs en clair, blancs en sombre. */
+[data-theme='light'][data-accent='blanc'] {
+  --rappel: #ffffff;
+  --green: #121315; --green-bright: #121315; --green-deep: #000000;
+  --accent-fill: #121315; --accent-soft: #f1f1f2; --accent-shade: #f1f1f2;
+  --accent-rgb: 18, 19, 21; --accent-bright-rgb: 18, 19, 21;
+  --accent-dark: #000000; --accent-darker: #000000; --btn-on: #ffffff;
+}
+:root:not([data-theme='light'])[data-accent='blanc'] {
+  --rappel: #0c0d0f;
+  --green: #f4f4f6; --green-bright: #ffffff; --green-deep: #d9dade;
+  --accent-fill: #f4f4f6; --accent-soft: #24262b; --accent-shade: #24262b;
+  --accent-rgb: 244, 244, 246; --accent-bright-rgb: 255, 255, 255;
+  --accent-dark: #c9cbd1; --accent-darker: #8a8e98; --btn-on: #0c0d0f;
+}
+/* Pastilles aux couleurs fixes : chaque palette se montre telle qu'elle sera. */
+.accent-blanc { background: #ffffff; color: #121315 !important; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.16), 0 6px 16px -8px rgba(0, 0, 0, 0.35); }
+.accent-jaune { background: #f5b800; color: #1f1600 !important; }
+.accent-marron { background: #8b5a2b; }
+.accent-violet { background: #7c4dff; }
+.accent-rose { background: #e94b8a; }
+/* Huit palettes : deux rangées de quatre, sur toutes les largeurs. */
+.accent-choix.huit { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.accent-choix.huit .accent-option { padding: 10px 4px 9px; gap: 7px; font-size: 12px; min-width: 0; }
+.accent-choix.huit .accent-option > span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.accent-choix.huit .accent-pastille { width: 34px; height: 34px; }
+
+/* ---- Thème : trois vignettes (Clair, Sombre, Système), dessinées comme l'écran qu'elles donnent ---- */
+.theme-choix { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 10px 0 16px; }
+.theme-option { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 0; border: 0; background: none;
+  color: var(--text-dim); font: 500 15px var(--font-body); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.theme-vignette { position: relative; display: block; width: 100%; aspect-ratio: 1.42; border-radius: 22px; overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.07); transition: box-shadow 0.2s, transform 0.15s; }
+.theme-option:active .theme-vignette { transform: scale(0.97); }
+.theme-ecran { position: absolute; inset: 12% 9%; border-radius: 14px; }
+.theme-ligne { position: absolute; left: 10%; height: 4px; border-radius: 2px; width: 30%; top: 30%; background: #8c8c88; }
+.theme-ligne.longue { width: 46%; top: 16%; }
+.theme-point { position: absolute; right: 9%; bottom: 14%; width: 16%; aspect-ratio: 1; border-radius: 50%; background: var(--accent-fill); }
+/* Clair : fond gris très pâle, carte blanche. Sombre : fond presque noir, carte graphite. */
+.theme-light, .theme-system { background: #f4f4f2; }
+.theme-light .theme-ecran, .theme-system > .theme-ecran { background: #ffffff; box-shadow: inset 0 0 0 1px #e6e6e3; }
+.theme-dark { background: #151515; border-color: rgba(255, 255, 255, 0.06); }
+.theme-dark .theme-ecran, .theme-moitie .theme-ecran { background: #222222; box-shadow: inset 0 0 0 1px #303030; }
+.theme-dark .theme-ligne, .theme-moitie .theme-ligne { background: #8c8c88; }
+/* Système : la moitié basse-droite est sombre, coupée en diagonale. */
+.theme-moitie { position: absolute; inset: 0; background: #151515; clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+.theme-option.active .theme-vignette { box-shadow: 0 0 0 3px var(--green); border-color: transparent; }
+.theme-option.active .theme-nom { color: var(--green); }
+
+/* ============ 1.6 — Barre de recherche : « À l'heure » (sablier) et « Plus tard » réduit ============ */
+.hub-barre .hub-tard { padding: 0 11px; gap: 5px; font-size: 13.5px; min-height: 40px; }
+.hub-heure {
+  flex: none; display: inline-grid; place-items: center; width: 40px; height: 40px; padding: 0;
+  border: 0; border-radius: 999px; cursor: pointer; background: rgba(118, 118, 128, 0.12); color: var(--text);
+  transition: opacity 0.16s;
+}
+:root:not([data-theme='light']) .hub-heure { background: rgba(255, 255, 255, 0.10); }
+.hub-heure:active { opacity: 0.6; }
+.hub-heure:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+@media (max-width: 360px) { .hub-barre .hub-tard { padding: 0 9px; font-size: 12.5px; } .hub-heure { width: 36px; height: 36px; } }
+
+/* ============ Itinéraire : pont à péage ou voie normale ============ */
+.route-choix { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0 0 12px; }
+.route-option {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; padding: 11px 12px;
+  border-radius: 16px; border: 1.5px solid var(--stroke); background: var(--surface); color: var(--text);
+  text-align: start; cursor: pointer; transition: border-color 0.16s, background 0.16s;
+}
+.route-option.active { border-color: var(--green); background: rgba(var(--accent-rgb), 0.07); }
+.route-option:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.route-tete { display: inline-flex; align-items: center; gap: 6px; }
+.route-tete strong { font-size: 14px; font-weight: 600; }
+.route-tete svg { color: #d98a00; flex: none; }
+.route-duree { font-size: 12.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.route-cout { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.route-option.active .route-cout { color: var(--green); }
+.route-via { font-size: 11px; color: var(--text-faint, var(--text-dim)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.route-choix.compact .route-option { padding: 9px 11px; }
+.route-inclus { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 9px 12px; border-radius: 12px; background: rgba(217, 138, 0, 0.10); color: var(--text); font-size: 12.5px; }
+.route-inclus svg { color: #d98a00; flex: none; }
+.route-inclus.alerte { background: rgba(255, 77, 94, 0.10); }
+.route-inclus.alerte svg { color: #e5484d; }
+
+/* ============ Chauffeur à l'heure : durée ============ */
+.mad-duree { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 0; padding: 10px 12px; border-radius: 16px; background: var(--surface); border: 1px solid var(--stroke); }
+.mad-heures { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+
+/* ============ Carte Google : feux tricolores et postes de péage ============ */
+.gm-couche-routiere { position: absolute; left: 0; top: 0; pointer-events: none; }
+.gm-feu, .gm-peage { position: absolute; left: 0; top: 0; will-change: transform; }
+.feu-tricolore {
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between; width: 9px; height: 19px; padding: 2px 0;
+  border-radius: 3px; background: #1d1f23; box-shadow: 0 0 0 1.25px #ffffff, 0 1px 3px rgba(0, 0, 0, 0.35); box-sizing: border-box;
+}
+.feu-tricolore b { width: 4.5px; height: 4.5px; border-radius: 50%; }
+.feu-tricolore b:nth-child(1) { background: #ff3b30; }
+.feu-tricolore b:nth-child(2) { background: #ffb020; }
+.feu-tricolore b:nth-child(3) { background: #22c55e; }
+.gm-peage { display: flex; flex-direction: column; align-items: center; }
+.gm-peage i { width: 12px; height: 12px; border-radius: 50%; background: #ffffff; box-shadow: 0 0 0 2.5px #ffb020, 0 1px 3px rgba(0, 0, 0, 0.3); }
+.gm-peage.actif i { background: #ffb020; box-shadow: 0 0 0 3px #ffffff, 0 1px 4px rgba(0, 0, 0, 0.35); }
+.gm-peage span { display: none; margin-top: 4px; padding: 2px 7px; border-radius: 999px; background: #1d1f23; color: #fff; font: 600 11px/1.3 var(--font-body); white-space: nowrap; }
+.gm-peage.nomme span { display: block; }
+.gm-peage.actif span { background: #d98a00; }

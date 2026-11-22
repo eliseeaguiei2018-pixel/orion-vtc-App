@@ -36,6 +36,11 @@ export function driverRideView(ride: Ride, container: Container, driverId: strin
     distanceMeters: ride.quote.distanceMeters,
     etaSeconds: ride.quote.etaSeconds,
     amount: ride.quote.amount,
+    // Itinéraire choisi par le client (pont à péage ou voie normale), péage compris dans le prix.
+    ...(ride.quote.itineraire ? { itineraire: { ...ride.quote.itineraire, peage: ride.quote.breakdown.peage ?? 0 } } : {}),
+    // Mise à disposition à l'heure : le chauffeur reste avec le client pendant `heures` heures.
+    ...(ride.quote.miseADisposition ? { miseADisposition: ride.quote.miseADisposition } : {}),
+    ...(ride.quote.breakdown.horsAbidjan ? { horsAbidjan: true } : {}),
     waitMinutes: ride.waitMinutes ?? 0,
     paymentMethod: paid?.method ?? ride.paymentMethod ?? null,
     paidAmount: paid?.amount ?? null,

@@ -8,6 +8,7 @@ import { trafficInfo } from '../src/modules/geo-ci/zones.js';
 import { PACKAGE_FACTOR } from '../src/modules/services/delivery/deliveryModule.js';
 import { DEFAULT_ZONES } from '../src/modules/settings/service.js';
 import { ALL_ZONES } from '../src/modules/geo-ci/zones.js';
+import { readFileSync } from 'node:fs';
 
 /**
  * LE PRIX DE L'APPLICATION EST CELUI DU SERVEUR.
@@ -21,7 +22,10 @@ import { ALL_ZONES } from '../src/modules/geo-ci/zones.js';
 type Pt = { lat: number; lng: number };
 interface Detail { amount: number; trafficLevel: string; breakdown: Record<string, number> }
 interface Appli {
-  prixCourse(d: { origin: Pt; destination: Pt; stops?: Pt[]; distanceMeters: number; multiplier: number; gamme?: 'argent' | 'or' | 'diamant'; bodyType?: string; insurance?: boolean; at?: Date }): Detail;
+  prixCourse(d: { origin: Pt; destination: Pt; stops?: Pt[]; distanceMeters: number; multiplier: number; gamme?: 'argent' | 'or' | 'diamant'; bodyType?: string; insurance?: boolean; at?: Date; itineraire?: 'peage' | 'normal'; peages?: string[] }): Detail;
+  prixMiseADisposition(d: { heures: number; gamme?: 'argent' | 'or' | 'diamant'; insurance?: boolean }): Detail;
+  supplementGamme(gamme: 'argent' | 'or' | 'diamant', montantArgent: number, horsAbidjan?: boolean): number;
+  sortDAbidjan(points: Pt[]): boolean;
   prixLivraison(d: { origin: Pt; destination: Pt; distanceMeters: number; tailleFacteur: number; at?: Date }): Detail;
   ZONES_TARIF: { id: string; factor: number; lat: number; lng: number; radiusKm: number; pickupFee?: number }[];
   ZONES_DENSITE: readonly (readonly [string, number, number, number])[];
@@ -148,4 +152,92 @@ test('ORION Assurance : même supplément dans l’application et sur le serveur
       assert.deepEqual(local.breakdown, serveur.breakdown, `détail assuré ${a} → ${b}, ${gamme}`);
     }
   }
+});
+
+test('pont à péage ou voie normale : même prix dans l’application et sur le serveur', async () => {
+  const { app } = await buildApp();
+  // Cocody → Plateau par le pont Henri-Konan-Bédié (péage) ou par la voie normale (plus longue).
+  const origin = LIEUX.cocody!, destination = LIEUX.zone4!;
+  const choix = [
+    { itineraire: 'peage' as const, peages: ['hkb'], routeMeters: Math.round(vol([origin, destination]) * 1.25) },
+    { itineraire: 'normal' as const, peages: [] as string[], routeMeters: Math.round(vol([origin, destination]) * 1.7) },
+  ];
+  const montants: Record<string, number> = {};
+  for (const c of choix) {
+    for (const gamme of ['argent', 'or', 'diamant'] as const) {
+      const { serveur, local } = await memeHeure(async (at) => {
+        const res = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin, destination, category: gamme, clientId: CLIENT, ...c } });
+        assert.equal(res.statusCode, 200, res.body);
+        const local = appli.prixCourse({ origin, destination, distanceMeters: c.routeMeters, multiplier: FLEET[gamme].multiplier, gamme, at, itineraire: c.itineraire, peages: c.peages });
+        return { serveur: res.json().quote as Detail, local };
+      });
+      assert.equal(local.amount, serveur.amount, `montant ${c.itineraire}, ${gamme}`);
+      assert.deepEqual(local.breakdown, serveur.breakdown, `détail ${c.itineraire}, ${gamme}`);
+      if (c.itineraire === 'peage') assert.equal(serveur.breakdown.peage, 500, 'le péage du pont HKB est de 500 F');
+      else assert.equal(serveur.breakdown.peage, undefined, 'aucun péage sur la voie normale');
+      montants[`${c.itineraire}-${gamme}`] = serveur.amount;
+    }
+  }
+  // Le péage n'est pas majoré par la gamme : l'Or paie le même péage que l'Argent.
+  assert.ok(montants['peage-argent']! > 0 && montants['normal-argent']! > 0);
+  await app.close();
+});
+
+test('hors d’Abidjan, la grille entre gammes passe à 10 % (Or) et 20 % (Diamant)', async () => {
+  assert.equal(appli.sortDAbidjan([LIEUX.cocody!, LIEUX.plateau!]), false, 'Cocody → Plateau reste dans le district');
+  assert.equal(appli.sortDAbidjan([LIEUX.bingerville!, LIEUX.grandBassam!]), true, 'Grand-Bassam est hors du district');
+  assert.equal(appli.supplementGamme('or', 10_000, false), 500);
+  assert.equal(appli.supplementGamme('or', 10_000, true), 1000);
+  assert.equal(appli.supplementGamme('diamant', 10_000, false), 1500);
+  assert.equal(appli.supplementGamme('diamant', 10_000, true), 2000);
+  const { app } = await buildApp();
+  const origin = LIEUX.plateau!, destination = LIEUX.grandBassam!;
+  const prix: Record<string, Detail> = {};
+  for (const gamme of ['argent', 'or', 'diamant'] as const) {
+    const { serveur, local } = await memeHeure(async (at) => {
+      const res = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin, destination, category: gamme, clientId: CLIENT } });
+      assert.equal(res.statusCode, 200, res.body);
+      const local = appli.prixCourse({ origin, destination, distanceMeters: vol([origin, destination]) * 1.3, multiplier: FLEET[gamme].multiplier, gamme, at });
+      return { serveur: res.json().quote as Detail, local };
+    });
+    assert.equal(local.amount, serveur.amount, `montant hors Abidjan, ${gamme}`);
+    assert.deepEqual(local.breakdown, serveur.breakdown, `détail hors Abidjan, ${gamme}`);
+    assert.equal((serveur.breakdown as Record<string, unknown>).horsAbidjan, true);
+    prix[gamme] = serveur;
+  }
+  const ecart = (g: 'or' | 'diamant') => (prix[g]!.amount - prix.argent!.amount) / prix.argent!.amount;
+  assert.ok(Math.abs(ecart('or') - 0.10) < 0.02, `Or ≈ +10 % (${ecart('or')})`);
+  assert.ok(Math.abs(ecart('diamant') - 0.20) < 0.02, `Diamant ≈ +20 % (${ecart('diamant')})`);
+  await app.close();
+});
+
+test('mise à disposition à l’heure : même prix, Abidjan seulement', async () => {
+  const { app } = await buildApp();
+  for (const heures of [2, 3.5, 8, 12]) {
+    for (const gamme of ['argent', 'or', 'diamant'] as const) {
+      const res = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: LIEUX.cocody, destination: LIEUX.cocody, category: gamme, clientId: CLIENT, miseADisposition: { heures } } });
+      assert.equal(res.statusCode, 200, res.body);
+      const serveur = res.json().quote as Detail;
+      const local = appli.prixMiseADisposition({ heures, gamme });
+      assert.equal(local.amount, serveur.amount, `montant ${heures} h, ${gamme}`);
+      assert.deepEqual(local.breakdown, serveur.breakdown, `détail ${heures} h, ${gamme}`);
+      assert.equal(serveur.breakdown.heures, heures);
+    }
+  }
+  // 2 h en Argent au tarif par défaut (5 000 F l'heure) : 10 000 F.
+  assert.equal(appli.prixMiseADisposition({ heures: 2 }).amount, 10_000);
+  // Bornes : moins de 2 h est compté 2 h, plus de 12 h est compté 12 h.
+  assert.equal(appli.prixMiseADisposition({ heures: 1 }).breakdown.heures, 2);
+  assert.equal(appli.prixMiseADisposition({ heures: 20 }).breakdown.heures, 12);
+  // Hors du district : refusé par le serveur.
+  const hors = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: LIEUX.grandBassam, destination: LIEUX.grandBassam, category: 'argent', clientId: CLIENT, miseADisposition: { heures: 3 } } });
+  assert.equal(hors.statusCode, 400, hors.body);
+  assert.match(hors.body, /MISE_A_DISPOSITION_HORS_ABIDJAN/);
+  await app.close();
+});
+
+test('district d’Abidjan et péages : la copie de l’application est celle du serveur', () => {
+  // Seule la première phrase de l'en-tête (qui nomme l'autre copie) diffère.
+  const corps = (chemin: string) => readFileSync(new URL(chemin, import.meta.url), 'utf8').split('\n').slice(4).join('\n');
+  assert.equal(corps('../../frontend/src/routesAbidjan.ts'), corps('../src/modules/geo-ci/abidjan.ts'));
 });

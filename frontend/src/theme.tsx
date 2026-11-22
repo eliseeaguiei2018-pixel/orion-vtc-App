@@ -2,9 +2,15 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type Resolved = 'light' | 'dark';
-/** Couleur d'accent choisie par le client, sur la base du design ORION. */
-export type Accent = 'vert' | 'orange' | 'bleu';
-export const ACCENTS: Accent[] = ['vert', 'orange', 'bleu'];
+/**
+ * Couleur choisie par le client, sur la base du design ORION : huit palettes, rangées par
+ * deux lignes de quatre dans les paramètres. « blanc » garde les thèmes clair et sombre purs
+ * (aucune teinte dans les fonds, boutons noirs en clair et blancs en sombre).
+ */
+export type Accent = 'vert' | 'orange' | 'bleu' | 'blanc' | 'jaune' | 'marron' | 'violet' | 'rose';
+export const ACCENTS: Accent[] = ['vert', 'orange', 'bleu', 'blanc', 'jaune', 'marron', 'violet', 'rose'];
+/** Accents qui ont leurs propres rendus de voiture (les autres prennent la voiture nacrée). */
+export const ACCENTS_RENDUS: Accent[] = ['vert', 'orange', 'bleu'];
 
 interface ThemeValue {
   mode: ThemeMode;
@@ -19,11 +25,9 @@ const KEY = 'orion.theme';
 const KEY_ACCENT = 'orion.accent';
 
 /** Couleur de la barre du navigateur / du système, par accent et par mode. */
-const BARRE: Record<Accent, Record<Resolved, string>> = {
-  vert: { dark: '#0c0d0f', light: '#ffffff' },
-  orange: { dark: '#0c0d0f', light: '#ffffff' },
-  bleu: { dark: '#0c0d0f', light: '#ffffff' },
-};
+const BARRE: Record<Accent, Record<Resolved, string>> = Object.fromEntries(
+  ACCENTS.map((a) => [a, { dark: '#0c0d0f', light: '#ffffff' }]),
+) as Record<Accent, Record<Resolved, string>>;
 
 function accentInitial(): Accent {
   try {

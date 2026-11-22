@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { useAccentSur } from '../theme';
+import { ACCENTS_RENDUS, useAccentSur } from '../theme';
 import {
   IconAlarm, IconAward, IconBadge, IconBag, IconBank, IconBriefcase, IconBuilding, IconBus, IconCalendar, IconCar, IconCarburant, IconCart, IconChart, IconGift,
   IconClock, IconCrown, IconEcole, IconEglise, IconFile, IconFlag, IconFlame, IconGem, IconHeadset, IconHome, IconKey, IconLeaf, IconLit, IconLock,
@@ -74,7 +74,10 @@ function fichierVoiture(modele: Modele, peinture: Peinture, accent: string): str
   if (peinture === 'nuit') return 'limousine-nuit';
   const caisse = modele === 'suv' ? 'suv' : 'berline';
   if (peinture === 'perle') return `${caisse}-perle`;
-  if (peinture === 'accent') return caisse === 'suv' ? 'suv-orion' : accent === 'vert' ? 'berline-orion' : `berline-${accent}`;
+  if (peinture === 'accent') {
+    if (caisse === 'suv') return 'suv-orion';
+    return accent === 'vert' ? 'berline-orion' : (ACCENTS_RENDUS as string[]).includes(accent) ? `berline-${accent}` : 'berline-perle';
+  }
   return `${caisse}-${peinture === 'bronze' ? 'argent' : peinture}`;
 }
 
@@ -129,10 +132,13 @@ export function Objet({ nom, taille = 96, volume = false }: { nom: ObjetService 
   return <Rendu nom={nom} largeur={taille} ratio={1} classe="objet" />;
 }
 
+/** Rendu vu de dessus de la couleur choisie (voiture verte, orange, bleue, ou nacrée pour les autres palettes). */
+export const nomVoitureDessus = (accent: string): string =>
+  accent === 'vert' ? 'voiture-dessus' : (ACCENTS_RENDUS as string[]).includes(accent) ? `voiture-dessus-${accent}` : 'voiture-dessus-perle';
 /** Vue de dessus, pour le repère du véhicule sur la carte. */
 export function VoitureDessus({ taille = 26 }: { taille?: number }) {
   const accent = useAccentSur();
-  return <Rendu nom={accent === 'vert' ? 'voiture-dessus' : `voiture-dessus-${accent}`} largeur={taille} ratio={2} />;
+  return <Rendu nom={nomVoitureDessus(accent)} largeur={taille} ratio={2} />;
 }
 
 /**

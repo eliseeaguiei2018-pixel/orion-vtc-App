@@ -115,6 +115,15 @@ export interface RideView {
   encaissement?: Encaissement;
   /** Terminée sans paiement après le délai console : chauffeur libéré, à régulariser. */
   liberee?: boolean;
+  /**
+   * Itinéraire choisi par le client : par le pont à péage (péage compris dans le prix, reversé
+   * au chauffeur sans commission) ou par la voie normale. Le guidage suit ce choix.
+   */
+  itineraire?: { choix: 'peage' | 'normal'; peages: string[]; peage: number; trace?: LatLng[] };
+  /** Mise à disposition à l'heure : le chauffeur reste `heures` heures avec le client. */
+  miseADisposition?: { heures: number; debut?: string };
+  /** La course sort du district d'Abidjan (grille des gammes à 10 %). */
+  horsAbidjan?: boolean;
   createdAt: string;
   updatedAt: string;
 }

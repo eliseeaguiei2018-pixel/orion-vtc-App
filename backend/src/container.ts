@@ -241,7 +241,9 @@ export function createContainer(): Container {
         trafficFactor: traffic.factor,
         trafficLevel: traffic.level,
         settings: settings.getPricing(),
-        routeMeters: await distanceParLaRoute(req),
+        // Itinéraire choisi par le client (pont à péage ou voie normale) : sa distance, contrôlée
+        // par distanceFacturee (jamais sous la ligne droite ni démesurée) ; sinon, le routage du serveur.
+        routeMeters: req.routeMeters ?? await distanceParLaRoute(req),
         zoneFactor: settings.zoneFactor(req.origin),
         zonePickupFee: settings.zoneForPoint(req.origin)?.pickupFee ?? 0,
         flatAmount: trip.flatAmount,

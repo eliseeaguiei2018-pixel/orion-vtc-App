@@ -123,6 +123,7 @@ export interface GMap {
   panTo(p: { lat: number; lng: number }): void; panBy(x: number, y: number): void;
   fitBounds(b: unknown, padding?: number | { top: number; bottom: number; left: number; right: number }): void;
   getProjection(): GProjection | undefined; getDiv(): HTMLElement; setOptions(o: Record<string, unknown>): void;
+  getBounds(): { getNorthEast(): GLatLng; getSouthWest(): GLatLng } | undefined;
 }
 export interface GPolyline { setPath(p: Array<{ lat: number; lng: number }>): void; setMap(m: GMap | null): void; setOptions(o: Record<string, unknown>): void }
 export interface GOverlayView {

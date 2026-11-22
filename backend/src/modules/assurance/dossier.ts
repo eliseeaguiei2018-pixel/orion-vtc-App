@@ -16,7 +16,7 @@ import type { CoffreMedical, DonneeChiffree } from './chiffrement.js';
  *    en charge une alerte EN COURS le concernant ;
  *  - chaque consultation par ORION est inscrite dans le dossier lui-même : le client
  *    voit qui l'a ouvert, quand, et pour quelle alerte ;
- *  - l'inscription est gratuite ; elle seule permet d'activer l'option à 2 % sur une
+ *  - l'inscription est gratuite ; elle seule permet d'activer l’option à 4 % sur une
  *    course (sans dossier, l'assistance ne pourrait pas être rapide) ;
  *  - le client peut supprimer son dossier à tout moment.
  */

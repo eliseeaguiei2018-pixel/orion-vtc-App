@@ -71,6 +71,8 @@ interface Props {
   /* --- Navigation guidée (app chauffeur), carte réelle uniquement --- */
   trace?: LatLng[] | null;
   ponts?: string[];
+  /** Péages de l'itinéraire choisi (pont à péage) : mis en avant sur la carte. */
+  peages?: { id: string; nom: string; lat: number; lng: number; montant: number }[];
   suivi?: boolean;
   basCouvert?: number;
   libelleRecentrer?: string;
@@ -88,6 +90,27 @@ const ACCENT_CARTE: Record<Accent, Record<'dark' | 'light', Partial<Palette>>> =
     dark: { route0: '#9cc1ff', route1: '#4a8bff', origin: '#9cc1ff', car: '#9cc1ff', ink: '#03112a' },
     light: { route0: '#1463ff', route1: '#0b57e6', origin: '#0b57e6', car: '#0b57e6' },
   },
+  // Blanc : la carte reste pure ; l'itinéraire est à l'encre (noir en clair, blanc en sombre).
+  blanc: {
+    dark: { route0: '#f4f4f6', route1: '#c9cbd1', origin: '#f4f4f6', car: '#f4f4f6', ink: '#0c0d0f' },
+    light: { route0: '#121315', route1: '#3a3c42', origin: '#121315', car: '#121315' },
+  },
+  jaune: {
+    dark: { route0: '#ffd23f', route1: '#f5b800', origin: '#ffd23f', car: '#ffd23f', ink: '#1f1600' },
+    light: { route0: '#f5b800', route1: '#946b00', origin: '#946b00', car: '#946b00', ink: '#1f1600' },
+  },
+  marron: {
+    dark: { route0: '#d8a274', route1: '#b5713b', origin: '#d8a274', car: '#d8a274', ink: '#1c0f05' },
+    light: { route0: '#a8693a', route1: '#7a4a24', origin: '#7a4a24', car: '#7a4a24' },
+  },
+  violet: {
+    dark: { route0: '#b69cff', route1: '#8a5cff', origin: '#b69cff', car: '#b69cff', ink: '#12062e' },
+    light: { route0: '#7c4dff', route1: '#5b2fd6', origin: '#5b2fd6', car: '#5b2fd6' },
+  },
+  rose: {
+    dark: { route0: '#ff8fbd', route1: '#ff5c9a', origin: '#ff8fbd', car: '#ff8fbd', ink: '#22050f' },
+    light: { route0: '#e94b8a', route1: '#c2185b', origin: '#c2185b', car: '#c2185b' },
+  },
 };
 
 export function OrionMap(props: Props) {
@@ -102,14 +125,14 @@ export function OrionMap(props: Props) {
   const seul = googleSeul();
   const gps = useContext(GpsCarte);
   const config = getVectorConfig();
-  const { origin, destination, stops, car, vehicle, approche, trace, ponts, suivi, basCouvert, libelleRecentrer } = props;
+  const { origin, destination, stops, car, vehicle, approche, trace, ponts, suivi, basCouvert, libelleRecentrer, peages } = props;
   const carte = fond === 'google' && !googleEchec && !(seul && refus)
     ? <CarteGoogle origin={origin} destination={destination} stops={stops} car={car} vehicle={vehicle} approche={approche} moi={gps?.moi}
-        trace={trace} basCouvert={basCouvert} onEchec={() => setGoogleEchec(true)} />
+        trace={trace} peages={peages} basCouvert={basCouvert} onEchec={() => setGoogleEchec(true)} />
     : seul ? <GoogleIndisponible />
     : config && !repli
       ? <CarteReelle origin={origin} destination={destination} stops={stops} car={car} vehicle={vehicle} approche={approche} config={config} onEchec={() => setRepli(true)}
-          trace={trace} ponts={ponts} suivi={suivi} basCouvert={basCouvert} libelleRecentrer={libelleRecentrer} moi={gps?.moi} />
+          trace={trace} ponts={ponts} suivi={suivi} basCouvert={basCouvert} libelleRecentrer={libelleRecentrer} moi={gps?.moi} peages={peages} />
       : <CarteStylisee {...props} />;
   return (
     <>

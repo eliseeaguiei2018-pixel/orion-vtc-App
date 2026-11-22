@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { OrionMap } from '../../components/OrionMap';
-import { IconClock, IconPhone, IconPin, IconWallet } from '../../icons';
+import { IconCar, IconClock, IconPeage, IconPhone, IconPin, IconSablier, IconWallet } from '../../icons';
 import type { DriverApp } from '../useDriver';
 import type { ActiveRide, MotifAnnulationChauffeur, RideStatus, RideView } from '../types';
 import { Banner, Modal } from '../ui';
@@ -89,6 +89,14 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
             <div className="faint" style={{ fontSize: 12 }}>{billable > 0 ? tr('Prix fixe + attente {0}', [fcfa(billable * wait.feePerMin)]) : tr('Prix fixe')}</div>
           </div>
         </div>
+        {/* Choix du client : itinéraire (pont à péage ou voie normale) et mise à disposition. */}
+        {(ride.itineraire || ride.miseADisposition) && (
+          <div className="row" style={{ gap: 6, flexWrap: 'wrap', margin: '8px 0 2px' }}>
+            {ride.miseADisposition && <span className="dv-pill gold"><IconSablier size={13} /> {tr('Mise à disposition · {0} h', [ride.miseADisposition.heures])}</span>}
+            {ride.itineraire?.choix === 'peage' && <span className="dv-pill gold"><IconPeage size={13} /> {tr('Itinéraire du client : pont à péage ({0} compris)', [fcfa(ride.itineraire.peage)])}</span>}
+            {ride.itineraire?.choix === 'normal' && <span className="dv-pill"><IconCar size={13} /> {tr('Itinéraire du client : voie normale (sans péage)')}</span>}
+          </div>
+        )}
         {abonnement && (
           <Banner tone="success" icon={<IconWallet size={18} />} title={totalDue === 0 ? tr('Course incluse dans l’abonnement du client') : tr('Abonnement du client : {0} pris en charge', [fcfa(prisEnCharge)])}>
             {tr('{0} · le client paie {1}. Vous êtes rémunéré sur le prix complet ({2}).', [abonnement.plan, fcfa(totalDue), fcfa(brut)])}

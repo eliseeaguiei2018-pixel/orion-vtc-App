@@ -64,7 +64,7 @@ export function enregistrerCourseLocale(c: Omit<CourseLocale, 'id' | 'createdAt'
   const course = { ...c, id: id('course'), createdAt: maintenant(), annulation: null, sos: [] };
   courses.unshift(course);
   ecrire('courses', courses.slice(0, 100));
-  // ORION Assurance cochée : la cotisation (2 % de la course) est comptée pour l'année.
+  // ORION Assurance cochée : la cotisation (4 % de la course) est comptée pour l'année.
   const assurance = Number((c.breakdown as { insurance?: number } | null)?.insurance ?? 0);
   if (assurance > 0) {
     ecrire('cotisations', [{ amount: assurance, year: new Date().getFullYear(), rideId: course.id, at: course.createdAt, refunded: false }, ...lire<unknown[]>('cotisations', [])]);

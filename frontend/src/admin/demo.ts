@@ -5,6 +5,7 @@ import type {
   PrestigeUnit, RentalAvailabilityRow, RentalRow, RentalStats, SubInvoiceRow, SubPlanRow,
   ContactUrgence, ExecutiveBoard, MonPoste, MouvementPage, RentalTarifEtat, SanteVigilance, SubStats, SubscriptionRow,
 } from './types';
+import { PEAGES } from '../routesAbidjan';
 
 /** Jeu de données de démonstration (console autonome, sans backend). */
 const iso = (minAgo: number) => new Date(Date.now() - minAgo * 60000).toISOString();
@@ -130,8 +131,11 @@ const overview: Overview = {
 
 const pricing = {
   baseFare: 300, perKm: 130, perMinute: 18, minFare: 600, avgSpeedKmh: 24,
-  tvaRate: 0.05, feeRate: 0.1, insuranceRate: 0.02, trafficWeight: 0.6, stopFee: 250,
-  multipliers: { argent: 0.9, or: 0.9, diamant: 0.9 }, majorationsPct: { argent: 0, or: 5, diamant: 15 }, 
+  tvaRate: 0.05, feeRate: 0.1, insuranceRate: 0.04, trafficWeight: 0.6, stopFee: 250,
+  multipliers: { argent: 0.9, or: 0.9, diamant: 0.9 }, majorationsPct: { argent: 0, or: 5, diamant: 15 },
+  majorationsPctHorsAbidjan: { argent: 0, or: 10, diamant: 20 },
+  peages: PEAGES.map((p) => ({ ...p })),
+  miseADisposition: { tarifHeure: 5000, minHeures: 2, maxHeures: 12 },
   bodySurcharge: { berline: 1, suv: 1.08 },
   freeWaitMinutes: 5, cancelGraceMinutes: 2, cancelFee: 500, cleaningLight: 10000, cleaningMajor: 50000,
   longPickupPerKm: 100, longPickupThresholdKm: 5,
@@ -662,7 +666,7 @@ const rentals: RentalRow[] = [
     createdAt: iso(300),
   },
   {
-    id: 'LOC-C083', userId: 'client-9120', formula: 'mise_a_disposition', duree: 'heures', heures: 6,
+    id: 'LOC-C083', userId: 'client-9120', formula: 'evenement', duree: 'heures', heures: 6,
     vehicle: { id: 'nio-es9', name: 'NIO ES9', classe: 'signature', places: 5 },
     debut: dans(0, new Date().getHours() + 1), fin: dans(0, new Date().getHours() + 7), total: 158_760, caution: 22_680, jourJ: true,
     status: 'en_cours', driverId: 'd8', lieu: 'Hôtel Ivoire, Cocody',
@@ -685,7 +689,7 @@ const rentalDispos: RentalAvailabilityRow[] = prestige.map((v) => {
 const rentalStats: RentalStats = {
   total: rentals.length,
   parStatut: { reservee: 1, confirmee: 1, en_cours: 1 },
-  parFormule: { evenement: 1, entreprise: 1, mise_a_disposition: 1 },
+  parFormule: { evenement: 2, entreprise: 1 },
   chiffreAffaires: rentals.reduce((n, r) => n + r.total, 0),
   aVenir: 2,
   tauxOccupation: 7 / 21,

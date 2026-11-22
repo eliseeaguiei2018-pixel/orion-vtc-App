@@ -731,7 +731,14 @@ function Console({ onLogout }: { onLogout: () => void }) {
   };
 
   const savePricing = async (patch: Partial<Pricing>) => {
-    if (!LIVE) { setPricing((p) => (p ? { ...p, ...patch, multipliers: { ...p.multipliers, ...(patch.multipliers ?? {}) } } : p)); return; }
+    if (!LIVE) {
+      // Sans serveur : même fusion que le serveur (seul le montant d'un péage est réglable).
+      setPricing((p) => (p ? {
+        ...p, ...patch, multipliers: { ...p.multipliers, ...(patch.multipliers ?? {}) },
+        peages: (p.peages ?? []).map((x) => ({ ...x, montant: patch.peages?.find((y) => y.id === x.id)?.montant ?? x.montant })),
+      } : p));
+      return;
+    }
     const { pricing: next } = await adminPut<{ pricing: Pricing }>('/admin/pricing', patch);
     setPricing(next);
   };

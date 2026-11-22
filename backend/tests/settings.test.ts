@@ -61,7 +61,8 @@ test('gammes : majoration en pour cent réglable depuis la console ; les anciens
   assert.equal(upd.statusCode, 200, upd.body);
   assert.deepEqual(upd.json().pricing.majorationsPct, { argent: 0, or: 10, diamant: 30 });
   for (const champ of ['supplements', 'ecarts', 'ecartKm']) assert.equal(champ in upd.json().pricing, false, champ);
-  const loin = { lat: 5.2118, lng: -3.7388 };
+  // Un long trajet qui reste dans le district (Anyama) : la grille d'Abidjan s'applique.
+  const loin = { lat: 5.4946, lng: -4.0517 };
   const [a, o, d] = prix(upd.json().pricing as never, loin);
   assert.equal(o - a, Math.round((a * 0.1) / 50) * 50); assert.equal(d - a, Math.round((a * 0.3) / 50) * 50);
   // Une gamme ramenée à 0 % coûte le prix de l'Argent ; une valeur négative est refusée.
@@ -90,4 +91,61 @@ test('gammes : majoration en pour cent réglable depuis la console ; les anciens
     assert.deepEqual(stocke.majorationsPct, DEFAULT_PRICING.majorationsPct);
     assert.equal(p.perKm, 145, 'les autres réglages de la console sont gardés');
   }
+});
+
+test('hors Abidjan, péages et mise à disposition : réglables depuis la console, appliqués au devis', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+  const defaut = (await app.inject({ method: 'GET', url: '/admin/pricing', headers: AUTH })).json().pricing;
+  assert.equal(defaut.insuranceRate, 0.04, 'ORION Assurance : 4 %');
+  assert.deepEqual(defaut.majorationsPctHorsAbidjan, { argent: 0, or: 10, diamant: 20 });
+  assert.deepEqual(defaut.miseADisposition, { tarifHeure: 5000, minHeures: 2, maxHeures: 12 });
+  assert.deepEqual(defaut.peages.map((p: { id: string; montant: number; pont: boolean }) => [p.id, p.montant, p.pont]),
+    [['hkb', 500, true], ['pont4', 500, true], ['bassam', 500, false], ['attinguie', 500, false], ['thomasset', 500, false]]);
+
+  const upd = await app.inject({ method: 'PUT', url: '/admin/pricing', headers: AUTH, payload: {
+    majorationsPctHorsAbidjan: { argent: 7, or: 12, diamant: 25 },
+    peages: [{ id: 'hkb', montant: 800 }, { id: 'inconnu', montant: 9999 }],
+    miseADisposition: { tarifHeure: 6000, minHeures: 3, maxHeures: 10 },
+  } });
+  assert.equal(upd.statusCode, 200, upd.body);
+  const p = upd.json().pricing;
+  assert.deepEqual(p.majorationsPctHorsAbidjan, { argent: 0, or: 12, diamant: 25 }, 'l’Argent reste la référence');
+  assert.equal(p.peages.find((x: { id: string }) => x.id === 'hkb').montant, 800);
+  assert.equal(p.peages.length, 5, 'un poste inconnu n’est pas créé');
+  assert.deepEqual(p.miseADisposition, { tarifHeure: 6000, minHeures: 3, maxHeures: 10 });
+  assert.equal((await app.inject({ method: 'PUT', url: '/admin/pricing', headers: AUTH, payload: { miseADisposition: { tarifHeure: -1 } } })).statusCode, 400);
+
+  const devis = async (payload: Record<string, unknown>) => {
+    const r = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { clientId: 'console-test', ...payload } });
+    assert.equal(r.statusCode, 200, r.body);
+    return r.json().quote as { amount: number; breakdown: Record<string, number> };
+  };
+  // Péage choisi : le montant réglé dans la console, hors majoration de gamme.
+  const avecPont = await devis({ origin, destination, category: 'or', itineraire: 'peage', peages: ['hkb'] });
+  const sansPont = await devis({ origin, destination, category: 'or', itineraire: 'normal', peages: ['hkb'] });
+  assert.equal(avecPont.breakdown.peage, 800);
+  assert.equal(avecPont.amount - sansPont.amount, 800);
+  // Mise à disposition : 3 h minimum au nouveau tarif horaire.
+  const dispo = await devis({ origin, destination: origin, category: 'argent', miseADisposition: { heures: 2 } });
+  assert.equal(dispo.breakdown.heures, 3);
+  assert.equal(dispo.amount, 18_000);
+  // Hors du district : la grille hors Abidjan réglée dans la console.
+  const bassam = { lat: 5.2118, lng: -3.7388 };
+  const [a, o, d] = await Promise.all((['argent', 'or', 'diamant'] as const).map(async (category) => (await devis({ origin, destination: bassam, category })).amount)) as [number, number, number];
+  assert.equal(o - a, Math.max(50, Math.round((a * 0.12) / 50) * 50));
+  assert.equal(d - a, Math.max(o - a + 50, Math.round((a * 0.25) / 50) * 50));
+
+  // Un enregistrement d'avant (assurance à 2 %, sans les nouveaux réglages) passe à 4 % et reçoit les valeurs par défaut.
+  const { SettingsService } = await import('../src/modules/settings/service.js');
+  const { DEFAULT_PRICING } = await import('../src/modules/services/ride/pricing.js');
+  const { majorationsPctHorsAbidjan: _h, peages: _p, miseADisposition: _m, ...ancien } = DEFAULT_PRICING;
+  let stocke: Record<string, unknown> = { id: 'pricing', ...ancien, insuranceRate: 0.02 };
+  const depot = { get: () => stocke, put: (r: Record<string, unknown>) => { stocke = r; return r; }, list: () => [stocke], delete: () => true };
+  const migre = new SettingsService(depot as never).getPricing();
+  assert.equal(migre.insuranceRate, 0.04);
+  assert.deepEqual(migre.majorationsPctHorsAbidjan, DEFAULT_PRICING.majorationsPctHorsAbidjan);
+  assert.equal(migre.peages.length, 5);
+  assert.deepEqual(migre.miseADisposition, DEFAULT_PRICING.miseADisposition);
+  assert.equal(stocke.insuranceRate, 0.04, 'la migration est enregistrée');
 });

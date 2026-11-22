@@ -3,6 +3,7 @@ import { itineraire, type ItineraireRoute, type Manoeuvre } from '../api';
 import type { LatLng } from './types';
 import { haversine } from './format';
 import { aTraduire, tr } from './i18n';
+import { PEAGES, peagesSurTrace } from '../routesAbidjan';
 
 /**
  * NAVIGATION GUIDÉE DE L'APP CHAUFFEUR, sur la vraie carte de Côte d'Ivoire.
@@ -182,24 +183,61 @@ export function angleFleche(m: Manoeuvre): number {
 
 /* -------------------------------- Hook --------------------------------- */
 
+/** Choix du client pour le trajet : par le pont à péage, ou par la voie normale. */
+export interface ConsigneItineraire { choix: 'peage' | 'normal'; peages: string[] }
+
+/**
+ * Itinéraire qui respecte le choix du client. Le calcul habituel passe-t-il un péage alors
+ * que le client a choisi la voie normale ? On repasse par le contournement de ce péage
+ * (pont gratuit, ancienne route). A-t-il choisi le pont et le calcul l'évite-t-il ? On
+ * passe par le poste de péage. Les postes déjà franchis (`passes`) ne sont plus imposés.
+ */
+async function itineraireSelonConsigne(depart: LatLng, vers: LatLng, consigne: ConsigneItineraire | null, passes: Set<string>): Promise<ItineraireRoute | null> {
+  const r = await itineraire([depart, vers]);
+  if (!consigne || !r) return r;
+  const franchis = peagesSurTrace(r.geometrie);
+  let via: LatLng[] = [];
+  if (consigne.choix === 'normal' && franchis.length > 0) {
+    via = franchis.map((p) => PEAGES.find((x) => x.id === p.id)?.contournement).filter((v): v is LatLng => Boolean(v));
+  } else if (consigne.choix === 'peage') {
+    via = PEAGES.filter((p) => consigne.peages.includes(p.id) && !passes.has(p.id) && !franchis.some((f) => f.id === p.id)).map((p) => ({ lat: p.lat, lng: p.lng }));
+  }
+  if (via.length === 0) return r;
+  const detour = await itineraire([depart, ...via, vers]);
+  if (!detour) return r;
+  const encore = peagesSurTrace(detour.geometrie);
+  const respecte = consigne.choix === 'normal' ? encore.length === 0 : consigne.peages.every((id) => passes.has(id) || encore.some((p) => p.id === id));
+  return respecte ? detour : r;
+}
+
 /**
  * Itinéraire guidé vers `cible` depuis la position du chauffeur. Calculé à chaque nouvelle
  * cible (client à rejoindre, puis destination), recalculé si le chauffeur s'écarte.
+ * `consigne` : l'itinéraire choisi par le client (pont à péage ou voie normale), respecté
+ * vers la destination.
  */
-export function useNavigation(position: LatLng, cible: LatLng | null): { route: RouteGuidage | null; guidage: Guidage | null; recalcul: boolean } {
+export function useNavigation(position: LatLng, cible: LatLng | null, consigne: ConsigneItineraire | null = null): { route: RouteGuidage | null; guidage: Guidage | null; recalcul: boolean } {
   const [route, setRoute] = useState<RouteGuidage | null>(null);
   const [recalcul, setRecalcul] = useState(false);
   const pos = useRef(position);
   pos.current = position;
   const hors = useRef(0);
   const dernierCalcul = useRef(0);
-  const cle = cible ? `${cible.lat.toFixed(5)},${cible.lng.toFixed(5)}` : '';
+  const cle = cible ? `${cible.lat.toFixed(5)},${cible.lng.toFixed(5)}|${consigne?.choix ?? ''}` : '';
+  const consigneRef = useRef(consigne);
+  consigneRef.current = consigne;
+  // Postes de péage déjà franchis (moins de 120 m) : on ne ramène jamais le chauffeur en arrière.
+  const passes = useRef(new Set<string>());
+  useEffect(() => { passes.current = new Set(); }, [cle]);
+  useEffect(() => {
+    for (const p of PEAGES) if (haversine(position, p) < 120) passes.current.add(p.id);
+  }, [position]);
 
   const calculer = (vers: LatLng, actif: () => boolean) => {
     dernierCalcul.current = Date.now();
     hors.current = 0;
     const depart = pos.current;
-    void itineraire([depart, vers]).then((r) => {
+    void itineraireSelonConsigne(depart, vers, consigneRef.current, passes.current).then((r) => {
       if (!actif()) return;
       setRecalcul(false);
       // Sans réseau : repère en ligne droite, la course continue (Google Maps / Waze restent proposés).

@@ -8,7 +8,7 @@ import {
   RENTAL_MOIS_MAX, RENTAL_OPTION_KEYS, RENTAL_TARIFF, dureesPermises, remiseMensuelle,
 } from './data';
 import { repondreLocal, reserverLocationLocale } from './serveurLocal';
-import { BAREME, BAREME_LIVRAISON, prixCourse, prixLivraison, traficServeur } from './tarifServeur';
+import { BAREME, BAREME_LIVRAISON, prixCourse, prixLivraison, prixMiseADisposition, traficServeur } from './tarifServeur';
 import { baseTempsReel, confirmerCodeGoogle, enTeteRecaptcha, enTetesPasserelle, envoyerCodeGoogle, identiteGoogleActive } from './securiteGoogle';
 
 /**
@@ -134,6 +134,13 @@ export interface EstimateOpts {
   insurance?: boolean;
   /** Code promo saisi par le client (validé côté backend, remise appliquée au devis). */
   promoCode?: string;
+  /**
+   * Itinéraire choisi (pont à péage ou voie normale) : sa distance par la route sert au prix,
+   * et ses péages s'y ajoutent. Voir itinerairesPeage.ts.
+   */
+  itineraire?: { choix: 'peage' | 'normal'; distanceMeters: number; durationSeconds: number; peages: string[] };
+  /** Mise à disposition à l'heure (Abidjan) : le chauffeur reste avec le client `heures` heures. */
+  miseADisposition?: { heures: number; debut?: string };
 }
 
 /**
@@ -159,10 +166,10 @@ export function definirTrajetTarif(f: (points: LatLng[]) => TrajetTarif | null):
  * sinon l'estimation (1,3 fois le vol d'oiseau, durée à la vitesse du barème).
  * `facteurTrafic` n'allonge que la durée estimée ; un trajet calculé donne déjà sa durée réelle.
  */
-function baseTarifaire(points: LatLng[], vitesseKmh: number, facteurTrafic: number): { distanceMeters: number; etaSeconds: number } {
+function baseTarifaire(points: LatLng[], vitesseKmh: number, facteurTrafic: number, choisi?: TrajetTarif): { distanceMeters: number; etaSeconds: number } {
   let vol = 0;
   for (let i = 1; i < points.length; i++) vol += haversine(points[i - 1]!, points[i]!);
-  const t = trajetConnu(points);
+  const t = choisi ?? trajetConnu(points);
   // Garde-fou : un trajet plus court que la ligne droite, ou démesuré, n'est pas un trajet.
   const plausible = t && t.distanceMeters >= vol * 0.98 && t.distanceMeters <= vol * 6 + 3000;
   if (!t || !plausible) {
@@ -180,10 +187,20 @@ function baseTarifaire(points: LatLng[], vitesseKmh: number, facteurTrafic: numb
  * les réglages modifiés depuis la console et les codes promo demandent un serveur relié.
  */
 function localEstimate(origin: LatLng, destination: LatLng, tier: TierOption, opts: EstimateOpts = {}): Quote {
+  // Mise à disposition à l'heure : le prix dépend des heures, pas du trajet.
+  if (opts.miseADisposition) {
+    const prix = prixMiseADisposition({ heures: opts.miseADisposition.heures, gamme: tier.id, insurance: opts.insurance });
+    return {
+      lockId: `local-${Date.now()}`, amount: prix.amount, currency: 'XOF', distanceMeters: 0,
+      etaSeconds: Math.round((prix.breakdown.heures ?? opts.miseADisposition.heures) * 3600), trafficLevel: 'fluid', breakdown: prix.breakdown,
+    };
+  }
   const stops = opts.stops ?? [];
   const trafic = traficServeur(origin, destination);
-  // Distance par la route (et non à vol d'oiseau) et durée du trajet.
-  const { distanceMeters, etaSeconds } = baseTarifaire([origin, ...stops, destination], BAREME.avgSpeedKmh, trafic.factor);
+  // Distance par la route (et non à vol d'oiseau) et durée du trajet : celles de l'itinéraire
+  // choisi par le client (pont à péage ou voie normale), sinon celles du trajet habituel.
+  const choisi = opts.itineraire ? { distanceMeters: opts.itineraire.distanceMeters, durationSeconds: opts.itineraire.durationSeconds } : undefined;
+  const { distanceMeters, etaSeconds } = baseTarifaire([origin, ...stops, destination], BAREME.avgSpeedKmh, trafic.factor, choisi);
   // APK de test temps réel : trafic réel de Google sur CE trajet, temps prévu avec le trafic,
   // et approche réelle du chauffeur le plus proche (voir tempsReel.ts).
   const route = TEMPS_REEL ? trajetConnu([origin, ...stops, destination]) : null;
@@ -196,6 +213,7 @@ function localEstimate(origin: LatLng, destination: LatLng, tier: TierOption, op
   const prix = prixCourse({
     origin, destination, stops, distanceMeters,
     multiplier: tier.multiplier, gamme: tier.id, bodyType: opts.bodyType, insurance: opts.insurance, reel,
+    itineraire: opts.itineraire?.choix, peages: opts.itineraire?.peages,
   });
   return {
     lockId: `local-${Date.now()}`,
@@ -269,7 +287,12 @@ export async function estimateWithCoverage(
     // clientId : le serveur ne compte qu'UNE demande par personne pour le surge —
     // sans lui, comparer les gammes ferait monter son propre prix. Il sert aussi à
     // calculer la couverture d'abonnement.
-    body: JSON.stringify({ origin, destination, category: tier.id, bodyType: opts.bodyType, stops: opts.stops, insurance: opts.insurance, promoCode: opts.promoCode, clientId: clientId() }),
+    body: JSON.stringify({
+      origin, destination, category: tier.id, bodyType: opts.bodyType, stops: opts.stops, insurance: opts.insurance, promoCode: opts.promoCode, clientId: clientId(),
+      // Itinéraire choisi : le serveur reprend sa distance (contrôlée) et ses péages.
+      ...(opts.itineraire ? { itineraire: opts.itineraire.choix, peages: opts.itineraire.peages, routeMeters: Math.round(opts.itineraire.distanceMeters) } : {}),
+      ...(opts.miseADisposition ? { miseADisposition: opts.miseADisposition } : {}),
+    }),
   });
   if (remote?.quote) return { quote: remote.quote, coverage: remote.abonnement ?? null };
   // Mode démo : pas de backend, donc pas d'abonnement à faire valoir.
@@ -651,7 +674,7 @@ export interface TrustedContact {
  * /reservations, suivie par la console). Renvoie l'identifiant, ou null sans serveur —
  * l'application la garde alors sur le téléphone (voir programmees.ts).
  */
-export async function reserverCourse(input: { origin: LatLng; destination: LatLng; category: string; scheduledFor: string }): Promise<string | null> {
+export async function reserverCourse(input: { origin: LatLng; destination: LatLng; category: string; scheduledFor: string; miseADisposition?: { heures: number } }): Promise<string | null> {
   if (!API) return null;
   const r = await tryFetch<{ reservation: { id: string } }>('/reservations', {
     method: 'POST', body: JSON.stringify({ clientId: clientId(), ...input }),
@@ -1146,6 +1169,28 @@ export function itineraire(points: LatLng[]): Promise<ItineraireRoute | null> {
   cacheItineraires.set(cle, p);
   void p.then((r) => { if (!r) cacheItineraires.delete(cle); });
   return p;
+}
+
+/**
+ * Variantes d'itinéraire du calcul routier d'ORION (OSRM) entre deux points : le plus rapide
+ * et jusqu'à trois autres. Sert au choix « pont à péage ou voie normale » sans Google.
+ */
+export async function variantesOrion(points: LatLng[]): Promise<ItineraireRoute[]> {
+  if (points.length !== 2) { const r = await itineraire(points); return r ? [r] : []; }
+  if (Date.now() - refusItinerairePublic < 30_000) return [];
+  try {
+    const coords = points.map((q) => `${q.lng.toFixed(6)},${q.lat.toFixed(6)}`).join(';');
+    const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&alternatives=3`, { signal: AbortSignal.timeout(8000) });
+    const j = await res.json() as { code: string; routes?: Array<{ distance: number; duration: number; geometry: { coordinates: [number, number][] } }> };
+    if (j.code !== 'Ok' || !j.routes?.length) return [];
+    return j.routes.map((route) => ({
+      geometrie: route.geometry.coordinates.map(([lng, lat]) => ({ lat, lng })),
+      distanceMeters: Math.round(route.distance), durationSeconds: Math.round(route.duration), ponts: [], provider: 'osrm' as const,
+    }));
+  } catch {
+    refusItinerairePublic = Date.now();
+    return [];
+  }
 }
 
 /* ------------------------------ ORION Assurance ------------------------------ */

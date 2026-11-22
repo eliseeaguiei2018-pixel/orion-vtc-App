@@ -314,6 +314,9 @@ export function createDemoBackend(): DriverBackend {
       paymentMethod: c.paiement, paidAmount: null, earnings: { net: 0, bonus: 0, commission: 0, cashCollected: 0 },
       rating: null, createdAt: now(), updatedAt: now(), events: [{ type: 'accepted', at: now() }],
       clientName: c.client.nom || 'Client ORION', clientPhone: c.client.telephone || '', bus: { code: c.code },
+      // Choix du client : pont à péage ou voie normale ; chauffeur à l'heure.
+      ...(c.itineraire ? { itineraire: c.itineraire } : {}),
+      ...(c.miseADisposition ? { miseADisposition: c.miseADisposition } : {}),
     };
     st.rides = [r, ...st.rides.filter((x) => x.id !== r.id)];
     st.activeRideId = r.id;

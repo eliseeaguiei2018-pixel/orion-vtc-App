@@ -1,34 +1,31 @@
 import { useRef, useState } from 'react';
 import { IconCamera, IconCheck, IconImage, IconPhone, IconShield, IconStar } from '../../icons';
-import { useTheme, type Accent, type ThemeMode } from '../../theme';
+import type { Accent } from '../../theme';
+import { ChoixCouleur, ChoixTheme } from '../../components/Apparence';
 import { EMERGENCY_NUMBERS } from '../../api';
 import type { ScreenProps } from '../Driver';
 import type { DriverProfile, KycStatus, ProfilePatch } from '../types';
 import { Banner, BellButton, ChoixLangue, PageHeader, Progress, Section, Stat, VehiculeChauffeur } from '../ui';
-import { daysUntil, initials, KYC_LABEL, pct, shortDate, TIER_LABEL } from '../format';
+import { initials, KYC_LABEL, pct, shortDate, TIER_LABEL } from '../format';
 import { aTraduire, tr } from '../i18n';
 import { ConnecterEcranVehicule } from './Appairage';
 import { BlocBiometrie } from '../../components/CompteScreens';
 import { VERSION_APP } from '../../version';
 
 const PIPELINE: KycStatus[] = ['draft', 'docs_submitted', 'manual_review', 'active'];
-const PLUGS = ['Type 2', 'CCS', 'CHAdeMO', 'Type 1', 'GB/T'];
 
-/** Champs exigés par le backend pour soumettre le dossier (POST /drivers/:id/kyc/submit). */
+/**
+ * Champs exigés pour soumettre le dossier (POST /drivers/:id/kyc/submit) : uniquement les
+ * informations du chauffeur. Les chauffeurs ORION sont salariés et roulent sur les véhicules
+ * d'ORION : véhicule, gamme, assurance et recharge sont attribués par ORION, pas saisis ici.
+ */
 const REQUIRED: Array<[keyof DriverProfile, string]> = [
   ['phone', aTraduire('Téléphone')], ['birthDate', aTraduire('Date de naissance')], ['licenseNo', aTraduire('Numéro de permis')],
-  ['vehicleModel', aTraduire('Modèle du véhicule')], ['vehiclePlate', aTraduire('Immatriculation')],
-  ['vehicleColor', aTraduire('Couleur du véhicule')], ['insuranceExpiry', aTraduire('Échéance de l’assurance')],
 ];
 
-type Form = Required<Pick<ProfilePatch, 'birthDate' | 'licenseNo' | 'vehicleModel' | 'vehiclePlate' | 'vehicleColor' | 'insuranceExpiry' | 'plugType' | 'nif'>>
-  & { batteryKwh: string; cablesConfirmed: boolean };
+type Form = Required<Pick<ProfilePatch, 'birthDate' | 'licenseNo'>>;
 
-const fromDriver = (d: DriverProfile): Form => ({
-  birthDate: d.birthDate ?? '', licenseNo: d.licenseNo ?? '', vehicleModel: d.vehicleModel ?? '', vehiclePlate: d.vehiclePlate ?? '',
-  vehicleColor: d.vehicleColor ?? '', insuranceExpiry: d.insuranceExpiry ?? '', plugType: d.plugType ?? '', nif: d.nif ?? '',
-  batteryKwh: d.batteryKwh !== undefined ? String(d.batteryKwh) : '', cablesConfirmed: d.cablesConfirmed ?? false,
-});
+const fromDriver = (d: DriverProfile): Form => ({ birthDate: d.birthDate ?? '', licenseNo: d.licenseNo ?? '' });
 
 /**
  * PROFIL : dossier chauffeur (KYC) à compléter puis soumettre à ORION, suivi de la
@@ -36,31 +33,30 @@ const fromDriver = (d: DriverProfile): Form => ({
  */
 export function Profile({ app, unread, openNotices }: ScreenProps) {
   const driver = app.driver!;
-  const { mode, setMode, accent, setAccent } = useTheme();
+  const COULEURS: Record<Accent, string> = {
+    vert: tr('Vert ORION'), orange: tr('Orange'), bleu: tr('Bleu'), blanc: tr('Blanc'),
+    jaune: tr('Jaune'), marron: tr('Marron'), violet: tr('Violet'), rose: tr('Rose'),
+  };
   const photo = app.backend.photoSrc(driver);
   const [form, setForm] = useState<Form>(() => fromDriver(driver));
-  const [engine, setEngine] = useState<'electric' | 'hybrid'>(driver.engine ?? 'electric');
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   const stepIdx = driver.kycStatus === 'approved' ? 3 : Math.max(0, PIPELINE.indexOf(driver.kycStatus));
   const missing = REQUIRED.filter(([k]) => !driver[k]).map(([, l]) => tr(l));
   const canSubmit = driver.kycStatus === 'draft' && missing.length === 0;
-  const insurance = daysUntil(driver.insuranceExpiry);
   const received = driver.offersReceived ?? 0;
 
-  /** N'envoie que les champs modifiés et non vides (validation serveur Zod). */
+  /** N'envoie que les informations personnelles modifiées et non vides (validation serveur Zod). */
   const save = async () => {
     const before = fromDriver(driver);
     const patch: ProfilePatch = {};
-    (['birthDate', 'licenseNo', 'vehicleModel', 'vehiclePlate', 'vehicleColor', 'insuranceExpiry', 'plugType', 'nif'] as const).forEach((k) => {
+    (['birthDate', 'licenseNo'] as const).forEach((k) => {
       const v = form[k].trim();
       if (v && v !== before[k]) patch[k] = v;
     });
-    if (form.batteryKwh && form.batteryKwh !== before.batteryKwh) patch.batteryKwh = Number(form.batteryKwh);
-    if (form.cablesConfirmed !== before.cablesConfirmed) patch.cablesConfirmed = form.cablesConfirmed;
     if (Object.keys(patch).length) await app.actions.updateProfile(patch);
-    if (engine !== (driver.engine ?? 'electric')) await app.actions.telemetry({ engine });
   };
+  const vehiculeAttribue = Boolean(driver.vehicleModel || driver.vehiclePlate);
 
   return (
     <div className="dv-page">
@@ -78,11 +74,10 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
           </div>
           <div className="row" style={{ gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
             <span className={`dv-pill ${driver.kycStatus === 'suspended' ? 'danger' : driver.kycStatus === 'active' || driver.kycStatus === 'approved' ? 'green' : 'gold'}`}>{KYC_LABEL[driver.kycStatus]}</span>
-            <span className="dv-pill">{tr('Gamme {0}', [TIER_LABEL[driver.category] ?? driver.category])}</span>
             {driver.vip && <span className="dv-pill gold">{tr('Top Driver')}</span>}
             {driver.loyaltyTier && <span className="dv-pill green">{tr('Fidélité {0}', [driver.loyaltyTier === 'gold' ? tr('Diamant') : driver.loyaltyTier === 'silver' ? tr('Or') : tr('Argent')])}</span>}
           </div>
-          {(driver.vehicleModel || driver.vehiclePlate) && (
+          {vehiculeAttribue && (
             <div className={`dv-stage dv-portrait-stage${driver.category === 'moto' ? ' moto' : ''}`}>
               <span className="dv-stage-tag dv-pill">{[driver.vehicleModel, driver.vehiclePlate, driver.vehicleColor].filter(Boolean).join(' · ')}</span>
               <VehiculeChauffeur category={driver.category} largeur={150} />
@@ -90,6 +85,17 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
           )}
         </div>
       </div>
+
+      {/* Ce qu'ORION attribue au chauffeur : lecture seule, rattaché à son matricule. */}
+      <Section title={tr('Attribué par ORION')}>
+        <div className="card dv-attribution">
+          <div className="row between"><span className="faint">{tr('Matricule')}</span><strong>{driver.matricule}</strong></div>
+          <div className="row between"><span className="faint">{tr('Gamme')}</span><strong>{vehiculeAttribue ? TIER_LABEL[driver.category] ?? driver.category : tr('En attente')}</strong></div>
+          <div className="row between"><span className="faint">{tr('Véhicule')}</span><strong>{vehiculeAttribue ? [driver.vehicleModel, driver.vehicleColor].filter(Boolean).join(' · ') : tr('En attente')}</strong></div>
+          <div className="row between"><span className="faint">{tr('Immatriculation')}</span><strong>{driver.vehiclePlate || tr('En attente')}</strong></div>
+          <div className="faint" style={{ fontSize: 12.5 }}>{tr('Votre véhicule, sa gamme, son assurance et sa recharge sont gérés par ORION. Vous n’avez rien à saisir : connectez-vous et commencez vos courses.')}</div>
+        </div>
+      </Section>
 
       <PhotoChauffeur app={app} aUnePhoto={Boolean(photo)} />
 
@@ -116,45 +122,18 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
         <div className="card" style={{ padding: 14, fontSize: 13 }}>
           <strong>{tr('Pièces originales à présenter en agence ORION')}</strong>
           <div className="muted" style={{ marginTop: 6, lineHeight: 1.6 }}>
-            {tr('Pièce d’identité (CNI) · Permis de conduire · Carte grise · Attestation d’assurance · Visite technique · Casier judiciaire (moins de 3 mois)')}
+            {tr('Pièce d’identité (CNI) · Permis de conduire · Casier judiciaire (moins de 3 mois) · Certificat de résidence')}
           </div>
         </div>
       </Section>
 
-      <Section title={tr('Identité & véhicule')}>
+      <Section title={tr('Mes informations')}>
         <form className="dv-form" onSubmit={(e) => { e.preventDefault(); void save(); }}>
+          <label className="dv-label">{tr('Nom complet')}<input className="dv-input" value={driver.name} readOnly aria-readonly="true" /></label>
+          <label className="dv-label">{tr('Téléphone')}<input className="dv-input" value={driver.phone ?? ''} readOnly aria-readonly="true" /></label>
           <div className="dv-grid2">
             <label className="dv-label">{tr('Date de naissance')}<input className="dv-input" type="date" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} /></label>
             <label className="dv-label">{tr('N° de permis')}<input className="dv-input" value={form.licenseNo} maxLength={30} onChange={(e) => set('licenseNo', e.target.value)} /></label>
-          </div>
-          <label className="dv-label">{tr('Modèle du véhicule')}<input className="dv-input" placeholder={tr('Ex. BYD Dolphin')} value={form.vehicleModel} maxLength={60} onChange={(e) => set('vehicleModel', e.target.value)} /></label>
-          <div className="dv-grid2">
-            <label className="dv-label">{tr('Immatriculation')}<input className="dv-input" placeholder={tr('1234 AB 01')} value={form.vehiclePlate} maxLength={15} onChange={(e) => set('vehiclePlate', e.target.value.toUpperCase())} /></label>
-            <label className="dv-label">{tr('Couleur')}<input className="dv-input" placeholder={tr('Blanc')} value={form.vehicleColor} maxLength={20} onChange={(e) => set('vehicleColor', e.target.value)} /></label>
-          </div>
-          <label className="dv-label">{tr('Échéance de l’assurance')}<input className="dv-input" type="date" value={form.insuranceExpiry} onChange={(e) => set('insuranceExpiry', e.target.value)} /></label>
-          {insurance !== null && insurance <= 30 && <div className="faint" style={{ fontSize: 12, color: insurance < 0 ? 'var(--danger)' : 'var(--gold)' }}>{insurance < 0 ? tr('Assurance expirée.') : tr('Expire dans {0} jours.', [insurance])}</div>}
-
-          <h3 className="dv-section-title" style={{ marginTop: 6 }}>{tr('Conformité verte')}</h3>
-          <div className="dv-seg" role="group" aria-label={tr('Motorisation')}>
-            <button type="button" className={engine === 'electric' ? 'on' : ''} onClick={() => setEngine('electric')}>{tr('100 % électrique')}</button>
-            <button type="button" className={engine === 'hybrid' ? 'on' : ''} onClick={() => setEngine('hybrid')}>{tr('Hybride')}</button>
-          </div>
-          <div className="dv-grid2">
-            <label className="dv-label">{tr('Batterie (kWh)')}<input className="dv-input" type="number" min={0} max={300} inputMode="decimal" value={form.batteryKwh} onChange={(e) => set('batteryKwh', e.target.value)} /></label>
-            <label className="dv-label">{tr('Type de prise')}
-              <select className="dv-select" value={form.plugType} onChange={(e) => set('plugType', e.target.value)}>
-                <option value="">—</option>
-                {PLUGS.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </label>
-          </div>
-          <label className="dv-check"><input type="checkbox" checked={form.cablesConfirmed} onChange={(e) => set('cablesConfirmed', e.target.checked)} />{tr('Câbles de recharge réglementaires à bord')}</label>
-
-          <h3 className="dv-section-title" style={{ marginTop: 6 }}>{tr('Fiscalité & virements')}</h3>
-          <label className="dv-label">{tr('N° d’identification fiscale (NIF)')}<input className="dv-input" value={form.nif} maxLength={40} onChange={(e) => set('nif', e.target.value)} /></label>
-          <div className="row" style={{ gap: 8, fontSize: 13 }}>
-            {driver.ribVerified ? <><IconCheck size={16} /><span>{tr('Compte de virement vérifié par ORION')}</span></> : <span className="faint">{tr('Compte de virement : vérification par ORION en attente')}</span>}
           </div>
           <button className="btn btn-primary" disabled={app.busy}>{tr('Enregistrer')}</button>
         </form>
@@ -174,20 +153,9 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
       <Section title={tr('Préférences')}>
         {/* Mêmes réglages que l'app cliente 1.5.9 : thème, couleur, empreinte ou visage, langue. */}
         <div className="dv-pref-titre">{tr('Thème')}</div>
-        <div className="chips" role="group" aria-label={tr('Thème')}>
-          {([['system', tr('Auto')], ['light', tr('Clair')], ['dark', tr('Sombre')]] as Array<[ThemeMode, string]>).map(([m, l]) => (
-            <button key={m} className={`chip${mode === m ? ' active' : ''}`} aria-pressed={mode === m} onClick={() => setMode(m)}>{l}</button>
-          ))}
-        </div>
+        <ChoixTheme libelles={{ light: tr('Clair'), dark: tr('Sombre'), system: tr('Système') }} />
         <div className="dv-pref-titre">{tr('Couleur')}</div>
-        <div className="accent-choix" role="radiogroup" aria-label={tr('Couleur')}>
-          {([['vert', tr('Vert ORION')], ['orange', tr('Orange')], ['bleu', tr('Bleu')]] as Array<[Accent, string]>).map(([a, l]) => (
-            <button key={a} role="radio" aria-checked={accent === a} className={`accent-option${accent === a ? ' active' : ''}`} onClick={() => setAccent(a)}>
-              <span className={`accent-pastille accent-${a}`}>{accent === a && <IconCheck size={16} />}</span>
-              <span>{l}</span>
-            </button>
-          ))}
-        </div>
+        <ChoixCouleur titre={tr('Couleur')} libelle={(a) => COULEURS[a]} />
         <div className="dv-pref-titre">{tr('Empreinte digitale / Face ID')}</div>
         <BlocBiometrie />
         <div className="dv-pref-titre">{tr('Langue de l’application')}</div>

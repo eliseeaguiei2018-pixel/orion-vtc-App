@@ -1274,6 +1274,14 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
           }).partial().optional(),
           // Majoration de l'Or et du Diamant par rapport à l'Argent, en pour cent du prix.
           majorationsPct: z.object({ or: z.number().min(0).max(300), diamant: z.number().min(0).max(300) }).partial().optional(),
+          // Même majoration quand la course sort d'Abidjan (10 % / 20 % par défaut).
+          majorationsPctHorsAbidjan: z.object({ or: z.number().min(0).max(300), diamant: z.number().min(0).max(300) }).partial().optional(),
+          // Montant de chaque péage (pont HKB, 4ᵉ pont, Grand-Bassam…).
+          peages: z.array(z.object({ id: z.string().max(24), montant: z.number().min(0).max(20_000) })).max(20).optional(),
+          // Mise à disposition à l'heure (Abidjan).
+          miseADisposition: z.object({
+            tarifHeure: z.number().min(500).max(200_000), minHeures: z.number().min(0.5).max(12), maxHeures: z.number().min(1).max(24),
+          }).partial().optional(),
           // Frais annexes & pénalités (session Tarification).
           freeWaitMinutes: z.number().min(0).max(30).optional(),
           cancelGraceMinutes: z.number().min(0).max(30).optional(),

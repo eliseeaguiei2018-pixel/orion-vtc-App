@@ -193,8 +193,12 @@ export function ConsoleTest() {
     if (code !== course.code) { setErreurCode('Code incorrect : demandez le code affiché dans l’app client.'); return; }
     setErreurCode('');
     const points = [{ lat: course.origine.lat, lng: course.origine.lng }, ...course.arrets.map((a) => ({ lat: a.lat, lng: a.lng })), { lat: course.destination.lat, lng: course.destination.lng }];
-    const r = await itineraireGoogle(points);
-    const t: Trajet = r
+    // L'itinéraire choisi par le client (pont à péage ou voie normale) : on roule sur son tracé.
+    const choisi = course.itineraire?.trace && course.itineraire.trace.length > 1 ? course.itineraire.trace : null;
+    const r = choisi ? null : await itineraireGoogle(points);
+    const t: Trajet = choisi
+      ? { geometrie: choisi, distanceMeters: course.distanceMetres, durationSeconds: course.dureeSecondes, fluideSeconds: course.dureeSecondes, google: false }
+      : r
       ? { geometrie: r.geometrie, distanceMeters: r.distanceMeters, durationSeconds: r.durationSeconds, fluideSeconds: r.fluideSeconds ?? r.durationSeconds, google: true }
       : { geometrie: points, distanceMeters: course.distanceMetres, durationSeconds: course.dureeSecondes, fluideSeconds: course.dureeSecondes, google: false };
     setTrajetCourse(t);
@@ -274,7 +278,10 @@ export function ConsoleTest() {
             <div className="ct-ligne"><span>Départ</span><strong>{course.origine.nom}</strong></div>
             <div className="ct-ligne"><span>Arrivée</span><strong>{course.destination.nom}</strong></div>
             <div className="ct-ligne"><span>Prix fixe</span><strong>{fcfa(course.montant)} · {course.paiement === 'cash' ? 'Espèces' : course.paiement}</strong></div>
-            <div className="ct-ligne"><span>Trajet</span><strong>{km(course.distanceMetres)} · {minutes(course.dureeSecondes)}</strong></div>
+            {course.miseADisposition
+              ? <div className="ct-ligne"><span>Mise à disposition</span><strong>{course.miseADisposition.heures} h avec le client</strong></div>
+              : <div className="ct-ligne"><span>Trajet</span><strong>{km(course.distanceMetres)} · {minutes(course.dureeSecondes)}</strong></div>}
+            {course.itineraire && <div className="ct-ligne"><span>Itinéraire</span><strong>{course.itineraire.choix === 'peage' ? `Pont à péage · ${fcfa(course.itineraire.peage)} compris` : 'Voie normale (sans péage)'}</strong></div>}
 
             {etape === 'offre' && (<>
               <p className="ct-compte">Répondez dans {restant} s</p>

@@ -148,6 +148,12 @@ export interface RideRow {
   driverId?: string | null; driverName: string | null; driverPhone?: string | null; matricule: string | null;
   status: string; amount: number; currency: string; trafficLevel: string;
   anomaly?: string | null; paymentMethod?: string | null;
+  /** Itinéraire choisi par le client : pont à péage (montant du péage) ou voie normale. */
+  itineraire?: { choix: 'peage' | 'normal'; peages: string[]; peage: number };
+  /** Mise à disposition à l'heure (Abidjan). */
+  miseADisposition?: { heures: number; debut?: string };
+  /** Course qui sort du district d'Abidjan (grille des gammes à 10 %). */
+  horsAbidjan?: boolean;
   trustedContact?: { name: string; phone: string } | null;
   /** Départ et arrivée en clair : « Riviéra 2, Cocody » (quartier réel, commune OSM). */
   depart?: string; arrivee?: string;
@@ -160,6 +166,12 @@ export interface Pricing {
   multipliers: Record<string, number>;
   /** Majoration de chaque gamme par rapport à l'Argent, en pour cent du prix. */
   majorationsPct?: Record<string, number>;
+  /** Même grille quand la course sort du district d'Abidjan (Or +10 %, Diamant +20 % par défaut). */
+  majorationsPctHorsAbidjan?: Record<string, number>;
+  /** Postes de péage : le client choisit le pont à péage ou la voie normale. */
+  peages?: { id: string; nom: string; lat: number; lng: number; montant: number; pont: boolean }[];
+  /** Mise à disposition à l'heure (courses VTC, Abidjan) : tarif d'une heure en Argent, durées permises. */
+  miseADisposition?: { tarifHeure: number; minHeures: number; maxHeures: number };
   bodySurcharge: Record<string, number>;
   freeWaitMinutes?: number; cancelGraceMinutes?: number; cancelFee?: number;
   cleaningLight?: number; cleaningMajor?: number; longPickupPerKm?: number; longPickupThresholdKm?: number;

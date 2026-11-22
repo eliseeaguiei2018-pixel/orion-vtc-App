@@ -308,12 +308,43 @@ export async function adresseDe(p: LatLng): Promise<{ nom: string; enZone: boole
 
 /** Lecture fraîche du GPS du téléphone (rien de mémorisé). Rejette avec l'erreur du navigateur (code 1 = refus). */
 export function lirePositionGps(): Promise<LatLng> {
+  return positionPrecise().then((r) => r.point);
+}
+
+/** Précision visée (m) : en dessous, le point est celui de la puce GPS, on s'arrête. */
+export const PRECISION_VISEE = 20;
+
+/**
+ * POSITION PRÉCISE. Le premier point d'un téléphone vient souvent des antennes ou du Wi-Fi
+ * (100 m d'erreur, parfois plus) ; la puce GPS affine en quelques secondes. On écoute donc le
+ * GPS et l'on garde le point le plus précis : arrêt dès 20 m de précision, ou au bout de
+ * `delai`. `pendant` reçoit chaque amélioration (le repère suit sans attendre la fin).
+ */
+export function positionPrecise(o: { delai?: number; pendant?: (point: LatLng, precision: number) => void } = {}): Promise<{ point: LatLng; precision: number }> {
+  const delai = o.delai ?? 9000;
   return new Promise((ok, ko) => {
     if (typeof navigator === 'undefined' || !('geolocation' in navigator)) { ko({ code: 2 }); return; }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => ok({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      (err) => ko(err),
-      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 },
+    let meilleur: { point: LatLng; precision: number } | null = null;
+    let fini = false;
+    let id = -1;
+    const finir = (erreur?: unknown) => {
+      if (fini) return;
+      fini = true;
+      window.clearTimeout(minuterie);
+      if (id >= 0) navigator.geolocation.clearWatch(id);
+      if (meilleur) ok(meilleur); else ko(erreur ?? { code: 3 });
+    };
+    const minuterie = window.setTimeout(() => finir(), delai);
+    id = navigator.geolocation.watchPosition(
+      (pos) => {
+        const precision = Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : 9999;
+        if (meilleur && precision >= meilleur.precision) return;
+        meilleur = { point: { lat: pos.coords.latitude, lng: pos.coords.longitude }, precision };
+        o.pendant?.(meilleur.point, precision);
+        if (precision <= PRECISION_VISEE) finir();
+      },
+      (err) => { if (!meilleur || err.code === err.PERMISSION_DENIED) finir(err); },
+      { enableHighAccuracy: true, timeout: delai, maximumAge: 0 },
     );
   });
 }
@@ -331,18 +362,22 @@ export function useDepart(libelles: { maPosition: string }) {
   const localiser = useCallback(() => {
     if (typeof navigator === 'undefined' || !('geolocation' in navigator)) { setEtat('indisponible'); return; }
     setEtat('attente');
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        const q = await adresseDe(p);
-        if (q && !q.enZone) { setEtat('hors_zone'); return; }
-        setEtat('ok');
-        if (manuel.current) return; // le client a choisi lui-même : on ne l'écrase pas
-        setDepart({ place: { id: 'gps', name: libelles.maPosition, area: q?.nom ?? '', location: p }, source: 'gps' });
-      },
-      (err) => setEtat(err.code === err.PERMISSION_DENIED ? 'refus' : 'indisponible'),
-      { enableHighAccuracy: true, timeout: 12_000, maximumAge: 60_000 },
-    );
+    // Premier point tout de suite, puis le point affiné par la puce GPS (voir positionPrecise) :
+    // le repère se pose vite et se recale de lui-même sur la position exacte du client.
+    let posee: LatLng | null = null;
+    const poser = async (p: LatLng) => {
+      // Un recalage de moins de 8 m ne vaut pas une nouvelle adresse.
+      if (posee && Math.hypot((p.lat - posee.lat) * 110_540, (p.lng - posee.lng) * 110_540) < 8) return;
+      posee = p;
+      const q = await adresseDe(p);
+      if (q && !q.enZone) { setEtat('hors_zone'); return; }
+      setEtat('ok');
+      if (manuel.current) return; // le client a choisi lui-même : on ne l'écrase pas
+      setDepart({ place: { id: 'gps', name: libelles.maPosition, area: q?.nom ?? '', location: p }, source: 'gps' });
+    };
+    void positionPrecise({ delai: 12_000, pendant: (p) => { void poser(p); } })
+      .then((r) => poser(r.point))
+      .catch((err: { code?: number }) => { if (!posee) setEtat(err.code === 1 ? 'refus' : 'indisponible'); });
   }, [libelles.maPosition]);
 
   // Au lancement : si l'autorisation est déjà donnée, on se localise sans rien demander.

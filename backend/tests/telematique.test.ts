@@ -19,7 +19,7 @@ async function louer(app: App): Promise<{ reservationId: string; vehiculeId: str
   const r = await app.inject({
     method: 'POST', url: '/rental/reserve',
     payload: {
-      formula: 'mise_a_disposition', vehicleId: 'aito-m9', duree: 'journee', userId: 'client-aya',
+      formula: 'evenement', vehicleId: 'aito-m9', duree: 'journee', userId: 'client-aya',
       lieu: 'Hôtel Ivoire, Cocody',
       contact: { nom: 'Aya Kouassi', telephone: '0708091011' },
     },

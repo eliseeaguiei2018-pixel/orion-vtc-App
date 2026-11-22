@@ -64,6 +64,13 @@ export interface CourseBus {
   paiementRegle?: string;
   /** Note donnée par le client à la fin de la course (1 à 5). */
   note?: number;
+  /**
+   * Itinéraire choisi par le client : par le pont à péage ou par la voie normale, péages
+   * franchis et leur montant (compris dans `montant`), tracé allégé à suivre.
+   */
+  itineraire?: { choix: 'peage' | 'normal'; peages: string[]; peage: number; trace?: { lat: number; lng: number }[] };
+  /** Mise à disposition à l'heure : le chauffeur reste `heures` heures avec le client. */
+  miseADisposition?: { heures: number; debut?: string };
 }
 export interface PresenceClient { id: string; nom: string; majLe: number; position?: { lat: number; lng: number } | null }
 export interface EtatBus { courses: CourseBus[]; chauffeurs: ChauffeurBus[]; clients: PresenceClient[] }

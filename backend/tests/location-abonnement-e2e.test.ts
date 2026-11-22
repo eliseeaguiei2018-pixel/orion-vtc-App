@@ -21,7 +21,7 @@ test('location : catalogue → devis → réservation → suivi → annulation',
   assert.equal(cat.statusCode, 200);
   const catalogue = cat.json();
   assert.ok(catalogue.vehicles.some((v: { name: string }) => v.name === 'Huawei Maextro S800'));
-  assert.equal(catalogue.formules.length, 3);
+  assert.deepEqual(catalogue.formules.map((f: { id: string }) => f.id), ['evenement', 'entreprise'], 'la mise à disposition est passée aux courses VTC');
   assert.ok(catalogue.bareme.decoration > 0 && catalogue.bareme.minHeures === 3);
 
   // 2) Disponibilités du jour : la flotte est mobilisable aujourd'hui même.
@@ -415,4 +415,14 @@ test('console : ajuster un prix de location change le devis client, sans redépl
   // Remise à zéro : on retrouve la grille d'origine.
   await app.inject({ method: 'POST', url: '/admin/rental/tarifs/reset', headers: jeton });
   assert.equal((await devis()).breakdown.vehicule, 90_000);
+});
+
+test('location : la mise à disposition n’est plus une formule de la Location Signature', async () => {
+  const { app } = await buildApp();
+  const r = await app.inject({ method: 'POST', url: '/rental/quote', payload: { formula: 'mise_a_disposition', vehicleId: 'aito-m9', duree: 'heures', heures: 3 } });
+  assert.equal(r.statusCode, 400);
+  assert.match(r.body, /MISE_A_DISPOSITION_DEPLACEE/);
+  const res = await app.inject({ method: 'POST', url: '/rental/reserve', payload: { formula: 'mise_a_disposition', vehicleId: 'aito-m9', duree: 'journee', userId: 'client-x' } });
+  assert.equal(res.statusCode, 400);
+  await app.close();
 });

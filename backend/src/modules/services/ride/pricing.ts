@@ -1,11 +1,12 @@
 import type { EstimateRequest, QuoteBreakdown, TrafficLevel } from '../types.js';
 import { haversineMeters, type LatLng } from '../../../core/geo.js';
 import { FLEET, TIER_ORDER, isTier, type Tier } from '../../fleet/catalog.js';
+import { PEAGES, dansDistrictAbidjan, sortDAbidjan, type Peage } from '../../geo-ci/abidjan.js';
 
 /** Taxes & frais appliqués à chaque course (transparence). */
 export const TVA_RATE = 0.05; // TVA État de Côte d'Ivoire
 export const APP_FEE_RATE = 0.1; // Frais de service ORION
-export const INSURANCE_RATE = 0.02; // ORION Assurance (optionnelle)
+export const INSURANCE_RATE = 0.04; // ORION Assurance (optionnelle) : 4 % depuis la version 1.6
 /** Supplément carrosserie : un SUV coûte un peu plus qu'une berline. */
 export const BODY_SURCHARGE: Record<string, number> = { berline: 1.0, suv: 1.08 };
 
@@ -23,6 +24,19 @@ export interface PricingSettings {
    * Or + 5 %, Diamant + 15 %. Proportionnelle, donc légère sur une petite course.
    */
   majorationsPct: Record<Tier, number>;
+  /**
+   * Même majoration quand la course SORT du district d'Abidjan (départ, arrêt ou arrivée hors
+   * des 13 communes) : l'écart entre gammes passe à 10 % — Or + 10 %, Diamant + 20 %.
+   */
+  majorationsPctHorsAbidjan: Record<Tier, number>;
+  /** Postes de péage (montant véhicule léger) : ajoutés au prix quand l'itinéraire choisi les franchit. */
+  peages: Peage[];
+  /**
+   * Mise à disposition à l'heure (courses VTC, Abidjan seulement) : le chauffeur reste avec le
+   * client le temps choisi. `tarifHeure` : prix TTC d'une heure en Argent (les gammes suivent
+   * la grille d'Abidjan) ; durée entre `minHeures` et `maxHeures`.
+   */
+  miseADisposition: { tarifHeure: number; minHeures: number; maxHeures: number };
   bodySurcharge: Record<string, number>;
   /* --- Frais annexes & pénalités (session Tarification S16) --- */
   /** Minutes d'attente offertes à l'arrivée du chauffeur (courtoisie). */
@@ -44,6 +58,9 @@ export const DEFAULT_PRICING: PricingSettings = {
   tvaRate: TVA_RATE, feeRate: APP_FEE_RATE, insuranceRate: INSURANCE_RATE, trafficWeight: 0.6, stopFee: 250,
   multipliers: { argent: FLEET.argent.multiplier, or: FLEET.or.multiplier, diamant: FLEET.diamant.multiplier },
   majorationsPct: { argent: FLEET.argent.majorationPct, or: FLEET.or.majorationPct, diamant: FLEET.diamant.majorationPct },
+  majorationsPctHorsAbidjan: { argent: 0, or: 10, diamant: 20 },
+  peages: PEAGES.map((p) => ({ ...p })),
+  miseADisposition: { tarifHeure: 5000, minHeures: 2, maxHeures: 12 },
   bodySurcharge: { berline: 1.0, suv: 1.08 },
   freeWaitMinutes: 5, cancelGraceMinutes: 2, cancelFee: 500,
   cleaningLight: 10_000, cleaningMajor: 50_000,
@@ -129,11 +146,16 @@ const roundFcfa = (n: number) => Math.round(n / 50) * 50;
  * sur la plus petite course. Une course gratuite (code promo) le reste dans toutes les gammes.
  * L'application en garde une copie exacte (frontend/src/tarifServeur.ts).
  */
-export function supplementGamme(category: Tier, montantArgent: number, s: Pick<PricingSettings, 'majorationsPct'> = DEFAULT_PRICING): number {
+export function supplementGamme(
+  category: Tier, montantArgent: number,
+  s: Pick<PricingSettings, 'majorationsPct'> & Partial<Pick<PricingSettings, 'majorationsPctHorsAbidjan'>> = DEFAULT_PRICING,
+  horsAbidjan = false,
+): number {
   if (montantArgent <= 0) return 0;
+  const grille = horsAbidjan ? (s.majorationsPctHorsAbidjan ?? DEFAULT_PRICING.majorationsPctHorsAbidjan) : s.majorationsPct;
   let supplement = 0, pctPrecedent = 0;
   for (const gamme of TIER_ORDER) {
-    const pct = Math.max(0, s.majorationsPct?.[gamme] ?? 0);
+    const pct = Math.max(0, grille?.[gamme] ?? 0);
     const calcule = roundFcfa((montantArgent * pct) / 100);
     supplement = pct > pctPrecedent ? Math.max(calcule, supplement + 50) : calcule;
     pctPrecedent = pct;
@@ -169,9 +191,50 @@ export interface PricingContext {
   premiumFloor?: number;
 }
 
+/** Nombre d'heures de mise à disposition, ramené dans les bornes de la console (par demi-heure). */
+export function heuresMiseADisposition(heures: number, s: PricingSettings = DEFAULT_PRICING): number {
+  const m = s.miseADisposition ?? DEFAULT_PRICING.miseADisposition;
+  const h = Number.isFinite(heures) ? Math.round(heures * 2) / 2 : m.minHeures;
+  return Math.min(m.maxHeures, Math.max(m.minHeures, h));
+}
+
+/** Péages de l'itinéraire choisi : ceux que la console connaît, aucun sur la voie normale. */
+export function peagesRetenus(req: Pick<EstimateRequest, 'itineraire' | 'peages'>, s: PricingSettings = DEFAULT_PRICING): Peage[] {
+  if (req.itineraire === 'normal' || !req.peages?.length) return [];
+  const liste = s.peages ?? DEFAULT_PRICING.peages;
+  return liste.filter((p) => req.peages!.includes(p.id));
+}
+
+/**
+ * MISE À DISPOSITION À L'HEURE (Abidjan) : le chauffeur reste avec le client le temps choisi.
+ * Prix = heures × tarif horaire TTC de l'Argent, puis la majoration de la gamme (grille
+ * d'Abidjan) ; ORION Assurance s'ajoute comme sur une course.
+ */
+function estimateMiseADisposition(req: EstimateRequest, s: PricingSettings, category: Tier): PriceResult {
+  const heures = heuresMiseADisposition(req.miseADisposition!.heures, s);
+  const tauxSansAssurance = 1 + s.tvaRate + s.feeRate;
+  const tauxTtc = tauxSansAssurance + (req.insurance ? s.insuranceRate : 0);
+  const horsTaxes = (heures * (s.miseADisposition ?? DEFAULT_PRICING.miseADisposition).tarifHeure) / tauxSansAssurance;
+  const montantArgent = roundFcfa(horsTaxes * tauxTtc);
+  const amount = montantArgent + supplementGamme(category, montantArgent, s, false);
+  const subtotal = amount / tauxTtc;
+  return {
+    category, currency: 'XOF', amount, distanceMeters: 0, etaSeconds: Math.round(heures * 3600), trafficLevel: 'fluid',
+    breakdown: {
+      base: Math.round(subtotal), distance: 0, time: 0, surge: 1, traffic: 0, discount: 0, subtotal: Math.round(subtotal),
+      tva: Math.round(subtotal * s.tvaRate), fee: Math.round(subtotal * s.feeRate),
+      insurance: req.insurance ? Math.round(subtotal * s.insuranceRate) : 0, heures,
+    },
+  };
+}
+
 export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): PriceResult {
   const s = ctx.settings ?? DEFAULT_PRICING;
   const category = req.category && isTier(req.category) ? req.category : DEFAULT_TIER;
+  if (req.miseADisposition) {
+    if (!dansDistrictAbidjan(req.origin)) throw new Error('MISE_A_DISPOSITION_HORS_ABIDJAN');
+    return estimateMiseADisposition(req, s, category);
+  }
   const tariff = tariffForTier(category, s);
   const bodyFactor = s.bodySurcharge[req.bodyType ?? 'berline'] ?? 1;
   const trafficFactor = Math.max(1, ctx.trafficFactor ?? 1);
@@ -219,12 +282,17 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
   // TVA, frais, assurance) est recalculé à partir du montant final, pour rester juste.
   const tauxTtc = 1 + s.tvaRate + s.feeRate + (req.insurance ? s.insuranceRate : 0);
   const montantArgent = roundFcfa((floored - discount) * tauxTtc);
-  const amount = montantArgent + supplementGamme(category, montantArgent, s);
-  const subtotal = amount / tauxTtc;
+  // Hors d'Abidjan (départ, arrêt ou arrivée hors du district), l'écart entre gammes passe à 10 %.
+  const horsAbidjan = sortDAbidjan([req.origin, ...stops, req.destination]);
+  // Péages de l'itinéraire choisi (pont HKB, 4ᵉ pont…) : reversés tels quels, sans majoration.
+  const peage = peagesRetenus(req, s).reduce((t, p) => t + p.montant, 0);
+  const prixCourse = montantArgent + supplementGamme(category, montantArgent, s, horsAbidjan);
+  const amount = prixCourse + peage;
+  const subtotal = prixCourse / tauxTtc;
   const tva = subtotal * s.tvaRate;
   const fee = subtotal * s.feeRate;
   const insurance = req.insurance ? subtotal * s.insuranceRate : 0;
-  // PRIX FIXE GARANTI : `amount` est exactement ce que le client paiera.
+  // PRIX FIXE GARANTI : `amount` est exactement ce que le client paiera (péages compris).
 
   return {
     category,
@@ -244,6 +312,8 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
       tva: Math.round(tva),
       fee: Math.round(fee),
       insurance: Math.round(insurance),
+      ...(peage > 0 ? { peage } : {}),
+      ...(horsAbidjan ? { horsAbidjan: true } : {}),
     },
   };
 }

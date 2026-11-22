@@ -260,10 +260,20 @@ export function useDriver() {
   const tracking = driver?.availability === 'online' || driver?.availability === 'on_trip' || Boolean(activeRide);
   useEffect(() => {
     if (!tracking || !('geolocation' in navigator)) return;
+    // Position exacte du chauffeur : puce GPS (haute précision), sans point mis en cache. Un
+    // point imprécis (antennes, > 100 m) n'écrase pas un point GPS récent et précis : le
+    // véhicule ne saute plus d'une rue à l'autre sur la carte.
+    let dernier: { t: number; precision: number } | null = null;
     const id = navigator.geolocation.watchPosition(
-      (p) => { setGps('real'); setPosition({ lat: p.coords.latitude, lng: p.coords.longitude }); },
+      (p) => {
+        const precision = Number.isFinite(p.coords.accuracy) ? p.coords.accuracy : 9999;
+        if (dernier && precision > 100 && dernier.precision <= 50 && Date.now() - dernier.t < 15_000) return;
+        dernier = { t: Date.now(), precision };
+        setGps('real');
+        setPosition({ lat: p.coords.latitude, lng: p.coords.longitude });
+      },
       () => setGps('simulated'),
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 },
     );
     return () => navigator.geolocation.clearWatch(id);
   }, [tracking]);
@@ -272,7 +282,9 @@ export function useDriver() {
   const cibleNavigation = !activeRide ? null
     : activeRide.status === 'in_progress' ? activeRide.destination
       : (activeRide.status === 'accepted' && !activeRide.offer) || activeRide.status === 'driver_en_route' ? activeRide.origin : null;
-  const navigation = useNavigation(position, cibleNavigation);
+  // Vers la destination, le guidage suit l'itinéraire choisi par le client (pont à péage ou voie normale).
+  const consigne = activeRide?.status === 'in_progress' && activeRide.itineraire ? { choix: activeRide.itineraire.choix, peages: activeRide.itineraire.peages } : null;
+  const navigation = useNavigation(position, cibleNavigation, consigne);
   const routeNav = useRef(navigation.route);
   routeNav.current = navigation.route;
 

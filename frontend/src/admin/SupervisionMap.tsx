@@ -3,6 +3,7 @@ import type { GeoJSONSource, Map as CarteML, Marker } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { chargerML } from '../components/chargerCarte';
 import { styleOrion } from '../components/styleCarte';
+import { ajouterFeuxEtPeages } from '../carteFeux';
 import { getVectorConfig } from '../mapConfig';
 import { comblerCarte } from '../lieux';
 import type { FleetUnit, Alert, SosDossier } from './types';
@@ -88,6 +89,8 @@ export function useCarteReelle(boite: React.RefObject<HTMLDivElement | null>, th
         chargee = true; window.clearTimeout(delai); setIndispo(false);
         boite.current?.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');
         initRef.current(m);
+        // Feux tricolores du district et postes de péage, comme dans les apps.
+        ajouterFeuxEtPeages(m, theme !== 'light', [config.policesLocales ? 'NotoSansRegular' : 'Noto Sans Regular']);
         // Mêmes lieux que l'app cliente : banques, sièges, écoles, commerces, immeubles nommés.
         if (config.lieuxIndex) comblerCarte(m, () => annule);
         carte.current = m;

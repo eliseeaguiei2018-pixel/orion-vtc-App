@@ -11,7 +11,7 @@ import { Drapeau } from './Drapeau';
 import { Objet } from './Vehicules';
 import { lieuEnregistre, lieuxRecents } from '../lieux';
 import type { Place } from '../types';
-import { ACCENTS, useTheme, type ThemeMode } from '../theme';
+import { ChoixCouleur, ChoixTheme } from './Apparence';
 import { COUNTRIES, formatXOF } from '../data';
 import {
   biometrieLieeDepuis, etatBiometrie, isBiometricEnabled, setBiometricEnabled, verifierBiometrie,
@@ -385,32 +385,18 @@ export function PreferencesScreen({ profil, onBack, onLogout, onDelete }: {
   profil: ProfilClient | null; onBack: () => void; onLogout: () => void; onDelete: () => void;
 }) {
   const { t, lang, setLang } = useI18n();
-  const { mode, setMode, accent, setAccent } = useTheme();
   const [confirmerSuppression, setConfirmerSuppression] = useState(false);
-  const themeOpts: Array<{ m: ThemeMode; k: string }> = [
-    { m: 'system', k: 'theme_auto' }, { m: 'light', k: 'theme_light' }, { m: 'dark', k: 'theme_dark' },
-  ];
   return (
     <div className="screen page sans-couleur">
       <TopBar onBack={onBack} title={t('set_title')} />
       <div className="page-body">
         <span className="eyebrow set-titre">{t('set_prefs')}</span>
         <span className="faint" style={{ fontSize: 12 }}>{t('set_theme')}</span>
-        <div className="chips" style={{ margin: '8px 0 14px' }}>
-          {themeOpts.map((o) => (
-            <button key={o.m} className={`chip${mode === o.m ? ' active' : ''}`} onClick={() => setMode(o.m)}>{t(o.k)}</button>
-          ))}
-        </div>
-        {/* Couleur de l'app : appliquée tout de suite, partout (cartes, boutons, carte, suivi). */}
+        {/* Thème : trois vignettes (Clair, Sombre, Système) dessinées comme l'écran qu'elles donnent. */}
+        <ChoixTheme libelles={{ light: t('theme_light'), dark: t('theme_dark'), system: t('theme_systeme') }} />
+        {/* Couleur de l'app : huit palettes, deux rangées de quatre, appliquées tout de suite partout. */}
         <span className="faint" style={{ fontSize: 12 }}>{t('set_accent')}</span>
-        <div className="accent-choix" role="radiogroup" aria-label={t('set_accent')}>
-          {ACCENTS.map((a) => (
-            <button key={a} role="radio" aria-checked={accent === a} className={`accent-option${accent === a ? ' active' : ''}`} onClick={() => setAccent(a)}>
-              <span className={`accent-pastille accent-${a}`}>{accent === a && <IconCheck size={16} />}</span>
-              <span>{t(`accent_${a}`)}</span>
-            </button>
-          ))}
-        </div>
+        <ChoixCouleur titre={t('set_accent')} libelle={(a) => t(`accent_${a}`)} />
         <p className="faint" style={{ fontSize: 11, margin: '-6px 2px 14px' }}>{t('accent_hint')}</p>
         {/* Empreinte ou visage : s'active ici, dans les paramètres (et dans Sécurité). */}
         <span className="faint" style={{ display: 'block', fontSize: 12, marginBottom: 8 }}><IconLock size={12} /> {t('lock_hint')}</span>

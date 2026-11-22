@@ -22,6 +22,8 @@ export interface Reservation {
   driverId?: string;
   /** Chauffeur favori du client (proposé en priorité 12 h à l'avance). */
   favoriteDriverId?: string;
+  /** Mise à disposition à l'heure (Abidjan) : le chauffeur reste `heures` heures avec le client. */
+  miseADisposition?: { heures: number };
   createdAt: string;
 }
 
@@ -32,7 +34,7 @@ export class ReservationService {
     for (const r of repo?.all() ?? []) this.items.set(r.id, r);
   }
 
-  create(input: { clientId: string; origin: LatLng; destination: LatLng; category: string; scheduledFor: string; favoriteDriverId?: string }): Reservation {
+  create(input: { clientId: string; origin: LatLng; destination: LatLng; category: string; scheduledFor: string; favoriteDriverId?: string; miseADisposition?: { heures: number } }): Reservation {
     const r: Reservation = {
       id: randomUUID().slice(0, 8),
       status: 'planifiee',

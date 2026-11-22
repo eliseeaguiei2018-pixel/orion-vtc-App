@@ -19,7 +19,7 @@ import type {
 const LABEL_FORMULE: Record<string, string> = {
   evenement: 'Événement & mariage',
   entreprise: 'Entreprise — forfait mensuel',
-  mise_a_disposition: 'Mise à disposition',
+  mise_a_disposition: 'Mise à disposition (ancienne formule)',
 };
 const LABEL_DUREE: Record<string, string> = {
   heures: 'À l’heure', journee: 'Journée', weekend: 'Week-end', semaine: 'Semaine', mois: 'Mois',
@@ -77,7 +77,7 @@ export function RentalSection({ reservations, fleet, stats, dispos, drivers, can
           <Kpi label="Dossiers" value={String(stats.total)} sub={`${stats.aVenir} à venir`} tone="blue" />
           <Kpi label="Chiffre d’affaires" value={fcfa(stats.chiffreAffaires)} sub="hors annulations" tone="green" />
           <Kpi label="Flotte engagée" value={`${Math.round(stats.tauxOccupation * 100)} %`} sub="véhicules Signature immobilisés" tone={stats.tauxOccupation > 0.8 ? 'red' : 'blue'} />
-          <Kpi label="Événements" value={String(stats.parFormule['evenement'] ?? 0)} sub={`${stats.parFormule['entreprise'] ?? 0} entreprise · ${stats.parFormule['mise_a_disposition'] ?? 0} mise à dispo.`} tone="green" />
+          <Kpi label="Événements" value={String(stats.parFormule['evenement'] ?? 0)} sub={`${stats.parFormule['entreprise'] ?? 0} entreprise`} tone="green" />
         </div>
       )}
 
@@ -91,7 +91,7 @@ export function RentalSection({ reservations, fleet, stats, dispos, drivers, can
           <thead>
             <tr>
               <th>Modèle</th><th>Classe</th><th className="r">Places</th><th className="r">Autonomie</th>
-              <th className="r">Prix / jour</th><th className="r">Disponibles</th><th>Mise à disposition</th>
+              <th className="r">Prix / jour</th><th className="r">Disponibles</th><th>Délai de livraison</th>
             </tr>
           </thead>
           <tbody>

@@ -3,6 +3,7 @@ import type { GeoJSONSource, Map as CarteML, Marker } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { chargerML } from '../components/chargerCarte';
 import { styleOrion } from '../components/styleCarte';
+import { ajouterFeuxEtPeages } from '../carteFeux';
 import { comblerCarte } from '../lieux';
 import { LogoApp } from '../components/Logo';
 import { getVectorConfig } from '../mapConfig';
@@ -417,6 +418,8 @@ function CarteFlotte({ flotte, courses, theme, masse, enService, enCoursTotal }:
           'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.8, 14, 4.2],
           'circle-color': ['match', ['get', 'livraison'], 1, T.livraison, T.enCourse] as unknown as string, 'circle-opacity': 0.9,
         } });
+        // Feux tricolores du district et postes de péage, comme dans les apps et la console.
+        ajouterFeuxEtPeages(m, theme !== 'light', [config.policesLocales ? 'NotoSansRegular' : 'Noto Sans Regular']);
         // Mêmes lieux que l'app cliente : banques, sièges, écoles, commerces, immeubles nommés.
         if (config.lieuxIndex) comblerCarte(m, () => annule);
         carte.current = m;

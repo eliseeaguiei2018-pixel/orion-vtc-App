@@ -34,7 +34,11 @@ export function RidesSection({ rides, meta, onPage, canWrite, onReassign, onOpen
               <td className="mono">{r.id.slice(0, 8)}{r.paymentMethod && <><br /><span className="adm-muted" style={{ fontSize: 11 }}>{r.paymentMethod}</span></>}</td>
               {/* Le trajet en clair (quartier, commune) : le régulateur ne voyait ni départ ni arrivée. */}
               <td style={{ minWidth: 170 }}>
-                {r.depart ? <><strong style={{ fontSize: 12.5 }}>{r.depart}</strong><br /><span className="adm-muted" style={{ fontSize: 12 }}>→ {r.arrivee}</span></> : '—'}
+                {r.miseADisposition
+                  ? <><strong style={{ fontSize: 12.5 }}>{r.depart ?? '—'}</strong><br /><span className="adm-muted" style={{ fontSize: 12 }}>Mise à disposition · {r.miseADisposition.heures} h</span></>
+                  : r.depart ? <><strong style={{ fontSize: 12.5 }}>{r.depart}</strong><br /><span className="adm-muted" style={{ fontSize: 12 }}>→ {r.arrivee}</span></> : '—'}
+                {r.itineraire && <><br /><span className="adm-pill" style={{ fontSize: 11 }}>{r.itineraire.choix === 'peage' ? `Pont à péage · ${fcfa(r.itineraire.peage)}` : 'Voie normale'}</span></>}
+                {r.horsAbidjan && <span className="adm-pill" style={{ fontSize: 11, marginInlineStart: 4 }}>Hors Abidjan</span>}
               </td>
               <td onClick={(e) => e.stopPropagation()}>
                 {r.clientName ?? r.clientId.slice(0, 10)}

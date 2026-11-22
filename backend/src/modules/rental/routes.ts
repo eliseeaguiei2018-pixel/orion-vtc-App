@@ -37,6 +37,15 @@ const baseSchema = z.object({
   userId: z.string().min(1).max(64).optional(),
 });
 
+/** Formules proposées à la réservation de la Location Signature. */
+const FORMULES_LOCATION = ['evenement', 'entreprise'] as const;
+/** Les réservations « mise à disposition » d'avant restent lisibles ; on n'en crée plus. */
+const refuserMiseADisposition = (formula: string) => {
+  if (formula === 'mise_a_disposition') {
+    throw badRequest('La mise à disposition se commande désormais dans les courses VTC, à l’heure (Abidjan)', { code: 'MISE_A_DISPOSITION_DEPLACEE' });
+  }
+};
+
 export async function rentalRoutes(app: FastifyInstance, container: Container): Promise<void> {
   /** Locations d'un client : un compte inscrit doit présenter sa propre session. */
   const titulaire = (req: FastifyRequest, userId: string) =>
@@ -78,7 +87,9 @@ export async function rentalRoutes(app: FastifyInstance, container: Container): 
     const tarif = container.rentalSettings.getTarif();
     return {
     vehicles: container.rentalSettings.catalogue(),
-    formules: (['evenement', 'entreprise', 'mise_a_disposition'] as const).map((f) => ({
+    // La mise à disposition n'est plus une formule de location : elle se commande dans les
+    // courses VTC (à l'heure, Abidjan seulement — voir /pricing/estimate « miseADisposition »).
+    formules: FORMULES_LOCATION.map((f) => ({
       id: f,
       label: LABEL_FORMULE[f],
       // Une entreprise ne loue qu'au forfait mensuel ; l'app n'affiche que ces durées.
@@ -133,6 +144,7 @@ export async function rentalRoutes(app: FastifyInstance, container: Container): 
    */
   app.post('/rental/quote', async (req) => {
     const body = parse(baseSchema, req.body);
+    refuserMiseADisposition(body.formula);
     const { debut, fin } = periodeDeLocation(body, container.rentalSettings.getTarif());
     const quote = quoteRental(body, contexte(body.vehicleId, debut, fin, body.userId));
     return { quote };
@@ -157,6 +169,7 @@ export async function rentalRoutes(app: FastifyInstance, container: Container): 
       }),
       req.body,
     );
+    refuserMiseADisposition(body.formula);
     titulaire(req, body.userId);
     const { debut, fin } = periodeDeLocation(body, container.rentalSettings.getTarif());
     const quote = quoteRental(body, contexte(body.vehicleId, debut, fin, body.userId));

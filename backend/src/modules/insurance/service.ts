@@ -5,7 +5,7 @@ import type { WalletService } from '../wallet/service.js';
 /**
  * ORION Assurance (optionnelle).
  *
- * Le client peut activer l'assurance à la commande : il cotise 2% du montant de la course
+ * Le client peut activer l'assurance à la commande : il cotise 4 % du montant de la course
  * et est assisté par ORION en cas d'accident (frais médicaux pris en charge selon les
  * conditions). En fin d'année, les clients ayant cotisé sont **remboursés à 50%** de leurs
  * cotisations, crédité sur leur **portefeuille client** (transférable en mobile money ou

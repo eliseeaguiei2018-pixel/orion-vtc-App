@@ -15,6 +15,12 @@ const estimateSchema = z.object({
   insurance: z.boolean().optional(),
   promoCode: z.string().optional(),
   clientId: z.string().max(64).optional(),
+  // Itinéraire choisi quand un pont à péage est sur le trajet (version 1.6).
+  itineraire: z.enum(['peage', 'normal']).optional(),
+  peages: z.array(z.string().max(24)).max(8).optional(),
+  routeMeters: z.number().positive().max(2_000_000).optional(),
+  // Mise à disposition à l'heure (Abidjan) : le chauffeur reste avec le client.
+  miseADisposition: z.object({ heures: z.number().min(0.5).max(24), debut: z.string().max(40).optional() }).optional(),
 });
 
 /**
@@ -36,6 +42,10 @@ export async function pricingRoutes(app: FastifyInstance, container: Container):
       insurance: body.insurance,
       promoCode: body.promoCode,
       clientId: body.clientId,
+      itineraire: body.itineraire,
+      peages: body.peages,
+      routeMeters: body.routeMeters,
+      miseADisposition: body.miseADisposition,
     });
     container.rides.saveQuote(quote);
     // ABONNEMENT ORION — APERÇU SEULEMENT : on montre ce que le forfait couvrirait

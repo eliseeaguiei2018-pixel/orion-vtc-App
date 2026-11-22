@@ -16,7 +16,7 @@ export async function insuranceRoutes(app: FastifyInstance, container: Container
     rate: INSURANCE_RATE,
     refundRate: INSURANCE_REFUND_RATE,
     description:
-      "ORION Assurance (optionnelle) : 2% de la course. En cas d'accident, ORION vous assiste " +
+      "ORION Assurance (optionnelle) : 4 % de la course. En cas d'accident, ORION vous assiste " +
       'et prend en charge les frais médicaux selon les conditions. 50% des cotisations sont ' +
       'remboursées en fin d\'année sur votre portefeuille.',
   }));

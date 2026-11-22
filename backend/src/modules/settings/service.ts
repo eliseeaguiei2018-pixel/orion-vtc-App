@@ -84,7 +84,11 @@ export interface PricingRecord extends PricingSettings {
 }
 
 /** Patch partiel (les multiplicateurs peuvent n'être fournis que partiellement). */
-export interface PricingPatch extends Partial<Omit<PricingSettings, 'multipliers' | 'majorationsPct' | 'bodySurcharge'>> {
+export interface PricingPatch extends Partial<Omit<PricingSettings, 'multipliers' | 'majorationsPct' | 'majorationsPctHorsAbidjan' | 'bodySurcharge' | 'peages' | 'miseADisposition'>> {
+  majorationsPctHorsAbidjan?: Partial<Record<string, number>>;
+  /** Montant de chaque péage (par identifiant). */
+  peages?: Array<{ id: string; montant: number }>;
+  miseADisposition?: Partial<PricingSettings['miseADisposition']>;
   multipliers?: Partial<Record<string, number>>;
   majorationsPct?: Partial<Record<string, number>>;
   bodySurcharge?: Record<string, number>;
@@ -211,6 +215,19 @@ export class SettingsService {
         majorationsPct: { ...DEFAULT_PRICING.majorationsPct },
       };
       this.repo?.put({ id: PRICING_ID, ...this.pricing });
+    }
+    // Version 1.6 : ORION Assurance passe de 2 % à 4 % ; un tarif enregistré à 2 % (l'ancien
+    // défaut) est relevé une fois. Les nouveaux réglages (gammes hors Abidjan, péages, mise à
+    // disposition) prennent leurs valeurs par défaut s'ils manquent.
+    if (this.pricing.insuranceRate === 0.02 || !this.pricing.majorationsPctHorsAbidjan || !this.pricing.peages || !this.pricing.miseADisposition) {
+      this.pricing = {
+        ...this.pricing,
+        insuranceRate: this.pricing.insuranceRate === 0.02 ? DEFAULT_PRICING.insuranceRate : this.pricing.insuranceRate,
+        majorationsPctHorsAbidjan: { ...DEFAULT_PRICING.majorationsPctHorsAbidjan, ...(this.pricing.majorationsPctHorsAbidjan ?? {}) },
+        peages: this.pricing.peages ?? DEFAULT_PRICING.peages.map((p) => ({ ...p })),
+        miseADisposition: { ...DEFAULT_PRICING.miseADisposition, ...(this.pricing.miseADisposition ?? {}) },
+      };
+      if (saved) this.repo?.put({ id: PRICING_ID, ...this.pricing });
     }
     const savedSvc = servicesRepo?.get(SERVICES_ID);
     this.services = savedSvc
@@ -382,6 +399,10 @@ export class SettingsService {
       multipliers: { ...this.pricing.multipliers, ...(patch.multipliers ?? {}) },
       // L'Argent est la référence : sa majoration reste nulle, quoi qu'envoie la console.
       majorationsPct: { ...this.pricing.majorationsPct, ...(patch.majorationsPct ?? {}), argent: 0 } as PricingSettings['majorationsPct'],
+      majorationsPctHorsAbidjan: { ...this.pricing.majorationsPctHorsAbidjan, ...(patch.majorationsPctHorsAbidjan ?? {}), argent: 0 } as PricingSettings['majorationsPctHorsAbidjan'],
+      // Péages : seul le montant se règle depuis la console (les postes sont fixés par la carte).
+      peages: this.pricing.peages.map((p) => ({ ...p, montant: patch.peages?.find((x) => x.id === p.id)?.montant ?? p.montant })),
+      miseADisposition: { ...this.pricing.miseADisposition, ...(patch.miseADisposition ?? {}) },
       bodySurcharge: { ...this.pricing.bodySurcharge, ...(patch.bodySurcharge ?? {}) },
     };
     this.repo?.put({ id: PRICING_ID, ...this.pricing });

@@ -2798,7 +2798,57 @@ const TEXTES: Record<string, Huit> = {
     "司机取消了行程。",
     "Водитель отменил поездку.",
   ],
+  /* ------------------------------ Apparence 1.6 : thème et huit palettes ------------------------------ */
+  theme_systeme: ['Système', 'System', 'Sistema', 'Sistema', 'System', 'النظام', '跟随系统', 'Системная'],
+  accent_blanc: ['Blanc', 'White', 'Blanco', 'Bianco', 'Weiß', 'أبيض', '白色', 'Белый'],
+  accent_jaune: ['Jaune', 'Yellow', 'Amarillo', 'Giallo', 'Gelb', 'أصفر', '黄色', 'Жёлтый'],
+  accent_marron: ['Marron', 'Brown', 'Marrón', 'Marrone', 'Braun', 'بني', '棕色', 'Коричневый'],
+  accent_violet: ['Violet', 'Purple', 'Violeta', 'Viola', 'Violett', 'بنفسجي', '紫色', 'Фиолетовый'],
+  accent_rose: ['Rose', 'Pink', 'Rosa', 'Rosa', 'Rosa', 'وردي', '粉色', 'Розовый'],
+  /* ------------------------------ Itinéraire : pont à péage ou voie normale ------------------------------ */
+  route_titre: ['Itinéraire', 'Route', 'Itinerario', 'Percorso', 'Route', 'المسار', '路线', 'Маршрут'],
+  route_pont: ['Pont à péage', 'Toll bridge', 'Puente de peaje', 'Ponte a pedaggio', 'Mautbrücke', 'جسر برسوم', '收费桥', 'Платный мост'],
+  route_autoroute: ['Autoroute à péage', 'Toll road', 'Autopista de peaje', 'Autostrada a pedaggio', 'Mautstraße', 'طريق برسوم', '收费公路', 'Платная дорога'],
+  route_normale: ['Voie normale', 'Regular road', 'Vía normal', 'Strada normale', 'Normale Strecke', 'الطريق العادي', '普通道路', 'Обычная дорога'],
+  route_sans_peage: ['Sans péage', 'No toll', 'Sin peaje', 'Senza pedaggio', 'Ohne Maut', 'بدون رسوم', '免收费', 'Без оплаты'],
+  route_peage_plus: ['Péage +{montant}', 'Toll +{montant}', 'Peaje +{montant}', 'Pedaggio +{montant}', 'Maut +{montant}', 'رسوم +{montant}', '过路费 +{montant}', 'Сбор +{montant}'],
+  route_peage_inclus: ['Péage compris : {nom}', 'Toll included: {nom}', 'Peaje incluido: {nom}', 'Pedaggio incluso: {nom}', 'Maut inbegriffen: {nom}', 'الرسوم مشمولة: {nom}', '含过路费：{nom}', 'Сбор включён: {nom}'],
+  p_peage: ['Péage', 'Toll', 'Peaje', 'Pedaggio', 'Maut', 'رسوم العبور', '过路费', 'Плата за проезд'],
+  p_hors_abidjan: [
+    'Hors d’Abidjan : 10 % entre les gammes', 'Outside Abidjan: 10% between ranges', 'Fuera de Abiyán: 10 % entre gamas', 'Fuori Abidjan: 10% tra le gamme',
+    'Außerhalb Abidjans: 10 % zwischen den Klassen', 'خارج أبيدجان: 10٪ بين الفئات', '阿比让以外：各档相差 10%', 'За пределами Абиджана: 10 % между классами',
+  ],
+  /* ------------------------------ Mise à disposition à l'heure ------------------------------ */
+  acc_heure: ['À l’heure', 'By the hour', 'Por horas', 'A ore', 'Stundenweise', 'بالساعة', '按小时', 'Почасово'],
+  mad_titre: ['Chauffeur à l’heure', 'Driver by the hour', 'Chófer por horas', 'Autista a ore', 'Fahrer stundenweise', 'سائق بالساعة', '按小时包车', 'Водитель почасово'],
+  mad_sous: [
+    'Le chauffeur reste avec vous le temps choisi, dans le district d’Abidjan.', 'The driver stays with you for the time you choose, within the Abidjan district.',
+    'El chófer se queda con usted el tiempo elegido, dentro del distrito de Abiyán.', 'L’autista resta con lei per il tempo scelto, nel distretto di Abidjan.',
+    'Der Fahrer bleibt die gewählte Zeit bei Ihnen, im Bezirk Abidjan.', 'يبقى السائق معك طوال المدة المختارة داخل مقاطعة أبيدجان.',
+    '司机在您选定的时间内全程陪同，限阿比让特区内。', 'Водитель остаётся с вами выбранное время в пределах округа Абиджан.',
+  ],
+  mad_lieu: ['Prise en charge', 'Pick-up', 'Recogida', 'Partenza', 'Abholung', 'نقطة الانطلاق', '上车地点', 'Место подачи'],
+  mad_debut: ['Début', 'Start', 'Inicio', 'Inizio', 'Beginn', 'البداية', '开始', 'Начало'],
+  mad_maintenant: ['Maintenant', 'Now', 'Ahora', 'Adesso', 'Jetzt', 'الآن', '现在', 'Сейчас'],
+  mad_plus_tard: ['À une heure précise', 'At a set time', 'A una hora fija', 'A un’ora precisa', 'Zu einer festen Zeit', 'في وقت محدد', '指定时间', 'К назначенному времени'],
+  mad_duree: ['Durée', 'Duration', 'Duración', 'Durata', 'Dauer', 'المدة', '时长', 'Продолжительность'],
+  mad_heures: ['{n} h', '{n} h', '{n} h', '{n} h', '{n} Std.', '{n} س', '{n} 小时', '{n} ч'],
+  mad_tarif: ['{prix} l’heure en Argent', '{prix} per hour in Silver', '{prix} la hora en Plata', '{prix} all’ora in Argento', '{prix} pro Stunde in Silber', '{prix} للساعة في الفئة الفضية', '银档每小时 {prix}', '{prix} в час в классе «Серебро»'],
+  mad_fin: ['Fin prévue : {heure}', 'Planned end: {heure}', 'Fin prevista: {heure}', 'Fine prevista: {heure}', 'Geplantes Ende: {heure}', 'النهاية المتوقعة: {heure}', '预计结束：{heure}', 'Окончание: {heure}'],
+  mad_hors_abidjan: [
+    'La mise à disposition n’est proposée que dans le district d’Abidjan.', 'Hourly hire is only available within the Abidjan district.',
+    'El servicio por horas solo está disponible en el distrito de Abiyán.', 'Il servizio a ore è disponibile solo nel distretto di Abidjan.',
+    'Die stundenweise Buchung gibt es nur im Bezirk Abidjan.', 'خدمة الساعة متاحة فقط داخل مقاطعة أبيدجان.',
+    '按小时包车仅限阿比让特区。', 'Почасовая подача доступна только в округе Абиджан.',
+  ],
+  mad_reserver: ['Réserver {n} h · {prix}', 'Book {n} h · {prix}', 'Reservar {n} h · {prix}', 'Prenota {n} h · {prix}', '{n} Std. buchen · {prix}', 'احجز {n} س · {prix}', '预订 {n} 小时 · {prix}', 'Заказать {n} ч · {prix}'],
+  mad_course: ['Mise à disposition · {n} h', 'Hourly hire · {n} h', 'Por horas · {n} h', 'A ore · {n} h', 'Stundenweise · {n} Std.', 'بالساعة · {n} س', '按小时包车 · {n} 小时', 'Почасово · {n} ч'],
+  mad_trop_tot: [
+    'Choisissez un début dans 20 minutes au moins.', 'Choose a start at least 20 minutes from now.', 'Elija un inicio dentro de 20 minutos como mínimo.', 'Scelga un inizio tra almeno 20 minuti.',
+    'Wählen Sie einen Beginn in frühestens 20 Minuten.', 'اختر بداية بعد 20 دقيقة على الأقل.', '请选择至少 20 分钟后的开始时间。', 'Выберите начало не раньше чем через 20 минут.',
+  ],
 };
+
 
 export const NOUVEAUTES = Object.fromEntries(
   ORDRE.map((langue, i) => [langue, Object.fromEntries(Object.entries(TEXTES).map(([cle, v]) => [cle, v[i]]))]),

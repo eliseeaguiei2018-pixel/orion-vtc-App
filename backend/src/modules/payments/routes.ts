@@ -126,7 +126,10 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
         // Commission modulée : fidélité > verte réduite > standard (logique partagée
         // avec l'app chauffeur, qui affiche le même taux).
         const rate = effectiveCommissionRate(drv, ops);
-        commission = container.wallet.creditRide(ride.driverId, ride.id, montantBrut, rate);
+        // Le PÉAGE payé par le chauffeur au poste lui revient en entier : pas de commission dessus.
+        const peage = Math.min(montantBrut, ride.quote.breakdown.peage ?? 0);
+        commission = container.wallet.creditRide(ride.driverId, ride.id, montantBrut - peage, rate);
+        if (peage > 0) container.wallet.credit(ride.driverId, peage, 'adjustment', 'Péage reversé (itinéraire par le pont)', ride.id);
         // ESPÈCES : le chauffeur a encaissé le total en main propre. On l'inscrit au
         // ledger → son solde baisse du montant encaissé et la commission devient une
         // DETTE envers ORION (recouvrement + plafond console « dette espèces »).
@@ -168,7 +171,7 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
           if (c) { c.co2SavedKg = Math.round(((c.co2SavedKg ?? 0) + km * 0.13) * 10) / 10; container.clients.persist(ride.clientId); }
         }
       }
-      // ORION Assurance : enregistre la cotisation 2% si activée.
+      // ORION Assurance : enregistre la cotisation 4 % si activée.
       const ins = ride.quote.breakdown.insurance;
       if (ins > 0) container.insurance.addContribution(ride.clientId, ride.id, ins);
       // Reçu de course envoyé par e-mail au client (résumé).

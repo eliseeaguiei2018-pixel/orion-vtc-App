@@ -16,8 +16,16 @@ export interface EstimateRequest {
   category?: string;
   /** Carrosserie souhaitée : 'suv' | 'berline'. */
   bodyType?: string;
-  /** ORION Assurance activée (cotisation 2% de la course). */
+  /** ORION Assurance activée (cotisation 4 % de la course). */
   insurance?: boolean;
+  /** Itinéraire choisi quand un pont à péage est sur le trajet : par le pont, ou par la voie normale. */
+  itineraire?: 'peage' | 'normal';
+  /** Péages franchis par l'itinéraire choisi (identifiants : hkb, pont4, bassam…). */
+  peages?: string[];
+  /** Distance de l'itinéraire choisi, calculée par l'application (contrôlée par le serveur). */
+  routeMeters?: number;
+  /** Mise à disposition à l'heure (Abidjan) : le chauffeur reste avec le client `heures` heures. */
+  miseADisposition?: { heures: number; debut?: string };
   promoCode?: string;
   /** Identifiant du demandeur : sert à ne compter qu'une fois la même personne
    *  dans le calcul du surge (un client qui compare les gammes = UNE demande). */
@@ -40,8 +48,14 @@ export interface QuoteBreakdown {
   tva: number;
   /** Frais de service ORION (10%). */
   fee: number;
-  /** Cotisation ORION Assurance (2%), 0 si non activée. */
+  /** Cotisation ORION Assurance (4 %), 0 si non activée. */
   insurance: number;
+  /** Péages de l'itinéraire choisi (F CFA), reversés tels quels. */
+  peage?: number;
+  /** La course sort du district d'Abidjan : écart de 10 % entre les gammes. */
+  horsAbidjan?: boolean;
+  /** Mise à disposition : nombre d'heures facturées. */
+  heures?: number;
 }
 
 export type TrafficLevel = 'fluid' | 'dense' | 'jam';
@@ -59,6 +73,10 @@ export interface Quote {
   etaSeconds: number;
   trafficLevel: TrafficLevel;
   breakdown: QuoteBreakdown;
+  /** Itinéraire choisi par le client (pont à péage ou voie normale) et péages franchis. */
+  itineraire?: { choix: 'peage' | 'normal'; peages: string[] };
+  /** Mise à disposition à l'heure : durée et heure de début choisies par le client. */
+  miseADisposition?: { heures: number; debut?: string };
   expiresAt: string;
 }
 

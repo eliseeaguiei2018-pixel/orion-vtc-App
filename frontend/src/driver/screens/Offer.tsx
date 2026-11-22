@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { IconCar, IconClock, IconPin, IconWallet } from '../../icons';
+import { IconCar, IconClock, IconPeage, IconPin, IconSablier, IconWallet } from '../../icons';
 import type { DriverApp } from '../useDriver';
 import type { ActiveRide } from '../types';
 import { VehiculeChauffeur } from '../ui';
@@ -62,7 +62,9 @@ export function OfferSheet({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
   const fromName = ride.lieux?.depart ?? ride.pickupZone?.name ?? zoneAt(ride.origin, app.driverConfig.zones)?.name ?? coords(ride.origin);
   const toName = ride.lieux?.arrivee ?? zoneAt(ride.destination, app.driverConfig.zones)?.name ?? coords(ride.destination);
   const rate = app.finance?.commissionRate ?? app.driverConfig.commission.green;
-  const net = Math.round(ride.amount * (1 - rate)) + (ride.pickupZone?.driverBonus ?? 0);
+  // Le péage compris dans le prix revient en entier au chauffeur (pas de commission dessus).
+  const peage = ride.itineraire?.peage ?? 0;
+  const net = Math.round((ride.amount - peage) * (1 - rate)) + peage + (ride.pickupZone?.driverBonus ?? 0);
   const r = 32;
   const c = 2 * Math.PI * r;
   const ratio = total > 0 ? left / total : 0;
@@ -98,8 +100,16 @@ export function OfferSheet({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
         <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
           <span className={`dv-pill ${ride.paymentMethod === 'cash' ? 'gold' : 'green'}`}><IconWallet size={13} /> {methodLabel(ride.paymentMethod)}</span>
           <span className="dv-pill"><IconPin size={13} /> {livraison ? tr('Retrait du colis à {0}', [km(toPickup)]) : tr('Prise en charge à {0}', [km(toPickup)])}</span>
-          <span className="dv-pill"><IconCar size={13} /> {km(ride.distanceMeters)}</span>
-          <span className="dv-pill"><IconClock size={13} /> {minutes(ride.etaSeconds)}</span>
+          {ride.miseADisposition ? (
+            <span className="dv-pill gold"><IconSablier size={13} /> {tr('À l’heure · {0} h', [ride.miseADisposition.heures])}</span>
+          ) : (
+            <>
+              <span className="dv-pill"><IconCar size={13} /> {km(ride.distanceMeters)}</span>
+              <span className="dv-pill"><IconClock size={13} /> {minutes(ride.etaSeconds)}</span>
+            </>
+          )}
+          {ride.itineraire?.choix === 'peage' && <span className="dv-pill gold"><IconPeage size={13} /> {tr('Pont à péage · {0} reversé', [fcfa(peage)])}</span>}
+          {ride.itineraire?.choix === 'normal' && <span className="dv-pill"><IconCar size={13} /> {tr('Voie normale (sans péage)')}</span>}
           {ride.pickupZone && ride.pickupZone.driverBonus > 0 && <span className="dv-pill green">{tr('Bonus {0} +{1}', [ride.pickupZone.name, fcfa(ride.pickupZone.driverBonus)])}</span>}
         </div>
 

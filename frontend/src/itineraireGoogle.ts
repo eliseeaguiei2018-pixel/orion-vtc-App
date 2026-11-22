@@ -37,6 +37,21 @@ export function itineraireGoogle(points: LatLng[]): Promise<ItineraireRoute | nu
 }
 
 async function calculer(points: LatLng[]): Promise<ItineraireRoute | null> {
+  return (await calculerTous(points, {}))?.[0] ?? null;
+}
+
+/** Une route de Google, dans la forme d'ORION. */
+const versOrion = (r: RouteGoogle): ItineraireRoute | null => {
+  if (!r.path || r.path.length < 2 || !r.distanceMeters) return null;   // aucune route entre ces points
+  return {
+    geometrie: r.path.map((p) => ({ lat: Number(p.lat), lng: Number(p.lng) })),
+    distanceMeters: Math.round(r.distanceMeters), durationSeconds: Math.round((r.durationMillis ?? r.staticDurationMillis ?? 0) / 1000),
+    fluideSeconds: Math.round((r.staticDurationMillis ?? r.durationMillis ?? 0) / 1000),
+    via: r.description?.trim() || undefined, ponts: [], provider: 'google',
+  };
+};
+
+async function calculerTous(points: LatLng[], o: { alternatives?: boolean; sansPeage?: boolean }): Promise<ItineraireRoute[] | null> {
   const maps = await ouvrirGoogle('itineraires');
   if (!maps) return null;
   try {
@@ -46,22 +61,27 @@ async function calculer(points: LatLng[]): Promise<ItineraireRoute | null> {
       origin: points[0], destination: points[points.length - 1],
       intermediates: points.slice(1, -1).map((p) => ({ location: p })),
       travelMode: 'DRIVING', routingPreference: 'TRAFFIC_AWARE', language: 'fr', region: 'ci',
+      // Variantes (Google n'en propose qu'entre deux points) et route qui évite les péages.
+      ...(o.alternatives && points.length === 2 ? { computeAlternativeRoutes: true } : {}),
+      ...(o.sansPeage ? { routeModifiers: { avoidTolls: true } } : {}),
       fields: ['path', 'distanceMeters', 'durationMillis', 'staticDurationMillis', 'description'],
     });
     noterReponse('itineraires');
-    const r = routes?.[0];
-    if (!r?.path || r.path.length < 2 || !r.distanceMeters) return null;   // aucune route entre ces points
-    const duree = Math.round((r.durationMillis ?? r.staticDurationMillis ?? 0) / 1000);
-    return {
-      geometrie: r.path.map((p) => ({ lat: Number(p.lat), lng: Number(p.lng) })),
-      distanceMeters: Math.round(r.distanceMeters), durationSeconds: duree,
-      fluideSeconds: Math.round((r.staticDurationMillis ?? r.durationMillis ?? 0) / 1000),
-      via: r.description?.trim() || undefined, ponts: [], provider: 'google',
-    };
+    return (routes ?? []).map(versOrion).filter((r): r is ItineraireRoute => r !== null);
   } catch (e) {
     noterEchec('itineraires', e);
     return null;
   }
+}
+
+/**
+ * Plusieurs itinéraires de Google pour le même trajet : le plus rapide et ses variantes,
+ * puis celui qui évite les péages. Sert au choix « pont à péage ou voie normale ».
+ */
+export async function variantesGoogle(points: LatLng[]): Promise<ItineraireRoute[]> {
+  if (points.length < 2) return [];
+  const [toutes, sansPeage] = await Promise.all([calculerTous(points, { alternatives: true }), calculerTous(points, { sansPeage: true })]);
+  return [...(toutes ?? []), ...(sansPeage ?? [])];
 }
 
 /** Nouvel essai demandé par le client (Menu → Carte → « Vérifier ») : un court trajet au Plateau. */

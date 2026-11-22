@@ -178,6 +178,10 @@ export class AdminService {
         destination: r.destination,
         depart: lieuDe(r.origin).libelle,
         arrivee: lieuDe(r.destination).libelle,
+        // Itinéraire choisi (pont à péage ou voie normale), course hors Abidjan, mise à disposition.
+        ...(r.quote.itineraire ? { itineraire: { ...r.quote.itineraire, peage: r.quote.breakdown.peage ?? 0 } } : {}),
+        ...(r.quote.miseADisposition ? { miseADisposition: r.quote.miseADisposition } : {}),
+        ...(r.quote.breakdown.horsAbidjan ? { horsAbidjan: true } : {}),
         anomaly: this.rideAnomaly(r),
         createdAt: r.createdAt,
       };

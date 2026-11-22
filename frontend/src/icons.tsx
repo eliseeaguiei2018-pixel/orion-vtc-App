@@ -20,6 +20,14 @@ export const IconSearch = ({ size, strokeWidth }: P) => (
 export const IconClock = ({ size, strokeWidth }: P) => (
   <svg {...base(size, strokeWidth)}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
 );
+/** Sablier : la mise à disposition à l'heure (le chauffeur reste le temps choisi). */
+export const IconSablier = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M6.5 3h11M6.5 21h11M7.5 3c0 4.2 4.5 5.4 4.5 9s-4.5 4.8-4.5 9M16.5 3c0 4.2-4.5 5.4-4.5 9s4.5 4.8 4.5 9" /><path d="M10 18.5h4" /></svg>
+);
+/** Poste de péage : barrière levante. */
+export const IconPeage = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M5 21V7a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v14M3 21h8M9 9l12-3.5M13 7.8v2.4M17 6.6V9" /></svg>
+);
 export const IconStar = ({ size = 24, color = 'currentColor' }: P) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill={color} stroke={color} strokeWidth={1.2} strokeLinejoin="round">
     <path d="m12 2 2.9 6.3 6.9.7-5.1 4.7 1.4 6.8L12 18l-6 3.5 1.4-6.8L2.3 9l6.9-.7L12 2Z" />

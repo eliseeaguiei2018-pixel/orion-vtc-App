@@ -7,7 +7,7 @@ import {
   IconBell, IconClose, IconBolt, IconCalendar, IconCamera, IconCar, IconCheck, IconChevron, IconChevronDown, IconClock, IconCrown,
   IconGem, IconGlobe, IconLeaf, IconMessage, IconMinus,
   IconPhone, IconPin, IconPlus, IconRing, IconSearch, IconShare,
-  IconShield, IconShieldCheck, IconMedical, IconStar, IconTraffic, IconWallet, } from './icons';
+  IconShield, IconShieldCheck, IconMedical, IconStar, IconTraffic, IconWallet, IconSablier, IconPeage, } from './icons';
 import { LogoApp } from './components/Logo';
 import { LockScreen } from './components/Verrou';
 import { heureLocale, libelleQuand, programmerCourse } from './programmees';
@@ -20,7 +20,7 @@ import { Objet, Tuile, Voiture, Scooter, objetPack, objetUrgence, vehiculeDeGamm
 import { AssuranceScreen } from './components/AssuranceScreens';
 import { BoutonMessages, ControleSecurite, MessagesScreen, useMessagerie } from './components/MessagesOrion';
 import { ServeurScreen } from './components/ServeurScreen';
-import type { MessageOrion } from './api';
+import type { EstimateOpts, MessageOrion } from './api';
 import { isBiometricEnabled } from './security';
 import type { TrustedContact } from './api';
 import { NUMERO_DEMONSTRATION, numeroLisible, ouvrirClavier } from './telephone';
@@ -47,6 +47,9 @@ import { fondCarte, googleSeul, suivreFondCarte } from './carteGoogle';
 import { prechaufferCarte } from './components/CarteGoogle';
 import { GpsCarte, type GpsCarteValeur } from './components/gpsCarte';
 import { useTrajetTarif } from './tarifTrajet';
+import { alleger, optionRetenue, useItineraires, type ChoixItineraire, type Itineraires, type OptionItineraire } from './itinerairesPeage';
+import { ChoixRoute } from './components/ChoixRoute';
+import { BAREME, dansDistrictAbidjan } from './tarifServeur';
 import { useTheme } from './theme';
 
 const PAYMENTS = [
@@ -132,6 +135,10 @@ export function App() {
   const [bodyType, setBodyType] = useState<'suv' | 'berline'>('berline');
   const [stops, setStops] = useState<Place[]>([]);
   const [scheduled, setScheduled] = useState(false);
+  /** Itinéraire choisi par le client quand un péage est sur le trajet (null : le plus rapide). */
+  const [choixRoute, setChoixRoute] = useState<ChoixItineraire | null>(null);
+  /** Mise à disposition à l'heure en cours de commande (durée, début éventuel). */
+  const [dispo, setDispo] = useState<{ heures: number; debut?: string } | null>(null);
   const [insurance, setInsurance] = useState(false);
   // ORION Assurance : l'option ne s'active qu'avec un dossier de premiers secours.
   const [assuranceInscrite, setAssuranceInscrite] = useState(false);
@@ -416,13 +423,22 @@ export function App() {
   // APK de test temps réel : l'approche du chauffeur le plus proche entre dans le prix.
   const approcheTest = useApprocheTest(TEMPS_REEL ? origin.location : null);
   // Le prix se calcule sur le trajet par la route (celui que la carte trace), pas à vol d'oiseau.
-  const trajetCourse = useTrajetTarif(destination ? [origin.location, ...stops.map((s) => s.location), destination.location] : null);
+  const trajetCourse = useTrajetTarif(destination && !dispo ? [origin.location, ...stops.map((s) => s.location), destination.location] : null);
+  // Pont à péage ou voie normale : les deux itinéraires du trajet, et celui que le client a retenu.
+  const itinCourse = useItineraires(destination && !dispo ? [origin.location, ...stops.map((s) => s.location), destination.location] : null);
+  const routeRetenue = optionRetenue(itinCourse.itineraires, choixRoute);
+  const optsRoute: EstimateOpts['itineraire'] = routeRetenue
+    ? { choix: routeRetenue.choix, distanceMeters: routeRetenue.route.distanceMeters, durationSeconds: routeRetenue.route.durationSeconds, peages: routeRetenue.peages.map((p) => p.id) }
+    : undefined;
+  // Nouveau trajet : on repart sur l'itinéraire le plus rapide.
+  useEffect(() => { setChoixRoute(null); }, [destination?.id, destination?.location.lat, stops.length]);
   useEffect(() => {
-    if (screen === 'confirm' && destination && trajetCourse.pret) {
-      void estimateWithCoverage(origin.location, destination.location, tier, { bodyType, stops: stops.map((s) => s.location), insurance, promoCode: promo || undefined })
+    if (screen === 'confirm' && destination && trajetCourse.pret && itinCourse.pret) {
+      void estimateWithCoverage(origin.location, destination.location, tier, { bodyType, stops: stops.map((s) => s.location), insurance, promoCode: promo || undefined, itineraire: optsRoute })
         .then(({ quote: q, coverage: c }) => { setQuote(q); setCoverage(c); });
     }
-  }, [screen, destination, tier, bodyType, stops, insurance, promo, origin.location, trajetCourse.pret, trajetCourse.trajet, approcheTest?.at]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, destination, tier, bodyType, stops, insurance, promo, origin.location, trajetCourse.pret, trajetCourse.trajet, itinCourse.pret, optsRoute?.choix, optsRoute?.distanceMeters, approcheTest?.at]);
 
   const chooseDestination = (place: Place) => {
     memoriserRecent(place);
@@ -473,11 +489,14 @@ export function App() {
     plate: c.plaque || plateFromMatricule(c.matricule), car: c.vehicule || (tier.cars[0] ?? ''), color: c.couleur, photo: null,
   });
 
-  const confirmRide = async () => {
+  const confirmRide = async (autre?: { q: Quote; dest: Place; dispo: { heures: number; debut?: string } }) => {
+    const devis = autre?.q ?? quote;
+    const arrivee = autre?.dest ?? destination;
+    const aLHeure = autre?.dispo ?? dispo;
     setScreen('searching');
     if (shareRides && trusted) showToast(t('toast_shared', { name: trusted.name }));
-    if (isLiveBackend() && quote) {
-      const res = await createRide(quote.lockId, clientId(), shareRides && trusted ? trusted : undefined, payment);
+    if (isLiveBackend() && devis) {
+      const res = await createRide(devis.lockId, clientId(), shareRides && trusted ? trusted : undefined, payment);
       if (res?.ride?.driverId) {
         setRideId(res.ride.id);
         setLive(true);
@@ -497,19 +516,24 @@ export function App() {
     }
     // Sans serveur, avec l'app ORION Chauffeur sur le même téléphone (ou un onglet chauffeur
     // ouvert sur la page partagée) : la course part vers ce chauffeur, pour de vrai.
-    if (modeLocal() && destination) {
+    if (modeLocal() && arrivee) {
       const bus = await etatBus();
       if (bus.disponible && bus.chauffeurs.length > 0) {
         const libre = bus.chauffeurs.find(chauffeurLibre);
         if (!libre) { showToast(t('bus_aucun_en_ligne'), true); setScreen('confirm'); return; }
         const id = idCourseBus();
         const code = codePriseEnCharge();
-        const q = quote ?? previewQuote(origin.location, destination.location, tier, { bodyType, stops: stops.map((s) => s.location), insurance });
+        const q = devis ?? previewQuote(origin.location, arrivee.location, tier, aLHeure
+          ? { miseADisposition: aLHeure, insurance }
+          : { bodyType, stops: stops.map((s) => s.location), insurance, itineraire: optsRoute });
         const publiee = await publierCourse({
           id, statut: 'demandee', code, gamme: tier.id, carrosserie: bodyType, paiement: payment,
-          origine: { ...origin.location, nom: origin.name }, destination: { ...destination.location, nom: destination.name },
-          arrets: stops.map((s) => ({ ...s.location, nom: s.name })),
+          origine: { ...origin.location, nom: origin.name }, destination: { ...arrivee.location, nom: arrivee.name },
+          arrets: aLHeure ? [] : stops.map((s) => ({ ...s.location, nom: s.name })),
           montant: q.amount, distanceMetres: q.distanceMeters, dureeSecondes: q.etaSeconds,
+          // Pont à péage ou voie normale : le chauffeur suit l'itinéraire choisi par le client.
+          ...(!aLHeure && routeRetenue ? { itineraire: { choix: routeRetenue.choix, peages: routeRetenue.peages.map((p) => p.id), peage: routeRetenue.montantPeage, trace: alleger(routeRetenue.route.geometrie) } } : {}),
+          ...(aLHeure ? { miseADisposition: aLHeure } : {}),
           client: { id: clientId(), nom: profil?.name || clientName || 'Client ORION', telephone: profil?.phone || '' },
           chauffeurId: libre.id, offreJusqua: Date.now() + DELAI_OFFRE_MS,
         });
@@ -810,6 +834,8 @@ export function App() {
     setBodyType('berline');
     setStops([]);
     setScheduled(false);
+    setChoixRoute(null);
+    setDispo(null);
     setInsurance(false);
     setPromo('');
     setPassager(null);
@@ -896,6 +922,7 @@ export function App() {
             onPosition={() => ouvrirChoix('depart', 'home')}
             onBoite={() => { if (messagerie.actif) { setRetourMessages('home'); setScreen('messages'); } else { setRetourService('home'); setScreen('settings'); } }}
             onPlusTard={() => { if (guardOpen()) { setMode('ride'); setScheduled(true); ouvrirChoix('destination', 'home'); } }}
+            onHeure={() => { if (guardOpen()) { setMode('ride'); setDispo(null); if (position.etat === 'inconnue') position.localiser(); setScreen('dispo'); } }}
             onSearch={() => { if (guardOpen()) { setMode('ride'); setScheduled(false); ouvrirChoix('destination', 'home'); } }}
             onCourse={() => { if (guardOpen()) { setMode('ride'); setScheduled(false); ouvrirChoix('destination', 'home'); } }}
             onDelivery={() => { if (guardOpen()) { setMode('delivery'); if (position.etat === 'inconnue') position.localiser(); setScreen('delivery'); } }}
@@ -921,7 +948,25 @@ export function App() {
         {screen === 'estimate' && destination && (
           <EstimateScreen origin={origin} destination={destination} tier={tier} onTier={setTier}
             bodyType={bodyType} onBody={setBodyType} stops={stops}
+            itineraires={itinCourse.itineraires} itinPret={itinCourse.pret} route={routeRetenue} optsRoute={optsRoute} onChoixRoute={setChoixRoute}
             onBack={() => setScreen('home')} onNext={() => setScreen('confirm')} />
+        )}
+
+        {screen === 'dispo' && (
+          <DispoScreen origin={origin} departAConfirmer={departAConfirmer} onDepart={() => ouvrirChoix('depart', 'dispo')}
+            payment={payment} payments={enabledPayments} onPayment={setPayment} onBack={() => setScreen('home')}
+            onConfirm={({ heures, debut, gamme, devis }) => {
+              const d = { heures, ...(debut ? { debut } : {}) };
+              const place: Place = { ...origin, id: `dispo-${Date.now()}`, name: t('mad_course', { n: heures }) };
+              if (debut) {
+                // Début à une heure précise : réservation, comme une course programmée.
+                void programmerCourse({ origine: origin, destination: place, gamme: gamme.id, quand: debut, montant: devis.amount, miseADisposition: d });
+                showToast(`${t('toast_scheduled')} · ${libelleQuand(debut)}`); reset();
+                return;
+              }
+              setTier(gamme); setDispo(d); setDestination(place); setQuote(devis); setCoverage(null);
+              void confirmRide({ q: devis, dest: place, dispo: d });
+            }} />
         )}
 
         {screen === 'confirm' && destination && (
@@ -931,6 +976,7 @@ export function App() {
             proches={famille()} passager={passager} onPassager={setPassager} profilPro={profilPro()} pro={pro} onPro={setPro}
             scheduled={scheduled} onSchedule={setScheduled} insurance={insurance} onInsurance={(v) => { if (v && !assuranceInscrite) { setAssuranceRequise(true); return; } setInsurance(v); }}
             onPayment={setPayment} onBack={() => setScreen('estimate')}
+            itineraires={itinCourse.itineraires} route={routeRetenue} onChoixRoute={setChoixRoute}
             onConfirm={(quand) => {
               if (!scheduled || !quand) { confirmRide(); return; }
               /* Course programmée : enregistrée (serveur ORION s'il est joint, sinon sur le
@@ -1615,7 +1661,7 @@ function AccueilSimple({ onSearch, onQuick, onAjouterLieu, onAide, onQuitter }: 
 
 /* ------------------------------- Home -------------------------------- */
 
-function HomeScreen({ announce, closed, deliveryOff, city, depart, onPosition, onBoite, onPlusTard, onSearch, onCourse, onDelivery, onQuick, onAjouterLieu, onNav, onSoon, nonLus = 0 }: {
+function HomeScreen({ announce, closed, deliveryOff, city, depart, onPosition, onBoite, onPlusTard, onHeure, onSearch, onCourse, onDelivery, onQuick, onAjouterLieu, onNav, onSoon, nonLus = 0 }: {
   /** Enregistrer le domicile ou le bureau du client. */
   onAjouterLieu: (quel: 'domicile' | 'bureau') => void;
   /** Messages du centre ORION non lus : pastille sur la boîte de réception. */
@@ -1624,6 +1670,8 @@ function HomeScreen({ announce, closed, deliveryOff, city, depart, onPosition, o
   depart: { source: 'defaut' | 'gps' | 'manuel'; nom: string };
   /** Changer le point de départ ; ouvrir les messages ; commander pour plus tard. */
   onPosition: () => void; onBoite: () => void; onPlusTard: () => void;
+  /** Commander un chauffeur à l'heure (mise à disposition, Abidjan). */
+  onHeure: () => void;
   announce: Announcement | null; closed: boolean; deliveryOff: boolean; city: string | null;
   onSearch: () => void; onCourse: () => void; onDelivery: () => void;
   onQuick: (p: Place) => void; onNav: (s: Screen) => void; onSoon: (name: string) => void;
@@ -1668,8 +1716,12 @@ function HomeScreen({ announce, closed, deliveryOff, city, depart, onPosition, o
           <button className="hub-search" onClick={onSearch}>
             <IconSearch size={22} /> <span>{t('acc_ou')}</span>
           </button>
+          {/* Chauffeur à l'heure (mise à disposition) : une petite icône, à côté de « Plus tard ». */}
+          <button className="hub-heure" onClick={onHeure} aria-label={t('mad_titre')} title={t('mad_titre')}>
+            <IconSablier size={19} />
+          </button>
           <button className="hub-tard" onClick={onPlusTard}>
-            <IconCalendar size={17} /> {t('acc_plus_tard')}
+            <IconCalendar size={16} /> {t('acc_plus_tard')}
           </button>
         </div>
         {/* Maintenance pilotée depuis la console : ORION momentanément fermé. */}
@@ -1840,9 +1892,12 @@ function TrafficBadge({ level }: { level: 'fluid' | 'dense' | 'jam' }) {
   return <span className="badge" style={{ color, borderColor: `${color}66` }}><IconTraffic size={12} /> {label}</span>;
 }
 
-function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, stops, onBack, onNext }: {
+function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, stops, itineraires, itinPret, route, optsRoute, onChoixRoute, onBack, onNext }: {
   origin: Place; destination: Place; tier: TierOption; onTier: (v: TierOption) => void;
   bodyType: 'suv' | 'berline'; onBody: (b: 'suv' | 'berline') => void; stops: Place[]; onBack: () => void; onNext: () => void;
+  /** Pont à péage ou voie normale : les deux itinéraires, celui retenu, et le choix du client. */
+  itineraires: Itineraires | null; itinPret: boolean; route: OptionItineraire | null;
+  optsRoute: EstimateOpts['itineraire']; onChoixRoute: (c: ChoixItineraire) => void;
 }) {
   const { t } = useI18n();
   const stopLocs = stops.map((s) => s.location);
@@ -1850,10 +1905,11 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
   const trajet = useTrajetTarif([origin.location, ...stopLocs, destination.location]);
   // APK de test temps réel : approche du chauffeur de test le plus proche, trafic compris.
   const approche = useApprocheTest(TEMPS_REEL ? origin.location : null);
+  const pret = trajet.pret && itinPret;
   const apercus = useMemo(
-    () => Object.fromEntries(TIERS.map((v) => [v.id, previewQuote(origin.location, destination.location, v, { bodyType, stops: stopLocs }).amount])) as Record<string, number>,
+    () => Object.fromEntries(TIERS.map((v) => [v.id, previewQuote(origin.location, destination.location, v, { bodyType, stops: stopLocs, itineraire: optsRoute }).amount])) as Record<string, number>,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [origin.location, destination.location, bodyType, stops, trajet.pret, trajet.trajet, approche?.at],
+    [origin.location, destination.location, bodyType, stops, trajet.pret, trajet.trajet, approche?.at, optsRoute?.choix, optsRoute?.distanceMeters],
   );
   // PRIX FIXE : l'aperçu local s'affiche sans attendre, puis le prix du serveur le
   // remplace (zone, majoration, frais de prise en charge). Sans cela, la liste annonçait
@@ -1862,8 +1918,8 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
   useEffect(() => {
     let annule = false;
     setServeur(null);
-    if (!trajet.pret) return;
-    void Promise.all(TIERS.map((v) => estimateWithCoverage(origin.location, destination.location, v, { bodyType, stops: stopLocs })))
+    if (!pret) return;
+    void Promise.all(TIERS.map((v) => estimateWithCoverage(origin.location, destination.location, v, { bodyType, stops: stopLocs, itineraire: optsRoute })))
       .then((devis) => {
         if (annule) return;
         setServeur({ prix: Object.fromEntries(TIERS.map((v, i) => [v.id, devis[i]!.quote.amount])), trafic: devis[0]?.quote.trafficLevel });
@@ -1871,12 +1927,12 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
       .catch(() => { /* hors ligne : l'aperçu local reste affiché */ });
     return () => { annule = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origin.location, destination.location, bodyType, stops, trajet.pret, trajet.trajet, approche?.at]);
+  }, [origin.location, destination.location, bodyType, stops, pret, trajet.trajet, approche?.at, optsRoute?.choix, optsRoute?.distanceMeters]);
   const prices = serveur?.prix ?? apercus;
   const traffic = serveur?.trafic ?? previewQuote(origin.location, destination.location, tier, { stops: stopLocs }).trafficLevel;
   return (
     <div className="screen">
-      <OrionMap origin={origin.location} destination={destination.location} stops={stopLocs} />
+      <OrionMap origin={origin.location} destination={destination.location} stops={stopLocs} trace={route?.route.geometrie} peages={route?.peages} />
       <TopBar onBack={onBack} title={destination.name} />
       <div style={{ flex: 1 }} />
       <Sheet>
@@ -1893,6 +1949,9 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
           </p>
         )}
 
+        {/* Pont à péage ou voie normale : le prix de chaque gamme suit l'itinéraire choisi. */}
+        <ChoixRoute itineraires={itineraires} choix={route} onChoix={onChoixRoute} />
+
         {/* Carrosserie : SUV ou Berline */}
         <div className="chips" style={{ marginBottom: 12 }}>
           {(['berline', 'suv'] as const).map((b) => (
@@ -1908,11 +1967,11 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
                 <strong style={{ fontSize: 16 }}>{t(v.key)}</strong>
                 <span className="faint" style={{ fontSize: 12.5 }}>{v.cars[0]}{v.cars.length > 1 ? ` +${v.cars.length - 1}` : ''} · {v.capacity} {t('seats')}</span>
               </span>
-              <span className={`price${trajet.pret ? '' : ' attente'}`} aria-busy={!trajet.pret}>{trajet.pret ? formatXOF(prices[v.id] ?? 0) : '…'}</span>
+              <span className={`price${pret ? '' : ' attente'}`} aria-busy={!pret}>{pret ? formatXOF(prices[v.id] ?? 0) : '…'}</span>
             </button>
           ))}
         </div>
-        <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={onNext} disabled={!trajet.pret}>
+        <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={onNext} disabled={!pret}>
           {t('est_cta')} {t(tier.key)} · {t(`body_${bodyType}`)} <IconChevron size={18} />
         </button>
       </Sheet>
@@ -1920,9 +1979,123 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
   );
 }
 
+/* ------------------------- Chauffeur à l'heure -------------------------- */
+/**
+ * MISE À DISPOSITION À L'HEURE (courses VTC, district d'Abidjan) : le client choisit le lieu
+ * de prise en charge, le début (maintenant ou à une heure précise), la durée et la gamme.
+ * Le chauffeur reste avec lui le temps choisi. Prix = heures × tarif horaire de la gamme,
+ * calculé par le serveur (réglé dans la console), sinon par l'application avec les mêmes règles.
+ */
+function DispoScreen({ origin, departAConfirmer, onDepart, payment, payments, onPayment, onBack, onConfirm }: {
+  origin: Place; departAConfirmer: boolean; onDepart: () => void;
+  payment: string; payments: { method: string; label: string }[]; onPayment: (m: string) => void;
+  onBack: () => void;
+  onConfirm: (c: { heures: number; debut?: string; gamme: TierOption; devis: Quote }) => void;
+}) {
+  const { t, lang } = useI18n();
+  const borne = BAREME.miseADisposition;
+  const [heures, setHeures] = useState<number>(Math.max(borne.minHeures, 3));
+  const [plusTard, setPlusTard] = useState(false);
+  const [quand, setQuand] = useState(() => heureLocale(Date.now() + 60 * 60_000));
+  const [gamme, setGamme] = useState<TierOption>(TIERS[0]!);
+  const auPlusTot = heureLocale(Date.now() + 20 * 60_000);
+  const quandValide = !plusTard || (Boolean(quand) && new Date(quand).getTime() >= Date.now() + 15 * 60_000);
+  const abidjan = dansDistrictAbidjan(origin.location);
+  const debutMs = plusTard && quand ? new Date(quand).getTime() : Date.now();
+  const fin = new Date(debutMs + heures * 3_600_000).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' });
+  const debutIso = plusTard && quand ? new Date(quand).toISOString() : undefined;
+  // Aperçu immédiat (règles du serveur recopiées), remplacé par le devis du serveur s'il répond.
+  const apercus = useMemo(() => Object.fromEntries(TIERS.map((v) => [v.id, previewQuote(origin.location, origin.location, v, { miseADisposition: { heures } })])) as Record<string, Quote>,
+    [origin.location, heures]);
+  const [serveur, setServeur] = useState<Record<string, Quote> | null>(null);
+  useEffect(() => {
+    let annule = false;
+    setServeur(null);
+    if (!abidjan) return;
+    void Promise.all(TIERS.map((v) => estimateWithCoverage(origin.location, origin.location, v, { miseADisposition: { heures, ...(debutIso ? { debut: debutIso } : {}) } })))
+      .then((devis) => { if (!annule) setServeur(Object.fromEntries(TIERS.map((v, i) => [v.id, devis[i]!.quote]))); })
+      .catch(() => { /* hors ligne : l'aperçu reste affiché */ });
+    return () => { annule = true; };
+  }, [origin.location, heures, abidjan, debutIso]);
+  const devis = serveur ?? apercus;
+  const choisi = devis[gamme.id]!;
+  return (
+    <div className="screen">
+      <OrionMap origin={origin.location} />
+      <TopBar onBack={onBack} title={t('mad_titre')} />
+      <div style={{ flex: 1 }} />
+      <Sheet pied={
+        departAConfirmer
+          ? <button className="btn btn-primary" onClick={onDepart}><IconPin size={18} /> {t('lieu_confirmer_depart')}</button>
+          : <button className="btn btn-primary" disabled={!abidjan || !quandValide} onClick={() => onConfirm({ heures, debut: debutIso, gamme, devis: choisi })}>
+              {t('mad_reserver', { n: heures, prix: formatXOF(choisi.amount) })}
+            </button>
+      }>
+        <p className="faint" style={{ fontSize: 13, margin: '0 0 12px' }}>{t('mad_sous')}</p>
+        <div className="card" style={{ padding: '6px 14px', marginBottom: 12 }}>
+          <LigneDepart origin={origin} aConfirmer={departAConfirmer} libelle={t('mad_lieu')} onChange={onDepart} />
+        </div>
+        {!abidjan && <p className="route-inclus alerte" role="alert"><IconPin size={16} /> <span>{t('mad_hors_abidjan')}</span></p>}
+
+        <span className="eyebrow">{t('mad_debut')}</span>
+        <div className="chips" style={{ margin: '8px 0 10px' }}>
+          <button className={`chip${plusTard ? '' : ' active'}`} onClick={() => setPlusTard(false)}><IconBolt size={15} /> {t('mad_maintenant')}</button>
+          <button className={`chip${plusTard ? ' active' : ''}`} onClick={() => setPlusTard(true)}><IconCalendar size={15} /> {t('mad_plus_tard')}</button>
+        </div>
+        {plusTard && (
+          <>
+            <label className="field" style={{ padding: '10px 14px', marginBottom: 6 }}>
+              <IconCalendar size={16} />
+              <span className="faint" style={{ fontSize: 13, flex: 'none' }}>{t('mad_debut')}</span>
+              <input type="datetime-local" className="quand" value={quand} min={auPlusTot} aria-label={t('mad_debut')}
+                onChange={(e) => setQuand(e.target.value)} style={{ fontSize: 15, minWidth: 0, textAlign: 'end' }} />
+            </label>
+            {!quandValide && <p className="faint" style={{ fontSize: 12, marginBottom: 8 }}>{t('mad_trop_tot')}</p>}
+          </>
+        )}
+
+        <span className="eyebrow">{t('mad_duree')}</span>
+        <div className="mad-duree">
+          <button className="step" aria-label={`${t('mad_duree')} −`} disabled={heures <= borne.minHeures} onClick={() => setHeures((h) => Math.max(borne.minHeures, h - 1))}><IconMinus size={16} /></button>
+          <span className="col" style={{ alignItems: 'center' }}>
+            <strong className="mad-heures">{t('mad_heures', { n: heures })}</strong>
+            <span className="faint" style={{ fontSize: 12 }}>{t('mad_fin', { heure: fin })}</span>
+          </span>
+          <button className="step" aria-label={`${t('mad_duree')} +`} disabled={heures >= borne.maxHeures} onClick={() => setHeures((h) => Math.min(borne.maxHeures, h + 1))}><IconPlus size={16} /></button>
+        </div>
+        <p className="faint" style={{ fontSize: 12, margin: '4px 0 12px', textAlign: 'center' }}>{t('mad_tarif', { prix: formatXOF(borne.tarifHeure) })}</p>
+
+        <div className="stack" style={{ marginBottom: 14 }}>
+          {TIERS.map((v) => (
+            <button key={v.id} className={`veh${v.id === gamme.id ? ' active' : ''}`} style={{ width: '100%' }} aria-pressed={v.id === gamme.id} onClick={() => setGamme(v)}>
+              <TierBadge tier={v.id} size={46} />
+              <span className="col grow" style={{ textAlign: 'start' }}>
+                <strong style={{ fontSize: 15 }}>{t(v.key)}</strong>
+                <span className="faint" style={{ fontSize: 12 }}>{v.cars[0]} · {v.capacity} {t('seats')}</span>
+              </span>
+              <span className="price">{formatXOF(devis[v.id]?.amount ?? 0)}</span>
+            </button>
+          ))}
+        </div>
+
+        <span className="eyebrow">{t('conf_payment')}</span>
+        <div className="chips" style={{ margin: '10px 0 14px' }}>
+          {payments.map((p) => (
+            <button key={p.method} className={`chip${p.method === payment ? ' active' : ''}`} onClick={() => onPayment(p.method)}>
+              <IconWallet size={15} /> {p.label}
+            </button>
+          ))}
+        </div>
+      </Sheet>
+    </div>
+  );
+}
+
 /* ------------------------------ Confirm ------------------------------ */
-function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, bodyType = 'berline', quote, coverage, payment, payments, promo, onPromo, stops, onAddStop, onRemoveStop, scheduled, onSchedule, proches, passager, onPassager, profilPro, pro, onPro, insurance, onInsurance, onPayment, onBack, onConfirm }: {
+function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, bodyType = 'berline', quote, coverage, payment, payments, promo, onPromo, stops, onAddStop, onRemoveStop, scheduled, onSchedule, proches, passager, onPassager, profilPro, pro, onPro, insurance, onInsurance, onPayment, onBack, onConfirm, itineraires, route, onChoixRoute }: {
   bodyType?: 'suv' | 'berline';
+  /** Itinéraire retenu (pont à péage ou voie normale) : modifiable ici aussi. */
+  itineraires: Itineraires | null; route: OptionItineraire | null; onChoixRoute: (c: ChoixItineraire) => void;
   departAConfirmer: boolean; onDepart: () => void; onRemoveStop: (i: number) => void;
   origin: Place; destination: Place; tier: TierOption; quote: Quote | null; coverage: SubCoverage | null; payment: string;
   payments: { method: string; label: string }[]; promo: string; onPromo: (v: string) => void;
@@ -1947,7 +2120,7 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
   const motifManque = pro.actif && Boolean(profilPro?.motifObligatoire) && !pro.motif.trim();
   return (
     <div className="screen">
-      <OrionMap origin={origin.location} destination={destination.location} stops={stops.map((s) => s.location)} />
+      <OrionMap origin={origin.location} destination={destination.location} stops={stops.map((s) => s.location)} trace={route?.route.geometrie} peages={route?.peages} />
       <TopBar onBack={onBack} title={t('conf_title')} />
       <div style={{ flex: 1 }} />
       <Sheet pied={
@@ -1981,6 +2154,8 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
             <span className="col grow"><strong style={{ fontSize: 14 }}>{destination.name}</strong><span className="faint" style={{ fontSize: 12 }}>{destination.area}</span></span>
           </div>
         </div>
+
+        <ChoixRoute itineraires={itineraires} choix={route} onChoix={onChoixRoute} compact />
 
         <div className="row gap-sm" style={{ marginBottom: 12 }}>
           <button className="btn btn-ghost" style={{ padding: 12, fontSize: 14 }} onClick={onAddStop}><IconPlus size={16} /> {t('act_addstop')}</button>
@@ -2033,7 +2208,7 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
           </>
         )}
 
-        {/* ORION Assurance (optionnelle, +2%) */}
+        {/* ORION Assurance (optionnelle, +4 %) */}
         <div className="opt" style={{ marginBottom: 14, ...(insurance ? { borderColor: 'var(--green)', background: 'rgba(var(--accent-rgb),0.06)' } : {}) }}>
           <span className="list-ico"><Objet nom="assurance" taille={34} /></span>
           <span className="col grow" style={{ textAlign: 'start' }}>
@@ -2096,6 +2271,8 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
                 <div className="fare-line"><span>{t('p_tva')}</span><span>{formatXOF(quote.breakdown.tva)}</span></div>
                 <div className="fare-line"><span>{t('p_fee')}</span><span>{formatXOF(quote.breakdown.fee)}</span></div>
                 {quote.breakdown.insurance > 0 && <div className="fare-line"><span>{t('ins_line')}</span><span>{formatXOF(quote.breakdown.insurance)}</span></div>}
+                {(quote.breakdown.peage ?? 0) > 0 && <div className="fare-line"><span><IconPeage size={12} /> {t('p_peage')}{route?.peages.length ? ` · ${route.peages.map((p) => p.nom).join(', ')}` : ''}</span><span>+{formatXOF(quote.breakdown.peage ?? 0)}</span></div>}
+                {quote.breakdown.horsAbidjan && <div className="fare-line faint"><span>{t('p_hors_abidjan')}</span><span /></div>}
               </div>
             )}
             {/* ABONNEMENT ORION : ce que le forfait prend en charge sur CETTE course.
@@ -2133,7 +2310,7 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
             <div className="logo-mark" style={{ width: 52, height: 52, color: 'var(--btn-on)', marginBottom: 12 }}><IconShieldCheck size={26} /></div>
             <h2 className="h-title">{t('ins_toggle')}</h2>
             <p className="h-sub" style={{ marginTop: 8 }}>{t('ins_desc')}</p>
-            <button className="btn btn-primary" style={{ marginTop: 18 }} onClick={() => { onInsurance(true); setShowIns(false); }}>{t('ins_toggle')} (+2%)</button>
+            <button className="btn btn-primary" style={{ marginTop: 18 }} onClick={() => { onInsurance(true); setShowIns(false); }}>{t('ins_toggle')} (+4 %)</button>
             <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={() => setShowIns(false)}>{t('ins_got')}</button>
           </div>
         </div>

@@ -81,7 +81,7 @@ test('dossier : réservé au titulaire, consentement et pièce valide exigés', 
   assert.equal((await app.inject({ method: 'DELETE', url, headers: aya })).json().statut.inscrit, false, 'suppression à tout moment');
 });
 
-test('commande : l’option à 2 % exige l’inscription (gratuite) au dossier', async (t) => {
+test('commande : l’option à 4 % exige l’inscription (gratuite) au dossier', async (t) => {
   const { app } = await buildApp();
   t.after(() => app.close());
   const aya = await inscrire(app, 'client-aya', '0711111111');
@@ -97,7 +97,7 @@ test('commande : l’option à 2 % exige l’inscription (gratuite) au dossier',
   await app.inject({ method: 'PUT', url: '/clients/client-aya/assurance/dossier', headers: aya, payload: { fiche: FICHE, consentement: CONSENTEMENT } });
   const ok = await devis(true);
   assert.equal(ok.statusCode, 200, ok.body);
-  assert.ok(ok.json().quote.breakdown.insurance > 0, 'cotisation de 2 % ajoutée');
+  assert.ok(ok.json().quote.breakdown.insurance > 0, 'cotisation de 4 % ajoutée');
 });
 
 test('SAMU : dossier ouvert seulement par l’agent qui gère une alerte EN COURS, et le client le sait', async (t) => {

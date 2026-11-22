@@ -8,6 +8,8 @@ import { MAX_ESSAIS } from './code-prise-en-charge.js';
 import { exigerDossierAssurance } from '../assurance/routes.js';
 import { parse } from '../../core/validate.js';
 import { AppError, badRequest, conflict, forbidden, notFound, unauthorized } from '../../core/errors.js';
+import { dansDistrictAbidjan } from '../geo-ci/abidjan.js';
+import { heuresMiseADisposition } from '../services/ride/pricing.js';
 import { rideStateMachine, type RideStatus } from '../services/ride/stateMachine.js';
 import { driverRoom, rideRoom } from '../realtime/hub.js';
 import type { Ride } from './store.js';
@@ -99,7 +101,11 @@ async function enregistrerItineraire(container: Container, rideId: string): Prom
   try {
     const ride = container.rides.get(rideId);
     if (!ride || ride.itineraire) return;
-    const r = await container.routage.itineraire([ride.origin, ride.destination]);
+    // Le client a choisi le pont à péage ou la voie normale : le tracé prévu suit son choix.
+    const points = [ride.origin, ...(ride.quote.stops ?? []), ride.destination];
+    const choix = ride.quote.itineraire?.choix;
+    const r = choix ? await container.routage.itineraireSelonChoix(points, choix, container.settings.getPricing().peages)
+      : await container.routage.itineraire([ride.origin, ride.destination]);
     const actuel = container.rides.get(rideId);
     if (!actuel || actuel.itineraire) return;
     actuel.itineraire = { geometrie: r.geometrie, distanceMeters: r.distanceMeters, durationSeconds: r.durationSeconds, ponts: r.ponts, provider: r.provider };
@@ -624,10 +630,16 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       category: z.string().min(2).max(20).default('argent'),
       scheduledFor: z.string().datetime(),
       favoriteDriverId: z.string().optional(),
+      // Mise à disposition à l'heure, à une heure précise (Abidjan seulement).
+      miseADisposition: z.object({ heures: z.number().min(0.5).max(24) }).optional(),
     }), req.body);
     if (Date.parse(body.scheduledFor) < Date.now() + 15 * 60_000) {
       throw badRequest('Une réservation se planifie au moins 15 minutes à l’avance');
     }
+    if (body.miseADisposition && !dansDistrictAbidjan(body.origin)) {
+      throw badRequest('La mise à disposition à l\'heure n\'est proposée qu\'à Abidjan', { code: 'MISE_A_DISPOSITION_HORS_ABIDJAN' });
+    }
+    if (body.miseADisposition) body.miseADisposition.heures = heuresMiseADisposition(body.miseADisposition.heures, container.settings.getPricing());
     titulaire(req, body.clientId);
     container.clients.touch(body.clientId);
     const reservation = container.reservations.create(body);

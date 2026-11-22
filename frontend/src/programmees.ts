@@ -22,6 +22,8 @@ export interface CourseProgrammee {
   montant: number | null;
   /** Vrai si le serveur ORION l'a enregistrée ; faux si elle n'est que sur le téléphone. */
   serveur: boolean;
+  /** Mise à disposition à l'heure : le chauffeur reste `heures` heures à partir de `quand`. */
+  miseADisposition?: { heures: number };
   creeLe: string;
 }
 
@@ -39,15 +41,19 @@ export function coursesProgrammees(): CourseProgrammee[] {
   return lire().filter((c) => Date.parse(c.quand) > limite).sort((a, b) => Date.parse(a.quand) - Date.parse(b.quand));
 }
 
-export async function programmerCourse(x: { origine: Place; destination: Place; gamme: string; quand: string; montant: number | null }): Promise<CourseProgrammee> {
+export async function programmerCourse(x: { origine: Place; destination: Place; gamme: string; quand: string; montant: number | null; miseADisposition?: { heures: number } }): Promise<CourseProgrammee> {
   const c: CourseProgrammee = {
     id: `prog-${Date.now().toString(36)}`,
     origine: { nom: x.origine.name, ...x.origine.location },
     destination: { nom: x.destination.name, ...x.destination.location },
     gamme: x.gamme, quand: x.quand, montant: x.montant, serveur: false, creeLe: new Date().toISOString(),
+    ...(x.miseADisposition ? { miseADisposition: { heures: x.miseADisposition.heures } } : {}),
   };
   ecrire([c, ...lire()]);
-  const id = await reserverCourse({ origin: x.origine.location, destination: x.destination.location, category: x.gamme, scheduledFor: x.quand }).catch(() => null);
+  const id = await reserverCourse({
+    origin: x.origine.location, destination: x.destination.location, category: x.gamme, scheduledFor: x.quand,
+    ...(x.miseADisposition ? { miseADisposition: { heures: x.miseADisposition.heures } } : {}),
+  }).catch(() => null);
   if (id) ecrire(lire().map((p) => (p.id === c.id ? { ...p, id, serveur: true } : p)));
   return c;
 }

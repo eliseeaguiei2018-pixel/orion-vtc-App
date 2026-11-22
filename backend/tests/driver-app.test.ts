@@ -85,9 +85,11 @@ test('Dossier : soumission complète exigée, zones à forte demande', async (t)
   assert.equal(ko.statusCode, 400);
   assert.ok((ko.json().error.details.missing as string[]).includes('numéro de permis'));
 
+  // Chauffeur salarié : seules ses informations personnelles sont demandées. Le véhicule, la
+  // gamme et l'assurance sont attribués par ORION (console), jamais saisis par le chauffeur.
+  assert.equal((ko.json().error.details.missing as string[]).some((m) => /véhicule|immatriculation|assurance/.test(m)), false);
   await app.inject({ method: 'POST', url: `/drivers/${s.driver.id}/profile`, headers: s.headers, payload: {
-    birthDate: '1990-04-12', licenseNo: 'CI-AB-12345', vehicleModel: 'BYD Dolphin', vehiclePlate: '1234 AB 01',
-    vehicleColor: 'Blanc', insuranceExpiry: '2099-12-31', batteryKwh: 60, plugType: 'Type 2',
+    birthDate: '1990-04-12', licenseNo: 'CI-AB-12345',
   } });
   const ok = await submit();
   assert.equal(ok.statusCode, 200, ok.body);

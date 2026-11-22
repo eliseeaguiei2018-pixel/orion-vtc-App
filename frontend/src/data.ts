@@ -124,7 +124,11 @@ export function dureesPermises(formula: RentalFormula): RentalDuree[] {
   return formula === 'entreprise' ? ['mois'] : RENTAL_DUREES;
 }
 
-export const RENTAL_FORMULES: RentalFormula[] = ['evenement', 'entreprise', 'mise_a_disposition'];
+/**
+ * Formules de la Location Signature. La mise à disposition n'en fait plus partie : elle se
+ * commande dans les courses VTC, à l'heure (Abidjan), depuis la barre de recherche.
+ */
+export const RENTAL_FORMULES: RentalFormula[] = ['evenement', 'entreprise'];
 export const RENTAL_DUREES: RentalDuree[] = ['heures', 'journee', 'weekend', 'semaine', 'mois'];
 /** Options proposées à l'écran, dans l'ordre d'affichage. */
 export const RENTAL_OPTION_KEYS = [

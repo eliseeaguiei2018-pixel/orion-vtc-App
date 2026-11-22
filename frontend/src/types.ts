@@ -52,6 +52,12 @@ export interface Quote {
     /* APK de test temps réel (voir tempsReel.ts) : trafic et approche réels. */
     approche?: number; approcheKm?: number; approcheMin?: number; approcheGoogle?: boolean;
     minutesTrafic?: number; minutesFluide?: number; traficReel?: number; traficFacteur?: number; traficNiveau?: 'fluid' | 'dense' | 'jam';
+    /** Péages de l'itinéraire choisi (non majorés par la gamme). */
+    peage?: number;
+    /** La course sort du district d'Abidjan : 10 % entre les gammes. */
+    horsAbidjan?: boolean;
+    /** Mise à disposition : heures facturées. */
+    heures?: number;
   };
 }
 
@@ -223,6 +229,7 @@ export interface SubState {
 
 export type Screen =
   | 'serveur'
+  | 'dispo'
   | 'splash'
   | 'onboarding'
   | 'auth'

@@ -4,10 +4,12 @@ import type { LatLng } from '../types';
 import { useTheme } from '../theme';
 import { itineraire, type ItineraireRoute } from '../api';
 import { itineraireGoogle } from '../itineraireGoogle';
-import { rendu } from './Vehicules';
+import { nomVoitureDessus, rendu } from './Vehicules';
 import { causeRefus, chargerGoogle, cleRefusee, essaiSansCle, motifRefus, reessayerGoogle, type GMap, type GoogleMaps, type GPolyline } from '../carteGoogle';
 import { useI18n } from '../i18n';
 import { IconMap, IconRefresh } from '../icons';
+import { chargerFeux, HTML_FEU, ZOOM_FEUX, ZOOM_PEAGES } from '../carteFeux';
+import { PEAGES_TARIF } from '../tarifServeur';
 
 /**
  * CARTE GOOGLE MAPS (API officielle Maps JavaScript) — même rôle que la carte ORION :
@@ -32,6 +34,8 @@ interface Props {
   /** Position réelle du téléphone (« vous êtes ici »). */
   moi?: LatLng | null;
   trace?: LatLng[] | null;
+  /** Péages de l'itinéraire choisi : mis en avant (cercle plein, montant affiché). */
+  peages?: { id: string }[];
   basCouvert?: number;
   /** Clé refusée, API injoignable : l'appelant affiche la carte ORION. */
   onEchec: () => void;
@@ -57,6 +61,65 @@ export function poserRepere(g: GoogleMaps, carte: GMap, contenu: HTMLElement, po
   o.onRemove = () => { boite.remove(); };
   o.setMap(carte);
   return { placer: (p, a = angle) => { position = p; angle = a; dessiner(); }, retirer: () => o.setMap(null) };
+}
+
+/**
+ * FEUX TRICOLORES (zoom 14 et plus) ET POSTES DE PÉAGE (zoom 11 et plus) du district
+ * d'Abidjan sur la carte Google : une seule surcouche, dont les éléments sont réutilisés
+ * d'un déplacement à l'autre ; seuls les repères visibles à l'écran sont placés.
+ */
+function coucheRoutiere(g: GoogleMaps, m: GMap): { actifs: (ids: string[]) => void; retirer: () => void } {
+  const boite = document.createElement('div');
+  boite.className = 'gm-couche-routiere';
+  const o = new g.OverlayView();
+  let feux: [number, number, number][] = [];
+  let actifs: string[] = [];
+  const elFeux: HTMLDivElement[] = [];
+  const elPeages = PEAGES_TARIF.map((p) => {
+    const e = element('gm-peage', `<i></i><span>Péage · ${p.montant} F</span>`);
+    e.title = p.nom;
+    boite.appendChild(e);
+    return e;
+  });
+  const dessiner = () => {
+    const proj = o.getProjection();
+    if (!proj) return;
+    const z = m.getZoom();
+    const b = m.getBounds();
+    let n = 0;
+    if (z >= ZOOM_FEUX && b) {
+      const ne = b.getNorthEast(), so = b.getSouthWest(), marge = 0.004;
+      for (const [lat, lng] of feux) {
+        if (lat > ne.lat() + marge || lat < so.lat() - marge || lng > ne.lng() + marge || lng < so.lng() - marge) continue;
+        const p = proj.fromLatLngToDivPixel(new g.LatLng(lat, lng));
+        if (!p) continue;
+        let el = elFeux[n];
+        if (!el) { el = element('gm-feu', HTML_FEU); boite.appendChild(el); elFeux.push(el); }
+        el.style.display = '';
+        el.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -50%)`;
+        if (++n >= 300) break;
+      }
+    }
+    for (let i = n; i < elFeux.length; i++) elFeux[i]!.style.display = 'none';
+    PEAGES_TARIF.forEach((pg, i) => {
+      const el = elPeages[i]!;
+      const actif = actifs.includes(pg.id);
+      if (z < ZOOM_PEAGES && !actif) { el.style.display = 'none'; return; }
+      const p = proj.fromLatLngToDivPixel(new g.LatLng(pg.lat, pg.lng));
+      if (!p) return;
+      el.style.display = '';
+      el.classList.toggle('actif', actif);
+      el.classList.toggle('nomme', actif || z >= 13);
+      el.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -50%)`;
+    });
+  };
+  o.onAdd = () => { o.getPanes()?.markerLayer.appendChild(boite); };
+  o.draw = dessiner;
+  o.onRemove = () => { boite.remove(); };
+  const ecoute = g.event.addListener(m, 'idle', dessiner);
+  void chargerFeux().then((f) => { feux = f?.points ?? []; dessiner(); });
+  o.setMap(m);
+  return { actifs: (ids) => { actifs = ids; dessiner(); }, retirer: () => { ecoute.remove(); o.setMap(null); } };
 }
 
 function element(classe: string, html = ''): HTMLDivElement {
@@ -160,7 +223,7 @@ export function GoogleIndisponible() {
   );
 }
 
-export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'car', approche = false, moi, trace, basCouvert = 0.46, onEchec }: Props) {
+export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'car', approche = false, moi, trace, peages, basCouvert = 0.46, onEchec }: Props) {
   const { resolved, accent } = useTheme();
   const { t, lang } = useI18n();
   const enveloppe = useRef<HTMLDivElement>(null);
@@ -329,6 +392,17 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prete, route, routeApproche, cleTrajet, traceExterne ? trace : null, accent, basCouvert, moi?.lat, moi?.lng]);
 
+  // 4 bis. Feux tricolores et péages du district ; péages de l'itinéraire choisi mis en avant.
+  const couche = useRef<ReturnType<typeof coucheRoutiere> | null>(null);
+  useEffect(() => {
+    const g = api.current; const m = carte.current;
+    if (!prete || !g || !m) return;
+    couche.current = coucheRoutiere(g, m);
+    return () => { couche.current?.retirer(); couche.current = null; };
+  }, [prete]);
+  const clePeages = (peages ?? []).map((p) => p.id).join(',');
+  useEffect(() => { couche.current?.actifs(clePeages ? clePeages.split(',') : []); }, [prete, clePeages]);
+
   // 5. Repères : départ, arrêts, arrivée.
   useEffect(() => {
     const g = api.current; const m = carte.current;
@@ -359,7 +433,7 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
     if (!car) { R.vehicule?.retirer(); R.vehicule = undefined; derniere.current = null; return; }
     if (!R.vehicule) {
       R.vehicule = poserRepere(g, m, element(`carte-vehicule ${vehicle}`,
-        `<span class="halo"></span><i>${vehicle === 'moto' ? repereVehicule('scooter-dessus', 24) : repereVehicule(accent === 'vert' ? 'voiture-dessus' : `voiture-dessus-${accent}`, 30)}</i>`), car);
+        `<span class="halo"></span><i>${vehicle === 'moto' ? repereVehicule('scooter-dessus', 24) : repereVehicule(nomVoitureDessus(accent), 30)}</i>`), car);
       derniere.current = { pos: car, angle: 0 };
       return;
     }

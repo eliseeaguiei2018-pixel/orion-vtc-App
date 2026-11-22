@@ -153,16 +153,14 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
     if (d.kycStatus !== 'draft' && d.kycStatus !== 'docs_submitted') {
       throw badRequest('Dossier déjà en cours d’examen ou validé');
     }
+    // Les chauffeurs ORION sont salariés et roulent sur les véhicules d'ORION : le dossier ne
+    // porte que sur LA PERSONNE. Véhicule, gamme, assurance et recharge sont attribués par
+    // ORION (console) et rattachés au matricule du chauffeur.
     const required: Array<[keyof typeof d, string]> = [
       ['phone', 'téléphone'], ['birthDate', 'date de naissance'], ['licenseNo', 'numéro de permis'],
-      ['vehicleModel', 'modèle du véhicule'], ['vehiclePlate', 'immatriculation'],
-      ['vehicleColor', 'couleur du véhicule'], ['insuranceExpiry', 'échéance de l’assurance'],
     ];
     const missing = required.filter(([k]) => !d[k]).map(([, label]) => label);
     if (missing.length) throw badRequest(`Dossier incomplet : ${missing.join(', ')}`, { missing });
-    if (d.insuranceExpiry && Date.parse(d.insuranceExpiry) < Date.now()) {
-      throw badRequest('Assurance expirée — renouvelez-la avant de soumettre le dossier');
-    }
     d.kycStatus = 'docs_submitted';
     container.drivers.persist(id);
     container.audit.log({ actor: d.name, role: 'chauffeur', action: 'driver.kyc_submit', target: id, details: { matricule: d.matricule } });

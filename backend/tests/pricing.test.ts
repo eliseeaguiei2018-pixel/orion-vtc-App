@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { estimatePrice, supplementGamme, TVA_RATE, APP_FEE_RATE } from '../src/modules/services/ride/pricing.js';
+import { sortDAbidjan } from '../src/modules/geo-ci/abidjan.js';
 
 // Abidjan : Plateau → Cocody
 const origin = { lat: 5.3236, lng: -4.0217 };
@@ -28,7 +29,7 @@ test('le prix inclut TVA 5% + frais 10% (= 15%) sur le sous-total', () => {
   assert.ok(Math.abs(r.amount - b.subtotal * 1.15) <= 50);
 });
 
-test('trois gammes : Or à 5 % de plus que l’Argent, Diamant à 15 % de plus, jamais le même prix', () => {
+test('trois gammes : Or à 5 % de plus que l’Argent, Diamant à 15 % de plus (10 % et 20 % hors Abidjan), jamais le même prix', () => {
   const arrondi = (n: number) => Math.round(n / 50) * 50;
   for (let km = 0.5; km <= 40; km += 0.5) {
     const dest = { lat: origin.lat + km / 111.2 / 1.3, lng: origin.lng };
@@ -36,8 +37,11 @@ test('trois gammes : Or à 5 % de plus que l’Argent, Diamant à 15 % de plus, 
       const [a, o, d] = (['argent', 'or', 'diamant'] as const).map((category) => estimatePrice({ origin, destination: dest, category, ...extra }).amount) as [number, number, number];
       const cas = `${km} km ${JSON.stringify(extra).slice(0, 30)}`;
       // Le pourcentage du prix Argent, arrondi à 50 F, avec au moins un pas d'écart entre deux gammes.
-      assert.equal(o - a, Math.max(50, arrondi(a * 0.05)), `Argent → Or, ${cas}`);
-      assert.equal(d - a, Math.max(o - a + 50, arrondi(a * 0.15)), `Argent → Diamant, ${cas}`);
+      // Une course qui sort du district d'Abidjan passe à la grille hors Abidjan (+10 % et +20 %).
+      const hors = sortDAbidjan([origin, ...(extra.stops ?? []), dest]);
+      const [pOr, pDiamant] = hors ? [0.10, 0.20] : [0.05, 0.15];
+      assert.equal(o - a, Math.max(50, arrondi(a * pOr)), `Argent → Or, ${cas}`);
+      assert.equal(d - a, Math.max(o - a + 50, arrondi(a * pDiamant)), `Argent → Diamant, ${cas}`);
       assert.ok(a < o && o < d, `prix croissants, ${cas}`);
       assert.ok(a % 50 === 0 && o % 50 === 0 && d % 50 === 0);
     }
