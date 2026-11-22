@@ -119,7 +119,8 @@ export function AvatarChauffeur({ photoUrl, name, taille = 32 }: { photoUrl?: st
     : <span aria-hidden="true" style={{ ...style, display: 'inline-grid', placeItems: 'center', fontSize: taille * 0.38, fontWeight: 600, background: 'var(--a-soft, rgba(0,168,101,.12))', color: 'var(--a-accent, #00a865)' }}>{initiales}</span>;
 }
 
-export function DriverDrawer({ d, onClose }: { d: DriverDetail; onClose: () => void }) {
+export function DriverDrawer({ d, onClose, onAttribuer }: { d: DriverDetail; onClose: () => void; onAttribuer?: (valider: boolean) => void }) {
+  const v = d.vehicule;
   return (
     <Drawer title={d.name} sub={d.matricule} onClose={onClose}>
       <div style={{ display: 'flex', justifyContent: 'center', margin: '4px 0 10px' }}><AvatarChauffeur photoUrl={d.photoUrl} name={d.name} taille={88} /></div>
@@ -129,13 +130,25 @@ export function DriverDrawer({ d, onClose }: { d: DriverDetail; onClose: () => v
         <span className={`adm-pill av-${d.availability}`}>{availLabel(d.availability)}</span>
       </div>
       <div className="adm-mini-kpis">
-        <div className="adm-mini-kpi"><span>Solde</span><strong>{fcfa(d.balance)}</strong></div>
-        <div className="adm-mini-kpi"><span>Gains cumulés</span><strong>{fcfa(d.earnings)}</strong></div>
         <div className="adm-mini-kpi"><span>Note</span><strong>★ {d.rating.toFixed(2)}</strong></div>
         <div className="adm-mini-kpi"><span>Courses notées</span><strong>{d.trips}</strong></div>
         <div className="adm-mini-kpi"><span>Annulations (chauffeur)</span><strong>{d.cancellations ?? 0}</strong></div>
         {d.offres && <div className="adm-mini-kpi"><span>Offres acceptées</span><strong>{d.offres.acceptees}/{d.offres.recues}{d.offres.expirees ? ` · ${d.offres.expirees} manquée(s)` : ''}</strong></div>}
       </div>
+      <h4 className="adm-drawer-sec">Attribué par ORION</h4>
+      <dl className="adm-constat-corps">
+        <dt>Véhicule</dt><dd>{v?.modele ?? <span className="adm-muted">non attribué</span>}{v?.couleur ? ` · ${v.couleur}` : ''}</dd>
+        <dt>Plaque</dt><dd className="mono">{v?.plaque ?? '—'}</dd>
+        <dt>Motorisation</dt><dd>{v?.motorisation === 'hybrid' ? 'Hybride' : v?.motorisation === 'electric' ? `Électrique${v.batterieKwh ? ` · ${v.batterieKwh} kWh` : ''}` : '—'}</dd>
+        <dt>Téléphone</dt><dd className="mono">{d.phone ?? '—'}</dd>
+        <dt>Permis</dt><dd className="mono">{d.licenseNo ?? '—'}</dd>
+      </dl>
+      {onAttribuer && (
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+          {d.kycStatus !== 'active' && d.kycStatus !== 'suspended' && <button className="adm-btn solid" onClick={() => onAttribuer(true)}>Valider l’inscription</button>}
+          <button className="adm-btn" onClick={() => onAttribuer(false)}>Modifier véhicule et gamme</button>
+        </div>
+      )}
       <h4 className="adm-drawer-sec">Dernières courses</h4>
       {d.rides.length === 0 ? <p className="adm-muted">Aucune course.</p> : (
         <table className="adm-table sm">

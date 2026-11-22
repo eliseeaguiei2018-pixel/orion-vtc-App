@@ -157,6 +157,8 @@ export interface RideRow {
   trustedContact?: { name: string; phone: string } | null;
   /** Départ et arrivée en clair : « Riviéra 2, Cocody » (quartier réel, commune OSM). */
   depart?: string; arrivee?: string;
+  /** Point de prise en charge : la console propose les chauffeurs du plus proche au plus loin. */
+  origin?: { lat: number; lng: number };
   createdAt: string;
 }
 export interface DriverRow { id: string; name: string; matricule: string; category: string; kycStatus: string; availability: string; rating: number; trips: number; balance: number; vip?: boolean; loyaltyTier?: string | null; electricRides?: number; suspensionReason?: string | null; phone?: string | null; photoUrl?: string | null; cancellations?: number; }
@@ -280,6 +282,9 @@ export interface DriverDetail {
   /** Photo (adresse signée), annulations faites par le chauffeur et statistiques d'offres. */
   photoUrl?: string | null; cancellations?: number;
   offres?: { recues: number; acceptees: number; refusees: number; expirees: number };
+  /** Chauffeur salarié : ses informations, et le véhicule attribué par ORION. */
+  phone?: string | null; licenseNo?: string | null; birthDate?: string | null;
+  vehicule?: { modele: string | null; plaque: string | null; couleur: string | null; motorisation: string | null; batterieKwh: number | null } | null;
 }
 export interface ClientDetail {
   id: string; name: string | null; phone: string | null; status: string; rides: number; createdAt: string | null;

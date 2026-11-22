@@ -13,7 +13,31 @@
  * l'appareil sur ce domaine) : les cookies de session ne voyagent pas d'un domaine à l'autre.
  */
 const propre = (u: string | undefined) => (u ?? '').trim().replace(/\/$/, '');
-const PRINCIPAL = propre(import.meta.env.VITE_API_URL as string | undefined);
+/**
+ * Application console sur téléphone : l'adresse du serveur peut être réglée dans l'app
+ * (écran de connexion, « Serveur ORION ») — utile si l'hébergement change. Dans un
+ * navigateur, seule l'adresse fixée à la construction compte.
+ */
+const CLE_REGLAGE = 'orion.serveur';
+const appTelephone = (): boolean => {
+  const w = (typeof window !== 'undefined' ? window : undefined) as unknown as { Capacitor?: { isNativePlatform?: () => boolean } } | undefined;
+  return Boolean(w?.Capacitor?.isNativePlatform?.());
+};
+function reglageApp(): string | null {
+  if (!appTelephone()) return null;
+  try { const v = localStorage.getItem(CLE_REGLAGE); return v ? propre(v) : null; } catch { return null; }
+}
+const PRINCIPAL = reglageApp() ?? propre(import.meta.env.VITE_API_URL as string | undefined);
+
+/** Adresse fixée à la construction (sans réglage de l'app). */
+export const serveurDeConstruction = (): string => propre(import.meta.env.VITE_API_URL as string | undefined);
+/** Le serveur a-t-il été réglé dans l'application (téléphone) ? */
+export const serveurRegleDansApp = (): boolean => reglageApp() !== null;
+/** Règle (ou efface) le serveur de l'application téléphone, puis recharge. */
+export function reglerServeurApp(url: string | null): void {
+  try { if (url) localStorage.setItem(CLE_REGLAGE, url); else localStorage.removeItem(CLE_REGLAGE); } catch { /* stockage indisponible */ }
+  location.reload();
+}
 const SECOURS = ((import.meta.env.VITE_API_URLS_SECOURS as string | undefined) ?? '').split(',').map(propre).filter(Boolean);
 const CLE = 'orion.serveur';
 

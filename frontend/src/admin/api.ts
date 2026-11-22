@@ -6,6 +6,7 @@
  */
 import type { PageMeta } from './types';
 import { serveurActif } from '../serveur';
+import { consoleNative, enTetesNatifs, garderJetonNatif } from './natif';
 
 export const PAGE_SIZE = 25;
 /** Pagination locale (mode démo) — même contrat que le serveur. */
@@ -64,6 +65,7 @@ export const getCsrf = (): string => {
 export const setCsrf = (v: string) => localStorage.setItem(csrfKey, v);
 
 export const clearSession = () => {
+  garderJetonNatif(null);
   localStorage.removeItem(expKey);
   localStorage.removeItem(csrfKey);
   localStorage.removeItem(demoKey);
@@ -83,11 +85,28 @@ export const H = (): Record<string, string> => {
   // tiers ne peut pas lire ce cookie, donc pas forger l'en-tête.
   const csrf = getCsrf();
   if (csrf) h['x-csrf-token'] = csrf;
-  return h;
+  // Application console sur téléphone : session et appareil dans les en-têtes (voir natif.ts).
+  return { ...h, ...enTetesNatifs() };
 };
 
 /** Options communes : le cookie de session doit accompagner chaque appel. */
-export const withCreds = (init: RequestInit = {}): RequestInit => ({ ...init, credentials: 'include' });
+export const withCreds = (init: RequestInit = {}): RequestInit => ({ ...init, credentials: consoleNative() ? 'omit' : 'include' });
+
+/**
+ * Adresse d'un canal temps réel de la console (`/ws/emergency`, `/ws/console`). Dans
+ * l'application téléphone, un billet à usage unique accompagne l'ouverture du canal.
+ */
+export async function adresseCanal(chemin: string): Promise<string> {
+  let hote = window.location.host;
+  let proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  if (API) { try { const u = new URL(API); hote = u.host; proto = u.protocol === 'https:' ? 'wss:' : 'ws:'; } catch { /* URL invalide */ } }
+  let suffixe = '';
+  if (consoleNative()) {
+    const r = await fetch(`${API}/admin/ws-billet`, withCreds({ method: 'POST', headers: H(), body: '{}' }));
+    if (r.ok) suffixe = `?billet=${encodeURIComponent(((await r.json()) as { billet: string }).billet)}`;
+  }
+  return `${proto}//${hote}${chemin}${suffixe}`;
+}
 /** 401 = session expirée/invalide → on purge et on renvoie à l'écran de connexion. */
 export function onUnauthorized() {
   clearSession();

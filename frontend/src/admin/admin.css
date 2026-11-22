@@ -682,3 +682,24 @@ html[data-adm-theme='light'] .adm-alarme .adm-btn.ghost { background: transparen
 .adm-kpi-objet { width: 46px; height: 46px; border-radius: 50%; color: var(--a-text);
   background: color-mix(in srgb, var(--a-text) 6%, transparent); }
 @media (max-width: 560px) { .adm-titre-objet { width: 32px; height: 32px; border-radius: 50%; } }
+
+/* ---- Validation d'un chauffeur salarié et attribution d'une course ---- */
+.adm-attribution { width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow-y: auto; }
+.adm-attribution-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin: 12px 0; }
+.adm-case { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; margin: 4px 0 10px; cursor: pointer; }
+.adm-case input { margin-top: 2px; width: 16px; height: 16px; accent-color: var(--a-green2); }
+.adm-erreur { color: var(--a-danger); font-size: 13px; margin: 6px 0; }
+.adm-attribution-liste { display: grid; gap: 6px; margin: 12px 0; max-height: 46vh; overflow-y: auto; }
+.adm-attribution-ligne { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--a-stroke);
+  background: var(--a-panel2); color: var(--a-text); font: inherit; cursor: pointer; }
+.adm-attribution-ligne:hover:not(:disabled) { border-color: var(--a-green2); }
+.adm-attribution-ligne:disabled { opacity: 0.6; cursor: default; }
+
+/* ---- Application console sur téléphone : serveur ORION réglable à la connexion ---- */
+.adm-serveur { margin-top: 14px; display: grid; gap: 8px; justify-items: center; }
+.adm-serveur-lien { display: inline-flex; align-items: center; gap: 8px; border: none; background: none; color: var(--a-muted);
+  font: 500 12.5px var(--font-body, inherit); padding: 6px 10px; border-radius: 10px; cursor: pointer; }
+.adm-serveur-lien:hover { color: var(--a-text); }
+.adm-serveur-point { width: 8px; height: 8px; border-radius: 50%; background: var(--a-danger); }
+.adm-serveur-point.on { background: var(--a-green2); }
+.adm-serveur-form { width: 100%; display: grid; gap: 8px; }

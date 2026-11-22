@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { serveurActif } from './serveur';
+import { consoleNative, enTetesNatifs, garderCleAppareil } from './admin/natif';
 
 /**
  * APPAREIL DE CONFIANCE : enrôlement de la console et du tableau de bord avec le code de
@@ -55,7 +56,8 @@ function nomParDefaut(p: Plateforme): string {
 export async function lireEtatAppareil(): Promise<EtatAppareil | null> {
   if (!API && (import.meta.env.VITE_SAME_ORIGIN as string | undefined) !== '1') return null; // mode démonstration
   try {
-    const r = await fetch(`${API}/appareils/etat`, { credentials: 'include' });
+    const natif = consoleNative();
+    const r = await fetch(`${API}/appareils/etat`, { credentials: natif ? 'omit' : 'include', headers: enTetesNatifs() });
     return r.ok ? ((await r.json()) as EtatAppareil) : null;
   } catch { return null; }
 }
@@ -90,11 +92,13 @@ export function EnrolementAppareil({ application, classes, onEnrole, onRetour, l
     setEnvoi(true); setErreur('');
     try {
       const r = await fetch(`${API}/appareils/enroler`, {
-        method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
+        method: 'POST', credentials: consoleNative() ? 'omit' : 'include', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ code, nom: nom.trim(), plateforme, application }),
       });
-      const data = await r.json().catch(() => ({})) as { appareil?: AppareilPublic; error?: { message?: string } };
+      const data = await r.json().catch(() => ({})) as { appareil?: AppareilPublic; cle?: string; error?: { message?: string } };
       if (!r.ok || !data.appareil) { setErreur(data.error?.message ?? 'Enrôlement refusé.'); setEnvoi(false); return; }
+      // Application console sur téléphone : la clé d'appareil suit dans un en-tête (pas de cookie).
+      if (data.cle) garderCleAppareil(data.cle);
       setCode('');
       onEnrole(data.appareil);
     } catch {

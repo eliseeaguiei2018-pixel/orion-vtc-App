@@ -13,6 +13,9 @@ const appChauffeur = process.env.ORION_APP === 'chauffeur';
 // APK de test temps réel : la mini console (ORION_APP=test-console) est construite seule,
 // dans dist-test-console (voir scripts/construire-apk-test.sh).
 const consoleTest = process.env.ORION_APP === 'test-console';
+// App native « ORION Console » (ORION_APP=console) : la console d'administration seule,
+// dans dist-console (voir scripts/construire-app-console.mjs).
+const appConsole = process.env.ORION_APP === 'console';
 
 export default defineConfig(({ command }) => ({
   base: process.env.VITE_BASE ?? (command === 'build' ? './' : '/'),
@@ -23,9 +26,11 @@ export default defineConfig(({ command }) => ({
     // Compatibilité des apps natives : la WebView d'iOS 15 (Safari 15) et celle des
     // Android 7+ mis à jour. La syntaxe récente est convertie pour ces versions.
     target: ['es2020', 'safari15', 'chrome87', 'edge88', 'firefox91'],
-    ...(appChauffeur ? { outDir: 'dist-chauffeur', emptyOutDir: true } : {}),
+    ...(appChauffeur ? { outDir: 'dist-chauffeur', emptyOutDir: true } : appConsole ? { outDir: 'dist-console', emptyOutDir: true } : {}),
     rollupOptions: {
-      input: consoleTest ? { 'console-test': new URL('./console-test.html', import.meta.url).pathname } : appChauffeur ? { driver: new URL('./driver.html', import.meta.url).pathname } : {
+      input: consoleTest ? { 'console-test': new URL('./console-test.html', import.meta.url).pathname }
+        : appChauffeur ? { driver: new URL('./driver.html', import.meta.url).pathname }
+          : appConsole ? { admin: new URL('./admin.html', import.meta.url).pathname } : {
         main: new URL('./index.html', import.meta.url).pathname,
         admin: new URL('./admin.html', import.meta.url).pathname,
         // Tableau de bord ORION : écran de supervision à part, synchronisé en direct.

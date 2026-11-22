@@ -459,6 +459,9 @@ export class AdminService {
       kycStatus: d.kycStatus, availability: d.availability, rating: d.ratingAvg, trips: d.ratingCount,
       photoUrl: photoUrl(d), cancellations: d.cancellations ?? 0,
       offres: { recues: d.offersReceived ?? 0, acceptees: d.offersAccepted ?? 0, refusees: d.offersDeclined ?? 0, expirees: d.offersExpired ?? 0 },
+      // Dossier du chauffeur salarié : ses informations, et ce qu'ORION lui a attribué.
+      phone: d.phone ?? null, licenseNo: d.licenseNo ?? null, birthDate: d.birthDate ?? null,
+      vehicule: { modele: d.vehicleModel ?? null, plaque: d.vehiclePlate ?? null, couleur: d.vehicleColor ?? null, motorisation: d.engine ?? null, batterieKwh: d.batteryKwh ?? null },
       balance: this.c.wallet.balance(id), earnings: Math.round(earnings),
       ledger: history.slice(0, 20),
       rides,

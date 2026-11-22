@@ -18,7 +18,8 @@ export const ANOMALY_LABEL: Record<string, string> = {
 
 export function RidesSection({ rides, meta, onPage, canWrite, onReassign, onOpen, onForce, onDest, onContact }: {
   rides: RideRow[]; meta: PageMeta; onPage: (p: number) => void; canWrite: boolean;
-  onReassign: (id: string) => void; onOpen: (id: string) => void;
+  /** Attribuer la course : au chauffeur choisi, ou au plus proche (règle de dispatch). */
+  onReassign: (ride: RideRow) => void; onOpen: (id: string) => void;
   onForce: (id: string, action: 'complete' | 'cancel') => void; onDest: (id: string) => void;
   /** Joindre le passager, le chauffeur ou le contact de confiance d'une course. */
   onContact: ContactHandler;
@@ -66,7 +67,7 @@ export function RidesSection({ rides, meta, onPage, canWrite, onReassign, onOpen
               {canWrite && (
                 <td onClick={(e) => e.stopPropagation()}>
                   <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                    {REASSIGNABLE.has(r.status) && <button className="adm-btn xs" title="Réaffectation d'urgence" onClick={() => onReassign(r.id)}>Réassigner</button>}
+                    {REASSIGNABLE.has(r.status) && <button className={`adm-btn xs${r.status === 'no_driver' || r.status === 'searching' ? ' solid' : ''}`} title="Attribuer la course à un chauffeur" onClick={() => onReassign(r)}>{r.driverName ? 'Réattribuer' : 'Attribuer'}</button>}
                     {ACTIVE_RIDE.has(r.status) && <button className="adm-btn xs" title="Ajuster la destination en vol (devis recalculé)" onClick={() => onDest(r.id)}>Dest.</button>}
                     {ACTIVE_RIDE.has(r.status) && <button className="adm-btn xs" title="Clôture forcée (bug réseau)" onClick={() => onForce(r.id, 'complete')}>Terminer</button>}
                     {(ACTIVE_RIDE.has(r.status) || r.status === 'searching' || r.status === 'no_driver') && <button className="adm-btn xs" title="Annulation sans frais" onClick={() => onForce(r.id, 'cancel')}>Annuler</button>}
@@ -567,8 +568,10 @@ export const KYC_COLUMNS: { id: string; label: string }[] = [
 // Trois paliers de fidélité, aux noms des gammes (identifiants historiques conservés).
 export const LOYALTY_LABEL: Record<string, string> = { bronze: 'Argent', silver: 'Or', gold: 'Diamant' };
 
-export function DriversSection({ drivers, expiring, canWrite, onAction, onSuspend, onLoyalty, onOpen, meta, onPage, onContract, onFleetCsv, onContact }: {
+export function DriversSection({ drivers, expiring, canWrite, onAction, onSuspend, onLoyalty, onOpen, meta, onPage, onContract, onFleetCsv, onContact, onAttribuer }: {
   drivers: DriverRow[]; expiring: ExpiringDoc[]; canWrite: boolean;
+  /** Valider l'inscription et attribuer gamme, véhicule et matricule (chauffeurs salariés). */
+  onAttribuer: (id: string, valider: boolean) => void;
   onAction: (id: string, kind: 'kyc' | 'availability', value: string) => void;
   onSuspend: (id: string) => void; onLoyalty: (id: string, tier: string) => void;
   onOpen: (id: string) => void; meta: PageMeta; onPage: (p: number) => void;
@@ -606,7 +609,7 @@ export function DriversSection({ drivers, expiring, canWrite, onAction, onSuspen
                 <div key={col.id} className="kanban-col">
                   <div className="kanban-h">{col.label}<span className="adm-pill">{items.length}</span></div>
                   {items.map((d) => (
-                    <button key={d.id} className="kanban-card" onClick={() => onOpen(d.id)}>
+                    <button key={d.id} className="kanban-card" onClick={() => (canWrite && d.kycStatus !== 'active' && d.kycStatus !== 'suspended' ? onAttribuer(d.id, true) : onOpen(d.id))}>
                       <strong>{d.name}</strong>
                       <div className="adm-muted mono" style={{ fontSize: 11 }}>{d.matricule} · {d.category}</div>
                       {d.suspensionReason && <div className="adm-muted" style={{ fontSize: 11, color: 'var(--a-danger)' }}>{d.suspensionReason}</div>}
@@ -634,7 +637,8 @@ export function DriversSection({ drivers, expiring, canWrite, onAction, onSuspen
                   {canWrite && (
                     <td onClick={(e) => e.stopPropagation()}>
                       <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                        {d.kycStatus !== 'active' && <button className="adm-btn xs solid" onClick={() => onAction(d.id, 'kyc', 'active')}>Approuver</button>}
+                        {d.kycStatus !== 'active' && d.kycStatus !== 'suspended' && <button className="adm-btn xs solid" title="Valider l'inscription et attribuer le véhicule" onClick={() => onAttribuer(d.id, true)}>Valider</button>}
+                        <button className="adm-btn xs" title="Gamme, véhicule et matricule attribués par ORION" onClick={() => onAttribuer(d.id, false)}>Véhicule</button>
                         {d.kycStatus !== 'suspended'
                           ? <button className="adm-btn xs" onClick={() => onSuspend(d.id)}>Suspendre</button>
                           : <button className="adm-btn xs" onClick={() => onAction(d.id, 'kyc', 'active')}>Réactiver</button>}

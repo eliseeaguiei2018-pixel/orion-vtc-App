@@ -2,11 +2,11 @@ import { enTeteRecaptcha } from '../securiteGoogle';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { avis, demander, demanderLieu } from './dialogues';
 import { LogoApp } from '../components/Logo';
-import { IconMenu, IconActivity, IconAlarm, IconAlert, IconBank, IconBell, IconBellOff, IconBuilding, IconCar, IconCash, IconChart, IconCompass, IconCrown, IconFile, IconGem, IconGrid, IconIdCard, IconInbox, IconKey, IconLeaf, IconLock, IconMail, IconMap, IconMegaphone, IconMessage, IconMonitor, IconMoon, IconScale, IconShield, IconSignal, IconStar, IconSteering, IconSun, IconTag, IconTarget, IconTicket, IconTrend, IconUsers, IconWallet } from '../icons';
+import { IconMenu, IconActivity, IconAlarm, IconAlert, IconBank, IconBell, IconBellOff, IconAward, IconBuilding, IconCar, IconCash, IconChart, IconCompass, IconCrown, IconFile, IconGem, IconGrid, IconIdCard, IconInbox, IconKey, IconLeaf, IconLock, IconMail, IconMap, IconMegaphone, IconMessage, IconMonitor, IconMoon, IconScale, IconShield, IconSignal, IconStar, IconSteering, IconSun, IconTag, IconTarget, IconTicket, IconTrend, IconUsers, IconWallet } from '../icons';
 import { DEMO } from './demo';
 import { suivreBus, type EtatBus } from '../busTest';
 import { empreinteBus, fusionBusConsole } from './busConsole';
-import { API, LIVE, AdminError, H, PAGE_SIZE, adminDel, adminGet, adminPost, adminPut, clearSession, expKey, fcfa, logout, onUnauthorized, setCsrf, setDemoSession, pageSlice, reportResponse, safePost, safePostData, safePut, sessionValid, setAdminErrorSink } from './api';
+import { API, LIVE, AdminError, H, PAGE_SIZE, adresseCanal, withCreds, adminDel, adminGet, adminPost, adminPut, clearSession, expKey, fcfa, logout, onUnauthorized, setCsrf, setDemoSession, pageSlice, reportResponse, safePost, safePostData, safePut, sessionValid, setAdminErrorSink } from './api';
 import { AuditSection, CorporateSection, FinanceSection, GlobalSearch, GreenSection, IntelSection, NotifySection, PricingEditor, PromosSection, ServicesSection, SupportSection, TreasurySection, ZonesSection } from './sections/business';
 import { ClientsSection, DispatchSection, DisputesSection, DriversSection, ForensicDrawer, QualitySection, ReservationsCard, RidesSection } from './sections/operations';
 import { AppareilsPanneau, RolesSection, SessionsSection, TeamsSection } from './sections/organisation';
@@ -25,6 +25,10 @@ import { TelematiqueSection } from './sections/telematique';
 import { AnnuaireSection, ChangerMotDePasse } from './sections/annuaire';
 import type { AccountsStats, ActiveSession, Alert, Amortization, Announcement, AssistantSujet, CaisseConsolidation, CaisseEtat, CaisseReferentiel, CrewTableau, DossierEquipage, EquipageRow, PosteEquipe, RoleOption, StaffAccountRow, SuiviFlotte, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, ContactJournal, ContactUrgence, CopilotAnswer, ExecutiveBoard, MonPoste, MouvementPage, SanteVigilance, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, RentalTarifEtat, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
 import { ClientDrawer, DriverDrawer } from './ui';
+import { DialogueAttribution, DialogueAttribuerCourse, type FicheAttribution } from './attribution';
+import { PrimesSection } from './sections/primes';
+import { consoleNative, enTetesNatifs, garderJetonNatif } from './natif';
+import { ServeurConsole } from './serveurConsole';
 import { lienTel, numeroComposable, ouvrirClavier } from '../telephone';
 import { EnrolementAppareil, LigneAppareil, estAppEmballee, useEtatAppareil, type AppareilPublic, type ClassesFormulaire } from '../appareil';
 import { BoutonInstaller } from '../pwa';
@@ -143,9 +147,10 @@ function Login({ onDone }: { onDone: () => void }) {
     try {
       const res = await fetch(`${API}/admin/login`, {
         // reCAPTCHA Enterprise (si réglé) : pas d'essais de mots de passe en série par un robot.
-        method: 'POST', headers: { 'content-type': 'application/json', ...(await enTeteRecaptcha('connexion_console')) },
-        // Le serveur répond avec le cookie de session HttpOnly : il faut l'accepter.
-        credentials: 'include',
+        method: 'POST', headers: { 'content-type': 'application/json', ...enTetesNatifs(), ...(await enTeteRecaptcha('connexion_console')) },
+        // Le serveur répond avec le cookie de session HttpOnly : il faut l'accepter (navigateur).
+        // L'application téléphone, elle, garde le jeton renvoyé (voir natif.ts).
+        credentials: consoleNative() ? 'omit' : 'include',
         body: JSON.stringify({ username: username.trim(), password, ...(mfa && code.trim() ? { code: code.trim() } : {}) }),
       });
       if (res.status === 429) { setErr('Compte temporairement verrouillé (trop de tentatives). Réessaie plus tard.'); setBusy(false); return; }
@@ -161,6 +166,7 @@ function Login({ onDone }: { onDone: () => void }) {
       // Le jeton N'EST PLUS stocké : il vit dans un cookie HttpOnly, hors de portée
       // de JavaScript. On ne garde que l'échéance et la preuve anti-CSRF.
       if (data.csrfToken) setCsrf(data.csrfToken);
+      if (consoleNative() && data.token) garderJetonNatif(data.token);
       localStorage.setItem(expKey, String(Date.parse(data.expiresAt) || Date.now() + 12 * 3600e3));
       onDone();
     } catch {
@@ -203,13 +209,14 @@ function Login({ onDone }: { onDone: () => void }) {
         {!API && <p className="adm-login-demo">Mode démo — n'importe quels identifiants ouvrent la console (données simulées).</p>}
         <LigneAppareil etat={etatAppareil} classe="adm-login-sub" onEnroler={() => setEnrolement(true)} />
         <BoutonInstaller classe="adm-btn ghost" nom="ORION Console" />
+        {consoleNative() && <ServeurConsole />}
       </form>
     </div>
   );
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'monPoste' | 'posteEquipe' | 'crew' | 'caisses' | 'telematique' | 'comptes' | 'overview' | 'direction' | 'vigilance' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'clients' | 'support' | 'messagesClients' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles' | 'habilitations';
+type Section = 'monPoste' | 'posteEquipe' | 'crew' | 'caisses' | 'telematique' | 'comptes' | 'overview' | 'direction' | 'vigilance' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'primes' | 'clients' | 'support' | 'messagesClients' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles' | 'habilitations';
 const NAV: { id: Section; label: string; perm: string; icon: (p: { size?: number; strokeWidth?: number }) => React.JSX.Element }[] = [
   { id: 'monPoste', label: 'Mon poste', perm: '', icon: IconInbox },
   { id: 'posteEquipe', label: 'Mon équipe', perm: 'teams:read', icon: IconCompass },
@@ -234,6 +241,7 @@ const NAV: { id: Section; label: string; perm: string; icon: (p: { size?: number
   { id: 'subscriptions', label: 'Abonnements', perm: 'rental:read', icon: IconTicket },
   { id: 'disputes', label: 'Litiges', perm: 'support:read', icon: IconScale },
   { id: 'drivers', label: 'Chauffeurs', perm: 'drivers:read', icon: IconSteering },
+  { id: 'primes', label: 'Primes chauffeurs', perm: 'drivers:read', icon: IconAward },
   { id: 'clients', label: 'Clients', perm: 'clients:read', icon: IconUsers },
   { id: 'finance', label: 'Finances', perm: 'finance:read', icon: IconTrend },
   { id: 'treasury', label: 'Trésorerie', perm: 'treasury:read', icon: IconBank },
@@ -270,6 +278,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [finance, setFinance] = useState<Finance | null>(null);
   const [broadcasts, setBroadcasts] = useState<Announcement[]>([]);
   const [live, setLive] = useState(false);
+  /** Serveur momentanément injoignable : on garde les dernières vraies données, jamais la démo. */
+  const [horsLigne, setHorsLigne] = useState(false);
   const [now, setNow] = useState(() => new Date());
   // L'employé arrive sur SON poste : ce qui l'attend, pas un tableau de bord général.
   const [section, setSection] = useState<Section>('monPoste');
@@ -299,6 +309,11 @@ function Console({ onLogout }: { onLogout: () => void }) {
     return () => { window.clearTimeout(id); window.removeEventListener('resize', marquer); };
   });
   const [driverSel, setDriverSel] = useState<DriverDetail | null>(null);
+  /** Compteur de rafraîchissement : les sections qui chargent elles-mêmes (Primes) suivent. */
+  const [versionDonnees, setVersionDonnees] = useState(0);
+  // Validation d'un chauffeur salarié (gamme, véhicule, matricule) et attribution d'une course.
+  const [attribution, setAttribution] = useState<{ fiche: FicheAttribution; valider: boolean } | null>(null);
+  const [courseAAttribuer, setCourseAAttribuer] = useState<RideRow | null>(null);
   const [clientSel, setClientSel] = useState<ClientDetail | null>(null);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
@@ -559,7 +574,15 @@ function Console({ onLogout }: { onLogout: () => void }) {
         setRentalTarifs(await adminGet<RentalTarifEtat>('/admin/rental/tarifs'));
       }
       if (has('audit:read')) setAudit((await adminGet<{ entries: AuditEntry[] }>('/admin/audit')).entries);
-    } catch { loadDemo(); }
+      setHorsLigne(false);
+      setVersionDonnees((v) => v + 1);
+    } catch (e) {
+      // Console reliée à un serveur : une coupure ne doit JAMAIS afficher des données de
+      // démonstration à la place des vraies. On garde le dernier état et on le signale ;
+      // un refus d'accès (403) est déjà montré par la couche réseau.
+      if (LIVE) { if (!(e instanceof AdminError)) setHorsLigne(true); }
+      else loadDemo();
+    }
     finally {
       const rejouer = tourEnCours.current?.encore;
       tourEnCours.current = null;
@@ -569,6 +592,44 @@ function Console({ onLogout }: { onLogout: () => void }) {
   dernierRefresh.current = refresh;
 
   useEffect(() => { void refresh(); }, [refresh]);
+  /** Dernier rafraîchissement déclenché par le temps réel (le tour de 6 s s'en abstient alors). */
+  const dernierRafraichissementDirect = useRef(0);
+
+  // CONSOLE EN TEMPS RÉEL : le serveur prévient dès qu'une course, un chauffeur, une alerte ou
+  // une inscription change (/ws/console) ; la console se met à jour aussitôt (au plus une fois
+  // par seconde et demie), sans attendre son tour de six secondes.
+  useEffect(() => {
+    if (!LIVE) return;
+    let ws: WebSocket | null = null;
+    let ferme = false;
+    let relance: number | undefined;
+    let attente: number | undefined;
+    let dernier = 0;
+    // Au plus un rafraîchissement toutes les 3 s : un PDG voit une nouvelle course ou une
+    // inscription dans la seconde, sans que chaque mouvement de voiture ne relance la console.
+    const planifier = () => {
+      if (attente) return;
+      const delai = Math.max(0, 3000 - (Date.now() - dernier));
+      attente = window.setTimeout(() => { attente = undefined; dernier = Date.now(); dernierRafraichissementDirect.current = dernier; void dernierRefresh.current(); }, delai);
+    };
+    const connecter = async () => {
+      let adresse: string;
+      try { adresse = await adresseCanal('/ws/console'); } catch { if (!ferme) relance = window.setTimeout(() => void connecter(), 4000); return; }
+      if (ferme) return;
+      ws = new WebSocket(adresse);
+      ws.onmessage = (ev) => {
+        try {
+          const m = JSON.parse(String(ev.data)) as { type: string; data?: { domaines?: string[] } };
+          // Les seuls déplacements de véhicules suivent le rythme normal (6 s) : la carte de
+          // flotte n'a pas besoin d'une relecture complète de la console à chaque position.
+          if (m.type === 'console.maj' && (m.data?.domaines ?? []).some((d) => d !== 'positions')) planifier();
+        } catch { /* trame illisible */ }
+      };
+      ws.onclose = () => { if (!ferme) relance = window.setTimeout(() => void connecter(), 4000); };
+    };
+    void connecter();
+    return () => { ferme = true; window.clearTimeout(relance); window.clearTimeout(attente); ws?.close(); };
+  }, []);
 
   // Flux d'urgence : nouvelle alerte → alarme + file à jour ; tout geste sur une
   // alerte (prise en charge, message, secours joints, réponse de l'usager) →
@@ -598,11 +659,11 @@ function Console({ onLogout }: { onLogout: () => void }) {
       enVol = false;
       if (encore || dossiers.size) { encore = false; void rafraichir(); }
     };
-    const connecter = () => {
-      let hote = window.location.host;
-      let proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      if (API) { try { const u = new URL(API); hote = u.host; proto = u.protocol === 'https:' ? 'wss:' : 'ws:'; } catch { /* URL invalide */ } }
-      ws = new WebSocket(`${proto}//${hote}/ws/emergency`);
+    const connecter = async () => {
+      let adresse: string;
+      try { adresse = await adresseCanal('/ws/emergency'); } catch { if (!ferme) relance = window.setTimeout(() => void connecter(), 3000); return; }
+      if (ferme) return;
+      ws = new WebSocket(adresse);
       ws.onmessage = (ev) => {
         try {
           const m = JSON.parse(ev.data as string) as { type: string; data?: { id?: string; alertId?: string; kind?: string; level?: string; zoneName?: string; createdAt?: string } };
@@ -619,14 +680,14 @@ function Console({ onLogout }: { onLogout: () => void }) {
           }
         } catch { /* trame illisible */ }
       };
-      ws.onclose = () => { if (!ferme) relance = window.setTimeout(connecter, 3000); };
+      ws.onclose = () => { if (!ferme) relance = window.setTimeout(() => void connecter(), 3000); };
     };
-    connecter();
+    void connecter();
     return () => { ferme = true; window.clearTimeout(relance); ws?.close(); };
   }, [peutSuperviser]);
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
-    const p = LIVE ? setInterval(() => void refresh(), 6000) : undefined;
+    const p = LIVE ? setInterval(() => { if (Date.now() - dernierRafraichissementDirect.current > 4000) void refresh(); }, 6000) : undefined;
     return () => { clearInterval(t); if (p) clearInterval(p); };
   }, [refresh]);
   // Serveur de test partagé : une course de l'app client ou un geste du chauffeur de test
@@ -688,7 +749,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const downloadFile = async (path: string, filename: string) => {
     if (!LIVE) { avis('Disponible avec le backend connecté — le document est généré côté serveur.'); return; }
     try {
-      const res = await fetch(API + path, { headers: H(), credentials: 'include' });
+      const res = await fetch(API + path, withCreds({ headers: H() }));
       if (res.status === 401) { onUnauthorized(); return; }
       // Refus/erreur : on remonte le message du serveur (403 → message de la direction)
       // au lieu d'un avertissement générique, et on ne télécharge rien.
@@ -1309,7 +1370,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
     let content: string;
     if (LIVE) {
       try {
-        const res = await fetch(API + path, { headers: H(), credentials: 'include' });
+        const res = await fetch(API + path, withCreds({ headers: H() }));
         if (res.status === 401) { onUnauthorized(); return; }
         // Sans ce contrôle, un refus (403) écrivait le corps d'erreur JSON DANS le
         // fichier : l'employé repartait avec un export corrompu au lieu de voir le refus.
@@ -1347,6 +1408,22 @@ function Console({ onLogout }: { onLogout: () => void }) {
     if (!LIVE) { setDriverSel(DEMO.driverDetail(id, drivers)); return; }
     try { setDriverSel((await adminGet<{ driver: DriverDetail }>(`/admin/drivers/${id}`)).driver); }
     catch { setDriverSel(DEMO.driverDetail(id, drivers)); }
+  };
+  const ouvrirAttribution = async (id: string, valider: boolean) => {
+    const ligne = drivers.find((d) => d.id === id);
+    let detail: DriverDetail | null = null;
+    if (LIVE) { try { detail = (await adminGet<{ driver: DriverDetail }>(`/admin/drivers/${id}`)).driver; } catch { /* refus déjà signalé */ } }
+    const base = detail ?? (ligne ? { ...ligne, vehicule: null } : null);
+    if (!base) return;
+    setAttribution({ valider, fiche: { id, name: base.name, matricule: base.matricule, category: base.category, kycStatus: base.kycStatus, vehicule: detail?.vehicule ?? null } });
+  };
+  const attributionFaite = (r: { category: string; kycStatus: string; matricule: string }) => {
+    const id = attribution?.fiche.id;
+    setAttribution(null);
+    if (!id) return;
+    setDrivers((xs) => xs.map((d) => (d.id === id ? { ...d, category: r.category, kycStatus: r.kycStatus, matricule: r.matricule } : d)));
+    if (driverSel?.id === id) void openDriver(id);
+    void refresh();
   };
   const openClient = async (id: string) => {
     if (!LIVE) { setClientSel(DEMO.clientDetail(id, clients)); return; }
@@ -1406,10 +1483,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
   };
 
   // Réassignation manuelle d'une course (auto : re-matching selon la règle courante).
-  const reassignRide = async (id: string) => {
-    if (!LIVE) { setRides((xs) => xs.map((r) => (r.id === id ? { ...r, driverName: 'Serge Aka', matricule: 'ORION-CI-4820', status: 'accepted' } : r))); return; }
-    try { await adminPost(`/admin/rides/${id}/reassign`); void refresh(); } catch { /* aucun chauffeur dispo */ }
-  };
+  const reassignRide = (ride: RideRow) => { setCourseAAttribuer(ride); };
 
   // Instruction d'un litige : fiche complète de la course (tracé GPS + tarif).
   const openForensic = async (rideId: string) => {
@@ -1468,7 +1542,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const downloadCarbonPdf = async () => {
     if (!LIVE) { avis('Disponible avec le backend connecté — le PDF est généré côté serveur.'); return; }
     try {
-      const res = await fetch(`${API}/admin/green/report.pdf`, { headers: H(), credentials: 'include' });
+      const res = await fetch(`${API}/admin/green/report.pdf`, withCreds({ headers: H() }));
       if (res.status === 401) { onUnauthorized(); return; }
       // Sans ce contrôle, un refus téléchargeait le corps d'erreur JSON en guise de PDF.
       if (!res.ok) { await reportResponse(res); return; }
@@ -1576,8 +1650,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
             <button className={`adm-btn ghost adm-mute${muted ? ' off' : ''}`} title={muted ? 'Réactiver la sirène SAMU' : 'Couper la sirène SAMU'} onClick={toggleMute}>
               {muted ? <IconBellOff size={18} strokeWidth={1.5} /> : <IconBell size={18} strokeWidth={1.5} />}
             </button>
-            <span className={`adm-live ${live ? 'on' : 'demo'}`} title={surServeurDeSecours() ? 'Le serveur principal ne répond pas : la console travaille sur un serveur de secours.' : undefined}>
-              {live ? (surServeurDeSecours() ? '● En direct · secours' : '● En direct') : '● Mode démo'}
+            <span className={`adm-live ${horsLigne ? 'demo' : live ? 'on' : 'demo'}`} title={surServeurDeSecours() ? 'Le serveur principal ne répond pas : la console travaille sur un serveur de secours.' : undefined}>
+              {horsLigne ? '● Connexion perdue · nouvel essai…' : live ? (surServeurDeSecours() ? '● En direct · secours' : '● En direct') : LIVE ? '● Connexion…' : '● Mode démo'}
             </span>
             <span className="adm-clock">{now.toLocaleTimeString('fr-FR')}</span>
             <button className="adm-btn ghost" onClick={() => void refresh()} aria-label="Rafraîchir"><span className="adm-ico-seul" aria-hidden>⟳</span><span className="adm-lbl">Rafraîchir</span></button>
@@ -1720,7 +1794,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'teams' && <TeamsSection teams={teams} allDrivers={drivers} staffKpis={staffKpis} shifts={shifts} maintenance={maintenance} canWrite={can('teams:write')} onSave={saveTeam} onDelete={deleteTeam} onShift={assignShift} onRemoveShift={removeShift} onMaintenance={openMaintenance} onResolveMaintenance={resolveMaintenance} onBroadcast={microBroadcast} onPnl={loadSquadPnl} onHoursCsv={() => void downloadCsv('/admin/staff/hours.csv', 'orion-heures.csv', () => 'employe,identifiant,date,tranche,zone')} onEvalPdf={(u) => void downloadFile(`/admin/staff/${u}/eval.pdf`, `orion-eval-${u}.pdf`)} onContact={(p) => void contacter(p)} />}
         {section === 'intel' && <IntelSection predict={predict} conversion={conversion} churn={churn} fraud={fraud} elasticity={elasticity} canNotify={can('notify:write')} onReengage={reengage} onCopilot={askCopilot} onSujets={assistantSujets} onAller={(sec) => setSection(sec as Section)} />}
         {section === 'b2b' && <CorporateSection accounts={corporate} canWrite={can('treasury:request')} canSettle={can('treasury:approve')} canBook={can('rides:write')} onSave={saveCorporate} onSettle={settleCorporate} onInvoice={exportInvoice} onEsg={(id) => void downloadFile(`/admin/corporate/${id}/esg.pdf`, `orion-esg-${id}.pdf`)} onInvoicePdf={(id) => void downloadFile(`/admin/corporate/${id}/invoice.pdf`, `facture-${id}.pdf`)} onImport={importMembers} onBook={webBook} onContact={(p) => void contacter(p)} />}
-        {section === 'drivers' && <DriversSection drivers={drivers} expiring={expiring} canWrite={can('drivers:write')} onAction={driverAction} onSuspend={suspendDriver} onLoyalty={setLoyalty} onOpen={openDriver} meta={driversMeta} onPage={setDriversPage} onContract={(id) => void downloadFile(`/admin/drivers/${id}/contract.pdf`, `orion-contrat-${id.slice(0, 8)}.pdf`)} onFleetCsv={() => void downloadCsv('/admin/fleet.csv', 'orion-flotte.csv', () => 'matricule,nom,motorisation')} onContact={(p) => void contacter(p)} />}
+        {section === 'primes' && <PrimesSection peutRegler={can('pricing:write')} version={versionDonnees} />}
+        {section === 'drivers' && <DriversSection drivers={drivers} expiring={expiring} canWrite={can('drivers:write')} onAction={driverAction} onSuspend={suspendDriver} onLoyalty={setLoyalty} onOpen={openDriver} meta={driversMeta} onPage={setDriversPage} onContract={(id) => void downloadFile(`/admin/drivers/${id}/contract.pdf`, `orion-contrat-${id.slice(0, 8)}.pdf`)} onFleetCsv={() => void downloadCsv('/admin/fleet.csv', 'orion-flotte.csv', () => 'matricule,nom,motorisation')} onContact={(p) => void contacter(p)}  onAttribuer={(id, valider) => void ouvrirAttribution(id, valider)} />}
         {section === 'clients' && <ClientsSection clients={clients} canWrite={can('clients:write')} onStatus={setClientStatus} onOpen={openClient} meta={clientsMeta} onPage={setClientsPage} onVip={setClientVip} onBlacklist={blacklistClient} onNoShow={noShowFee} onLtvCsv={() => void downloadCsv('/admin/clients.csv', 'orion-clients-ltv.csv', () => 'client,nom')} onBehaviorPdf={() => void downloadFile('/admin/clients/behavior.pdf', 'orion-comportement-clients.pdf')} onContact={(p) => void contacter(p)} />}
         {section === 'messagesClients' && <MessagesClientsSection canWrite={can('notify:write')} canControle={can('alerts:write')} rides={rides} onAlerte={() => setSection('alerts')} />}
         {section === 'notify' && <NotifySection broadcasts={broadcasts} triggers={triggers} canWrite={can('notify:write')} onSend={sendBroadcast} onTrigger={runTrigger} />}
@@ -1756,7 +1831,9 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'habilitations' && <HabilitationsSection can={can} />}
       </main>
 
-      {driverSel && <DriverDrawer d={driverSel} onClose={() => setDriverSel(null)} />}
+      {driverSel && <DriverDrawer d={driverSel} onClose={() => setDriverSel(null)} onAttribuer={can('drivers:write') ? (valider) => void ouvrirAttribution(driverSel.id, valider) : undefined} />}
+      {attribution && <DialogueAttribution fiche={attribution.fiche} valider={attribution.valider} onFermer={() => setAttribution(null)} onFait={attributionFaite} />}
+      {courseAAttribuer && <DialogueAttribuerCourse course={courseAAttribuer} flotte={fleet} onFermer={() => setCourseAAttribuer(null)} onFait={() => { setCourseAAttribuer(null); void refresh(); }} />}
       {(mdpOuvert || me?.mustChangePassword) && (
         <ChangerMotDePasse
           obligatoire={Boolean(me?.mustChangePassword)}

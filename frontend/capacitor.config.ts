@@ -25,11 +25,17 @@ const TESTS: Record<string, { appId: string; appName: string; webDir: string; pa
   'test-console': { appId: 'ci.orion.test.console', appName: 'ORION Console test', webDir: 'dist-test-console', path: 'test/console/android' },
 };
 const test = TESTS[process.env.ORION_APP ?? ''];
+/**
+ * App native « ORION Console » (ORION_APP=console) : la console d'administration sur
+ * téléphone, projet console/android, app web dist-console (admin.html devient la page
+ * d'accueil). Voir scripts/construire-app-console.mjs.
+ */
+const appConsole = process.env.ORION_APP === 'console';
 
 const config: CapacitorConfig = {
-  appId: test?.appId ?? (chauffeur ? 'ci.orion.chauffeur' : 'ci.orion.app'),
-  appName: test?.appName ?? (chauffeur ? 'ORION Chauffeur' : 'ORION'),
-  webDir: test?.webDir ?? (chauffeur ? 'dist-chauffeur' : 'dist'),
+  appId: test?.appId ?? (appConsole ? 'ci.orion.console' : chauffeur ? 'ci.orion.chauffeur' : 'ci.orion.app'),
+  appName: test?.appName ?? (appConsole ? 'ORION Console' : chauffeur ? 'ORION Chauffeur' : 'ORION'),
+  webDir: test?.webDir ?? (appConsole ? 'dist-console' : chauffeur ? 'dist-chauffeur' : 'dist'),
   backgroundColor: '#0c0d0f',
   plugins: {
     SplashScreen: { launchShowDuration: 0 },
@@ -43,7 +49,7 @@ const config: CapacitorConfig = {
     // ProMotion / taux de rafraîchissement adaptatif (jusqu'à 120 Hz) géré par le système.
   },
   android: {
-    ...(test ? { path: test.path } : chauffeur ? { path: 'chauffeur/android' } : {}),
+    ...(test ? { path: test.path } : appConsole ? { path: 'console/android' } : chauffeur ? { path: 'chauffeur/android' } : {}),
     allowMixedContent: false,
   },
 };

@@ -49,6 +49,8 @@ export interface GeoIndex {
   nearby(center: LatLng, radiusMeters: number, limit?: number): Promise<GeoNeighbor[]>;
   /** Toutes les positions vivantes (non expirées) — supervision de flotte. */
   snapshot(): Promise<GeoEntry[]>;
+  /** Dernière position vivante d'un véhicule (null si inconnue ou expirée). */
+  position?(id: string): Promise<LatLng | null>;
   size(): Promise<number>;
 }
 
@@ -86,6 +88,11 @@ export class InMemoryGeoIndex implements GeoIndex {
     }
     result.sort((a, b) => a.distanceMeters - b.distanceMeters);
     return result.slice(0, limit);
+  }
+
+  async position(id: string): Promise<LatLng | null> {
+    const e = this.entries.get(id);
+    return e && e.expiresAt > Date.now() ? { lat: e.lat, lng: e.lng } : null;
   }
 
   async snapshot(): Promise<GeoEntry[]> {

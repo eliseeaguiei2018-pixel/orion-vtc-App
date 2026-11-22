@@ -25,9 +25,14 @@ export async function realtimeRoutes(app: FastifyInstance, container: Container)
   });
 
   app.register(async (scoped) => {
-    scoped.get('/ws/rides/:id', { websocket: true }, (socket, req) => {
+    scoped.get('/ws/rides/:id', { websocket: true }, async (socket, req) => {
       const { id } = req.params as { id: string };
-      attach(socket, container, rideRoom(id), { rideId: id });
+      // Dernière position connue du chauffeur, envoyée dès la connexion : le passager voit
+      // tout de suite où est sa voiture et dans combien de temps elle arrive.
+      const ride = container.rides.get(id);
+      const enApproche = ride?.driverId && ['accepted', 'driver_en_route', 'arrived', 'in_progress'].includes(ride.status);
+      const positionChauffeur = enApproche ? await container.geo.position?.(ride.driverId!).catch(() => null) ?? null : null;
+      attach(socket, container, rideRoom(id), { rideId: id, ...(positionChauffeur ? { positionChauffeur } : {}) });
     });
 
     // Supervision : positions et identités de personnes en détresse. Le contrôle se

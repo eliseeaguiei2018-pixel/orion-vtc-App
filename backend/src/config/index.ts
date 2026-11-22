@@ -16,7 +16,7 @@ const schema = z.object({
   // personnel ORION (la console interroge beaucoup), et par adresse pour l'anonyme — une
   // adresse d'opérateur mobile est partagée par de nombreux téléphones (voir core/limiteur.ts).
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(240),
-  RATE_LIMIT_MAX_STAFF: z.coerce.number().int().positive().default(1200),
+  RATE_LIMIT_MAX_STAFF: z.coerce.number().int().positive().default(2400),
   RATE_LIMIT_MAX_IP: z.coerce.number().int().positive().default(600),
   RATE_LIMIT_WINDOW: z.string().default('1 minute'),
 

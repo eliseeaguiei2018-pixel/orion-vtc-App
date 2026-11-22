@@ -49,7 +49,7 @@ import { GpsCarte, type GpsCarteValeur } from './components/gpsCarte';
 import { useTrajetTarif } from './tarifTrajet';
 import { alleger, optionRetenue, useItineraires, type ChoixItineraire, type Itineraires, type OptionItineraire } from './itinerairesPeage';
 import { ChoixRoute } from './components/ChoixRoute';
-import { BAREME, dansDistrictAbidjan } from './tarifServeur';
+import { BAREME, dansDistrictAbidjan, distanceVol } from './tarifServeur';
 import { useTheme } from './theme';
 
 const PAYMENTS = [
@@ -2404,7 +2404,9 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
     const ws = new WebSocket(url);
     ws.onmessage = (ev) => {
       try {
-        const m = JSON.parse(ev.data as string) as { type: string; data: { position?: LatLng; status?: string; driver?: SafeDriver | null } };
+        const m = JSON.parse(ev.data as string) as { type: string; data: { position?: LatLng; status?: string; driver?: SafeDriver | null }; positionChauffeur?: LatLng };
+        // À la connexion, le serveur donne la dernière position connue du chauffeur.
+        if (m.type === 'connected' && m.positionChauffeur) setCarPos(m.positionChauffeur);
         if (m.type === 'driver.location' && m.data.position) setCarPos(m.data.position);
         if (m.type === 'ride.reassigned' && m.data.driver) onReassigned?.(m.data.driver);
         if (m.type === 'message') onMessage?.(m.data as unknown as MessageOrion);
@@ -2461,7 +2463,13 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, live]);
 
-  const banner = phase === 'enroute' ? `${driver.name} ${t('track_arrives')} · ${tier.eta} ${t('est_min')}`
+  // Temps d'approche RÉEL : d'après la position du chauffeur (course reliée au serveur ou test
+  // temps réel), à vitesse urbaine (25 km/h, détours compris : distance × 1,3). Un chauffeur à
+  // 11 km n'« arrive » pas « dans 3 min ». Sans position connue : l'estimation de la gamme.
+  const approcheMin = (live || (TEMPS_REEL && codeTest)) && carPos
+    ? Math.max(1, Math.round((distanceVol(carPos, origin.location) * 1.3) / 1000 / 25 * 60))
+    : tier.eta;
+  const banner = phase === 'enroute' ? `${driver.name} ${t('track_arrives')} · ${approcheMin} ${t('est_min')}`
     : phase === 'arrived' ? (del ? t('del_picked') : t('track_arrived'))
     : (del ? t('del_enroute') : t('track_enroute'));
   const eta = phase === 'inprogress' ? `${t('track_dest')} · ${destination.name}` : (del ? t('del_meeting') : t('track_meeting'));
