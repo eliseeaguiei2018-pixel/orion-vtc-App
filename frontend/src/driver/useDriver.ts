@@ -24,7 +24,7 @@ const errMsg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.
 /** Normalise une config publique reçue (HTTP ou WS) — même logique que l'app cliente. */
 function toAppConfig(c: Partial<AppConfig> | undefined): AppConfig | null {
   if (!c) return null;
-  return { city: c.city ?? 'Abidjan', open: c.open ?? true, services: c.services ?? {}, gateways: c.gateways ?? {}, currency: c.currency ?? 'XOF' };
+  return { city: c.city ?? 'Abidjan', open: c.open ?? true, services: c.services ?? {}, gateways: c.gateways ?? {}, currency: c.currency ?? 'XOF', codeWhatsApp: c.codeWhatsApp === true };
 }
 
 /**
@@ -356,8 +356,8 @@ export function useDriver() {
   }, [showToast]);
 
   const actions = {
-    async requestOtp(phone: string) {
-      try { return await backend.requestOtp(phone); } catch (e) { showToast(errMsg(e), 'danger'); return null; }
+    async requestOtp(phone: string, canal: 'sms' | 'whatsapp' = 'sms') {
+      try { return await backend.requestOtp(phone, canal); } catch (e) { showToast(errMsg(e), 'danger'); return null; }
     },
     async verifyOtp(phone: string, code: string, name?: string, category?: string) {
       try {

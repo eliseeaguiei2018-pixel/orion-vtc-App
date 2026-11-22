@@ -6,7 +6,7 @@ import { DEFAULT_ORIGIN } from '../../data';
 import type { DriverApp } from '../useDriver';
 import { Banner, BoutonLangue, VehiculeChauffeur } from '../ui';
 import { LienServeur } from './Serveur';
-import { IconBolt, IconChevron, IconLeaf, IconShield } from '../../icons';
+import { IconBolt, IconChevron, IconLeaf, IconPhone, IconShield } from '../../icons';
 import { tr } from '../i18n';
 
 /**
@@ -26,14 +26,19 @@ export function Login({ app }: { app: DriverApp }) {
   const [devCode, setDevCode] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   const [actif, setActif] = useState(true);
+  // Canal du dernier code demandé : le renvoi passe par le même (SMS ou WhatsApp).
+  const [canal, setCanal] = useState<'sms' | 'whatsapp'>('sms');
   const champ = useRef<HTMLInputElement>(null);
   const closed = app.appConfig && !app.appConfig.open;
+  // Le bouton WhatsApp n'est proposé que si le serveur ORION sait envoyer le code par WhatsApp.
+  const whatsapp = app.live && app.appConfig?.codeWhatsApp === true;
 
-  const sendCode = async () => {
+  const sendCode = async (par: 'sms' | 'whatsapp' = canal) => {
     setBusy(true);
-    const r = await app.actions.requestOtp(phone);
+    const r = await app.actions.requestOtp(phone, par);
     setBusy(false);
     if (!r) return;
+    setCanal(par);
     setPhone(r.phone);
     setRegistered(r.registered);
     setDevCode(r.devCode);
@@ -73,18 +78,23 @@ export function Login({ app }: { app: DriverApp }) {
       {closed && <Banner tone="danger" icon={<IconShield size={18} />} title={tr('ORION est momentanément fermé')}>{tr('Maintenance en cours — vous pouvez vous connecter, la mise en ligne reprendra à la réouverture.')}</Banner>}
 
       {step === 'phone' ? (
-        <form className="dv-form" onSubmit={(e) => { e.preventDefault(); void sendCode(); }}>
+        <form className="dv-form" onSubmit={(e) => { e.preventDefault(); void sendCode('sms'); }}>
           <div className="field">
             <span className="dialcode"><Drapeau code="CI" taille={18} /> +225</span>
             <input type="tel" inputMode="tel" autoComplete="tel-national" aria-label={tr('Numéro de téléphone')} placeholder="07 08 09 10 11"
               value={phone} onChange={(e) => setPhone(e.target.value)} />
           </div>
           <button className="btn btn-primary" disabled={busy || phone.replace(/\D/g, '').length < 8}>{tr('Recevoir mon code')} <IconChevron size={18} /></button>
+          {whatsapp && (
+            <button type="button" className="btn btn-ghost" disabled={busy || phone.replace(/\D/g, '').length < 8} onClick={() => void sendCode('whatsapp')}>
+              <IconPhone size={18} /> {tr('Recevoir le code via WhatsApp')}
+            </button>
+          )}
           <p className="faint" style={{ fontSize: 12, textAlign: 'center' }}>{tr('Un code à 6 chiffres vous est envoyé par SMS.')}</p>
         </form>
       ) : (
         <form className="dv-form" onSubmit={(e) => { e.preventDefault(); void verify(); }}>
-          <div className="dv-label">{tr('Code reçu par SMS au {0}', [phone])}</div>
+          <div className="dv-label">{canal === 'whatsapp' ? tr('Code reçu sur WhatsApp au {0}', [phone]) : tr('Code reçu par SMS au {0}', [phone])}</div>
           {/* Même saisie que l'app cliente : un seul vrai champ affiché en six cases —
               frappe rapide, collage et remplissage automatique du SMS sans chiffre perdu. */}
           <label className="otp-row">

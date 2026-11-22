@@ -24,7 +24,8 @@ export interface DriverBackend {
   session(): Session | null;
   logout(): void;
 
-  requestOtp(phone: string): Promise<{ phone: string; registered: boolean; devCode?: string }>;
+  /** `canal` : 'whatsapp' pour recevoir le code sur WhatsApp (si le serveur l'annonce), SMS sinon. */
+  requestOtp(phone: string, canal?: 'sms' | 'whatsapp'): Promise<{ phone: string; registered: boolean; devCode?: string }>;
   verifyOtp(phone: string, code: string, name?: string, category?: string): Promise<{ driver: DriverProfile; created: boolean }>;
   /** Écran de véhicule : échange le code d'appairage affiché sur le téléphone contre une session. */
   appairerEcran(code: string): Promise<{ driverId: string }>;
@@ -192,7 +193,7 @@ function createLiveBackend(): DriverBackend {
     logout: () => { current = null; saveSession(null); },
 
     // reCAPTCHA Enterprise (si réglé) : le serveur n'envoie pas de SMS à un robot.
-    requestOtp: async (phone) => call('/drivers/auth/otp', { method: 'POST', body: JSON.stringify({ phone }), headers: await enTeteRecaptcha('connexion_chauffeur') }, false),
+    requestOtp: async (phone, canal) => call('/drivers/auth/otp', { method: 'POST', body: JSON.stringify(canal === 'whatsapp' ? { phone, canal } : { phone }), headers: await enTeteRecaptcha('connexion_chauffeur') }, false),
     async verifyOtp(phone, code, name, category) {
       const r = await call<{ token: string; expiresAt: string; driver: DriverProfile; created: boolean }>(
         '/drivers/auth/verify', { method: 'POST', body: JSON.stringify({ phone, code, name, category }) }, false);

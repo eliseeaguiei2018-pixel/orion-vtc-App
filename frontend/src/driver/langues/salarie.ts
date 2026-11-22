@@ -70,4 +70,7 @@ export const SALARIE: Ligne[] = [
   ['Le compte chauffeur vit sur le serveur : changer de serveur ferme la session en cours.', 'The driver account lives on the server: switching servers ends the current session.', 'La cuenta de conductor está en el servidor: cambiar de servidor cierra la sesión actual.', 'L’account autista risiede sul server: cambiare server chiude la sessione in corso.', 'حساب السائق موجود على الخادم: تغيير الخادم يُنهي الجلسة الحالية.', '司机账户保存在服务器上：更换服务器会结束当前会话。', 'Das Fahrerkonto liegt auf dem Server: Ein Serverwechsel beendet die laufende Sitzung.', 'Аккаунт водителя хранится на сервере: смена сервера завершает текущий сеанс.'],
   ['non relié', 'not connected', 'no conectado', 'non collegato', 'غير متصل', '未连接', 'nicht verbunden', 'не подключено'],
   ['Prime', 'Bonus', 'Prima', 'Premio', 'المكافأة', '奖金', 'Prämie', 'Премия'],
+  // Connexion : code par WhatsApp
+  ['Recevoir le code via WhatsApp', 'Get the code via WhatsApp', 'Recibir el código por WhatsApp', 'Ricevi il codice su WhatsApp', 'استلام الرمز عبر واتساب', '通过 WhatsApp 获取验证码', 'Code per WhatsApp erhalten', 'Получить код в WhatsApp'],
+  ['Code reçu sur WhatsApp au {0}', 'Code sent on WhatsApp to {0}', 'Código enviado por WhatsApp al {0}', 'Codice inviato su WhatsApp al {0}', 'تم إرسال الرمز عبر واتساب إلى {0}', '验证码已通过 WhatsApp 发送至 {0}', 'Code per WhatsApp gesendet an {0}', 'Код отправлен в WhatsApp на {0}'],
 ];
