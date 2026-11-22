@@ -1399,3 +1399,9 @@ course, console, paiement du chauffeur) et la location sans mise à disposition.
 client ↔ chauffeur ↔ console ↔ tableau de bord : 10 sur 10.
 
 Versions : 1.6.0, code 19 (Android client et chauffeur, iOS, HarmonyOS) ; APK de test code 2.
+
+APK (même signature, certificat `de10eef9…bf7dc`), SHA-256 :
+- `ORION-client-1.6.0.apk` (code 19) : `9b61bb0d6edf43e8c17c72a5b2dc38b0a13267bfbd7a49ff3afad0ebebdc3e4f`
+- `ORION-chauffeur-1.6.0.apk` (code 19) : `45e4b092e4e51ff75f4b501c368e6ef6fe2fcddea523712a85b4740cec5f70f4`
+- `ORION-test-client-1.6.0.apk` (code 2) : `8ec3218b5320b5cc1b9fc491a756587f0e02c0550d7495cd006159a921d2f7eb`
+- `ORION-console-test-1.6.0.apk` (code 2) : `d8339ef432e72fbb7aa31bc77d4cf18fa96b625b4af61904d278e3cdcd2cf2cc`
