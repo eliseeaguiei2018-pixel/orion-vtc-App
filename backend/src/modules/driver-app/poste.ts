@@ -84,7 +84,7 @@ export function assurerIdentifiantChauffeur(container: Container, driverId: stri
   }
   const res = container.accounts.creer({
     name: d.name, role: 'chauffeur', driverId, matricule: d.matricule, phone: d.phone,
-    teamId: teamId ?? undefined, service: 'Chauffeurs', createdBy: 'Système ORION',
+    teamId: teamId ?? undefined, service: 'Chauffeurs', createdBy: 'Système ORION', sansMotDePasse: true,
   });
   if (!res.ok) return undefined;
   container.audit.log({ actor: 'Système ORION', role: 'super_admin', action: 'account.chauffeur_auto', target: res.account.username, details: { driverId, teamId: teamId ?? null } });

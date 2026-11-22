@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import websocket from '@fastify/websocket';
 import type { Container } from '../../container.js';
+import { config } from '../../config/index.js';
 import { CONFIG_ROOM, DASHBOARD_ROOM, EMERGENCY_ROOM, rideRoom, sosRoom } from './hub.js';
 import { accesPersonnel } from '../admin/acces-hors-console.js';
 
@@ -25,6 +26,28 @@ export async function realtimeRoutes(app: FastifyInstance, container: Container)
   });
 
   app.register(async (scoped) => {
+    // GARDE-FOU : nombre de canaux ouverts EN MÊME TEMPS depuis une même adresse. Large (une
+    // adresse d'opérateur mobile regroupe beaucoup de téléphones), mais borné : une seule
+    // machine ne peut pas épuiser la mémoire du serveur en ouvrant des canaux à l'infini.
+    const parAdresse = new Map<string, number>();
+    scoped.addHook('onRequest', async (req, reply) => {
+      if ((parAdresse.get(req.ip) ?? 0) >= config.WS_MAX_PAR_ADRESSE) {
+        await reply.code(429).send({ error: { code: 'RATE_LIMITED', message: 'Trop de connexions temps réel depuis cette adresse' } });
+      }
+    });
+    scoped.addHook('onRequest', async (req) => {
+      if (String(req.headers.upgrade ?? '').toLowerCase() !== 'websocket') return;
+      // Socket réel seulement (les canaux simulés des tests n'ont pas d'événement « close »).
+      const brut = req.raw.socket as { once?: (e: string, f: () => void) => unknown } | undefined;
+      if (typeof brut?.once !== 'function') return;
+      const ip = req.ip;
+      parAdresse.set(ip, (parAdresse.get(ip) ?? 0) + 1);
+      brut.once('close', () => {
+        const n = (parAdresse.get(ip) ?? 1) - 1;
+        if (n <= 0) parAdresse.delete(ip); else parAdresse.set(ip, n);
+      });
+    });
+
     scoped.get('/ws/rides/:id', { websocket: true }, async (socket, req) => {
       const { id } = req.params as { id: string };
       // Dernière position connue du chauffeur, envoyée dès la connexion : le passager voit

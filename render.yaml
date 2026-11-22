@@ -8,6 +8,16 @@ services:
     dockerContext: ./backend
     healthCheckPath: /health/ready
     autoDeploy: true
+    # Francfort : la région Render la plus proche d'Abidjan. Standard (1 processeur, 2 Go) :
+    # tient le banc « 5000 utilisateurs simultanés » (docs/12-test-de-charge.md).
+    region: frankfurt
+    plan: standard
+    # Disque persistant : comptes, courses, réglages et primes survivent aux redémarrages et
+    # aux mises à jour du serveur (base SQLite, voir PERSISTENCE et DB_PATH plus bas).
+    disk:
+      name: orion-donnees
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
@@ -15,12 +25,28 @@ services:
         value: "3000"
       - key: GEO_BACKEND
         value: memory
+      # Données durables sur le disque persistant (sinon tout repart de zéro à chaque redémarrage).
+      - key: PERSISTENCE
+        value: sqlite
+      - key: DB_PATH
+        value: /var/data/orion.db
+      # Identifiant du compte super-administrateur de démarrage (le PDG).
+      - key: ADMIN_USERNAME
+        value: pdg
+      # Vrais chauffeurs seulement (app chauffeur) : jamais de chauffeurs simulés en ligne.
       - key: SIMULATE_RIDES
-        value: "true"
-      # ⚠️ En production, restreindre CORS au domaine du front et aux apps mobiles, ex. :
-      # https://orion.vercel.app,capacitor://localhost,https://localhost
+        value: "false"
+      # Render place un relais devant le serveur : le limiteur doit voir l'adresse du téléphone.
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      # Journaux sobres à forte affluence (les erreurs et alertes restent écrites).
+      - key: LOG_LEVEL
+        value: warn
+      # Les trois applications (client, chauffeur, console) parlent au serveur depuis
+      # https://localhost (Android) et capacitor://localhost (iPhone). Ajouter ici l'adresse
+      # d'une version web le jour où elle existe (séparée par une virgule).
       - key: CORS_ORIGIN
-        value: "*"
+        value: "https://localhost,capacitor://localhost"
       # Jeton du dashboard Admin / supervision SAMU — définir un vrai secret dans Render.
       - key: ADMIN_TOKEN
         generateValue: true

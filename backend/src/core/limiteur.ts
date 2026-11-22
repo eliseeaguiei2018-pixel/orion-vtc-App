@@ -39,6 +39,13 @@ export function cleDeLimite(req: FastifyRequest): string {
     const cle = compteDuJeton(bearer);
     if (cle) return cle;
   }
+  // Canal temps réel de l'app chauffeur : le jeton voyage dans l'adresse (`?token=`), un
+  // WebSocket ne pouvant pas porter d'en-tête Authorization.
+  const jetonAdresse = (req.query as Record<string, unknown> | undefined)?.['token'];
+  if (typeof jetonAdresse === 'string' && jetonAdresse.length > 20) {
+    const cle = compteDuJeton(jetonAdresse);
+    if (cle) return cle;
+  }
   // Console dans un navigateur : session en cookie HttpOnly.
   const cookie = req.headers.cookie;
   if (cookie && cookie.includes(`${SESSION_COOKIE}=`)) {
@@ -48,6 +55,10 @@ export function cleDeLimite(req: FastifyRequest): string {
       if (cle) return cle;
     }
   }
+  // Ouverture d'un canal temps réel anonyme (configuration publique, suivi d'une course) :
+  // compteur à part, bien plus large. Derrière l'adresse partagée d'un opérateur mobile, des
+  // centaines de téléphones ouvrent (et rouvrent, au gré du réseau) leur canal en même temps.
+  if (String(req.headers.upgrade ?? '').toLowerCase() === 'websocket') return `ws:${req.ip}`;
   return `ip:${req.ip}`;
 }
 
@@ -55,5 +66,6 @@ export function cleDeLimite(req: FastifyRequest): string {
 export function plafondDeLimite(_req: FastifyRequest, cle: string): number {
   if (cle.startsWith('staff:')) return config.RATE_LIMIT_MAX_STAFF;
   if (cle.startsWith('ip:')) return config.RATE_LIMIT_MAX_IP;
+  if (cle.startsWith('ws:')) return config.RATE_LIMIT_MAX_WS_IP;
   return config.RATE_LIMIT_MAX;
 }

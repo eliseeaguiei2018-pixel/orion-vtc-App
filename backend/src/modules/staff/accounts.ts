@@ -133,6 +133,13 @@ export class StaffAccountService {
     teamId?: string;
     driverId?: string;
     createdBy: string;
+    /**
+     * Compte créé AUTOMATIQUEMENT (chauffeur inscrit depuis son app) : aucun mot de passe
+     * provisoire n'est communiqué à personne, l'accès s'ouvre quand le chauffeur choisit le
+     * sien depuis l'app. On ne calcule donc pas d'empreinte scrypt (coûteuse et bloquante) :
+     * une empreinte aléatoire ne correspond à aucun mot de passe.
+     */
+    sansMotDePasse?: boolean;
   }): CreationResult {
     const username = input.username?.trim().toLowerCase()
       ?? identifiantDepuisNom(input.name, (u) => this.comptes.has(u) || this.proteges.has(u));
@@ -145,8 +152,10 @@ export class StaffAccountService {
       return { ok: false, raison: 'chauffeur_deja_lie' };
     }
 
-    const motDePasse = motDePasseProvisoire();
-    const { salt, hash } = hashPassword(motDePasse);
+    const motDePasse = input.sansMotDePasse ? '' : motDePasseProvisoire();
+    const { salt, hash } = input.sansMotDePasse
+      ? { salt: randomBytes(16).toString('hex'), hash: randomBytes(32).toString('hex') }
+      : hashPassword(motDePasse);
     const compte: StaffAccount = {
       id: username,
       username,

@@ -4,6 +4,7 @@ import { EQUIPE } from './equipe';
 import { GESTION } from './gestion';
 import { NAVIGATION } from './navigation';
 import { VEHICULE } from './vehicule';
+import { SALARIE } from './salarie';
 
 /**
  * Tables de traduction de l'app Chauffeur, une ligne par phrase :
@@ -12,4 +13,4 @@ import { VEHICULE } from './vehicule';
  */
 export type Ligne = readonly [fr: string, en?: string, es?: string, it?: string, ar?: string, zh?: string, de?: string, ru?: string];
 
-export const TEXTES: Ligne[] = [...COMMUN, ...CONDUITE, ...GESTION, ...EQUIPE, ...NAVIGATION, ...VEHICULE];
+export const TEXTES: Ligne[] = [...COMMUN, ...CONDUITE, ...GESTION, ...EQUIPE, ...NAVIGATION, ...VEHICULE, ...SALARIE];

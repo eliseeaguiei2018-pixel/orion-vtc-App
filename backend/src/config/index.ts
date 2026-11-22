@@ -18,6 +18,10 @@ const schema = z.object({
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(240),
   RATE_LIMIT_MAX_STAFF: z.coerce.number().int().positive().default(2400),
   RATE_LIMIT_MAX_IP: z.coerce.number().int().positive().default(600),
+  // Ouvertures de canaux temps réel anonymes par minute et par adresse (voir core/limiteur.ts).
+  RATE_LIMIT_MAX_WS_IP: z.coerce.number().int().positive().default(6000),
+  // Canaux temps réel ouverts en même temps depuis une même adresse (garde-fou mémoire).
+  WS_MAX_PAR_ADRESSE: z.coerce.number().int().positive().default(5000),
   RATE_LIMIT_WINDOW: z.string().default('1 minute'),
 
   // Verrouillage d'estimation de prix.

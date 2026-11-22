@@ -15,8 +15,10 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
 # Index des lieux du district d'Abidjan (recherche d'adresses), lu par dist/modules/maps
 COPY data ./data
-# Utilisateur non-root (sécurité)
-USER node
+# Le serveur tourne sous le compte non-root « node » : le script d'entrée lui rend le dossier
+# du disque persistant (monté au nom de root), puis abandonne les droits root.
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 EXPOSE 3000
 # Health check pour l'orchestrateur
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \

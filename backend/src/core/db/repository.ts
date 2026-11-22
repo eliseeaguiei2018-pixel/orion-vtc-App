@@ -54,6 +54,8 @@ function getDb(): SqliteDb {
   if (config.DB_PATH !== ':memory:') mkdirSync(dirname(config.DB_PATH), { recursive: true });
   sharedDb = new DatabaseSync(config.DB_PATH);
   sharedDb.exec('PRAGMA journal_mode=WAL;');
+  // WAL + NORMAL : une écriture par changement d'état sans fsync à chaque fois (sûr en WAL).
+  sharedDb.exec('PRAGMA synchronous=NORMAL;');
   logger.info(`Persistance SQLite active (${config.DB_PATH})`);
   return sharedDb;
 }
