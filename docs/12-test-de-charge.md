@@ -103,3 +103,41 @@ Le test a aussi révélé trois défauts d'affichage :
 - la position d'une longue course se figeait après 200 points GPS.
 
 Les corrections côté serveur sont couvertes par `backend/tests/tenue-en-charge.test.ts`.
+
+## Banc « 5000 utilisateurs simultanés » (version 1.7.0, novembre 2026)
+
+`backend/scripts/banc-5000.ts` simule de vrais téléphones contre un serveur qui tourne :
+comptes créés par les routes des applications (code de connexion, session), canaux temps
+réel ouverts, positions GPS toutes les 5 s (3 s en course), courses de bout en bout jusqu'au
+paiement et à la note. Chaque téléphone a sa propre adresse (`X-Forwarded-For`, serveur
+lancé avec `TRUST_PROXY_HOPS=1`).
+
+```bash
+NODE_ENV=development TRUST_PROXY_HOPS=1 SIMULATE_RIDES=false LOG_LEVEL=warn OSRM_URL= \
+  PERSISTENCE=sqlite DB_PATH=/tmp/orion-banc.db node dist/server.js
+npx tsx scripts/banc-5000.ts --chauffeurs 1000 --clients 4000 --courses 800 --duree 180 --pid <pid>
+```
+
+Machine de test : 4 cœurs. 1000 chauffeurs en ligne en 4 s, 4000 clients connectés en 10 s,
+3 consoles de direction ouvertes, environ 5 400 canaux temps réel.
+
+| Mesure | Mémoire seule | Avec disque (SQLite, comme sur Render) |
+|---|---|---|
+| Requêtes | 55 043, 0 erreur, 0 refus | 54 972, 0 erreur, 0 refus |
+| Courses commandées → servies | 800 → 797 | 800 → 789 |
+| Sans chauffeur assez proche | 3 | 11 |
+| Délai commande → offre au chauffeur (p50 / p95 / p99) | 2 / 4 / 15 ms | 2 / 6 / 22 ms |
+| Position chauffeur (p50 / p95) | 2 / 11 ms | 2 / 11 ms |
+| Commande `POST /rides` (p50 / p95) | 4 / 10 ms | 4 / 14 ms |
+| Mémoire maximale du serveur | 402 Mo | 403 Mo |
+| Retard maximal de la boucle d'événements (p99) | 100 ms | 147 ms (pendant la rafale d'inscriptions) |
+
+Après le banc avec disque, la base contient bien les 1000 chauffeurs, les 4000 clients et
+les 800 courses : rien ne se perd au redémarrage.
+
+Corrections apportées par ce banc :
+- les ouvertures de canaux temps réel avaient leur propre plafond par adresse, distinct des
+  requêtes (une adresse d'opérateur mobile regroupe beaucoup de téléphones) ;
+- le jeton chauffeur passé sur le canal temps réel compte pour son compte, pas pour l'adresse ;
+- un plafond de canaux ouverts en même temps par adresse (`WS_MAX_PAR_ADRESSE`) ;
+- les comptes chauffeurs créés par la console ne calculent plus un mot de passe inutile.

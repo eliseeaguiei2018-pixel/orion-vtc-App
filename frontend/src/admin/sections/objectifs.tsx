@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AdminError, LIVE, adminGet, adminPut, fcfa } from '../api';
+import { consoleNative } from '../natif';
 
 /**
  * OBJECTIFS FINANCIERS (Direction Générale) : le chiffre d'affaires visé pour la journée,
@@ -56,7 +57,7 @@ export function ObjectifsFinanciersCarte({ peutModifier }: { peutModifier: boole
     <div className="adm-card">
       <div className="adm-card-h">
         <h3>Objectifs financiers</h3>
-        <a className="adm-btn ghost" style={{ textDecoration: 'none' }} href="./dashboard.html#objectifs" target="_blank" rel="noopener">Voir les courbes</a>
+        {!consoleNative() && <a className="adm-btn ghost" style={{ textDecoration: 'none' }} href="./dashboard.html#objectifs" target="_blank" rel="noopener">Voir les courbes</a>}
       </div>
       <p className="adm-muted" style={{ marginBottom: 12 }}>
         Chiffre d’affaires visé, en F CFA. Le tableau de bord compare chaque période à son objectif, heure par heure, jour par jour et mois par mois.

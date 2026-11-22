@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AdminError, LIVE, adminGet, adminPost } from '../api';
+import { consoleNative } from '../natif';
 
 /**
  * HABILITATIONS AU TABLEAU DE BORD (console).
@@ -75,7 +76,7 @@ export function HabilitationsSection({ can }: { can: (p: string) => boolean }) {
       <div className="adm-card">
         <div className="adm-card-h">
           <h3>Accès au tableau de bord</h3>
-          <a className="adm-btn ghost" style={{ textDecoration: 'none' }} href="./dashboard.html" target="_blank" rel="noopener">Ouvrir le tableau de bord</a>
+          {!consoleNative() && <a className="adm-btn ghost" style={{ textDecoration: 'none' }} href="./dashboard.html" target="_blank" rel="noopener">Ouvrir le tableau de bord</a>}
         </div>
         <p className="adm-muted" style={{ marginBottom: 10 }}>
           Accès de droit, sans démarche : {d.deDroit.join(', ')}. Un manager n’y accède que sur habilitation :

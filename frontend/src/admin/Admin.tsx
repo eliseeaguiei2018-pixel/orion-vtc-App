@@ -1641,8 +1641,9 @@ function Console({ onLogout }: { onLogout: () => void }) {
           <div className="adm-top-right">
             {/* Tableau de bord : de droit pour la direction, la trésorerie, la comptabilité et
                 l'informatique ; un manager le voit aussi, pour pouvoir y demander l'accès. */}
-            {(can('dashboard:read') || me.role === 'manager' || me.role === 'fleet_manager') && (
-              <a className="adm-btn ghost" href="./dashboard.html" target="_blank" rel="noopener" title={can('dashboard:read') ? 'Ouvrir le tableau de bord en direct (écran à part)' : 'Accès sur habilitation de la direction : demande possible depuis cet écran'} aria-label="Tableau de bord"><span className="adm-lbl"> Tableau de bord</span>{can('dashboard:read') ? '' : ''}</a>
+            {/* L'application téléphone ne livre pas l'écran à part du tableau de bord. */}
+            {!consoleNative() && (can('dashboard:read') || me.role === 'manager' || me.role === 'fleet_manager') && (
+              <a className="adm-btn ghost" href="./dashboard.html" target="_blank" rel="noopener" title={can('dashboard:read') ? 'Ouvrir le tableau de bord en direct (écran à part)' : 'Accès sur habilitation de la direction : demande possible depuis cet écran'} aria-label="Tableau de bord"><IconMonitor size={18} strokeWidth={1.5} aria-hidden /><span className="adm-lbl"> Tableau de bord</span></a>
             )}
             <button className="adm-btn ghost adm-mute" title={theme === 'dark' ? 'Passer en mode jour' : 'Passer en mode nuit'} onClick={toggleTheme}>
               {theme === 'dark' ? <IconSun size={18} strokeWidth={1.5} /> : <IconMoon size={18} strokeWidth={1.5} />}

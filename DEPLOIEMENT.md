@@ -7,6 +7,60 @@ puis (plus tard) une **app installable** sur téléphone.
 
 ---
 
+## Le serveur ORION en ligne (Render, depuis novembre 2026)
+
+Le serveur tourne sur Render, et les trois applications (client, chauffeur, console) y sont
+reliées dès l'installation.
+
+| | |
+|---|---|
+| Adresse | `https://orion-backend-lrkl.onrender.com` |
+| Service | `orion-backend`, région Francfort (la plus proche d'Abidjan) |
+| Formule | Standard : 1 processeur, 2 Go, toujours allumé (25 $/mois) |
+| Données | disque persistant de 1 Go, base SQLite `/var/data/orion.db` (0,25 $/mois) |
+| Mises à jour | à chaque envoi sur la branche de travail, ou « Manual Deploy » dans Render |
+
+Le fichier `render.yaml` décrit le même service (Blueprint).
+
+### Console : connexion du PDG
+- Identifiant : `pdg`. Mot de passe : dans Render → `orion-backend` → **Environment** →
+  `ADMIN_PASSWORD` (le bouton en forme d'œil l'affiche).
+- C'est le compte super-administrateur de démarrage : accès total à tous les domaines.
+  Créez ensuite votre compte nominatif dans **Personnel & accès**.
+- Pour changer ce mot de passe : modifiez `ADMIN_PASSWORD` dans Render, puis **Save** (le
+  serveur redémarre en une minute, les données restent sur le disque).
+
+### Opérateur SMS : indispensable pour les apps client et chauffeur
+Clients et chauffeurs se connectent avec un code reçu par SMS. Sans opérateur, le serveur
+refuse ces connexions (« L'envoi des codes par SMS n'est pas encore activé »). La console,
+elle, fonctionne déjà (identifiant et mot de passe).
+
+Le plus rapide pour un test sur le terrain : **Twilio**.
+1. Créez un compte sur twilio.com. L'essai gratuit n'envoie qu'aux numéros vérifiés :
+   ajoutez le vôtre et celui de votre testeur dans **Verified Caller IDs**.
+2. **Messaging → Settings → Geo permissions** : cochez la Côte d'Ivoire.
+3. Achetez un numéro capable d'envoyer des SMS (ou créez un Messaging Service).
+4. Dans Render → `orion-backend` → **Environment**, ajoutez :
+   - `SMS_PROVIDER` = `twilio`
+   - `TWILIO_ACCOUNT_SID` et `TWILIO_AUTH_TOKEN` (page d'accueil de la console Twilio)
+   - `TWILIO_FROM` (le numéro acheté, format +1…) ou `TWILIO_MESSAGING_SERVICE_SID`
+5. **Save** : le serveur redémarre, et les codes partent par SMS.
+
+Pour la production : Orange Côte d'Ivoire (section « Opérateur SMS » plus bas). Saisissez
+ces valeurs uniquement dans Render, jamais dans une conversation ni dans le dépôt.
+
+### Test sur le terrain à deux téléphones
+1. Le chauffeur installe l'APK chauffeur, crée son compte (code SMS), remplit son dossier.
+2. Dans l'APK console, le PDG ouvre **Équipages**, la fiche du chauffeur, puis
+   **Valider l'inscription** : gamme, véhicule, plaque. L'app du chauffeur reçoit la
+   validation en direct.
+3. Le chauffeur se met **En ligne**. Le client installe l'APK client, crée son compte et
+   commande : ORION cherche d'abord les chauffeurs les plus proches, puis élargit jusqu'à
+   30 km.
+4. Depuis la console, **Courses → Attribuer** envoie une course à un chauffeur précis.
+
+---
+
 ## ⭐ Le plus simple : un lien démo à partager (sans backend)
 
 L'app fonctionne en **mode démo** (données simulées) : il suffit de publier le **frontend**
