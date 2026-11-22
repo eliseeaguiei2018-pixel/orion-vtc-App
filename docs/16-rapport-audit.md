@@ -1345,3 +1345,57 @@ APK (code 18, version 1.5.9, même signature), SHA-256 :
 - `ORION-client-1.5.9.apk` : `ee8a108500e77ec9b54cb2add77bc02c9af77e7414a39b7051a6b5fab4b6d4ad`
 
 Codes HarmonyOS et iOS portés à 18.
+
+## 27. Version 1.6.0 : huit palettes, péage au choix, chauffeur à l'heure, feux tricolores, chauffeurs salariés (22 novembre)
+
+**Apparence (apps client et chauffeur).** Huit palettes au choix, sur deux rangées de quatre :
+vert, orange, bleu, blanc, jaune, marron, violet et rose (la huitième, non nommée dans la
+demande, est le rose ; elle se change en une ligne dans `src/theme.tsx`). La palette « Blanc »
+garde les thèmes clair et sombre purs : aucune teinte dans les fonds. Le thème se choisit sur
+trois vignettes (Clair, Sombre, Système) qui montrent l'écran tel qu'il sera.
+
+**Tarifs (serveur, apps, console).**
+- ORION Assurance : 4 % de la course (2 % auparavant ; un réglage enregistré à 2 % passe à 4 %
+  au démarrage du serveur).
+- Écart entre gammes : Or +5 % et Diamant +15 % dans le district d'Abidjan ; dès que le départ,
+  un arrêt ou l'arrivée est hors du district (contour officiel OCHA / CNTIG, HDX), Or +10 % et
+  Diamant +20 %. Les deux grilles se règlent dans la console (Tarification).
+- Pont à péage ou voie normale : quand le trajet peut passer par un péage, l'app propose les deux
+  itinéraires (durée avec le trafic, distance, montant du péage). Le prix de chaque gamme suit
+  l'itinéraire choisi : sa distance par la route, plus le péage, qui n'est pas majoré par la
+  gamme. Itinéraires : Google (variantes et route qui évite les péages), sinon OSRM ; à défaut
+  de voie normale proposée, le contournement connu du péage (pont Général-de-Gaulle pour le
+  pont Henri-Konan-Bédié, Adjamé pour le 4ᵉ pont, ancienne route pour Bassam). Postes : HKB,
+  4ᵉ pont, Grand-Bassam, Attinguié, Thomasset, 500 F chacun par défaut (montants réglables dans
+  la console). Le péage revient en entier au chauffeur, sans commission.
+
+**Mise à disposition à l'heure.** Retirée de la Location Signature (catalogue et réservations
+du serveur ; les réservations déjà faites restent lisibles), elle devient une course VTC : petite
+icône sablier dans la barre de recherche (« Plus tard » réduit pour lui faire place). Le client
+choisit le lieu de prise en charge, le début (maintenant ou à une heure précise), la durée
+(2 à 12 h) et la gamme. Prix = heures × tarif horaire de l'Argent (5 000 F TTC par défaut,
+réglable), puis la majoration de la gamme. Abidjan seulement (refus du serveur hors district).
+
+**Cartes.** Les 623 feux tricolores du district (regroupés en 301 carrefours, Overture Maps /
+OpenStreetMap) et les postes de péage apparaissent sur la carte Google de l'app cliente, la
+carte de l'app chauffeur, la console et le tableau de bord (feux à partir du zoom 14). Position
+précise : le GPS est écouté quelques secondes et le point le plus précis est retenu (arrêt à
+20 m) ; côté chauffeur, un point imprécis n'écrase plus un point GPS récent.
+
+**Chauffeur, console, console de test.** L'offre et la course montrent l'itinéraire choisi
+(pont à péage ou voie normale) et la durée d'une mise à disposition ; le guidage respecte le
+choix du client (contournement ou passage par le poste) ; la console affiche les deux dans la
+liste des courses.
+
+**Chauffeurs salariés.** Les chauffeurs ORION sont embauchés et payés au mois, sur les véhicules
+d'ORION. L'inscription ne demande plus de gamme ; le profil ne demande que les informations
+personnelles (nom, téléphone, date de naissance, permis) ; véhicule, gamme, immatriculation et
+matricule sont attribués par ORION et affichés en lecture seule ; la batterie est relevée par
+le véhicule. Le dossier n'exige plus aucune pièce du véhicule côté serveur.
+
+Tests : 428 (426 réussis, 2 ignorés), dont la parité de prix app / serveur pour le péage, la
+course hors d'Abidjan et la mise à disposition, l'itinéraire choisi de bout en bout (devis,
+course, console, paiement du chauffeur) et la location sans mise à disposition. Test croisé
+client ↔ chauffeur ↔ console ↔ tableau de bord : 10 sur 10.
+
+Versions : 1.6.0, code 19 (Android client et chauffeur, iOS, HarmonyOS) ; APK de test code 2.

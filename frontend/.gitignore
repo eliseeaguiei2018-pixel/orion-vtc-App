@@ -12,3 +12,5 @@ dist-test-client/
 dist-test-console/
 fumee-captures/
 dist-fumee/
+# Fichier local écarté le temps d'une construction d'APK (scripts de construction) : jamais versionné.
+.env.local.ecarte
