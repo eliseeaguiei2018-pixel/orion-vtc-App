@@ -1303,3 +1303,45 @@ neutre et translucide. Même chose pour les tuiles et le fil d'activité du tabl
 objets en volume restent là où ils montrent une chose (numéros de secours, packs de location),
 comme dans l'app client. Vérifié en clair et en sombre, sur ordinateur et sur téléphone, sans
 erreur JavaScript.
+
+## 26. Vidéo iPhone commentée, app chauffeur au visuel actuel de l'app client (22 novembre)
+
+**Vidéo.** Une course complète, filmée en temps réel dans l'app client 1.5.9 au format iPhone
+(402 × 874 points, barre d'état et Dynamic Island, identité Safari iOS), avec la carte Google en
+direct et une narration en voix d'homme : accueil, recherche de Riviera Golf, trois gammes, écran
+de confirmation, « Pourquoi ce prix », commande, chauffeur qui accepte depuis l'app ORION
+Chauffeur (registre de test partagé), approche par la route, code de prise en charge, contrôle de
+sécurité en course, paiement Orange Money, note de cinq étoiles. Le moteur filmé est Chromium au
+format et à l'identité de l'iPhone : ni Mac ni simulateur iOS n'est disponible ici. Le contenu
+affiché est celui que l'app iPhone embarque.
+
+Le tournage a fait apparaître trois défauts, corrigés :
+- la carte de l'écran de confirmation montrait tout le pays (marges de cadrage fixes plus hautes
+  que la bande de carte visible) : les marges suivent maintenant la taille de la carte ;
+- si l'app chauffeur passait en ligne avant que l'app client soit ouverte, une offre simulée la
+  rendait occupée puis la mettait en pause, et la commande voyait « aucun chauffeur en ligne » :
+  l'offre simulée est retirée dès que l'app client est reliée, sans pénalité ;
+- l'icône de l'app iPhone était encore l'ancienne feuille plate : elle est remplacée par la
+  feuille en volume, comme sur Android.
+
+**App chauffeur.** Elle reprend le visuel de l'app client d'aujourd'hui (et non celui de la
+version 1.2) :
+- objets de l'accueil dans la palette « vif » de l'app client, avec des matières naturelles.
+  Quatre objets ont été rendus pour l'occasion : mallette et portefeuille en cuir, batterie blanc
+  cassé à éclair vert, bouton SOS rouge sur socle blanc à bague d'acier (`scripts/rendus-3d`,
+  `public/rendus/urbain` et `vif`) ;
+- icônes au trait partout ailleurs ;
+- en-têtes sans carte : grand titre posé sur le fond, lueur de la couleur choisie en haut, logo
+  ORION sur l'accueil seulement ;
+- cartes et chiffres sur la surface teintée ;
+- onglets et objectifs en puces ;
+- solde sans aplat vert, avatar clair, bouton principal à l'encre de l'app client.
+
+Clair, sombre et écran de voiture vérifiés, sans erreur JavaScript. Test croisé client ↔
+chauffeur : 10 sur 10, puis 5 sur 5 pour le refus, l'annulation et le chauffeur hors ligne.
+
+APK (code 18, version 1.5.9, même signature), SHA-256 :
+- `ORION-chauffeur-1.5.9.apk` : `19adf61b3407311b82d3013b11c9d2612151172802f0aa470a3e9d05c43e195b`
+- `ORION-client-1.5.9.apk` : `ee8a108500e77ec9b54cb2add77bc02c9af77e7414a39b7051a6b5fab4b6d4ad`
+
+Codes HarmonyOS et iOS portés à 18.

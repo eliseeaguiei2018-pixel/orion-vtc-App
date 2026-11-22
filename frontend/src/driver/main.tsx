@@ -5,11 +5,16 @@ import ReactDOM from 'react-dom/client';
 import { ThemeProvider } from '../theme';
 import { I18nProvider } from '../i18n';
 import { DriverApp } from './Driver';
+import { definirStyle } from '../components/Vehicules';
 import '../polices.css';
 import '../index.css';
 import './driver.css';
 import '../premium.css';
 import { demarrerDiagnosticFluidite } from '../fps';
+
+// Même style que l'app cliente 1.5.9 : objets de l'accueil aux matières naturelles (palette
+// « vif »), icônes au trait partout ailleurs.
+definirStyle({ icones: 'trait', accueil: 'vif' });
 
 ReactDOM.createRoot(document.getElementById('driver-root')!).render(
   <React.StrictMode>

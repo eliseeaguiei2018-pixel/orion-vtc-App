@@ -34,11 +34,13 @@ export function BottomNav({ tab, onTab, alert }: { tab: Tab; onTab: (t: Tab) => 
  * En-tête de page en dégradé — la signature visuelle d'ORION, la même que l'accueil de
  * l'app cliente : marque, actions, titre, sous-titre, et un contenu libre (indicateurs).
  */
-export function PageHeader({ title, sub, right, children }: { title: string; sub?: string; right?: ReactNode; children?: ReactNode }) {
+/** En-tête de page, comme les volets de l'app cliente : grand titre sur le fond, actions à droite.
+ *  `marque` : le logo ORION en haut à gauche (accueil seulement). */
+export function PageHeader({ title, sub, right, children, marque = false }: { title: string; sub?: string; right?: ReactNode; children?: ReactNode; marque?: boolean }) {
   return (
-    <header className="dv-hero">
+    <header className={`dv-hero${marque ? '' : ' sans-marque'}`}>
       <div className="dv-hero-top">
-        <span className="dv-hero-brand"><LogoApp size={28} className="hub-logo-volume" /> ORION</span>
+        {marque ? <span className="dv-hero-brand"><LogoApp size={28} className="hub-logo-volume" /> ORION</span> : <span />}
         <span className="dv-hero-actions">{right}</span>
       </div>
       <h1>{title}</h1>

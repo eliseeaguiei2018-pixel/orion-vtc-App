@@ -596,3 +596,45 @@ a.dv-pill { text-decoration: none; }
 /* Préférences : mêmes réglages que l'app client (puces, pastilles de couleur, empreinte). */
 .dv-page .accent-choix { margin: 6px 0 4px; }
 .dv-page .chips { margin: 6px 0 4px; }
+
+/* ==========================================================================================
+   VERSION 1.5.9 — LE STYLE ACTUEL DE L'APP CLIENTE
+   ==========================================================================================
+   L'app chauffeur reprend le visuel de l'app cliente d'aujourd'hui, et non plus celui de la
+   version 1.2 : en-têtes sans carte (grand titre posé sur le fond, lueur de la couleur choisie
+   en haut, comme l'accueil client), cartes et chiffres sur la surface teintée, onglets et
+   choix en puces, solde sans aplat de couleur, avatar clair. Les objets de l'accueil viennent
+   de la palette « vif » (cuir, métal, papier : matières naturelles) ; ailleurs, icônes au trait
+   (définis dans src/driver/main.tsx). */
+:root .dv-app { background: var(--bg-0); }
+:root .dv-hero {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--rappel) 22%, var(--bg-0)) 0%, var(--bg-0) 100%);
+  border: 0; border-radius: 0; box-shadow: none;
+}
+:root .dv-hero h1 { font: 700 30px/1.1 var(--font-body); letter-spacing: -0.035em; color: var(--text); }
+:root .dv-hero-sub { color: var(--text-dim); }
+:root .dv-hero-kpi { background: color-mix(in srgb, var(--plein) 72%, transparent); border: 0; }
+:root .dv-page .card, :root .dv-stat, :root .dv-go-card, :root .dv-heat, :root .dv-code, :root .dv-qcm-opt, :root .dv-act,
+:root .dv-banner, :root .dv-lien-client {
+  background: var(--surface); border-color: transparent; box-shadow: none;
+}
+:root .dv-go-card { margin-top: 4px; }
+:root .dv-solde-pose { margin-top: 4px; }
+:root .dv-solde, :root .dv-solde.neg { background: var(--surface); color: var(--text); box-shadow: none; }
+:root .dv-solde .dv-stat-label { color: var(--text-dim); opacity: 1; }
+:root .dv-solde.neg .dv-solde-montant { color: var(--danger-ink); }
+:root .dv-solde-sub { opacity: 1; color: var(--text-dim); }
+/* Onglets et objectifs : les puces de l'app cliente (filet, fond teinté quand choisi). */
+:root .dv-seg { background: none; border: 0; padding: 0; gap: 8px; box-shadow: none; }
+:root .dv-seg button { border: 1px solid var(--stroke); border-radius: 999px; background: var(--plein); color: var(--text-dim); }
+:root .dv-seg button.on { background: rgba(var(--accent-rgb), 0.1); border-color: var(--green); color: var(--text); }
+/* Avatar : une pastille claire, initiales à l'encre, comme le compte client. */
+:root .dv-portrait-photo { background: var(--surface); color: var(--text); border: 1px solid var(--stroke); box-shadow: none; }
+/* Icônes des listes : au trait, sans bulle de couleur. */
+:root .dv-item-ico { background: none; border: 0; color: var(--text); }
+:root .dv-item-ico .objet-trait { color: var(--text); }
+/* Sans le logo (toutes les pages sauf l'accueil) : la cloche seule en haut à droite, le titre juste dessous. */
+:root .dv-hero.sans-marque .dv-hero-top { min-height: 40px; }
+:root .dv-hero.sans-marque h1 { margin-top: 2px; }
+/* Bouton principal : l'aplat de la couleur, texte à l'encre choisie pour lui (comme l'app cliente). */
+:root .dv-page .btn-primary, :root .dv-form .btn-primary { background: var(--accent-fill); color: var(--btn-on); }

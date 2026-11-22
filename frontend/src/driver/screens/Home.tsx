@@ -66,7 +66,7 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
 
   return (
     <div className="dv-page">
-      <PageHeader
+      <PageHeader marque
         title={tr('Bonjour {0}', [driver.name.split(' ')[0]])}
         sub={tr('{0} · Gamme {1}{2}', [driver.matricule, TIER_LABEL[driver.category] ?? driver.category, driver.vip ? tr(' · Top Driver') : ''])}
         right={<>
@@ -204,11 +204,11 @@ function LienAppClient({ live }: { live: boolean }) {
   );
 }
 
-/** Raccourci de l'accueil : objet en volume sur son carré, nom dessous, pastille de compte. */
+/** Raccourci de l'accueil : objet en volume (palette de l'accueil de l'app cliente) sur sa pastille, nom dessous. */
 function Raccourci({ objet, label, n = 0, rang, onClick }: { objet: ObjetService | Icone3D; label: string; n?: number; rang: number; onClick: () => void }) {
   return (
     <button className="tuile ronde" style={{ '--i': rang } as CSSProperties} onClick={onClick}>
-      <span className="tuile-fond"><Objet nom={objet} taille={64} />{n > 0 && <span className="dv-quick-n">{n}</span>}</span>
+      <span className="tuile-fond"><Objet nom={objet} taille={64} volume />{n > 0 && <span className="dv-quick-n">{n}</span>}</span>
       <strong className="tuile-nom">{label}</strong>
     </button>
   );

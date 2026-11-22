@@ -352,17 +352,21 @@ def historique():
 def alertes_sos():
     t = _teintes(); rouge = _rouge()
     o3.boite('socle', (0.86, 0.86, 0.22), (0, 0, 0.11), t['blanc'], rayon=0.07)
-    o3.cylindre('collerette', 0.34, 0.08, (0, 0, 0.25), t['violet'], arrondi=0.02)
+    # Palette urbaine : bague en acier, socle blanc cassé, bouton rouge (app chauffeur 1.5.9).
+    o3.cylindre('collerette', 0.34, 0.08, (0, 0, 0.25), t['metal'] if o3.URBAIN else t['violet'], arrondi=0.02)
     o3.cylindre('bouton', 0.27, 0.12, (0, 0, 0.33), rouge, arrondi=0.03)
     o3.sphere('dôme', 0.27, (0, 0, 0.38), rouge, echelle=(1, 1, 0.42))
 
 @rendu('portefeuille', azimut=110, elevation=16, **ICONE)
 def portefeuille():
     t = _teintes()
-    o3.boite('billet', (0.62, 0.02, 0.36), (0.08, 0.03, 0.66), t['vert'], rayon=0.01, rot=(0, 0.12, 0))
-    o3.boite('billet', (0.62, 0.02, 0.36), (-0.08, 0.06, 0.62), t['vert_clair'], rayon=0.01, rot=(0, -0.08, 0))
-    o3.boite('portefeuille', (0.92, 0.20, 0.60), (0, 0, 0.30), t['violet'], rayon=0.07)
-    o3.boite('rabat', (0.40, 0.06, 0.24), (0.30, -0.10, 0.32), t['violet_clair'], rayon=0.025)
+    # Palette urbaine : portefeuille en cuir fauve, billets de papier vert et ivoire.
+    b1, b2 = (M('billet', o3.hexa('#8CC59A'), rugosite=0.7, grain=0.3), t['ivoire']) if o3.URBAIN else (t['vert'], t['vert_clair'])
+    cuir, rabat = (t['cuir'], M('cuir foncé', o3.hexa('#7A4521'), rugosite=0.55, satin=0.35, grain=0.2)) if o3.URBAIN else (t['violet'], t['violet_clair'])
+    o3.boite('billet', (0.62, 0.02, 0.36), (0.08, 0.03, 0.66), b1, rayon=0.01, rot=(0, 0.12, 0))
+    o3.boite('billet', (0.62, 0.02, 0.36), (-0.08, 0.06, 0.62), b2, rayon=0.01, rot=(0, -0.08, 0))
+    o3.boite('portefeuille', (0.92, 0.20, 0.60), (0, 0, 0.30), cuir, rayon=0.07)
+    o3.boite('rabat', (0.40, 0.06, 0.24), (0.30, -0.10, 0.32), rabat, rayon=0.025)
     o3.cylindre('pression', 0.05, 0.03, (0.22, -0.14, 0.32), t['blanc'], rot=FACE, arrondi=0.008)
 
 @rendu('cadenas', azimut=106, elevation=12, **ICONE)
@@ -445,9 +449,12 @@ def domicile():
 def bureau():
     t = _teintes()
     o3.tube('poignée', [(-0.17, 0, 0.58), (-0.15, 0, 0.77), (0.15, 0, 0.77), (0.17, 0, 0.58)], 0.03, t['noir'])
-    o3.boite('mallette', (0.92, 0.28, 0.60), (0, 0, 0.30), t['violet'], rayon=0.07)
-    o3.boite('bande', (0.93, 0.29, 0.05), (0, 0, 0.38), t['violet_clair'], rayon=0.012)
-    o3.boite('fermoir', (0.14, 0.03, 0.12), (0, -0.145, 0.38), t['blanc'], rayon=0.012)
+    # Palette urbaine : mallette en cuir, sangle foncée, fermoir en acier.
+    corps, bande, fermoir = ((t['cuir'], M('sangle', o3.hexa('#5E3519'), rugosite=0.5, satin=0.3), t['metal']) if o3.URBAIN
+                             else (t['violet'], t['violet_clair'], t['blanc']))
+    o3.boite('mallette', (0.92, 0.28, 0.60), (0, 0, 0.30), corps, rayon=0.07)
+    o3.boite('bande', (0.93, 0.29, 0.05), (0, 0, 0.38), bande, rayon=0.012)
+    o3.boite('fermoir', (0.14, 0.03, 0.12), (0, -0.145, 0.38), fermoir, rayon=0.012)
 
 @rendu('banque', azimut=116, elevation=16, **ICONE)
 def banque():
@@ -566,10 +573,13 @@ def _or(): return M('or', (0.80, 0.58, 0.22), rugosite=0.26, metal=0.9)
 def eco():
     # Une batterie pleine : la mobilité électrique.
     t = _teintes()
-    o3.boite('pile', (0.58, 0.30, 0.78), (0, 0, 0.39), t['vert'], rayon=0.08)
-    o3.boite('socle', (0.60, 0.32, 0.16), (0, 0, 0.09), t['violet'], rayon=0.06)
+    # Palette urbaine : batterie blanc cassé sur socle anthracite, éclair vert.
+    pile, socle, eclair = ((t['blanc'], t['laque'], M('éclair', o3.hexa('#2FBF67'), rugosite=0.3, vernis=0.6)) if o3.URBAIN
+                           else (t['vert'], t['violet'], t['blanc']))
+    o3.boite('pile', (0.58, 0.30, 0.78), (0, 0, 0.39), pile, rayon=0.08)
+    o3.boite('socle', (0.60, 0.32, 0.16), (0, 0, 0.09), socle, rayon=0.06)
     o3.boite('borne', (0.24, 0.16, 0.09), (0, 0, 0.82), t['metal'], rayon=0.02)
-    _adoucir(_prisme('éclair', [(0.08, 0.72), (-0.15, 0.44), (-0.02, 0.44), (-0.08, 0.24), (0.15, 0.52), (0.02, 0.52)], -0.185, -0.145, t['blanc']), 0.008)
+    _adoucir(_prisme('éclair', [(0.08, 0.72), (-0.15, 0.44), (-0.02, 0.44), (-0.08, 0.24), (0.15, 0.52), (0.02, 0.52)], -0.185, -0.145, eclair), 0.008)
 
 @rendu('chauffeur', azimut=104, elevation=10, **ICONE)
 def chauffeur():
@@ -673,6 +683,8 @@ if __name__ == '__main__':
     # Sans nom donné : tout, dans l'ordre de la liste. Avec des noms : ceux-là, dans l'ordre demandé.
     for nom in (sys.argv[2:] or list(RENDUS)):
         fabrique, largeur, hauteur, azimut, elevation, marge, ortho = RENDUS[nom]
+        # ORION_TAILLE : rendre une icône de liste en grand (tuile d'accueil de l'app chauffeur).
+        if os.environ.get('ORION_TAILLE'): largeur = hauteur = int(os.environ['ORION_TAILLE'])
         t0 = time.time()
         scene = o3.vider(); cam = o3.studio(scene, largeur, hauteur, echantillons=int(os.environ.get('ECHANTILLONS', 96)), ombre=not ortho)
         fabrique()
