@@ -2,7 +2,7 @@ import { TableauDeBord } from './modules/dashboard/service.js';
 import { Geocodeur } from './modules/maps/geocodage.js';
 import { ServiceObjectifs } from './modules/dashboard/objectifs.js';
 import { ServiceHabilitations, type Habilitation } from './modules/dashboard/habilitations.js';
-import { creerSms, type SmsSender } from './modules/sms/index.js';
+import { creerSms, creerWhatsApp, type SmsSender, type WhatsAppSender } from './modules/sms/index.js';
 import { randomUUID } from 'node:crypto';
 import { createGeoIndex, type GeoIndex } from './core/geo.js';
 import { IdempotencyStore } from './core/idempotency.js';
@@ -171,6 +171,8 @@ export interface Container {
   rideRelease: RideReleaseService;
   /** Opérateur SMS : codes de connexion des clients et des chauffeurs. */
   sms: SmsSender;
+  /** Codes de connexion par WhatsApp (Twilio) ; null si le numéro WhatsApp n'est pas réglé. */
+  whatsapp: WhatsAppSender | null;
 }
 
 export function createContainer(): Container {
@@ -276,7 +278,8 @@ export function createContainer(): Container {
   // Diffusion temps réel de la config publique : à chaque changement piloté depuis la
   // console (maintenance, services, passerelles), toutes les apps clientes connectées au
   // canal WS `config` reçoivent la nouvelle config et se mettent à jour instantanément.
-  settings.onServicesChanged((cfg) => realtime.publish(CONFIG_ROOM, 'config.update', { ...cfg, currency: 'XOF' }));
+  // Même forme que GET /config (contrat app cliente), WhatsApp compris : lu au moment de la diffusion.
+  settings.onServicesChanged((cfg) => realtime.publish(CONFIG_ROOM, 'config.update', { ...cfg, currency: 'XOF', codeWhatsApp: container.whatsapp !== null }));
   // App CHAUFFEUR synchronisée : réglages flotte (délai d'offre, commissions, dette
   // espèces, heures creuses, zones) rediffusés à chaque changement console…
   settings.onDriverConfigChanged(() => realtime.publish(DRIVER_CONFIG_ROOM, 'driver-config.update', driverAppConfig(settings)));
@@ -412,6 +415,7 @@ export function createContainer(): Container {
     objectifs: new ServiceObjectifs(createRepository('objectifs')),
     habilitations: new ServiceHabilitations(createRepository<Habilitation>('habilitations_tableau')),
     sms: creerSms(config),
+    whatsapp: creerWhatsApp(config),
   };
   // La direction générale ne stocke rien, elle lit les autres modules. On la câble
   // après coup pour qu'elle voie l'intégralité du conteneur.

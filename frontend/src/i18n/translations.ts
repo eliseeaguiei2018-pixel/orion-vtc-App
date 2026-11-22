@@ -71,7 +71,7 @@ const fr: Dict = {
   seats: 'places', included: 'inclus',
   reg_title: 'Créer votre compte', reg_subtitle: 'Entrez votre numéro pour commencer',
   reg_name: 'Votre nom', reg_phone: 'Numéro de téléphone', reg_send: 'Recevoir le code',
-  otp_title: 'Vérification', otp_subtitle: 'Code envoyé au {phone}', otp_verify: 'Vérifier', otp_resend: 'Renvoyer le code',
+  otp_title: 'Vérification', otp_subtitle: 'Code envoyé au {phone}', otp_subtitle_wa: 'Code envoyé sur WhatsApp au {phone}', otp_verify: 'Vérifier', otp_resend: 'Renvoyer le code',
   set_theme: 'Thème', theme_auto: 'Auto', theme_light: 'Clair', theme_dark: 'Sombre',
   body_type: 'Carrosserie', body_suv: 'SUV', body_berline: 'Berline',
   traffic_label: 'Trafic', traffic_fluid: 'Fluide', traffic_dense: 'Dense', traffic_jam: 'Embouteillage',
@@ -365,7 +365,7 @@ const en: Dict = {
   seats: 'seats', included: 'included',
   reg_title: 'Create your account', reg_subtitle: 'Enter your number to get started',
   reg_name: 'Your name', reg_phone: 'Phone number', reg_send: 'Get the code',
-  otp_title: 'Verification', otp_subtitle: 'Code sent to {phone}', otp_verify: 'Verify', otp_resend: 'Resend code',
+  otp_title: 'Verification', otp_subtitle: 'Code sent to {phone}', otp_subtitle_wa: 'Code sent on WhatsApp to {phone}', otp_verify: 'Verify', otp_resend: 'Resend code',
   set_theme: 'Theme', theme_auto: 'Auto', theme_light: 'Light', theme_dark: 'Dark',
   body_type: 'Body type', body_suv: 'SUV', body_berline: 'Sedan',
   traffic_label: 'Traffic', traffic_fluid: 'Light', traffic_dense: 'Heavy', traffic_jam: 'Jam',
@@ -652,7 +652,7 @@ const es: Dict = {
   seats: 'plazas', included: 'incluido',
   reg_title: 'Crea tu cuenta', reg_subtitle: 'Introduce tu número para empezar',
   reg_name: 'Tu nombre', reg_phone: 'Número de teléfono', reg_send: 'Recibir el código',
-  otp_title: 'Verificación', otp_subtitle: 'Código enviado al {phone}', otp_verify: 'Verificar', otp_resend: 'Reenviar código',
+  otp_title: 'Verificación', otp_subtitle: 'Código enviado al {phone}', otp_subtitle_wa: 'Código enviado por WhatsApp al {phone}', otp_verify: 'Verificar', otp_resend: 'Reenviar código',
   set_theme: 'Tema', theme_auto: 'Auto', theme_light: 'Claro', theme_dark: 'Oscuro',
   /* Complété lors de l’audit : ces clés retombaient en français. */
   act_addstop: 'Añadir una parada',
@@ -1029,7 +1029,7 @@ const it: Dict = {
   seats: 'posti', included: 'incluso',
   reg_title: 'Crea il tuo account', reg_subtitle: 'Inserisci il numero per iniziare',
   reg_name: 'Il tuo nome', reg_phone: 'Numero di telefono', reg_send: 'Ricevi il codice',
-  otp_title: 'Verifica', otp_subtitle: 'Codice inviato al {phone}', otp_verify: 'Verifica', otp_resend: 'Invia di nuovo',
+  otp_title: 'Verifica', otp_subtitle: 'Codice inviato al {phone}', otp_subtitle_wa: 'Codice inviato su WhatsApp al {phone}', otp_verify: 'Verifica', otp_resend: 'Invia di nuovo',
   set_theme: 'Tema', theme_auto: 'Auto', theme_light: 'Chiaro', theme_dark: 'Scuro',
   /* Complété lors de l’audit : ces clés retombaient en français. */
   act_addstop: 'Aggiungi una fermata',
@@ -1406,7 +1406,7 @@ const de: Dict = {
   seats: 'Sitze', included: 'inklusive',
   reg_title: 'Konto erstellen', reg_subtitle: 'Nummer eingeben, um zu starten',
   reg_name: 'Ihr Name', reg_phone: 'Telefonnummer', reg_send: 'Code erhalten',
-  otp_title: 'Verifizierung', otp_subtitle: 'Code gesendet an {phone}', otp_verify: 'Bestätigen', otp_resend: 'Code erneut senden',
+  otp_title: 'Verifizierung', otp_subtitle: 'Code gesendet an {phone}', otp_subtitle_wa: 'Code per WhatsApp gesendet an {phone}', otp_verify: 'Bestätigen', otp_resend: 'Code erneut senden',
   set_theme: 'Design', theme_auto: 'Auto', theme_light: 'Hell', theme_dark: 'Dunkel',
   /* Complété lors de l’audit : ces clés retombaient en français. */
   act_addstop: 'Zwischenstopp hinzufügen',
@@ -1783,7 +1783,7 @@ const ar: Dict = {
   seats: 'مقاعد', included: 'مشمول',
   reg_title: 'أنشئ حسابك', reg_subtitle: 'أدخل رقمك للبدء',
   reg_name: 'اسمك', reg_phone: 'رقم الهاتف', reg_send: 'استلام الرمز',
-  otp_title: 'التحقق', otp_subtitle: 'تم إرسال الرمز إلى {phone}', otp_verify: 'تحقّق', otp_resend: 'إعادة إرسال الرمز',
+  otp_title: 'التحقق', otp_subtitle: 'تم إرسال الرمز إلى {phone}', otp_subtitle_wa: 'تم إرسال الرمز عبر واتساب إلى {phone}', otp_verify: 'تحقّق', otp_resend: 'إعادة إرسال الرمز',
   set_theme: 'السمة', theme_auto: 'تلقائي', theme_light: 'فاتح', theme_dark: 'داكن',
   /* Complété lors de l’audit : ces clés retombaient en français. */
   act_addstop: 'إضافة محطة',
@@ -2160,7 +2160,7 @@ const zh: Dict = {
   seats: '座', included: '已含',
   reg_title: '创建账户', reg_subtitle: '输入号码即可开始',
   reg_name: '你的名字', reg_phone: '手机号码', reg_send: '获取验证码',
-  otp_title: '验证', otp_subtitle: '验证码已发送至 {phone}', otp_verify: '验证', otp_resend: '重新发送',
+  otp_title: '验证', otp_subtitle: '验证码已发送至 {phone}', otp_subtitle_wa: '验证码已通过 WhatsApp 发送至 {phone}', otp_verify: '验证', otp_resend: '重新发送',
   set_theme: '主题', theme_auto: '自动', theme_light: '浅色', theme_dark: '深色',
   /* Complété lors de l’audit : ces clés retombaient en français. */
   act_addstop: '添加途经点',
@@ -2537,7 +2537,7 @@ const ru: Dict = {
   seats: 'мест', included: 'включено',
   reg_title: 'Создайте аккаунт', reg_subtitle: 'Введите номер, чтобы начать',
   reg_name: 'Ваше имя', reg_phone: 'Номер телефона', reg_send: 'Получить код',
-  otp_title: 'Подтверждение', otp_subtitle: 'Код отправлен на {phone}', otp_verify: 'Подтвердить', otp_resend: 'Отправить код снова',
+  otp_title: 'Подтверждение', otp_subtitle: 'Код отправлен на {phone}', otp_subtitle_wa: 'Код отправлен в WhatsApp на {phone}', otp_verify: 'Подтвердить', otp_resend: 'Отправить код снова',
   set_theme: 'Тема', theme_auto: 'Авто', theme_light: 'Светлая', theme_dark: 'Тёмная',
   /* Complété lors de l’audit : ces clés retombaient en français. */
   act_addstop: 'Добавить остановку',

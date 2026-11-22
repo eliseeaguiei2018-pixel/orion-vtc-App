@@ -49,14 +49,14 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
 
   // Étape 1 : le chauffeur saisit son numéro → code à 6 chiffres envoyé par SMS.
   app.post('/drivers/auth/otp', async (req) => {
-    const body = parse(z.object({ phone: z.string().min(6).max(25) }), req.body);
+    const body = parse(z.object({ phone: z.string().min(6).max(25), canal: z.enum(['sms', 'whatsapp']).optional() }), req.body);
     const phone = normalizePhone(body.phone);
     if (!phone) throw badRequest('Numéro de téléphone invalide');
     // reCAPTCHA Enterprise (si configuré) : pas de SMS pour un robot.
     await exigerHumain(container.securiteGoogle, req, 'connexion_chauffeur');
     // Envoi par l'opérateur SMS (Orange Côte d'Ivoire ou Twilio) : on ne journalise
     // jamais le code ni le numéro complet.
-    const issued = await emettreCode({ sms: container.sms, otps, phone, pour: 'chauffeur', log: req.log });
+    const issued = await emettreCode({ sms: container.sms, whatsapp: container.whatsapp, canal: body.canal, otps, phone, pour: 'chauffeur', log: req.log });
     req.log.info({ phone: maskPhone(phone), sms: issued.envoye }, 'Code de connexion chauffeur émis');
     return {
       sent: true,

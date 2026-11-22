@@ -141,6 +141,13 @@ const schema = z.object({
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_FROM: z.string().optional(),
   TWILIO_MESSAGING_SERVICE_SID: z.string().optional(),
+  // CODES PAR WHATSAPP (Twilio, mêmes identifiants TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN) :
+  // numéro WhatsApp d'expédition (bac à sable Twilio +14155238886, ou le numéro WhatsApp
+  // Business d'ORION). Vide : le bouton « Recevoir le code via WhatsApp » n'est pas proposé.
+  TWILIO_WHATSAPP_FROM: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  // Modèle WhatsApp « authentification » approuvé par Meta (identifiant HX…, Content Template
+  // Builder de Twilio) : obligatoire hors bac à sable. Vide : message libre (bac à sable).
+  TWILIO_WHATSAPP_CONTENT_SID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
   // Validité d'un code SMS de connexion (secondes).
   DRIVER_OTP_TTL_SECONDS: z.coerce.number().int().positive().default(300),
   // Mode STRICT : si "true", le jeton chauffeur devient OBLIGATOIRE sur toutes les routes
@@ -263,6 +270,9 @@ const schema = z.object({
   }
   if (c.SMS_PROVIDER === 'orange' && (!c.ORANGE_SMS_CLIENT_ID || !c.ORANGE_SMS_CLIENT_SECRET)) {
     ctx.addIssue({ code: 'custom', path: ['ORANGE_SMS_CLIENT_ID'], message: 'SMS_PROVIDER=orange : ORANGE_SMS_CLIENT_ID et ORANGE_SMS_CLIENT_SECRET sont requis' });
+  }
+  if (c.TWILIO_WHATSAPP_FROM && (!c.TWILIO_ACCOUNT_SID || !c.TWILIO_AUTH_TOKEN)) {
+    ctx.addIssue({ code: 'custom', path: ['TWILIO_WHATSAPP_FROM'], message: 'TWILIO_WHATSAPP_FROM : TWILIO_ACCOUNT_SID et TWILIO_AUTH_TOKEN sont requis pour envoyer les codes par WhatsApp' });
   }
   if (c.SMS_PROVIDER === 'twilio' && (!c.TWILIO_ACCOUNT_SID || !c.TWILIO_AUTH_TOKEN || (!c.TWILIO_FROM && !c.TWILIO_MESSAGING_SERVICE_SID))) {
     ctx.addIssue({ code: 'custom', path: ['TWILIO_ACCOUNT_SID'], message: 'SMS_PROVIDER=twilio : TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN et TWILIO_FROM (ou TWILIO_MESSAGING_SERVICE_SID) sont requis' });

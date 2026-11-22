@@ -67,7 +67,7 @@ test('WS /ws/config : état initial à la connexion puis diffusion des changemen
   // La trame de diffusion garde exactement la forme de GET /config (contrat client).
   const update = frames.filter((f) => f.type === 'config.update').pop()!;
   const body = payload(update)!;
-  assert.deepEqual(Object.keys(body).sort(), ['city', 'currency', 'gateways', 'open', 'services']);
+  assert.deepEqual(Object.keys(body).sort(), ['city', 'codeWhatsApp', 'currency', 'gateways', 'open', 'services']);
 });
 
 test('GET /config et le canal WS exposent la même forme (contrat app cliente)', async (t) => {
@@ -76,6 +76,6 @@ test('GET /config et le canal WS exposent la même forme (contrat app cliente)',
   t.after(() => app.close());
 
   const http = (await app.inject({ method: 'GET', url: '/config' })).json();
-  assert.deepEqual(Object.keys(http).sort(), ['city', 'currency', 'gateways', 'open', 'services']);
+  assert.deepEqual(Object.keys(http).sort(), ['city', 'codeWhatsApp', 'currency', 'gateways', 'open', 'services']);
   assert.equal(http.currency, 'XOF');
 });

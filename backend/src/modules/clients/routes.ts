@@ -54,7 +54,7 @@ export async function clientAccountRoutes(app: FastifyInstance, container: Conta
   /* ------------------------------ Inscription / connexion ------------------------------ */
 
   app.post('/clients/auth/otp', async (req) => {
-    const body = parse(z.object({ phone: z.string().min(6).max(25) }), req.body);
+    const body = parse(z.object({ phone: z.string().min(6).max(25), canal: z.enum(['sms', 'whatsapp']).optional() }), req.body);
     const phone = normalizePhone(body.phone);
     if (!phone) throw badRequest('Numéro de téléphone invalide');
     // reCAPTCHA Enterprise (si configuré) : pas de SMS pour un robot.
@@ -63,10 +63,10 @@ export async function clientAccountRoutes(app: FastifyInstance, container: Conta
     const revue = config.CLIENT_REVIEW_PHONE && config.CLIENT_REVIEW_CODE
       && normalizePhone(config.CLIENT_REVIEW_PHONE) === phone ? config.CLIENT_REVIEW_CODE : undefined;
     // Envoi par l'opérateur SMS ; ni le code ni le numéro complet ne sont journalisés.
-    const issued = await emettreCode({ sms: container.sms, otps, phone, pour: 'client', log: req.log, codeImpose: revue });
-    req.log.info({ phone: masquer(phone), revue: Boolean(revue), sms: issued.envoye }, 'Code de connexion client émis');
+    const issued = await emettreCode({ sms: container.sms, whatsapp: container.whatsapp, canal: body.canal, otps, phone, pour: 'client', log: req.log, codeImpose: revue });
+    req.log.info({ phone: masquer(phone), revue: Boolean(revue), canal: body.canal ?? 'sms', envoye: issued.envoye }, 'Code de connexion client émis');
     return {
-      sent: true, phone, expiresAt: issued.expiresAt,
+      sent: true, phone, expiresAt: issued.expiresAt, canal: body.canal ?? 'sms',
       compteExistant: Boolean(container.clients.findByVerifiedPhone(phone)),
       // Développement uniquement : le code revient dans la réponse pour tester sans SMS.
       ...(config.NODE_ENV !== 'production' ? { devCode: issued.code } : {}),

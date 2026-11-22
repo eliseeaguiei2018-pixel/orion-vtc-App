@@ -377,25 +377,28 @@ async function appel<T>(path: string, init: RequestInit = {}, timeoutMs = 8000):
   }
 }
 
-export async function demanderCode(phone: string): Promise<{ ok: true; devCode?: string; compteExistant: boolean } | { ok: false; error: string }> {
+export type CanalCode = 'sms' | 'whatsapp';
+
+export async function demanderCode(phone: string, canal: CanalCode = 'sms'): Promise<{ ok: true; devCode?: string; compteExistant: boolean } | { ok: false; error: string }> {
   // Identity Platform (si réglé, avec un serveur relié) : c'est Google qui envoie et contrôle le code SMS.
-  if (identiteGoogleActive && API) {
+  // Le code WhatsApp, lui, part toujours du serveur ORION (Twilio).
+  if (identiteGoogleActive && API && canal === 'sms') {
     const g = await envoyerCodeGoogle(phone);
     return g.ok ? { ok: true, compteExistant: false } : g;
   }
   // reCAPTCHA Enterprise (si réglé) : le serveur n'envoie pas de SMS à un robot.
   const r = await appel<{ devCode?: string; compteExistant: boolean }>('/clients/auth/otp', {
-    method: 'POST', body: JSON.stringify({ phone }), headers: API ? await enTeteRecaptcha('connexion_client') : {},
+    method: 'POST', body: JSON.stringify(canal === 'whatsapp' ? { phone, canal } : { phone }), headers: API ? await enTeteRecaptcha('connexion_client') : {},
   });
   return r.ok ? { ok: true, devCode: r.data.devCode, compteExistant: r.data.compteExistant } : { ok: false, error: r.error };
 }
 
 /** Vérifie le code ; en cas de succès, l'appareil adopte le compte (et sa session). */
-export async function verifierCode(phone: string, code: string, name?: string, email?: string): Promise<{ ok: true; client: ProfilClient; compteRetrouve: boolean } | { ok: false; error: string }> {
+export async function verifierCode(phone: string, code: string, name?: string, email?: string, canal: CanalCode = 'sms'): Promise<{ ok: true; client: ProfilClient; compteRetrouve: boolean } | { ok: false; error: string }> {
   type Session = { token: string; client: ProfilClient; compteRetrouve: boolean };
   const identite = { clientId: clientId(), name: name?.trim() || undefined, email: email?.trim() || undefined };
   let r: Awaited<ReturnType<typeof appel<Session>>>;
-  if (identiteGoogleActive && API) {
+  if (identiteGoogleActive && API && canal === 'sms') {
     // Le code est vérifié par Google ; le serveur ORION reçoit le jeton d'identité et ouvre le compte du numéro.
     const g = await confirmerCodeGoogle(phone, code);
     if (!g.ok) return g;
@@ -617,6 +620,8 @@ export interface AppConfig {
   services: Record<string, boolean>;
   gateways: Record<string, boolean>;
   currency: string;
+  /** Le serveur sait envoyer le code de connexion par WhatsApp. */
+  codeWhatsApp?: boolean;
 }
 
 export async function fetchAppConfig(): Promise<AppConfig | null> {
@@ -628,6 +633,7 @@ export async function fetchAppConfig(): Promise<AppConfig | null> {
     services: res.services ?? {},
     gateways: res.gateways ?? {},
     currency: res.currency ?? 'XOF',
+    codeWhatsApp: res.codeWhatsApp === true,
   };
 }
 

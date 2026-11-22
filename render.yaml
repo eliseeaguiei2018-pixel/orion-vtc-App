@@ -100,6 +100,19 @@ services:
         sync: false
       - key: SMS_SENDER_NAME
         value: ORION
+      # Twilio : SMS de secours (SMS_PROVIDER=twilio) et codes par WhatsApp. Le bouton
+      # « Recevoir le code via WhatsApp » n'apparaît dans l'app que si TWILIO_WHATSAPP_FROM
+      # est défini (bac à sable : +14155238886). Voir DEPLOIEMENT.md, « Codes par WhatsApp ».
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM
+        sync: false
+      - key: TWILIO_WHATSAPP_FROM
+        sync: false
+      - key: TWILIO_WHATSAPP_CONTENT_SID
+        sync: false
       # Revue Apple / Google : numéro de démonstration et son code fixe (6 chiffres).
       # À définir dans le tableau de bord Render, voir store/README.md §4.
       - key: CLIENT_REVIEW_PHONE

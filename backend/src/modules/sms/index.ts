@@ -22,7 +22,8 @@ export interface SmsSender {
 }
 
 export class SmsError extends Error {
-  constructor(message: string, readonly statut?: number) {
+  /** `codeOperateur` : code d'erreur de l'opérateur (Twilio : 63015, 63003…), s'il est connu. */
+  constructor(message: string, readonly statut?: number, readonly codeOperateur?: number) {
     super(message);
     this.name = 'SmsError';
   }
@@ -144,6 +145,121 @@ export class TwilioSms implements SmsSender {
     }
     return { id: typeof r.corps.sid === 'string' ? r.corps.sid : undefined };
   }
+}
+
+/* -------------------------------------------------------------- WhatsApp */
+
+/**
+ * CODES DE CONNEXION PAR WHATSAPP (Twilio, API Messages, canal « whatsapp: »).
+ *
+ * - Bac à sable Twilio (essais) : expéditeur +14155238886 ; chaque testeur envoie d'abord le
+ *   message d'inscription (« join … ») à ce numéro, puis reçoit le code en message libre.
+ * - Production : numéro WhatsApp Business d'ORION et modèle « authentification » approuvé
+ *   par Meta (`modele`, identifiant HX…) : le code passe en variable {{1}}.
+ *
+ * WhatsApp signale certains refus APRÈS l'acceptation de l'envoi (numéro sans WhatsApp, testeur
+ * pas inscrit au bac à sable) : l'état du message est relu quelques instants pour pouvoir le
+ * dire au client tout de suite, au lieu de le laisser attendre un code qui n'arrivera pas.
+ */
+export interface WhatsAppSender {
+  readonly fournisseur: 'twilio';
+  /** Envoie le code au numéro E.164 (+225…). Lève une SmsError en cas d'échec. */
+  envoyer(numero: string, code: string, message: string): Promise<{ id?: string }>;
+}
+
+export interface TwilioWhatsAppOptions {
+  accountSid: string;
+  authToken: string;
+  /** Numéro WhatsApp d'expédition, avec ou sans le préfixe « whatsapp: ». */
+  de: string;
+  /** Modèle d'authentification approuvé (HX…) ; absent : message libre (bac à sable). */
+  modele?: string;
+  baseUrl?: string;
+  /** Pause entre deux lectures de l'état du message (ms) et nombre de lectures. */
+  attenteMs?: number;
+  lectures?: number;
+}
+
+const ETATS_ECHEC = new Set(['failed', 'undelivered']);
+const ETATS_PARTIS = new Set(['sent', 'delivered', 'read']);
+
+export class TwilioWhatsApp implements WhatsAppSender {
+  readonly fournisseur = 'twilio' as const;
+  private readonly base: string;
+
+  constructor(
+    private readonly o: TwilioWhatsAppOptions,
+    private readonly fetchFn: Fetch = fetch,
+    private readonly pause: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+  ) {
+    this.base = (o.baseUrl ?? 'https://api.twilio.com').replace(/\/$/, '');
+  }
+
+  private get auth(): string {
+    return `Basic ${Buffer.from(`${this.o.accountSid}:${this.o.authToken}`).toString('base64')}`;
+  }
+
+  async envoyer(numero: string, code: string, message: string): Promise<{ id?: string }> {
+    const de = this.o.de.startsWith('whatsapp:') ? this.o.de : `whatsapp:${this.o.de}`;
+    const corps = new URLSearchParams({ To: `whatsapp:${numero}`, From: de });
+    if (this.o.modele) {
+      corps.set('ContentSid', this.o.modele);
+      corps.set('ContentVariables', JSON.stringify({ 1: code }));
+    } else {
+      corps.set('Body', message);
+    }
+    const compte = `${this.base}/2010-04-01/Accounts/${encodeURIComponent(this.o.accountSid)}`;
+    const r = await appel(this.fetchFn, `${compte}/Messages.json`, {
+      method: 'POST',
+      headers: { authorization: this.auth, 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+      body: corps.toString(),
+    });
+    if (r.statut !== 201 && r.statut !== 200) {
+      const codeOp = typeof r.corps.code === 'number' ? r.corps.code : undefined;
+      throw new SmsError(`Twilio WhatsApp : envoi refusé (${r.statut}${typeof r.corps.message === 'string' ? ` · ${r.corps.message}` : ''})`, r.statut, codeOp);
+    }
+    const sid = typeof r.corps.sid === 'string' ? r.corps.sid : undefined;
+    if (!sid) return {};
+    // Relecture de l'état : un refus de WhatsApp arrive en général en moins d'une seconde.
+    for (let i = 0; i < (this.o.lectures ?? 3); i++) {
+      await this.pause(this.o.attenteMs ?? 1200);
+      let etat: { statut: number; corps: Record<string, unknown> };
+      try {
+        etat = await appel(this.fetchFn, `${compte}/Messages/${encodeURIComponent(sid)}.json`, {
+          method: 'GET', headers: { authorization: this.auth, accept: 'application/json' },
+        });
+      } catch { return { id: sid }; }
+      const statut = typeof etat.corps.status === 'string' ? etat.corps.status : '';
+      if (ETATS_PARTIS.has(statut)) return { id: sid };
+      if (ETATS_ECHEC.has(statut)) {
+        const codeOp = typeof etat.corps.error_code === 'number' ? etat.corps.error_code : Number(etat.corps.error_code) || undefined;
+        throw new SmsError(`Twilio WhatsApp : message ${statut}${codeOp ? ` (${codeOp})` : ''}`, 200, codeOp);
+      }
+    }
+    return { id: sid };
+  }
+}
+
+export interface WhatsAppConfig {
+  TWILIO_ACCOUNT_SID?: string;
+  TWILIO_AUTH_TOKEN?: string;
+  TWILIO_WHATSAPP_FROM?: string;
+  TWILIO_WHATSAPP_CONTENT_SID?: string;
+}
+
+/** Envoi des codes par WhatsApp, ou `null` si le numéro WhatsApp n'est pas réglé. */
+export function creerWhatsApp(c: WhatsAppConfig, fetchFn: Fetch = fetch): WhatsAppSender | null {
+  if (!c.TWILIO_WHATSAPP_FROM || !c.TWILIO_ACCOUNT_SID || !c.TWILIO_AUTH_TOKEN) return null;
+  return new TwilioWhatsApp({
+    accountSid: c.TWILIO_ACCOUNT_SID, authToken: c.TWILIO_AUTH_TOKEN,
+    de: c.TWILIO_WHATSAPP_FROM, modele: c.TWILIO_WHATSAPP_CONTENT_SID,
+  }, fetchFn);
+}
+
+/** Texte WhatsApp du code (message libre, bac à sable) : le code en gras, en tête. */
+export function messageCodeWhatsApp(code: string, minutes: number, pour: 'client' | 'chauffeur'): string {
+  const qui = pour === 'chauffeur' ? 'ORION Chauffeur' : 'ORION';
+  return `*${code}* est votre code ${qui}. Valable ${minutes} min. Ne le communiquez à personne : ORION ne vous le demandera jamais.`;
 }
 
 /* ------------------------------------------------------------------ Console */

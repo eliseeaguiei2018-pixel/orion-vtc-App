@@ -18,7 +18,7 @@ export async function healthRoutes(app: FastifyInstance, container: Container): 
     // clients. Le répartiteur de charge peut écarter une instance dont le bus est coupé.
     const bus = container.realtime.etatBus();
     return {
-      status: 'ready', services: container.registry.list(), sms: { fournisseur: container.sms.fournisseur, actif: container.sms.reel },
+      status: 'ready', services: container.registry.list(), sms: { fournisseur: container.sms.fournisseur, actif: container.sms.reel }, whatsapp: { actif: container.whatsapp !== null },
       tempsReel: { mode: bus.mode, connecte: bus.connecte },
     };
   });

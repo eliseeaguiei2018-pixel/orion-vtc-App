@@ -16,7 +16,8 @@ export async function supportClientRoutes(app: FastifyInstance, container: Conta
     exigerTitulaire(req, id, (c) => Boolean(container.clients.get(c)?.phoneVerifiedAt));
 
   // Config publique : services activés + ville ouverte (l'app cliente adapte son hub).
-  app.get('/config', async () => ({ ...container.settings.getServices(), currency: 'XOF' }));
+  // codeWhatsApp : l'app propose « Recevoir le code via WhatsApp » seulement si le serveur sait l'envoyer.
+  app.get('/config', async () => ({ ...container.settings.getServices(), currency: 'XOF', codeWhatsApp: container.whatsapp !== null }));
 
   /**
    * FICHE CLIENT — enregistrée depuis l'app après vérification du numéro.

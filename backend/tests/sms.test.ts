@@ -1,6 +1,6 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { OrangeSms, TwilioSms, SmsError, messageCode } from '../src/modules/sms/index.js';
+import { OrangeSms, TwilioSms, TwilioWhatsApp, creerWhatsApp, SmsError, messageCode, messageCodeWhatsApp } from '../src/modules/sms/index.js';
 import { OtpStore } from '../src/modules/driver-app/auth.js';
 
 /**
@@ -73,6 +73,47 @@ test('Twilio : authentification Basic et corps de formulaire', async () => {
   assert.equal(corps.get('To'), '+2250708091011');
   assert.equal(corps.get('MessagingServiceSid'), 'MG9');
   assert.equal(corps.get('Body'), 'Salut');
+});
+
+test('WhatsApp (Twilio) : expéditeur et destinataire « whatsapp: », message libre, état relu jusqu’à l’envoi', async () => {
+  const f = faux([{ status: 201, body: { sid: 'SMwa1', status: 'queued' } }, { status: 200, body: { status: 'queued' } }, { status: 200, body: { status: 'sent' } }]);
+  const wa = new TwilioWhatsApp({ accountSid: 'AC1', authToken: 'tok', de: '+14155238886' }, f.fn, async () => {});
+  assert.equal((await wa.envoyer('+2250708091011', '240726', 'texte')).id, 'SMwa1');
+  const [envoi, lecture1] = f.appels;
+  assert.equal(envoi!.url, 'https://api.twilio.com/2010-04-01/Accounts/AC1/Messages.json');
+  const corps = new URLSearchParams(String(envoi!.init.body));
+  assert.equal(corps.get('From'), 'whatsapp:+14155238886');
+  assert.equal(corps.get('To'), 'whatsapp:+2250708091011');
+  assert.equal(corps.get('Body'), 'texte');
+  assert.equal(corps.get('ContentSid'), null);
+  assert.equal(lecture1!.url, 'https://api.twilio.com/2010-04-01/Accounts/AC1/Messages/SMwa1.json');
+  assert.equal(f.appels.length, 3, 'la lecture s’arrête dès que le message est parti');
+});
+
+test('WhatsApp (Twilio) : modèle d’authentification approuvé, le code en variable {{1}}', async () => {
+  const f = faux([{ status: 201, body: { sid: 'SMwa2' } }, { status: 200, body: { status: 'delivered' } }]);
+  const wa = new TwilioWhatsApp({ accountSid: 'AC1', authToken: 'tok', de: 'whatsapp:+2250700000000', modele: 'HX123' }, f.fn, async () => {});
+  await wa.envoyer('+2250708091011', '240726', 'texte');
+  const corps = new URLSearchParams(String(f.appels[0]!.init.body));
+  assert.equal(corps.get('From'), 'whatsapp:+2250700000000');
+  assert.equal(corps.get('ContentSid'), 'HX123');
+  assert.deepEqual(JSON.parse(corps.get('ContentVariables')!), { 1: '240726' });
+  assert.equal(corps.get('Body'), null);
+});
+
+test('WhatsApp (Twilio) : un refus signalé après l’envoi remonte avec son code (63015, bac à sable)', async () => {
+  const f = faux([{ status: 201, body: { sid: 'SMwa3' } }, { status: 200, body: { status: 'failed', error_code: 63015 } }]);
+  const wa = new TwilioWhatsApp({ accountSid: 'AC1', authToken: 'tok', de: '+14155238886' }, f.fn, async () => {});
+  await assert.rejects(wa.envoyer('+2250708091011', '1', 'x'), (e: unknown) => e instanceof SmsError && e.codeOperateur === 63015);
+  const refus = faux([{ status: 400, body: { code: 21211, message: 'Invalid To' } }]);
+  await assert.rejects(new TwilioWhatsApp({ accountSid: 'AC1', authToken: 'tok', de: '+1' }, refus.fn, async () => {}).envoyer('+2250708091011', '1', 'x'),
+    (e: unknown) => e instanceof SmsError && e.codeOperateur === 21211 && /400 · Invalid To/.test(e.message));
+});
+
+test('WhatsApp : absent tant que le numéro d’expédition n’est pas réglé ; message au code en gras', () => {
+  assert.equal(creerWhatsApp({ TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 'tok' }), null);
+  assert.ok(creerWhatsApp({ TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 'tok', TWILIO_WHATSAPP_FROM: '+14155238886' }));
+  assert.ok(messageCodeWhatsApp('240726', 5, 'client').startsWith('*240726* est votre code ORION'));
 });
 
 test('le SMS tient en un seul message et commence par le code (remplissage automatique)', () => {

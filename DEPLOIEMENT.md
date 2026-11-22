@@ -49,6 +49,25 @@ Le plus rapide pour un test sur le terrain : **Twilio**.
 Pour la production : Orange Côte d'Ivoire (section « Opérateur SMS » plus bas). Saisissez
 ces valeurs uniquement dans Render, jamais dans une conversation ni dans le dépôt.
 
+### Codes par WhatsApp (Twilio)
+Le bouton « Recevoir le code via WhatsApp » de l'app client n'apparaît que lorsque le serveur
+sait envoyer par WhatsApp. Il apparaît tout seul dès que c'est réglé, sans réinstaller l'app.
+
+**Pour un test (bac à sable Twilio, gratuit) :**
+1. Console Twilio → **Messaging → Try it out → Send a WhatsApp message**. Notez le numéro du
+   bac à sable (+1 415 523 8886) et le message d'inscription affiché (« join … »).
+2. Chaque testeur envoie ce message d'inscription, depuis son WhatsApp, au +1 415 523 8886.
+3. Dans Render → `orion-backend` → **Environment** : `TWILIO_ACCOUNT_SID`,
+   `TWILIO_AUTH_TOKEN` et `TWILIO_WHATSAPP_FROM` = `+14155238886`, puis **Save**.
+4. Si un code n'arrive plus après un jour sans échange, le testeur renvoie le message
+   d'inscription : WhatsApp n'accepte un message libre que dans les 24 h qui suivent un
+   message de sa part. L'app le lui dit si c'est le cas.
+
+**Pour la production :** numéro WhatsApp Business d'ORION (Twilio → Messaging → Senders →
+WhatsApp senders) et modèle « Authentication » approuvé par Meta (Content Template Builder).
+Dans Render : `TWILIO_WHATSAPP_FROM` = le numéro d'ORION et `TWILIO_WHATSAPP_CONTENT_SID` =
+l'identifiant du modèle (HX…). Le code y est passé en variable `{{1}}`.
+
 ### Test sur le terrain à deux téléphones
 1. Le chauffeur installe l'APK chauffeur, crée son compte (code SMS), remplit son dossier.
 2. Dans l'APK console, le PDG ouvre **Équipages**, la fiche du chauffeur, puis

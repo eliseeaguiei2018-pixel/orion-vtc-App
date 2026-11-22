@@ -35,7 +35,7 @@ import {
   DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { urlApi, contactCourse, lireCodePriseEnCharge, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, modeLocal, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, reserverMariage, mesMariages, type ReservationMariage, chargerPortefeuille, resumeCotisations, transfererPortefeuille, type Cotisations, type MouvementPortefeuille, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type PkgSize, type SafeDriver, type SosSuivi, type StatutDemandeSos, type SupportMessage } from './api';
+import { urlApi, contactCourse, lireCodePriseEnCharge, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, modeLocal, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, reserverMariage, mesMariages, type ReservationMariage, chargerPortefeuille, resumeCotisations, transfererPortefeuille, type Cotisations, type MouvementPortefeuille, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type CanalCode, type PkgSize, type SafeDriver, type SosSuivi, type StatutDemandeSos, type SupportMessage } from './api';
 import { useI18n } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
@@ -353,6 +353,8 @@ export function App() {
   // Synchronisation avec la console Admin : services activés, maintenance, passerelles
   // de paiement en service. En mode démo (backend absent) → null, l'app garde ses défauts.
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
+  // Canal du dernier code demandé (SMS ou WhatsApp) : le renvoi passe par le même.
+  const [canalCode, setCanalCode] = useState<CanalCode>('sms');
   useEffect(() => { fetchAppConfig().then(setAppConfig); }, []);
   const [promo, setPromo] = useState('');
 
@@ -370,6 +372,7 @@ export function App() {
       setAppConfig({
         city: c.city ?? 'Abidjan', open: c.open ?? true,
         services: c.services ?? {}, gateways: c.gateways ?? {}, currency: c.currency ?? 'XOF',
+        codeWhatsApp: c.codeWhatsApp === true,
       });
     };
     const connect = () => {
@@ -755,15 +758,16 @@ export function App() {
   }, []);
 
   /* ------------------------------ Compte client ------------------------------ */
-  const envoyerCode = async () => {
+  const envoyerCode = async (canal: CanalCode = 'sms') => {
     setErreurInscription(null);
-    const r = await demanderCode(phone);
+    const r = await demanderCode(phone, canal);
     if (!r.ok) { setErreurInscription(r.error); return; }
+    setCanalCode(canal);
     setDevCode(r.devCode);
     setScreen('otp');
   };
   const verifierNumero = async (code: string): Promise<string | null> => {
-    const r = await verifierCode(phone, code, clientName, email);
+    const r = await verifierCode(phone, code, clientName, email, canalCode);
     if (!r.ok) return r.error;
     setProfil(r.client);
     if (r.compteRetrouve) showToast(t('welcome_back', { name: r.client.name ?? '' }));
@@ -895,13 +899,14 @@ export function App() {
 
         {screen === 'splash' && <Splash onDone={() => setScreen(profil ? 'home' : 'onboarding')} />}
         {screen === 'onboarding' && <Onboarding onStart={() => setScreen('auth')} onLang={() => { setRetourPreferences('onboarding'); setScreen('preferences'); }} />}
-        {screen === 'auth' && <AuthScreen phone={phone} setPhone={setPhone} name={clientName} setName={setClientName} email={email} setEmail={setEmail} erreur={erreurInscription} onBack={() => setScreen('onboarding')} onNext={() => void envoyerCode()} onWhatsApp={(msg) => { showToast(msg); void envoyerCode(); }} />}
+        {screen === 'auth' && <AuthScreen phone={phone} setPhone={setPhone} name={clientName} setName={setClientName} email={email} setEmail={setEmail} erreur={erreurInscription} onBack={() => setScreen('onboarding')} onNext={() => void envoyerCode('sms')} onWhatsApp={appConfig?.codeWhatsApp ? () => void envoyerCode('whatsapp') : undefined} />}
         {screen === 'otp' && (
           <OtpScreen
             phone={phone}
             devCode={devCode}
+            whatsapp={canalCode === 'whatsapp'}
             onBack={() => setScreen('auth')}
-            onResend={async () => { const r = await demanderCode(phone); if (r.ok) setDevCode(r.devCode); return r.ok ? null : r.error; }}
+            onResend={async () => { const r = await demanderCode(phone, canalCode); if (r.ok) setDevCode(r.devCode); return r.ok ? null : r.error; }}
             onVerify={verifierNumero}
           />
         )}
@@ -1458,7 +1463,9 @@ function AuthScreen({ phone, setPhone, name, setName, email, setEmail, erreur, o
   phone: string; setPhone: (v: string) => void;
   name: string; setName: (v: string) => void;
   email: string; setEmail: (v: string) => void; erreur: string | null;
-  onBack: () => void; onNext: () => void; onWhatsApp: (msg: string) => void;
+  onBack: () => void; onNext: () => void;
+  /** Absent : le serveur n'envoie pas de code par WhatsApp, le bouton n'est pas proposé. */
+  onWhatsApp?: () => void;
 }) {
   const { t } = useI18n();
   const valid = phone.replace(/\D/g, '').length >= 8 && name.trim().length >= 2
@@ -1496,9 +1503,11 @@ function AuthScreen({ phone, setPhone, name, setName, email, setEmail, erreur, o
         </div>
         {erreur && <p className="photo-erreur" style={{ marginTop: -6 }}>{erreur}</p>}
         <button className="btn btn-primary" disabled={!valid} onClick={onNext}>{t('reg_send')} <IconChevron size={18} /></button>
-        <button className="btn btn-ghost" style={{ marginTop: 10, color: '#25D366' }} disabled={!valid} onClick={() => onWhatsApp(t('wa_otp'))}>
-          <IconPhone size={18} /> {t('wa_otp')}
-        </button>
+        {onWhatsApp && (
+          <button className="btn btn-ghost" style={{ marginTop: 10, color: '#25D366' }} disabled={!valid} onClick={onWhatsApp}>
+            <IconPhone size={18} /> {t('wa_otp')}
+          </button>
+        )}
       </Sheet>
     </div>
   );
@@ -1557,8 +1566,8 @@ function PermissionsScreen({ etat, onLocaliser, onDone }: { etat: EtatPosition; 
   );
 }
 
-function OtpScreen({ phone, devCode, onBack, onResend, onVerify }: {
-  phone: string; devCode?: string; onBack: () => void;
+function OtpScreen({ phone, devCode, whatsapp, onBack, onResend, onVerify }: {
+  phone: string; devCode?: string; whatsapp?: boolean; onBack: () => void;
   onResend: () => Promise<string | null>; onVerify: (code: string) => Promise<string | null>;
 }) {
   const { t } = useI18n();
@@ -1586,7 +1595,7 @@ function OtpScreen({ phone, devCode, onBack, onResend, onVerify }: {
       <div style={{ flex: 1 }} />
       <Sheet>
         <h2 className="h-title">{t('otp_title')}</h2>
-        <p className="h-sub" style={{ marginBottom: 18 }}>{t('otp_subtitle', { phone: `+225 ${phone}` })}</p>
+        <p className="h-sub" style={{ marginBottom: 18 }}>{t(whatsapp ? 'otp_subtitle_wa' : 'otp_subtitle', { phone: `+225 ${phone}` })}</p>
         <label className="otp-row">
           {Array.from({ length: N }, (_, i) => (
             <span key={i} className={`otp-box${actif && i === Math.min(code.length, N - 1) ? ' actif' : ''}`} aria-hidden="true">{code[i] ?? ''}</span>

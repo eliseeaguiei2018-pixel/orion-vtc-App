@@ -120,7 +120,7 @@ export async function realtimeRoutes(app: FastifyInstance, container: Container)
     // Config publique temps réel : l'app cliente reçoit l'état courant à la connexion
     // (message `connected` avec `config`), puis chaque changement (message `config.update`).
     scoped.get('/ws/config', { websocket: true }, (socket) => {
-      const config = { ...container.settings.getServices(), currency: 'XOF' };
+      const config = { ...container.settings.getServices(), currency: 'XOF', codeWhatsApp: container.whatsapp !== null };
       attach(socket, container, CONFIG_ROOM, { config });
     });
   });
