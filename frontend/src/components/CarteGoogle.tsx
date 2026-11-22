@@ -313,7 +313,13 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
       if (!force && dernierCadre.current && memeCadre(dernierCadre.current, cadre)) return;
       dernierCadre.current = cadre;
       if (tous.length > 1) {
-        m.fitBounds({ south: cadre.s, west: cadre.o, north: cadre.n, east: cadre.e }, { top: 150, bottom: 46, left: 46, right: 46 });
+        // Marges proportionnées à la carte visible : sur une petite bande (écran de
+        // confirmation), des marges fixes dépassaient sa hauteur et Google affichait tout le pays.
+        const boite = m.getDiv();
+        const h = boite.clientHeight || 600; const w = boite.clientWidth || 400;
+        const cote = Math.min(46, Math.round(w * 0.1));
+        m.fitBounds({ south: cadre.s, west: cadre.o, north: cadre.n, east: cadre.e },
+          { top: Math.min(150, Math.round(h * 0.3)), bottom: Math.min(46, Math.round(h * 0.1)), left: cote, right: cote });
       } else {
         m.panTo(origin);
         if (m.getZoom() < 13) m.setZoom(15);

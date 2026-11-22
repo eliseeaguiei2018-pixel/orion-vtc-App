@@ -363,6 +363,19 @@ export function createDemoBackend(): DriverBackend {
     // partagée : un onglet client a été ouvert depuis moins de 30 minutes.
     modeTest = etat.disponible && (natif || etat.clients.some(clientRecent));
     if (!etat.disponible) return;
+    // Relié à l'app client : une offre simulée encore sans réponse (arrivée avant que l'app
+    // client soit ouverte) laisse la place aux vraies commandes, sans pénalité pour le chauffeur.
+    if (modeTest && st.offer && !st.rides.find((x) => x.id === st.offer!.rideId)?.bus) {
+      const id = st.offer.rideId;
+      st.offer = null;
+      st.activeRideId = null;
+      st.rides = st.rides.filter((x) => x.id !== id);
+      d.availability = 'online';
+      persist();
+      emit('ride.withdrawn', { rideId: id, reason: 'expired' });
+      driverChanged();
+      publierPresence(true);
+    }
     publierPresence();
     const active = st.rides.find((x) => x.id === st.activeRideId);
     if (active?.bus) {
