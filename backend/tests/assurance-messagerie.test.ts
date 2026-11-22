@@ -200,3 +200,46 @@ test('dossier : numéros saisis avec espaces acceptés et stockés sans espaces'
   assert.equal(ok.data.medecin?.telephone, '2722410000');
   assert.equal(ficheSchema.safeParse({ ...FICHE, urgence: { ...FICHE.urgence, telephone: '07 58' } }).success, false);
 });
+
+test('questionnaire enrichi : nouveaux champs acceptés et relus ; anciens dossiers toujours valides', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+  const aya = await inscrire(app, 'client-enrichi', '0733333333');
+  const url = '/clients/client-enrichi/assurance/dossier';
+
+  // Un dossier d'avant l'enrichissement (aucun nouveau champ) reste accepté tel quel.
+  const ancien = await app.inject({ method: 'PUT', url, headers: aya, payload: { fiche: FICHE, consentement: CONSENTEMENT } });
+  assert.equal(ancien.statusCode, 200, ancien.body);
+
+  const enrichie = {
+    ...FICHE,
+    sante: {
+      ...FICHE.sante, antecedents: ['diabete', 'grossesse', 'avc'], poidsKg: 62, tailleCm: 168, insuline: true, grossesseMois: 6,
+      allergiesConnues: ['penicilline', 'latex'], hospitalisationRecente: true, chirurgies: 'Appendicectomie en 2024',
+      implants: 'Prothèse de hanche', communication: ['malentendant'], langues: 'Dioula, français', hopital: 'PISAM', consignes: 'Prévenir mon frère en premier',
+    },
+    urgence2: { nom: 'Fatou Kouassi', lien: 'Sœur', telephone: '07 07 08 08 09' },
+    mutuelle: { compagnie: 'MCI Care', numero: 'A-55120' },
+  };
+  const ok = await app.inject({ method: 'PUT', url, headers: aya, payload: { fiche: enrichie, consentement: CONSENTEMENT } });
+  assert.equal(ok.statusCode, 200, ok.body);
+  const lu = (await app.inject({ method: 'GET', url, headers: aya })).json().fiche;
+  assert.equal(lu.sante.poidsKg, 62);
+  assert.equal(lu.sante.grossesseMois, 6);
+  assert.deepEqual(lu.sante.allergiesConnues, ['penicilline', 'latex']);
+  assert.deepEqual(lu.sante.communication, ['malentendant']);
+  assert.equal(lu.urgence2.telephone, '0707080809', 'numéro du second contact normalisé');
+  assert.equal(lu.mutuelle.compagnie, 'MCI Care');
+
+  // Valeurs impossibles ou inconnues : refusées, le dossier précédent reste en place.
+  for (const [nom, sante] of [
+    ['poids impossible', { poidsKg: 900 }], ['taille impossible', { tailleCm: 20 }], ['mois de grossesse', { grossesseMois: 12 }],
+    ['allergie inconnue', { allergiesConnues: ['pollen-de-mars'] }], ['communication inconnue', { communication: ['telepathe'] }],
+  ] as const) {
+    const r = await app.inject({ method: 'PUT', url, headers: aya, payload: { fiche: { ...enrichie, sante: { ...enrichie.sante, ...sante } }, consentement: CONSENTEMENT } });
+    assert.equal(r.statusCode, 400, `${nom} : ${r.body.slice(0, 120)}`);
+  }
+  const incomplet = await app.inject({ method: 'PUT', url, headers: aya, payload: { fiche: { ...enrichie, urgence2: { nom: 'F', lien: 'Sœur', telephone: '12' } }, consentement: CONSENTEMENT } });
+  assert.equal(incomplet.statusCode, 400, 'second contact incomplet refusé');
+  assert.equal((await app.inject({ method: 'GET', url, headers: aya })).json().fiche.sante.poidsKg, 62, 'le dossier valide est conservé');
+});

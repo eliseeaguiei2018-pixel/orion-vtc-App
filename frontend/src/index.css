@@ -1945,3 +1945,186 @@ button.menu-texte { cursor: pointer; }
 .bio-resultat.ko { color: var(--danger); }
 .bio-points { display: grid; gap: 8px; margin: 12px 0 0; padding: 0 0 0 18px; text-align: start; font-size: 13.5px; line-height: 1.45; color: var(--text-dim); }
 .prog-carte { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+
+/* ==========================================================================================
+   VERSION 1.5.7 (mise à jour) — barre du bas, volets, compte, verrou du dossier, vitrine
+   ========================================================================================== */
+
+/* ---- Barre du bas : une pilule flottante, quatre volets ---- */
+.nav-bas {
+  position: absolute; left: 50%; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 30; transform: translateX(-50%);
+  display: flex; gap: 2px; width: min(calc(100% - 28px), 430px); padding: 6px; border-radius: 999px;
+  background: color-mix(in srgb, var(--plein) 90%, transparent); border: 1px solid var(--stroke-strong);
+  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+  box-shadow: 0 14px 30px -16px rgba(0, 0, 0, 0.38), 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+.nav-onglet {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  min-height: 56px; padding: 6px 2px; border: 0; border-radius: 999px; background: none; cursor: pointer;
+  color: var(--text-dim); font: 500 11.5px/1 var(--font-body); letter-spacing: -0.005em; white-space: nowrap;
+  transition: background 0.2s var(--ease-out), color 0.2s;
+}
+.nav-onglet.actif { background: rgba(118, 118, 128, 0.16); color: var(--text); font-weight: 600; }
+:root:not([data-theme='light']) .nav-onglet.actif { background: rgba(255, 255, 255, 0.12); }
+.nav-onglet:active { transform: scale(0.96); }
+.nav-onglet:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; }
+.nav-ico { position: relative; display: inline-grid; }
+.nav-ico b {
+  position: absolute; top: -5px; inset-inline-end: -9px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
+  background: var(--danger); color: #fff; font: 600 10px/16px var(--font-body); text-align: center;
+}
+/* Sous la barre, le contenu garde de la place pour défiler jusqu'au bout. */
+.phone.a-nav .page-body { padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
+
+/* ---- Titres des volets (Services, Activité) ---- */
+.services-corps, .volet-corps, .simple-corps { padding-top: calc(env(safe-area-inset-top) + 18px); }
+.volet-titre { font: 700 30px/1.1 var(--font-body); letter-spacing: -0.035em; color: var(--text); margin: 0; }
+.volet-sous { margin: 6px 0 22px; font-size: 15px; color: var(--text-dim); }
+.volet-corps .volet-titre { margin-bottom: 18px; }
+.services .eyebrow { display: block; margin: 4px 0 12px; }
+.services .tuiles.quatre { margin: 0 0 26px; }
+.services { background: var(--bg-0); }
+
+/* ---- Tuiles rondes : l'objet sur une pastille neutre, même largeur qu'avant ---- */
+.tuile.ronde .tuile-fond {
+  aspect-ratio: 1; border-radius: 50%; margin-bottom: 8px; overflow: visible;
+  background: rgba(118, 118, 128, 0.12); box-shadow: inset 0 0 0 1px rgba(118, 118, 128, 0.06);
+}
+:root:not([data-theme='light']) .tuile.ronde .tuile-fond { background: rgba(255, 255, 255, 0.075); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05); }
+.tuile.ronde .tuile-fond .vehicule, .tuile.ronde .tuile-fond .objet { width: 80%; bottom: 10%; }
+.tuile.ronde .tuile-fond .scooter { width: 62%; bottom: 13%; }
+.tuile.ronde .tuile-fond .vehicule:not(.objet):not(.scooter) { width: 96%; bottom: 24%; }
+.tuile.ronde:active .tuile-fond { filter: brightness(0.96); }
+
+/* ---- Volet Compte : cartes, pastille « Nouveau », états ---- */
+.compte-cartes { display: grid; gap: 12px; margin-bottom: 20px; }
+.compte-carte {
+  display: flex; align-items: center; gap: 14px; width: 100%; min-height: 104px; padding: 16px 18px 16px 20px;
+  border: 0; border-radius: 26px; background: var(--surface); color: var(--text); text-align: start; font: inherit; cursor: pointer;
+}
+.compte-carte:active { background: var(--surface-2); }
+.compte-carte strong { font: 600 18px/1.25 var(--font-body); letter-spacing: -0.01em; }
+.compte-carte small { margin-top: 4px; font-size: 14px; line-height: 1.4; color: var(--text-dim); }
+.compte-carte-objet { flex: none; display: grid; place-items: center; width: 84px; height: 76px; }
+.compte-carte-objet .objet { filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.14)); }
+.anneau { position: relative; flex: none; display: grid; place-items: center; }
+.anneau svg { position: absolute; inset: 0; }
+.anneau circle { fill: none; stroke-width: 6; stroke-linecap: round; }
+.anneau-piste { stroke: var(--stroke-strong); opacity: 0.7; }
+.anneau-fait { stroke: var(--text); transition: stroke-dasharray 0.5s var(--ease-out); }
+.anneau b { position: relative; font: 600 19px/1 var(--font-display); color: var(--text); }
+.anneau b small { font: 500 13px/1 var(--font-body); color: var(--text-faint); }
+.menu-nouveau {
+  display: inline-block; vertical-align: 2px; margin-inline-start: 6px; padding: 3px 8px; border-radius: 999px;
+  background: var(--surface-2); color: var(--text-dim); font: 600 11px/1.2 var(--font-body); letter-spacing: 0;
+}
+.menu-ligne > .menu-nouveau { flex: none; margin: 0; }
+.menu-ligne.statique { cursor: default; }
+.compte-page { display: flex; flex-direction: column; }
+.compte-intro { margin: 0 2px 16px; line-height: 1.45; }
+.compte-vide { margin: 4px 2px 14px; font-size: 14px; }
+.compte-form { margin-top: 14px; }
+.contact-ligne { align-items: flex-start; }
+.contact-ligne .menu-ico { margin-top: 4px; }
+.contact-ligne .menu-texte small { display: block; -webkit-line-clamp: unset; overflow: visible; }
+.contact-actions { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; }
+.lien-action {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0; background: none; border: 0; cursor: pointer;
+  color: var(--text-dim); font: 500 13.5px/1.2 var(--font-body); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--stroke-strong);
+}
+.lien-action.fort { color: var(--text); font-weight: 600; text-decoration: none; }
+.etat-fait, .etat-a-faire { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px; border-radius: 999px; font: 600 12.5px/1 var(--font-body); }
+.etat-fait { background: var(--surface-2); color: var(--text); }
+.etat-a-faire { background: var(--text); color: var(--bg-0); }
+.etat-ligne { display: flex; align-items: center; gap: 8px; margin: 12px 2px 0; font: 600 14px/1.4 var(--font-body); color: var(--text); }
+.note-info { display: flex; align-items: flex-start; gap: 8px; margin: 18px 2px 0; font-size: 12.5px; line-height: 1.45; color: var(--text-dim); }
+.note-info svg { flex: none; margin-top: 2px; }
+.controle-tete { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 6px 0 22px; text-align: center; }
+.controle-tete p { margin: 0; font-size: 15px; color: var(--text-dim); max-width: 30ch; }
+.controle-tete .anneau b { font-size: 26px; }
+.controle-tete .anneau b small { font-size: 16px; }
+.parrain-tete { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 0 0 18px; }
+.parrain-objet { display: grid; place-items: center; width: 150px; height: 132px; }
+.parrain-objet .objet { filter: drop-shadow(0 12px 14px rgba(0, 0, 0, 0.16)); }
+.parrain-tete .h-sub { max-width: 34ch; line-height: 1.45; }
+.parrain-code { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
+.parrain-code .faint { font-size: 12.5px; flex: none; }
+.parrain-code strong { flex: 1; min-width: 0; font: 600 18px/1.2 var(--font-display); letter-spacing: 0.03em; white-space: nowrap; }
+.pro-chiffres { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0 16px; }
+.pro-chiffres > div { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 20px; background: var(--surface); }
+.pro-chiffres span { font-size: 13px; color: var(--text-dim); }
+.pro-chiffres strong { font: 600 22px/1.1 var(--font-display); }
+.pro-montant { flex: none; font-weight: 600; font-size: 14.5px; }
+.demande-tete { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 0 0 6px; text-align: center; }
+.menu-ico.grand { width: 64px; height: 64px; border-radius: 50%; background: var(--surface); }
+.atouts { list-style: none; display: grid; gap: 10px; margin: 12px 0 6px; padding: 0; }
+.atouts li { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; line-height: 1.4; }
+.atouts svg { flex: none; margin-top: 3px; }
+.conf-pour .chips { flex-wrap: wrap; }
+.btn.prevenir { margin: 0 0 12px; padding: 12px; font-size: 14.5px; text-decoration: none; }
+
+/* ---- ORION Assurance : cinq étapes, verrou du dossier ---- */
+.as-etapes { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
+.as-mois { flex-wrap: wrap; }
+.as-mois .chip { min-width: 44px; justify-content: center; padding-inline: 0; }
+.as-protection {
+  display: flex; align-items: center; gap: 14px; width: 100%; min-height: 84px; padding: 14px 16px; border-radius: 20px;
+  background: var(--surface); border: 1px solid var(--stroke); color: var(--text); font: inherit; cursor: pointer; text-align: start;
+}
+.as-protection:active { background: var(--surface-2); }
+.as-protection:disabled { opacity: 0.55; cursor: not-allowed; }
+.as-protection strong { font: 600 16px/1.3 var(--font-body); }
+.as-protection small { margin-top: 3px; font-size: 13px; line-height: 1.4; color: var(--text-dim); }
+.as-verrou { display: flex; align-items: center; gap: 14px; padding: 14px; }
+.as-verrou strong { font: 600 15px/1.3 var(--font-body); }
+.as-verrou small { font-size: 12.5px; }
+.field input.as-code { letter-spacing: 0.42em; font: 600 22px/1.2 var(--font-display); }
+.as-erreur { display: flex; align-items: flex-start; gap: 8px; }
+.as-erreur svg { flex: none; margin-top: 2px; }
+[data-theme='light'] .as-erreur { color: #991b1b; background: rgba(220, 38, 38, 0.08); border-color: rgba(220, 38, 38, 0.28); }
+
+/* ---- Vitrine du véhicule : photos et vidéos réelles ---- */
+.vitrine { margin: 4px 0 20px; }
+.vitrine > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.vitrine > header strong { font: 600 14px/1.3 var(--font-body); text-align: end; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vitrine-vide { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 18px 18px 16px; border-radius: 22px; background: var(--surface); text-align: center; }
+.vitrine-rendu { display: grid; place-items: center; min-height: 104px; }
+.vitrine-vide p { margin: 0; max-width: 36ch; font-size: 13px; line-height: 1.45; color: var(--text-dim); }
+.vitrine-piste { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; border-radius: 22px; }
+.vitrine-piste::-webkit-scrollbar { display: none; }
+.vitrine-media { position: relative; flex: 0 0 100%; margin: 0; scroll-snap-align: center; border-radius: 22px; overflow: hidden; background: var(--surface); aspect-ratio: 16 / 10; }
+.vitrine-media button { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+.vitrine-media img, .vitrine-media video { display: block; width: 100%; height: 100%; object-fit: cover; max-width: none; }
+.vitrine-media figcaption { position: absolute; inset: auto 0 0 0; padding: 22px 14px 10px; font-size: 12.5px; color: #fff; background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.62)); pointer-events: none; }
+.vitrine-points { display: flex; justify-content: center; gap: 6px; margin-top: 10px; }
+.vitrine-points i { width: 6px; height: 6px; border-radius: 50%; background: var(--stroke-strong); transition: width 0.2s, background 0.2s; }
+.vitrine-points i.on { width: 18px; border-radius: 3px; background: var(--text); }
+.vitrine-compte { margin: 6px 0 0; text-align: center; font-size: 12px; color: var(--text-faint); }
+.vitrine-plein { position: absolute; inset: 0; z-index: 80; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px 12px; background: rgba(0, 0, 0, 0.92); animation: fade-in 0.2s ease; }
+.vitrine-plein > .bulle { position: absolute; top: max(14px, env(safe-area-inset-top)); inset-inline-end: 14px; }
+.vitrine-plein img, .vitrine-plein video { display: block; max-width: 100%; max-height: 76vh; border-radius: 14px; }
+.vitrine-plein p { margin: 0; color: #fff; font-size: 14px; text-align: center; }
+
+/* ---- Mode simplifié : une question, de gros boutons ---- */
+.simple-corps { display: flex; flex-direction: column; }
+.simple-tete { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 20px; }
+.simple-etiquette { padding: 5px 12px; border-radius: 999px; background: rgba(118, 118, 128, 0.12); font: 600 13px/1.2 var(--font-body); color: var(--text-dim); }
+.simple-question {
+  display: flex; align-items: center; gap: 16px; width: 100%; min-height: 88px; padding: 0 24px; border: 0; border-radius: 28px; cursor: pointer;
+  background: var(--text); color: var(--bg-0); font: 600 24px/1.2 var(--font-body); letter-spacing: -0.02em; text-align: start;
+  box-shadow: 0 16px 30px -18px rgba(0, 0, 0, 0.5);
+}
+.simple-question:active { transform: var(--press); }
+.simple-rubrique { display: block; margin: 26px 2px 12px; font-size: 15px; }
+.simple-lieux { display: grid; gap: 12px; }
+.simple-lieu {
+  display: flex; align-items: center; gap: 16px; width: 100%; min-height: 84px; padding: 14px 18px; border-radius: 24px; cursor: pointer;
+  background: var(--plein); border: 1.5px solid var(--stroke-strong); color: var(--text); font: inherit; text-align: start;
+}
+.simple-lieu:active { background: var(--surface); }
+.simple-lieu strong { font: 600 19px/1.25 var(--font-body); }
+.simple-lieu small { margin-top: 2px; font-size: 15px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.simple-ico { flex: none; display: grid; place-items: center; width: 44px; }
+.btn.simple-aide { margin-top: 22px; min-height: 64px; font-size: 18px; }
+.simple-quitter { margin: 18px auto 0; padding: 10px; background: none; border: 0; cursor: pointer; color: var(--text-dim); font: 500 15px/1.2 var(--font-body); text-decoration: underline; text-underline-offset: 3px; }
+.phone.mode-simple .nav-onglet { font-size: 13px; min-height: 62px; }

@@ -1143,8 +1143,12 @@ export function itineraire(points: LatLng[]): Promise<ItineraireRoute | null> {
 export const ANTECEDENTS = [
   'asthme', 'hypertension', 'diabete', 'drepanocytose', 'epilepsie',
   'cardiaque', 'renale', 'coagulation', 'grossesse', 'mobilite_reduite',
+  'avc', 'respiratoire', 'cancer', 'hepatique',
 ] as const;
 export type Antecedent = typeof ANTECEDENTS[number];
+/** Allergies qui changent un geste de secours ; ce que les secours doivent savoir pour se faire comprendre. */
+export const ALLERGIES = ['penicilline', 'aspirine_ains', 'anesthesiques', 'iode', 'latex', 'aliments', 'venins'] as const;
+export const COMMUNICATION = ['malentendant', 'malvoyant', 'parole_difficile', 'non_francophone'] as const;
 export const GROUPES_SANGUINS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'inconnu'] as const;
 export const CONSENTEMENT_ASSURANCE = '2026-11';
 
@@ -1157,9 +1161,18 @@ export interface FicheMedicale {
     antecedents: Antecedent[];
     autresAntecedents?: string; allergies?: string; traitements?: string;
     anticoagulants: boolean; stimulateurCardiaque: boolean; reactionAllergiqueGrave: boolean;
+    /* Questionnaire enrichi : tout est facultatif. */
+    poidsKg?: number; tailleCm?: number;
+    allergiesConnues?: Array<typeof ALLERGIES[number]>; insuline?: boolean; grossesseMois?: number;
+    hospitalisationRecente?: boolean; chirurgies?: string; implants?: string;
+    communication?: Array<typeof COMMUNICATION[number]>; langues?: string; consignes?: string; hopital?: string;
   };
   urgence: { nom: string; lien: string; telephone: string };
+  /** Seconde personne à prévenir, si la première ne répond pas. */
+  urgence2?: { nom: string; lien: string; telephone: string };
   medecin?: { nom?: string; telephone?: string };
+  /** Mutuelle ou assurance santé privée (admission en clinique). */
+  mutuelle?: { compagnie?: string; numero?: string };
 }
 export interface StatutAssurance {
   disponible: boolean; inscrit: boolean; depuis: string | null; majLe: string | null;

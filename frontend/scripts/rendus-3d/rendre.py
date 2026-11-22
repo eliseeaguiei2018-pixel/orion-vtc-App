@@ -627,6 +627,48 @@ def carte():
     o3.sphere('cœur', 0.075, (0.14, -0.09, 0.51), t['blanc'], echelle=(1, 0.5, 1))
 
 
+# ---------------------------------------------------------------- volet Services et compte (version 1.5.7)
+@rendu('reserver', azimut=108, elevation=16)
+def reserver():
+    """Calendrier de bureau : la course programmée (« Réserver »)."""
+    t = _teintes()
+    bandeau = t['rouge'] if o3.URBAIN else t['vert']
+    o3.boite('bloc', (0.92, 0.20, 0.86), (0, 0, 0.45), t['blanc'], rayon=0.055)
+    o3.boite('bandeau', (0.926, 0.206, 0.24), (0, 0, 0.765), bandeau, rayon=0.05)
+    for x in (-0.24, 0.24):
+        o3.tore('anneau', 0.055, 0.017, (x, 0, 0.895), t['metal'], rot=(0, math.pi / 2, 0))
+    for r in range(3):
+        for c in range(4):
+            choisi = (r, c) == (1, 2)
+            o3.boite('jour', (0.15, 0.014, 0.115), (-0.30 + c * 0.20, -0.103, 0.555 - r * 0.165), t['vert'] if choisi else t['violet_clair'], rayon=0.022)
+    # La coche du jour choisi : deux petits traits blancs.
+    o3.boite('coche a', (0.045, 0.012, 0.016), (0.085, -0.114, 0.382), t['blanc'], rayon=0.004, rot=(0, 0.75, 0))
+    o3.boite('coche b', (0.085, 0.012, 0.016), (0.118, -0.114, 0.395), t['blanc'], rayon=0.004, rot=(0, -0.85, 0))
+
+@rendu('protection', azimut=102, elevation=10)
+def protection():
+    """Bouclier à croix : ORION Assurance, le dossier de premiers secours."""
+    t = _teintes()
+    corps, bord, croix = (t['blanc'], t['metal'], t['rouge']) if o3.URBAIN else (t['vert'], t['blanc'], t['blanc'])
+    _bouclier(corps, bord)
+    o3.boite('croix h', (0.34, 0.05, 0.115), (0, -0.11, 0.54), croix, rayon=0.012)
+    o3.boite('croix v', (0.115, 0.054, 0.34), (0, -0.112, 0.54), croix, rayon=0.012)
+
+@rendu('cadeau', azimut=122, elevation=24)
+def cadeau():
+    """Boîte cadeau : le parrainage."""
+    t = _teintes()
+    corps = t['blanc']
+    ruban = t['rouge'] if o3.URBAIN else t['violet']
+    o3.boite('boîte', (0.80, 0.80, 0.54), (0, 0, 0.27), corps, rayon=0.035)
+    o3.boite('couvercle', (0.88, 0.88, 0.16), (0, 0, 0.615), corps, rayon=0.035)
+    o3.boite('ruban x', (0.15, 0.886, 0.70), (0, 0, 0.35), ruban, rayon=0.008)
+    o3.boite('ruban y', (0.886, 0.15, 0.70), (0, 0, 0.35), ruban, rayon=0.008)
+    o3.tore('boucle', 0.135, 0.045, (-0.15, 0, 0.80), ruban, rot=(math.pi / 2, 0.55, 0), echelle=(1, 1, 0.62))
+    o3.tore('boucle', 0.135, 0.045, (0.15, 0, 0.80), ruban, rot=(math.pi / 2, -0.55, 0), echelle=(1, 1, 0.62))
+    o3.sphere('nœud', 0.075, (0, 0, 0.745), ruban)
+
+
 if __name__ == '__main__':
     # Sans nom donné : tout, dans l'ordre de la liste. Avec des noms : ceux-là, dans l'ordre demandé.
     for nom in (sys.argv[2:] or list(RENDUS)):

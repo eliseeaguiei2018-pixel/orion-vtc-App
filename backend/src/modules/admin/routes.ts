@@ -1,3 +1,4 @@
+import { mediasSchema } from '../rental/medias.js';
 import { exigerHumain } from '../gcp/securite.js';
 import { Readable } from 'node:stream';
 import { nearestZone } from '../geo-ci/zones.js';
@@ -2333,6 +2334,17 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       container.promos.remove(code);
       audit(req, 'promo.delete', code);
       return { ok: true };
+    });
+
+    // --- Vitrine des véhicules : photos et vidéos réelles (Mariage, Location Signature) ---
+    scoped.get('/admin/medias/vehicules', async (req) => { require(req, 'services:read'); return container.mediasVehicules.etatComplet(); });
+
+    scoped.put('/admin/medias/vehicules', async (req) => {
+      require(req, 'services:write');
+      const body = parse(z.object({ medias: mediasSchema }), req.body);
+      const medias = container.mediasVehicules.remplacer(body.medias);
+      audit(req, 'medias.vehicules.update', undefined, { entrees: medias.length });
+      return { medias };
     });
 
     // --- Services & disponibilité (zones) ---

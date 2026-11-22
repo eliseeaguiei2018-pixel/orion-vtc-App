@@ -5,11 +5,16 @@ import { OrionMap } from './components/OrionMap';
 import { Sheet, TopBar, Toast } from './components/ui';
 import {
   IconBell, IconClose, IconBolt, IconCalendar, IconCamera, IconCar, IconCheck, IconChevron, IconChevronDown, IconClock, IconCrown,
-  IconFingerprint, IconGem, IconGlobe, IconLeaf, IconLock, IconMinus,
+  IconFingerprint, IconGem, IconGlobe, IconLeaf, IconLock, IconMessage, IconMinus,
   IconPhone, IconPin, IconPlus, IconRing, IconSearch, IconShare,
   IconShield, IconShieldCheck, IconMedical, IconStar, IconTraffic, IconWallet, } from './icons';
 import { LogoApp } from './components/Logo';
 import { heureLocale, libelleQuand, programmerCourse } from './programmees';
+import { NavBas, ONGLETS, type Onglet } from './components/NavBas';
+import { ServicesScreen } from './components/ServicesScreen';
+import { GalerieVehicule } from './components/GalerieVehicule';
+import { BusinessScreen, ContactsScreen, ControleSecuriteScreen, EntrepriseScreen, FamilleScreen, GroupesScreen, ParrainageScreen, RevenusScreen, type EtapeSecurite } from './components/CompteExtras';
+import { famille, lienSms, modeSimple, noterCoursePro, profilPro, reglerModeSimple, reprendreContactDeConfiance, type ProfilPro, type Proche } from './compte';
 import { Objet, Tuile, Voiture, Scooter, objetPack, objetUrgence, vehiculeDeGamme } from './components/Vehicules';
 import { AssuranceScreen } from './components/AssuranceScreens';
 import { BoutonMessages, ControleSecurite, MessagesScreen, useMessagerie } from './components/MessagesOrion';
@@ -180,6 +185,17 @@ export function App() {
     try { return JSON.parse(localStorage.getItem('orion.trusted') || 'null'); } catch { return null; }
   });
   const [shareRides, setShareRides] = useState(() => localStorage.getItem('orion.share') === '1');
+  /* Mode simplifié (seniors) ; passager quand on commande pour un proche ; course professionnelle. */
+  const [simple, setSimple] = useState(modeSimple);
+  const [passager, setPassager] = useState<Proche | null>(null);
+  const [pro, setPro] = useState<{ actif: boolean; motif: string }>({ actif: false, motif: '' });
+  /* D'où l'on vient pour chaque écran du compte (retour au bon endroit). */
+  const [retours, setRetours] = useState<Partial<Record<Screen, Screen>>>({});
+  const aller = (ecran: Screen, depuis: Screen) => { setRetours((x) => ({ ...x, [ecran]: depuis })); setScreen(ecran); };
+  const revenir = (ecran: Screen) => setScreen(retours[ecran] ?? 'settings');
+  // Le contact de confiance d'avant le carnet devient son premier contact.
+  useEffect(() => { reprendreContactDeConfiance(trusted); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [driver, setDriver] = useState<Driver | null>(null);
   const [carPos, setCarPos] = useState<LatLng | null>(null);
   const [tripPhase, setTripPhase] = useState<TripPhase>('enroute');
@@ -621,6 +637,8 @@ export function App() {
     setScheduled(false);
     setInsurance(false);
     setPromo('');
+    setPassager(null);
+    setPro({ actif: false, motif: '' });
     setMode('ride');
     setScreen('home');
   };
@@ -648,10 +666,22 @@ export function App() {
   const gps: GpsCarteValeur | null = ECRANS_GPS.includes(screen)
     ? { moi: maPosition, occupe: gpsOccupe, actualiser: () => void actualiserPosition(), libelle: t('gps_actualiser') } : null;
 
+  /* Contrôle de sécurité : quatre protections réelles, chacune avec son état et son action. */
+  const etapesSecurite: EtapeSecurite[] = [
+    { cle: 'contact', fait: Boolean(trusted), onAction: () => aller('contacts', 'controle') },
+    { cle: 'partage', fait: shareRides && Boolean(trusted), onAction: () => {
+      if (!trusted) { aller('contacts', 'controle'); return; }
+      const v = !shareRides; setShareRides(v); localStorage.setItem('orion.share', v ? '1' : '0');
+    } },
+    { cle: 'verrou', fait: isBiometricEnabled(), onAction: () => aller('securite', 'controle') },
+    { cle: 'assurance', fait: assuranceInscrite, onAction: () => { if (!profil) { setScreen('auth'); return; } setRetourAssurance('controle'); setScreen('assurance'); } },
+  ];
+  const navVisible = !locked && (ONGLETS as Screen[]).includes(screen);
+
   return (
     <GpsCarte.Provider value={gps}>
     <div className="app-shell">
-      <div className={`phone${sosLive && !sosOuvert ? ' sos-reduit' : ''}`}>
+      <div className={`phone${sosLive && !sosOuvert ? ' sos-reduit' : ''}${navVisible ? ' a-nav' : ''}${simple ? ' mode-simple' : ''}`}>
         {toast && <Toast message={toast.message} danger={toast.danger} />}
         {sosState && <SosOverlay state={sosState} onRetry={() => void triggerSos()} onClose={() => setSosState(null)} />}
         {sosLive && sosOuvert && (
@@ -675,7 +705,15 @@ export function App() {
         {screen === 'photo' && <PhotoScreen profil={profil} onDone={(p) => { if (p) setProfil(p); setScreen('permissions'); }} />}
         {screen === 'permissions' && <PermissionsScreen etat={position.etat} onLocaliser={position.localiser} onDone={() => setScreen('home')} />}
 
-        {screen === 'home' && (
+        {screen === 'home' && simple && (
+          <AccueilSimple
+            onSearch={() => { if (guardOpen()) { setMode('ride'); setScheduled(false); ouvrirChoix('destination', 'home'); } }}
+            onQuick={(p) => { if (guardOpen()) { setMode('ride'); if (position.etat === 'inconnue') position.localiser(); chooseDestination(p); } }}
+            onAjouterLieu={(quel) => ouvrirChoix(quel, 'home')}
+            onAide={() => { setRetourService('home'); setScreen('help'); }}
+            onQuitter={() => { reglerModeSimple(false); setSimple(false); showToast(t('simp_off')); }} />
+        )}
+        {screen === 'home' && !simple && (
           <HomeScreen announce={announce} closed={closed} deliveryOff={deliveryOff} city={appConfig?.city ?? null}
             depart={{ source: position.depart.source, nom: origin.name }}
             onPosition={() => ouvrirChoix('depart', 'home')}
@@ -713,6 +751,7 @@ export function App() {
           <ConfirmScreen origin={origin} departAConfirmer={departAConfirmer} onDepart={() => ouvrirChoix('depart', 'confirm')} destination={destination} tier={tier} bodyType={bodyType} quote={quote} coverage={coverage} payment={payment}
             payments={enabledPayments} promo={promo} onPromo={setPromo}
             stops={stops} onAddStop={() => ouvrirChoix('arret', 'confirm')} onRemoveStop={(i) => setStops((s) => s.filter((_, j) => j !== i))}
+            proches={famille()} passager={passager} onPassager={setPassager} profilPro={profilPro()} pro={pro} onPro={setPro}
             scheduled={scheduled} onSchedule={setScheduled} insurance={insurance} onInsurance={(v) => { if (v && !assuranceInscrite) { setAssuranceRequise(true); return; } setInsurance(v); }}
             onPayment={setPayment} onBack={() => setScreen('estimate')}
             onConfirm={(quand) => {
@@ -731,6 +770,7 @@ export function App() {
         {screen === 'tracking' && destination && driver && (
           <TrackingScreen onMessage={messagerie.recevoir} messages={messagerie.actif ? { nonLus: messagerie.nonLus, ouvrir: () => { setRetourMessages('tracking'); setScreen('messages'); } } : undefined} origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase} mode={mode}
             carPos={carPos} setCarPos={setCarPos} setPhase={setTripPhase} live={live} rideId={rideId} stops={stops}
+            passager={passager} commandePar={profil?.name ?? ''}
             pause={controleOuvert || (sosOuvert && modeLocal())}
             onSos={triggerSos} onShare={() => void partagerTrajet()} onArrived={() => setScreen('payment')}
             onCancel={cancelCurrentRide}
@@ -750,7 +790,11 @@ export function App() {
 
         {screen === 'payment' && destination && driver && (
           <PaymentScreen quote={quote} coverage={coverage} payment={payment} driver={driver} rideId={rideId} destination={destination}
-            onPaid={() => setScreen('rating')} />
+            onPaid={() => {
+              // Course professionnelle : elle entre dans le relevé du tableau de bord ORION Business.
+              if (pro.actif && quote) noterCoursePro({ trajet: `${origin.name} → ${destination.name}`, montant: quote.amount, motif: pro.motif.trim() || undefined });
+              setScreen('rating');
+            }} />
         )}
 
         {screen === 'rating' && destination && driver && (
@@ -800,14 +844,19 @@ export function App() {
         )}
         {screen === 'messages' && <MessagesScreen messagerie={messagerie} onBack={() => setScreen(retourMessages)} />}
         {screen === 'settings' && (
-          <SettingsScreen profil={profil} onBack={() => setScreen('home')}
+          <SettingsScreen profil={profil} onBack={() => setScreen('home')} onglet
+            securite={{ fait: etapesSecurite.filter((e) => e.fait).length, total: etapesSecurite.length }} onControle={() => setScreen('controle')}
+            onParrainage={() => setScreen('parrainage')} onFamille={() => setScreen('famille')}
+            onContacts={() => aller('contacts', 'settings')} onGroupes={() => setScreen('groupes')}
+            modeSimple={simple} onModeSimple={(v) => { reglerModeSimple(v); setSimple(v); showToast(t(v ? 'simp_on' : 'simp_off')); if (v) setScreen('home'); }}
+            onRevenus={() => setScreen('revenus')} onBusiness={() => setScreen('business')} onEntreprise={() => setScreen('entreprise')}
             assuranceActive={assuranceInscrite} onAssurance={() => { setRetourAssurance('settings'); setScreen('assurance'); }}
             onProfile={() => { setRetourProfil('settings'); setScreen('profile'); }} onHistory={() => setScreen('history')} onSos={() => setScreen('sosHistory')}
             onWallet={() => { setRetourService('settings'); setScreen('wallet'); }} onSubscription={() => { setRetourService('settings'); setScreen('subscription'); }}
             onHelp={() => { setRetourService('settings'); setScreen('help'); }} onLegal={() => setScreen('legal')} onCreate={() => setScreen('auth')}
             onServeur={() => setScreen('serveur')}
             nonLus={messagerie.nonLus} onMessages={messagerie.actif ? () => { setRetourMessages('settings'); setScreen('messages'); } : undefined}
-            onAdresses={() => setScreen('adresses')} onSecurite={() => setScreen('securite')}
+            onAdresses={() => setScreen('adresses')} onSecurite={() => aller('securite', 'settings')}
             onPreferences={() => { setRetourPreferences('settings'); setScreen('preferences'); }}
             onCarte={() => setScreen('carteFond')} carteGoogle={fond === 'google'} />
         )}
@@ -817,7 +866,7 @@ export function App() {
             onDelete={() => void supprimerCompte().then((r) => (r.ok ? quitterCompte(t('set_deleted')) : showToast(r.error, true)))} />
         )}
         {screen === 'securite' && (
-          <SecuriteScreen onBack={() => setScreen('settings')}
+          <SecuriteScreen onBack={() => revenir('securite')}
             trusted={trusted} setTrusted={(c) => { setTrusted(c); localStorage.setItem('orion.trusted', JSON.stringify(c)); }}
             shareRides={shareRides} setShareRides={(v) => { setShareRides(v); localStorage.setItem('orion.share', v ? '1' : '0'); }} />
         )}
@@ -832,22 +881,52 @@ export function App() {
         {screen === 'sosHistory' && <SosHistoryScreen onBack={() => setScreen('settings')} />}
         {screen === 'legal' && <LegalScreen onBack={() => setScreen('settings')} />}
         {screen === 'wallet' && <WalletScreen onBack={() => setScreen(retourService)} onToast={showToast} onCommander={() => setScreen('destination')} onLogin={() => setScreen('auth')} />}
-        {screen === 'history' && <HistoryScreen onBack={() => setScreen('settings')} onLogin={() => setScreen('auth')} />}
+        {screen === 'history' && <HistoryScreen onglet onBack={() => setScreen('home')} onLogin={() => setScreen('auth')} />}
         {screen === 'help' && <HelpScreen onBack={() => setScreen(retourService)} onSupport={() => setScreen('support')} />}
         {screen === 'support' && <SupportChatScreen onBack={() => setScreen('help')} />}
         {screen === 'subscription' && (
           <SubscriptionScreen onBack={() => setScreen(retourService)} onToast={showToast} />
         )}
         {screen === 'rental' && (
-          <RentalScreen onBack={() => setScreen('home')} onToast={showToast}
+          <RentalScreen onBack={() => setScreen(retours.rental ?? 'home')} onToast={showToast}
             onReserved={(id) => { showToast(t('rent_reserved', { id })); setScreen('myRentals'); }} />
         )}
         {screen === 'myRentals' && (
           <MyRentalsScreen onBack={() => setScreen('home')} onToast={showToast} />
         )}
         {screen === 'wedding' && (
-          <WeddingScreen onBack={() => setScreen('home')} onToast={showToast} onLogin={() => setScreen('auth')} />
+          <WeddingScreen onBack={() => setScreen(retours.wedding ?? 'home')} onToast={showToast} onLogin={() => setScreen('auth')} />
         )}
+
+        {/* ---- Volet Services ---- */}
+        {screen === 'services' && (
+          <ServicesScreen ferme={closed} livraisonOff={deliveryOff} assurance={Boolean(profil)}
+            onCourse={() => { if (guardOpen()) { setMode('ride'); setScheduled(false); ouvrirChoix('destination', 'services'); } }}
+            onReserver={() => { if (guardOpen()) { setMode('ride'); setScheduled(true); ouvrirChoix('destination', 'services'); } }}
+            onLivraison={() => { if (guardOpen()) { setMode('delivery'); if (position.etat === 'inconnue') position.localiser(); setScreen('delivery'); } }}
+            onAbonnement={() => { setRetourService('services'); setScreen('subscription'); }}
+            onLocation={() => aller('rental', 'services')} onMariage={() => aller('wedding', 'services')}
+            onAssurance={() => { setRetourAssurance('services'); setScreen('assurance'); }} />
+        )}
+
+        {/* ---- Écrans du volet Compte ---- */}
+        {screen === 'controle' && <ControleSecuriteScreen etapes={etapesSecurite} onBack={() => setScreen('settings')} />}
+        {screen === 'parrainage' && <ParrainageScreen onBack={() => setScreen('settings')} onToast={showToast} />}
+        {screen === 'contacts' && (
+          <ContactsScreen onBack={() => revenir('contacts')}
+            onConfiance={(c) => { setTrusted(c); if (c) localStorage.setItem('orion.trusted', JSON.stringify(c)); else localStorage.removeItem('orion.trusted'); }} />
+        )}
+        {screen === 'groupes' && <GroupesScreen onBack={() => setScreen('settings')} onContacts={() => aller('contacts', 'groupes')} />}
+        {screen === 'famille' && (
+          <FamilleScreen onBack={() => setScreen('settings')}
+            onCommander={(p) => { if (guardOpen()) { setPassager(p); setMode('ride'); setScheduled(false); ouvrirChoix('destination', 'famille'); } }} />
+        )}
+        {screen === 'business' && <BusinessScreen onBack={() => setScreen('settings')} onToast={showToast} />}
+        {screen === 'entreprise' && <EntrepriseScreen nom={profil?.name ?? ''} telephone={profil?.phone ?? ''} onBack={() => setScreen('settings')} onToast={showToast} />}
+        {screen === 'revenus' && <RevenusScreen nom={profil?.name ?? ''} telephone={profil?.phone ?? ''} onBack={() => setScreen('settings')} onToast={showToast} />}
+
+        {/* Barre du bas : sur les quatre écrans racines seulement. */}
+        {navVisible && <NavBas actif={screen as Onglet} nonLus={messagerie.actif ? messagerie.nonLus : 0} onAller={(o) => setScreen(o)} />}
       </div>
     </div>
     </GpsCarte.Provider>
@@ -1339,6 +1418,58 @@ function OtpScreen({ phone, devCode, onBack, onResend, onVerify }: {
   );
 }
 
+/* -------------------------- Accueil simplifié ------------------------ */
+/**
+ * MODE SIMPLIFIÉ — pensé pour les seniors et pour qui veut l'essentiel : une seule question
+ * (« Où allez-vous ? »), les lieux enregistrés en gros boutons, l'aide à portée de main.
+ * Les autres services restent dans le volet Services ; on quitte le mode d'un geste.
+ */
+function AccueilSimple({ onSearch, onQuick, onAjouterLieu, onAide, onQuitter }: {
+  onSearch: () => void; onQuick: (p: Place) => void; onAjouterLieu: (quel: 'domicile' | 'bureau') => void;
+  onAide: () => void; onQuitter: () => void;
+}) {
+  const { t } = useI18n();
+  const domicile = lieuEnregistre('home');
+  const bureau = lieuEnregistre('work');
+  const recents = lieuxRecents().slice(0, 2);
+  return (
+    <div className="screen page hub simple">
+      <div className="page-body hub-body simple-corps">
+        <div className="simple-tete">
+          <span className="hub-mot">Orion</span>
+          <span className="simple-etiquette">{t('cpt_simple')}</span>
+        </div>
+        <button className="simple-question" onClick={onSearch}>
+          <IconSearch size={30} strokeWidth={2.1} />
+          <span>{t('acc_ou')}</span>
+        </button>
+        <span className="eyebrow simple-rubrique">{t('lieu_vos_lieux')}</span>
+        <div className="simple-lieux">
+          {([['domicile', domicile], ['bureau', bureau]] as const).map(([quel, lieu]) => (
+            <button key={quel} className="simple-lieu" onClick={() => (lieu ? onQuick(lieu) : onAjouterLieu(quel))}>
+              <span className="simple-ico"><Objet nom={quel} taille={40} /></span>
+              <span className="col grow" style={{ textAlign: 'start', minWidth: 0 }}>
+                <strong>{t(quel === 'domicile' ? 'lieu_domicile' : 'lieu_bureau')}</strong>
+                <small>{lieu ? lieu.area || lieu.name : t(quel === 'domicile' ? 'lieu_ajouter_domicile' : 'lieu_ajouter_bureau')}</small>
+              </span>
+              {lieu ? <IconChevron size={22} /> : <IconPlus size={22} />}
+            </button>
+          ))}
+          {recents.map((p) => (
+            <button key={p.id} className="simple-lieu" onClick={() => onQuick(p)}>
+              <span className="simple-ico">{iconeLieu(p)}</span>
+              <span className="col grow" style={{ textAlign: 'start', minWidth: 0 }}><strong>{p.name}</strong><small>{p.area}</small></span>
+              <IconChevron size={22} />
+            </button>
+          ))}
+        </div>
+        <button className="btn btn-ghost simple-aide" onClick={onAide}><IconPhone size={22} /> {t('menu_help')}</button>
+        <button className="simple-quitter" onClick={onQuitter}>{t('simp_quitter')}</button>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------- Home -------------------------------- */
 
 function HomeScreen({ announce, closed, deliveryOff, city, depart, onPosition, onBoite, onPlusTard, onSearch, onCourse, onDelivery, onQuick, onAjouterLieu, onNav, onSoon, nonLus = 0 }: {
@@ -1383,13 +1514,10 @@ function HomeScreen({ announce, closed, deliveryOff, city, depart, onPosition, o
             <span>{t('acc_boite')}</span>
           </button>
         </div>
-        {/* Le nom, centré au-dessus de la recherche ; les trois traits ouvrent le menu
-            (profil, paramètres, tout le reste). */}
+        {/* Le nom, centré au-dessus de la recherche. Le profil et les paramètres sont dans le
+            volet Compte de la barre du bas. */}
         <div className="hub-titre rise">
           <span className="hub-mot">Orion</span>
-          <button className="hub-menu" onClick={() => onNav('settings')} aria-label={t('menu_ouvrir')}>
-            <i /><i /><i />
-          </button>
         </div>
         {/* La recherche : une pilule, la destination à gauche, « Plus tard » à droite. */}
         <div className="hub-barre rise rise-2">
@@ -1436,11 +1564,11 @@ function HomeScreen({ announce, closed, deliveryOff, city, depart, onPosition, o
             Achat & Vente et Supermarché ne sont plus montrés tant qu'ils ne sont pas ouverts :
             ils restent déclarés côté serveur (réglage « services ») et reviendront d'un geste
             depuis la console. « Mes courses » et « Aide » sont dans les paramètres. */}
-        <div className="tuiles quatre rise rise-3">
-          <Tuile rang={2} objet={<Objet nom="colis" volume />} label={t('svc_colis')} onClick={() => (deliveryOff || closed ? onSoon(t('svc_colis')) : onDelivery())} />
-          <Tuile rang={3} objet={<Objet nom="abonnement" volume />} label={t('menu_subscription')} onClick={() => onNav('subscription')} />
-          <Tuile rang={4} objet={<Objet nom="location" volume />} label={t('rent_entry')} onClick={() => onNav('rental')} />
-          <Tuile rang={5} objet={<Objet nom="mariage" volume />} label={t('menu_wedding')} onClick={() => onNav('wedding')} />
+        <div className="tuiles quatre rondes rise rise-3">
+          <Tuile ronde rang={2} objet={<Objet nom="colis" volume />} label={t('svc_colis')} onClick={() => (deliveryOff || closed ? onSoon(t('svc_colis')) : onDelivery())} />
+          <Tuile ronde rang={3} objet={<Objet nom="abonnement" volume />} label={t('menu_subscription')} onClick={() => onNav('subscription')} />
+          <Tuile ronde rang={4} objet={<Objet nom="location" volume />} label={t('rent_entry')} onClick={() => onNav('rental')} />
+          <Tuile ronde rang={5} objet={<Objet nom="mariage" volume />} label={t('menu_wedding')} onClick={() => onNav('wedding')} />
         </div>
 
         <span className="eyebrow" style={{ marginTop: 4 }}><IconPin size={13} /> {t('lieu_vos_lieux')}</span>
@@ -1639,12 +1767,15 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
 }
 
 /* ------------------------------ Confirm ------------------------------ */
-function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, bodyType = 'berline', quote, coverage, payment, payments, promo, onPromo, stops, onAddStop, onRemoveStop, scheduled, onSchedule, insurance, onInsurance, onPayment, onBack, onConfirm }: {
+function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, bodyType = 'berline', quote, coverage, payment, payments, promo, onPromo, stops, onAddStop, onRemoveStop, scheduled, onSchedule, proches, passager, onPassager, profilPro, pro, onPro, insurance, onInsurance, onPayment, onBack, onConfirm }: {
   bodyType?: 'suv' | 'berline';
   departAConfirmer: boolean; onDepart: () => void; onRemoveStop: (i: number) => void;
   origin: Place; destination: Place; tier: TierOption; quote: Quote | null; coverage: SubCoverage | null; payment: string;
   payments: { method: string; label: string }[]; promo: string; onPromo: (v: string) => void;
   stops: Place[]; onAddStop: () => void; scheduled: boolean; onSchedule: (v: boolean) => void;
+  /** Famille : pour qui est la course. Profil professionnel : course à porter au relevé. */
+  proches: Proche[]; passager: Proche | null; onPassager: (p: Proche | null) => void;
+  profilPro: ProfilPro | null; pro: { actif: boolean; motif: string }; onPro: (v: { actif: boolean; motif: string }) => void;
   insurance: boolean; onInsurance: (v: boolean) => void;
   /** `quand` : date et heure choisies quand la course est programmée (ISO). */
   onPayment: (m: string) => void; onBack: () => void; onConfirm: (quand?: string) => void;
@@ -1659,6 +1790,7 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
   const auPlusTot = heureLocale(Date.now() + 20 * 60_000);
   const quandValide = !scheduled || (Boolean(quand) && new Date(quand).getTime() >= Date.now() + 15 * 60_000);
   const total = quote ? Math.max(0, quote.amount - (coverage?.montantCouvert ?? 0) - (coverage?.remise ?? 0)) : 0;
+  const motifManque = pro.actif && Boolean(profilPro?.motifObligatoire) && !pro.motif.trim();
   return (
     <div className="screen">
       <OrionMap origin={origin.location} destination={destination.location} stops={stops.map((s) => s.location)} />
@@ -1675,7 +1807,7 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
           {departAConfirmer ? (
             <button className="btn btn-primary" onClick={onDepart}><IconPin size={18} /> {t('lieu_confirmer_depart')}</button>
           ) : (
-            <button className="btn btn-primary" disabled={!quandValide} onClick={() => onConfirm(scheduled ? new Date(quand).toISOString() : undefined)}>{scheduled ? t('sched_set') : t('conf_confirm')}</button>
+            <button className="btn btn-primary" disabled={!quandValide || motifManque} onClick={() => onConfirm(scheduled ? new Date(quand).toISOString() : undefined)}>{scheduled ? t('sched_set') : t('conf_confirm')}</button>
           )}
         </>
       }>
@@ -1711,6 +1843,39 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
                 onChange={(e) => setQuand(e.target.value)} style={{ fontSize: 15, minWidth: 0, textAlign: 'end' }} />
             </label>
             <p className="faint" style={{ fontSize: 12, marginBottom: 12 }}>{quandValide ? t('sched_info') : t('sched_trop_tot')}</p>
+          </>
+        )}
+
+        {/* Famille : la course est pour un proche, qui recevra le chauffeur et le code par SMS. */}
+        {proches.length > 0 && (
+          <div className="conf-pour">
+            <span className="eyebrow">{t('fam_passager')}</span>
+            <div className="chips" style={{ margin: '8px 0 12px' }}>
+              <button className={`chip${passager ? '' : ' active'}`} onClick={() => onPassager(null)}>{t('fam_moi')}</button>
+              {proches.map((p) => (
+                <button key={p.id} className={`chip${passager?.id === p.id ? ' active' : ''}`} onClick={() => onPassager(p)}>{p.nom.split(' ')[0]}</button>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* Profil professionnel : la course ira au relevé ORION Business. */}
+        {profilPro && (
+          <>
+            <div className="opt" style={{ marginBottom: pro.actif ? 8 : 12 }}>
+              <span className="col grow" style={{ textAlign: 'start', minWidth: 0 }}>
+                <strong style={{ fontSize: 14 }}>{t('pro_course')}</strong>
+                <span className="faint" style={{ fontSize: 12 }}>{profilPro.societe}</span>
+              </span>
+              <button className={`toggle${pro.actif ? ' on' : ''}`} role="switch" aria-checked={pro.actif} aria-label={t('pro_course')} onClick={() => onPro({ ...pro, actif: !pro.actif })}><span /></button>
+            </div>
+            {pro.actif && (
+              <>
+                <div className="field" style={{ padding: '10px 14px', marginBottom: 6 }}>
+                  <input value={pro.motif} maxLength={60} placeholder={t('pro_motif')} aria-label={t('pro_motif')} onChange={(e) => onPro({ ...pro, motif: e.target.value })} style={{ fontSize: 15, minWidth: 0 }} />
+                </div>
+                {motifManque && <p className="faint" style={{ fontSize: 12, marginBottom: 12 }}>{t('pro_motif_requis')}</p>}
+              </>
+            )}
           </>
         )}
 
@@ -1837,11 +2002,13 @@ function SearchingScreen({ origin, destination, mode = 'ride', onCancel }: { ori
 }
 
 /* ----------------------------- Tracking ------------------------------ */
-function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, pause = false, onSos, onShare, onArrived, onCancel, onReassigned, onServerCancel, onMessage, messages }: {
+function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, pause = false, passager = null, commandePar = '', onSos, onShare, onArrived, onCancel, onReassigned, onServerCancel, onMessage, messages }: {
   origin: Place; destination: Place; driver: Driver; tier: TierOption; phase: TripPhase; mode?: 'ride' | 'delivery';
   carPos: LatLng | null; setCarPos: (p: LatLng) => void; setPhase: (p: TripPhase) => void;
   /** Course simulée en attente : le contrôle de sécurité ou le SOS est à l'écran. */
   pause?: boolean;
+  /** Course commandée pour un proche (famille) : on peut le prévenir par SMS. */
+  passager?: Proche | null; commandePar?: string;
   live: boolean; rideId: string | null; stops: Place[]; onSos: () => void; onShare: () => void; onArrived: () => void; onCancel: () => void;
   /** Synchro app chauffeur : nouveau chauffeur (refus / délai dépassé / console). */
   onReassigned?: (d: SafeDriver) => void;
@@ -1971,6 +2138,11 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
               {code.split('').map((c, i) => <span key={i}>{c}</span>)}
             </div>
           </div>
+        )}
+        {!del && passager && (phase === 'enroute' || phase === 'arrived') && (
+          <a className="btn btn-ghost prevenir" href={lienSms([passager.telephone], t('fam_sms', { chauffeur: driver.name, vehicule: driver.car, plaque: driver.plate, code: code ?? '—', de: commandePar || 'ORION' }))}>
+            <IconMessage size={17} /> {t('fam_prevenir', { nom: passager.nom.split(' ')[0] ?? passager.nom })}
+          </a>
         )}
         {!del && codeEtat === 'ok' && (phase === 'arrived' || phase === 'inprogress') && (
           <div className="code-prise-ok" role="status"><IconShieldCheck size={16} /> {t('code_ok')}</div>
@@ -2277,6 +2449,11 @@ function WeddingScreen({ onBack, onToast, onLogin }: { onBack: () => void; onToa
             </button>
           ))}
         </div>
+
+        {/* Vitrine : photos et vidéos réelles de la gamme choisie, selon les options. */}
+        <GalerieVehicule service="mariage" vehicule={tier.id} titre={`${t(tier.key)} · ${tier.cars[0] ?? ''}`}
+          options={{ decoration, duree: duration, cortege: convoy > 0 }}
+          secours={<TierBadge tier={tier.id} size={96} />} />
 
         <span className="eyebrow">{t('wed_duration')}</span>
         <div className="chips" style={{ margin: '10px 0 18px' }}>

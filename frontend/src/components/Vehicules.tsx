@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { useAccentSur } from '../theme';
 import {
-  IconAlarm, IconAward, IconBadge, IconBag, IconBank, IconBriefcase, IconBuilding, IconBus, IconCar, IconCarburant, IconCart, IconChart,
+  IconAlarm, IconAward, IconBadge, IconBag, IconBank, IconBriefcase, IconBuilding, IconBus, IconCalendar, IconCar, IconCarburant, IconCart, IconChart, IconGift,
   IconClock, IconCrown, IconEcole, IconEglise, IconFile, IconFlag, IconFlame, IconGem, IconHeadset, IconHome, IconKey, IconLeaf, IconLit, IconLock,
   IconMap, IconMedical, IconMessage, IconMonitor, IconMosquee, IconPackage, IconPhone, IconPin, IconPlane, IconRing, IconSettings, IconShieldCheck,
   IconSteering, IconTarget, IconTicket, IconTree, IconUsers, IconUtensils, IconWallet, IconWifi,
@@ -40,7 +40,9 @@ const dossierAccueil = (): string => (style.accueil === 'couleur' ? '' : `${styl
 
 /** Objets des services de l'accueil. */
 export type ObjetService =
-  | 'food' | 'achat' | 'supermarche' | 'colis' | 'abonnement' | 'location' | 'mariage' | 'mes-courses' | 'aide';
+  | 'food' | 'achat' | 'supermarche' | 'colis' | 'abonnement' | 'location' | 'mariage' | 'mes-courses' | 'aide'
+  // Volet Services et compte (version 1.5.7) : calendrier, bouclier à croix, boîte cadeau.
+  | 'reserver' | 'protection' | 'cadeau';
 
 /** Icônes en volume des listes et des boutons (paramètres, urgences, packs, lieux). */
 export type Icone3D =
@@ -103,7 +105,7 @@ export function Scooter({ largeur = 120 }: { largeur?: number; accueil?: boolean
 /** Chaque objet a son pictogramme au trait : même sens, sans couleur ni volume. */
 const TRAITS: Record<ObjetService | Icone3D, (p: { size?: number; strokeWidth?: number }) => JSX.Element> = {
   food: IconUtensils, achat: IconBag, supermarche: IconCart, colis: IconPackage, abonnement: IconCrown, location: IconKey, mariage: IconRing,
-  'mes-courses': IconCar, aide: IconHeadset,
+  'mes-courses': IconCar, aide: IconHeadset, reserver: IconCalendar, protection: IconShieldCheck, cadeau: IconGift,
   'pack-argent': IconAward, 'pack-or': IconCrown, 'pack-diamant': IconGem, samu: IconMedical, police: IconBadge, pompiers: IconFlame,
   reglages: IconSettings, assurance: IconShieldCheck, historique: IconClock, 'alertes-sos': IconAlarm, portefeuille: IconWallet, cadenas: IconLock,
   document: IconFile, serveur: IconMonitor, telephone: IconPhone, message: IconMessage, wifi: IconWifi,
@@ -136,12 +138,13 @@ export function VoitureDessus({ taille = 26 }: { taille?: number }) {
 /**
  * Tuile de service : l'objet en volume sur un carré arrondi, le nom dessous. `rang` décale
  * l'entrée et le flottement de l'objet, pour que les tuiles ne bougent pas toutes ensemble.
+ * `ronde` : l'objet sur une pastille ronde à fond neutre (rangée de l'accueil, volet Services).
  */
-export function Tuile({ objet, label, note, grande, off, rang = 0, onClick }: {
-  objet: ReactNode; label: string; note?: string; grande?: boolean; off?: boolean; rang?: number; onClick: () => void;
+export function Tuile({ objet, label, note, grande, ronde, off, rang = 0, onClick }: {
+  objet: ReactNode; label: string; note?: string; grande?: boolean; ronde?: boolean; off?: boolean; rang?: number; onClick: () => void;
 }) {
   return (
-    <button className={`tuile${grande ? ' grande' : ''}${off ? ' off' : ''}`} style={{ '--i': rang } as CSSProperties} onClick={onClick} disabled={off}>
+    <button className={`tuile${grande ? ' grande' : ''}${ronde ? ' ronde' : ''}${off ? ' off' : ''}`} style={{ '--i': rang } as CSSProperties} onClick={onClick} disabled={off}>
       <span className="tuile-fond">{objet}</span>
       <strong className="tuile-nom">{label}</strong>
       {note && <span className="tuile-note">{note}</span>}

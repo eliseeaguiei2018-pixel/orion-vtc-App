@@ -37,6 +37,10 @@ ORION_PALETTE=urbain ECHANTILLONS=192 python rendre.py /tmp/rendus-urbain berlin
 python publier.py /tmp/rendus-urbain ../../public/rendus/urbain
 ```
 
+Trois objets ont rejoint cette palette avec le volet Services et le compte (version 1.5.7) :
+`reserver` (calendrier), `protection` (bouclier à croix) et `cadeau` (parrainage). Ils sont
+publiés dans `urbain/` et, avivés, dans `vif/`.
+
 Dans `rendre.py`, `o3.URBAIN` choisit les matières de cette palette objet par objet ; dans
 `orion3d.py`, `matiere(..., urbain='#RRGGBB')` impose une teinte pour elle seule.
 

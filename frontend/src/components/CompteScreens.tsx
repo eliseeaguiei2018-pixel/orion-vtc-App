@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom';
 import { Sheet, TopBar } from './ui';
 import {
-  IconAlarm, IconArrowLeft, IconBriefcase, IconCalendar, IconCamera, IconCheck, IconChevron, IconClock, IconClose, IconCrown, IconFingerprint, IconGlobe, IconHeadset, IconHome, IconImage,
-  IconInfo, IconLock, IconMap, IconMessage, IconMonitor, IconPin, IconPlus, IconSettings, IconShield, IconShieldCheck, IconPhone, IconStar, IconUser, IconWallet,
+  IconAlarm, IconArrowLeft, IconBriefcase, IconBuilding, IconCalendar, IconCamera, IconCheck, IconChevron, IconClock, IconClose, IconContacts, IconCrown, IconFingerprint, IconGift, IconGlobe, IconHeadset, IconHome, IconImage,
+  IconInfo, IconLock, IconMap, IconMessage, IconMobile, IconMonitor, IconPin, IconPlus, IconSettings, IconShield, IconShieldCheck, IconPhone, IconStar, IconSteering, IconUser, IconUsers, IconWallet,
 } from '../icons';
 import { useI18n, LANGUAGES, type Lang } from '../i18n';
 import { Drapeau } from './Drapeau';
@@ -17,6 +17,8 @@ import {
   type EtatBio, type ResultatBio,
 } from '../security';
 import { annulerProgrammee, coursesProgrammees, libelleQuand } from '../programmees';
+import { Anneau } from './CompteExtras';
+import { OFFRE_PARRAINAGE } from '../compte';
 import {
   AGENT_GENERIQUE, MOTIFS_ANNULATION, etatServeur, annulerCourse, apercuAnnulation, chargerHistorique, envoyerPhoto, mesAlertesSos,
   modifierProfil, retirerPhoto, sessionClient,
@@ -237,18 +239,27 @@ const VERSION = '1.5.7';
 const T = 1.9;
 
 /**
- * LE MENU — ouvert par les trois traits de l'accueil.
+ * LE VOLET COMPTE — dernier onglet de la barre du bas.
  *
  * Tout ce qui concerne le client et l'application au même endroit : son portrait, son nom
- * et son numéro ; quatre raccourcis en bulles (courses, aide, adresses, paramètres) ; puis
- * des groupes de lignes à chevron. Ici, pas de couleur : des icônes noires au trait, sans
- * fond, sans ombre ni dégradé, sur le gris clair des bulles et des groupes. Les objets en
- * volume restent sur l'accueil et les services.
+ * et son numéro ; quatre raccourcis en bulles (courses, aide, adresses, paramètres) ; deux
+ * cartes (contrôle de sécurité, invitation) ; puis des groupes de lignes à chevron : proches,
+ * argent, sécurité, travail, compte. Ici, pas de couleur : des icônes noires au trait, sans
+ * fond, sans ombre ni dégradé. Les objets en volume restent sur l'accueil, les services et
+ * la carte d'invitation.
  */
 export function SettingsScreen({
   profil, onBack, onProfile, onHistory, onSos, onWallet, onSubscription, onHelp, onLegal, onCreate,
   onAssurance, assuranceActive = false, onServeur, onMessages, nonLus = 0, onAdresses, onPreferences, onSecurite, onCarte, carteGoogle = false,
+  onglet = false, securite, onControle, onParrainage, onFamille, onContacts, onGroupes, modeSimple, onModeSimple, onRevenus, onBusiness, onEntreprise,
 }: {
+  /** Affiché comme volet de la barre du bas : pas de flèche de retour. */
+  onglet?: boolean;
+  /** Contrôle de sécurité : étapes faites sur le total. */
+  securite: { fait: number; total: number }; onControle: () => void;
+  onParrainage: () => void; onFamille: () => void; onContacts: () => void; onGroupes: () => void;
+  modeSimple: boolean; onModeSimple: (v: boolean) => void;
+  onRevenus: () => void; onBusiness: () => void; onEntreprise: () => void;
   profil: ProfilClient | null; onBack: () => void; onProfile: () => void; onHistory: () => void; onSos: () => void;
   onWallet: () => void; onSubscription: () => void; onHelp: () => void; onLegal: () => void; onCreate: () => void;
   /** ORION Assurance : dossier de premiers secours (inscription gratuite). */
@@ -281,9 +292,11 @@ export function SettingsScreen({
 
   return (
     <div className="screen page menu sans-couleur">
-      <div className="menu-haut">
-        <button className="bulle" onClick={onBack} aria-label="Retour"><IconArrowLeft size={22} /></button>
-      </div>
+      {!onglet && (
+        <div className="menu-haut">
+          <button className="bulle" onClick={onBack} aria-label="Retour"><IconArrowLeft size={22} /></button>
+        </div>
+      )}
       <div className="page-body menu-corps">
         <button className="menu-profil" onClick={profil ? onProfile : onCreate} aria-label={profil ? t('set_profile_edit') : t('set_create_account')}>
           <span className="menu-avatar">{profil ? <Avatar photo={profil.photo} name={profil.name} size={124} /> : <IconUser size={56} strokeWidth={1.4} />}</span>
@@ -301,6 +314,29 @@ export function SettingsScreen({
           {bulle(<IconSettings size={28} strokeWidth={T} />, t('set_title'), onPreferences)}
         </div>
 
+        {/* Deux cartes : où en est la sécurité du compte, et l'invitation d'un ami. */}
+        <div className="compte-cartes">
+          <button className="compte-carte" onClick={onControle}>
+            <span className="col grow"><strong>{t('cpt_controle_t')}</strong><small>{t('cpt_controle_d')}</small></span>
+            <Anneau fait={securite.fait} total={securite.total} taille={68} />
+          </button>
+          <button className="compte-carte" onClick={onParrainage}>
+            <span className="col grow"><strong>{t('cpt_inviter_t')}</strong><small>{t('cpt_inviter_d', { m: formatXOF(OFFRE_PARRAINAGE.remise), n: OFFRE_PARRAINAGE.courses })}</small></span>
+            <span className="compte-carte-objet"><Objet nom="cadeau" taille={76} volume /></span>
+          </button>
+        </div>
+
+        <div className="menu-groupe">
+          {ligne(<IconUsers size={27} strokeWidth={T} />, t('cpt_famille'), t('cpt_famille_d'), onFamille)}
+          <div className="menu-ligne statique">
+            <span className="menu-ico"><IconMobile size={27} strokeWidth={T} /></span>
+            <span className="menu-texte"><strong>{t('cpt_simple')} <span className="menu-nouveau">{t('cpt_nouveau')}</span></strong><small>{t('cpt_simple_d')}</small></span>
+            <button className={`toggle${modeSimple ? ' on' : ''}`} role="switch" aria-checked={modeSimple} aria-label={t('cpt_simple')} onClick={() => onModeSimple(!modeSimple)}><span /></button>
+          </div>
+          {ligne(<IconContacts size={27} strokeWidth={T} />, t('cpt_contacts'), t('cpt_contacts_d'), onContacts)}
+          {ligne(<IconUsers size={27} strokeWidth={T} />, t('cpt_groupes'), t('cpt_groupes_d'), onGroupes, <span className="menu-nouveau">{t('cpt_nouveau')}</span>)}
+        </div>
+
         <div className="menu-groupe">
           {onMessages && ligne(<IconMessage size={27} strokeWidth={T} />, t('msg_titre'), nonLus > 0 ? t('menu_messages_n', { n: nonLus }) : t('menu_messages_d'), onMessages,
             nonLus > 0 ? <span className="menu-pastille">{nonLus > 9 ? '9+' : nonLus}</span> : undefined)}
@@ -315,6 +351,14 @@ export function SettingsScreen({
         </div>
 
         <div className="menu-groupe">
+          {ligne(<IconSteering size={27} strokeWidth={T} />, t('cpt_revenus'), t('cpt_revenus_d'), onRevenus)}
+          {ligne(<IconBriefcase size={27} strokeWidth={T} />, t('cpt_pro_tableau'), t('cpt_pro_tableau_d'), onBusiness)}
+          {ligne(<IconBuilding size={27} strokeWidth={T} />, t('cpt_pro'), t('cpt_pro_d'), onEntreprise)}
+          {ligne(<IconGift size={27} strokeWidth={T} />, t('cpt_parrainer'), t('cpt_parrainer_d'), onParrainage)}
+        </div>
+
+        <div className="menu-groupe">
+          {profil && ligne(<IconUser size={27} strokeWidth={T} />, t('cpt_gerer'), t('cpt_gerer_d'), onProfile)}
           {ligne(<IconInfo size={27} strokeWidth={T} />, t('menu_infos'), t('menu_infos_d'), onLegal)}
           {onCarte && ligne(<IconMap size={27} strokeWidth={T} />, t('carte_titre'), t(carteGoogle ? 'carte_d_google' : 'carte_d_orion'), onCarte)}
           {onServeur && ligne(<IconMonitor size={27} strokeWidth={T} />, t('srv_title'), serveur.url ? t('srv_d_relie', { h: hoteServeur }) : t('srv_d_autonome'), onServeur)}
@@ -599,7 +643,7 @@ const MOYEN: Record<string, string> = {
  * Historique des courses : terminées, annulées (par qui, pourquoi, combien), reçus,
  * chauffeur, paiement, note, et alerte SOS éventuelle.
  */
-export function HistoryScreen({ onBack, onLogin }: { onBack: () => void; onLogin: () => void }) {
+export function HistoryScreen({ onBack, onLogin, onglet = false }: { onBack: () => void; onLogin: () => void; /** Volet « Activité » de la barre du bas : un titre, pas de flèche de retour. */ onglet?: boolean }) {
   const { t, lang } = useI18n();
   const [h, setH] = useState<Historique | null | 'connexion'>(null);
   const [filtre, setFiltre] = useState<'toutes' | 'terminees' | 'annulees'>('toutes');
@@ -616,8 +660,9 @@ export function HistoryScreen({ onBack, onLogin }: { onBack: () => void; onLogin
 
   return (
     <div className="screen page">
-      <TopBar onBack={onBack} title={t('hist_title')} />
-      <div className="page-body">
+      {!onglet && <TopBar onBack={onBack} title={t('hist_title')} />}
+      <div className={`page-body${onglet ? ' hub-body volet-corps' : ''}`}>
+        {onglet && <h1 className="volet-titre">{t('nav_activite')}</h1>}
         {/* Courses programmées (« Plus tard ») : à venir, la plus proche d'abord. */}
         {programmees.length > 0 && (
           <div className="prog">

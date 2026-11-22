@@ -445,15 +445,28 @@ interface FicheMedicale {
   sante: {
     groupeSanguin: string; antecedents: string[]; autresAntecedents?: string; allergies?: string; traitements?: string;
     anticoagulants: boolean; stimulateurCardiaque: boolean; reactionAllergiqueGrave: boolean;
+    poidsKg?: number; tailleCm?: number; allergiesConnues?: string[]; insuline?: boolean; grossesseMois?: number;
+    hospitalisationRecente?: boolean; chirurgies?: string; implants?: string;
+    communication?: string[]; langues?: string; consignes?: string; hopital?: string;
   };
   urgence: { nom: string; lien: string; telephone: string };
+  urgence2?: { nom: string; lien: string; telephone: string };
   medecin?: { nom: string; telephone?: string };
+  mutuelle?: { compagnie?: string; numero?: string };
 }
 
 const ANTECEDENT: Record<string, string> = {
   asthme: 'Asthme', hypertension: 'Hypertension', diabete: 'Diabète', drepanocytose: 'Drépanocytose',
   epilepsie: 'Épilepsie', cardiaque: 'Maladie cardiaque', renale: 'Maladie rénale', coagulation: 'Trouble de la coagulation',
   grossesse: 'Grossesse en cours', mobilite_reduite: 'Mobilité réduite',
+  avc: 'Antécédent d’AVC', respiratoire: 'Maladie respiratoire chronique', cancer: 'Cancer en cours de traitement', hepatique: 'Maladie du foie',
+};
+const ALLERGIE: Record<string, string> = {
+  penicilline: 'pénicilline et antibiotiques', aspirine_ains: 'aspirine et anti-inflammatoires', anesthesiques: 'anesthésiques',
+  iode: 'iode et produits de contraste', latex: 'latex', aliments: 'aliments', venins: 'piqûres d’insectes',
+};
+const COMMUNIQUER: Record<string, string> = {
+  malentendant: 'Malentendant', malvoyant: 'Malvoyant', parole_difficile: 'Difficulté à parler', non_francophone: 'Ne parle pas français',
 };
 
 const FICHE_DEMO: FicheMedicale = {
@@ -499,6 +512,12 @@ function DossierMedicalUrgence({ alerteId, agent, ouverte }: { alerteId: string;
     ...(sa.anticoagulants ? ['Sous anticoagulant : risque hémorragique'] : []),
     ...(sa.stimulateurCardiaque ? ['Porteur d’un stimulateur cardiaque'] : []),
     ...(sa.reactionAllergiqueGrave ? ['Antécédent de réaction allergique grave'] : []),
+    ...(sa.allergiesConnues?.length ? [`Allergie connue : ${sa.allergiesConnues.map((x) => ALLERGIE[x] ?? x).join(', ')}`] : []),
+    ...(sa.insuline ? ['Diabète traité par insuline'] : []),
+    ...(sa.grossesseMois ? [`Grossesse : ${sa.grossesseMois}ᵉ mois`] : []),
+    ...(sa.hospitalisationRecente ? ['Hospitalisé ou opéré dans les 12 derniers mois'] : []),
+    ...(sa.implants ? [`Implant ou prothèse : ${sa.implants}`] : []),
+    ...(sa.communication ?? []).map((x) => COMMUNIQUER[x] ?? x),
   ] : [];
   return (
     <div className="adm-medical">
@@ -534,11 +553,23 @@ function DossierMedicalUrgence({ alerteId, agent, ouverte }: { alerteId: string;
           <div className="adm-mini-kpis">
             <div className="adm-mini-kpi"><span>Allergies</span><strong style={{ fontSize: 12 }}>{sa.allergies || 'Aucune déclarée'}</strong></div>
             <div className="adm-mini-kpi"><span>Traitements</span><strong style={{ fontSize: 12 }}>{sa.traitements || 'Aucun déclaré'}</strong></div>
+            {(sa.poidsKg || sa.tailleCm) && <div className="adm-mini-kpi"><span>Poids · taille</span><strong style={{ fontSize: 12 }}>{sa.poidsKg ? `${sa.poidsKg} kg` : '—'} · {sa.tailleCm ? `${sa.tailleCm} cm` : '—'}</strong></div>}
+            {sa.chirurgies && <div className="adm-mini-kpi"><span>Opérations, hospitalisations</span><strong style={{ fontSize: 12 }}>{sa.chirurgies}</strong></div>}
+            {sa.langues && <div className="adm-mini-kpi"><span>Langues parlées</span><strong style={{ fontSize: 12 }}>{sa.langues}</strong></div>}
+            {sa.hopital && <div className="adm-mini-kpi"><span>Hôpital de préférence</span><strong style={{ fontSize: 12 }}>{sa.hopital}</strong></div>}
+            {sa.consignes && <div className="adm-mini-kpi"><span>Consignes du client</span><strong style={{ fontSize: 12 }}>{sa.consignes}</strong></div>}
+            {fiche.mutuelle && (fiche.mutuelle.compagnie || fiche.mutuelle.numero) && <div className="adm-mini-kpi"><span>Mutuelle</span><strong style={{ fontSize: 12 }}>{[fiche.mutuelle.compagnie, fiche.mutuelle.numero].filter(Boolean).join(' · ')}</strong></div>}
           </div>
           <div className="adm-medical-contact">
             <span>Personne à prévenir</span>
             <strong>{fiche.urgence.nom} · {fiche.urgence.lien}</strong>
             <a className="adm-btn xs solid" href={lienTel(fiche.urgence.telephone) ?? undefined}>{telLisible(fiche.urgence.telephone)}</a>
+            {fiche.urgence2 && (
+              <>
+                <strong>{fiche.urgence2.nom} · {fiche.urgence2.lien}</strong>
+                <a className="adm-btn xs solid" href={lienTel(fiche.urgence2.telephone) ?? undefined}>{telLisible(fiche.urgence2.telephone)}</a>
+              </>
+            )}
             {fiche.medecin && <span className="adm-muted">Médecin : {fiche.medecin.nom}{fiche.medecin.telephone ? ` · ${telLisible(fiche.medecin.telephone)}` : ''}</span>}
           </div>
           <button className="adm-btn ghost xs" onClick={() => setFiche(null)}>Masquer le dossier</button>

@@ -1,3 +1,4 @@
+import { GalerieVehicule } from './GalerieVehicule';
 import { useEffect, useMemo, useState } from 'react';
 import { TopBar } from './ui';
 import { Objet, Voiture } from './Vehicules';
@@ -251,6 +252,13 @@ export function RentalScreen({ onBack, onReserved, onToast }: {
             );
           })}
         </div>
+
+        {/* Vitrine : photos et vidéos réelles du véhicule choisi, selon la formule et les options. */}
+        {vehicle && (
+          <GalerieVehicule service="location" vehicule={vehicle.id} titre={vehicle.name}
+            options={{ formule: formula, decoration: Boolean(options.decoration), tapisRouge: Boolean(options.tapisRouge), cortege: cortege > 0 }}
+            secours={<PrestigeBadge vehicule={vehicle} size={96} />} />
+        )}
 
         {/* Durée */}
         <span className="eyebrow">{t('rent_duration')}</span>

@@ -255,4 +255,6 @@ export type Screen =
   | 'legal'
   | 'assurance'
   | 'messages'
-  | 'choixLieu';
+  | 'choixLieu'
+  // Volets et écrans du compte (version 1.5.7).
+  | 'services' | 'controle' | 'parrainage' | 'famille' | 'contacts' | 'groupes' | 'business' | 'entreprise' | 'revenus';

@@ -1012,3 +1012,106 @@ Google 9 sur 9 (clair et sombre), « Google seul » 7 sur 7 (clair et sombre), p
 Le contrôle « Service à venir : Me prévenir » est remplacé par celui du nouvel accueil : six
 services, plus aucun « Bientôt », « Localisation actuelle », « Boîte de réception », « Plus tard ».
 Essai de « Plus tard » : course programmée, enregistrée, relue puis annulable dans « Mes courses ».
+
+## 21. Version 1.5.7, mise à jour : barre du bas, volets Services et Compte, dossier médical protégé (22 novembre)
+
+Mise à jour livrée sans changer de numéro (1.5.7, code 14), à la demande du fondateur, sur la
+base de quatre captures d'une application de transport : cartes du compte, liste de réglages,
+barre de navigation du bas, pastilles rondes.
+
+### Navigation
+
+- **Barre du bas** : Accueil, Services, Activité, Compte. Une pilule flottante, présente sur
+  ces quatre écrans seulement. Les trois traits de l'accueil disparaissent : le compte est un
+  volet.
+- **Services** : les huit services ouverts, sur des pastilles rondes avec les objets en volume
+  — Course, Réserver, Livraison, Colis, Abonnement, Location Signature, Mariage, ORION
+  Assurance. Trois objets ont été modélisés pour cela (`rendre.py`) : calendrier (`reserver`),
+  bouclier à croix (`protection`), boîte cadeau (`cadeau`).
+- **Activité** : les courses, avec les courses programmées en tête.
+- **Accueil** : les quatre petites tuiles deviennent des pastilles rondes à fond neutre, de la
+  même largeur qu'avant (86 px sur un écran de 412).
+
+### Compte
+
+Deux cartes, puis des groupes de lignes. Chaque entrée de la capture a son écran et fonctionne :
+
+| Entrée | Ce qu'elle fait |
+|---|---|
+| Contrôle de sécurité | Anneau n/4 calculé sur quatre protections réelles : contact de confiance, partage automatique des trajets, verrou par empreinte, ORION Assurance. Chaque ligne mène au réglage ou l'active. |
+| Invitez vos amis · Parrainez des amis | Code personnel stable (`ORION-XXXXXX`), copie, partage par la feuille du téléphone, saisie du code d'un ami (format contrôlé, son propre code refusé). |
+| Famille | Proches enregistrés (adolescent, adulte, senior). « Commander pour… » ouvre la recherche ; à la confirmation on choisit le passager ; pendant la course, un bouton prépare le SMS au proche avec le chauffeur, le véhicule, la plaque et le code de prise en charge. |
+| Mode simplifié | Accueil allégé : une seule question, les lieux enregistrés en gros boutons, l'aide. S'active et se quitte d'un geste. |
+| Contacts | Carnet de contacts avec appel et SMS ; un contact de confiance, repris par le partage automatique et le contrôle de sécurité. |
+| Groupes enregistrés | Groupes de contacts ; « Écrire au groupe » ouvre les SMS avec tous les destinataires. |
+| Gagnez des revenus | Candidature chauffeur ou livreur, envoyée au support ORION. |
+| Tableau de bord ORION Business | Profil professionnel ; à la confirmation, « Course professionnelle » et motif (obligatoire si le profil le demande) ; relevé du mois, liste, export. |
+| ORION Business | Demande d'ouverture d'un compte entreprise, envoyée au support. |
+| Gérer le compte, Informations | Écrans existants (profil, mentions légales). |
+
+Les données de ces écrans restent sur le téléphone (`frontend/src/compte.ts`).
+
+### Dossier médical protégé
+
+Le dossier ORION Assurance ne s'ouvre plus dans l'application sans preuve : l'empreinte ou le
+visage du téléphone, ou un **code secret de 4 à 8 chiffres que le client choisit** s'il ne veut
+pas lier son empreinte (`frontend/src/coffre.ts`). Le choix est demandé dès le premier
+enregistrement, et avant toute ouverture d'un dossier créé avec une version précédente.
+
+- Le code n'est jamais gardé : seule son empreinte calculée (PBKDF2-SHA-256, 150 000 tours, sel
+  aléatoire) reste sur le téléphone. Les codes évidents (0000, 1234, 4321…) sont refusés.
+- Cinq codes faux suspendent la saisie 30 secondes, puis le double à chaque nouvelle erreur.
+- Un code oublié ne se retrouve pas : on supprime le dossier et on le recrée.
+- Ce verrou protège la lecture et la modification dans l'application. Il ne chiffre pas le
+  dossier : en cas d'alerte, le SAMU d'ORION doit pouvoir le lire sans que le client ait à
+  saisir quoi que ce soit.
+
+### Questionnaire santé enrichi
+
+Cinq étapes au lieu de trois. S'ajoutent, tous facultatifs : poids et taille, quatre antécédents
+(AVC, maladie respiratoire chronique, cancer en traitement, maladie du foie), insuline si
+diabète, mois de grossesse, sept allergies connues à cocher, hospitalisation ou opération
+récente, prothèse ou implant, difficultés de communication (malentendant, malvoyant, parole,
+langue), langues parlées, hôpital de préférence, consignes pour les secours, seconde personne à
+prévenir, mutuelle. Le serveur valide les mêmes champs (`backend/src/modules/assurance/dossier.ts`)
+et la console les montre à l'agent SAMU. Les dossiers déjà enregistrés restent valides.
+
+### Vitrine des véhicules (Mariage, Location Signature)
+
+Chaque écran montre « Votre véhicule » : les photos et vidéos réelles du véhicule choisi, selon
+les options (décoration, durée, cortège, formule). La vitrine se met à jour dès qu'une option
+change. Aucune image n'est livrée aujourd'hui : elle montre alors le modèle en volume et le dit.
+Pour en ajouter plus tard, sans toucher au code : déclarer les fichiers dans
+`frontend/public/medias/vehicules.json` (guide : `LISEZ-MOI.md` du même dossier), ou les envoyer
+au serveur (`PUT /admin/medias/vehicules`, lu par l'application à `GET /rental/medias-vehicules`).
+Les adresses sont contrôlées : `https://…` ou `medias/…` uniquement.
+
+### Limites à connaître
+
+- Le parrainage enregistre et partage les codes, mais **aucune réduction n'est créditée** : le
+  serveur n'a pas encore de programme de parrainage. L'écran le dit. Les montants affichés
+  (1 000 F sur 3 courses) sont une valeur par défaut à confirmer (`OFFRE_PARRAINAGE`).
+- Sans serveur, les demandes « chauffeur » et « entreprise » restent sur le téléphone ; l'écran
+  le dit.
+- Le relevé professionnel est local ; la facture mensuelle d'entreprise relève du module B2B du
+  serveur, non relié à l'application.
+- Le SMS au proche et le SMS de groupe ouvrent l'application de messages du téléphone, texte
+  prêt : c'est le client qui l'envoie.
+- Comme pour l'application, l'ouverture du dossier par l'empreinte ne se constate que sur un
+  téléphone ; dans un navigateur, seul le code secret est proposé.
+
+### APK et vérifications
+
+`ORION-client-1.5.7.apk` (mise à jour) : version 1.5.7, code 14, même signature, SHA-256
+`f19cac461f02fe8efde1c58199e37ac575c78a94f824400c9c8f229c94b0e91a`, 14,3 Mo, 176 fichiers web
+identiques au contenu construit. 1 055 textes couverts dans les huit langues (137 nouveaux ; les
+textes médicaux, en français et en anglais comme avant).
+
+Sur le contenu de cette APK, sans erreur JavaScript : services Google 9 sur 9 (clair et sombre),
+« Google seul » 7 sur 7 (clair et sombre), parcours client 9 sur 9, parcours complet 20 sur 20
+(assurance en cinq étapes puis code secret), fluidité inchangée. Deux séries nouvelles, en clair
+et en sombre : 13 contrôles du compte (barre du bas, Services, contacts, groupes, famille,
+parrainage, Business, demandes, commande pour un proche avec course professionnelle et SMS) et
+7 contrôles de l'assurance, des vitrines et du mode simplifié (champs enrichis relus, 1234
+refusé, pause après cinq erreurs, code absent du stockage en clair, vitrine vide puis alimentée
+selon l'option). Serveur : 415 tests réussis, dont le questionnaire enrichi et la vitrine.

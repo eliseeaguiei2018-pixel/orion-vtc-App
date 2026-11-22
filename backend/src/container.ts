@@ -53,6 +53,7 @@ import { TeamService, type Team } from './modules/teams/service.js';
 import { CorporateService, type CorporateAccount } from './modules/corporate/service.js';
 import { SecurityAlertsService } from './modules/admin/security.js';
 import { ReservationService, type Reservation } from './modules/reservations/service.js';
+import { MediasVehiculesService } from './modules/rental/medias.js';
 import { StaffService } from './modules/staff/service.js';
 import { StaffAccountService, type StaffAccount } from './modules/staff/accounts.js';
 import { CrewRequestService, type RequeteChauffeur } from './modules/crew/requests.js';
@@ -140,6 +141,8 @@ export interface Container {
   security: SecurityAlertsService;
   /** Réservations à l'avance (courses planifiées). */
   reservations: ReservationService;
+  /** Vitrine des véhicules : photos et vidéos réelles par véhicule et par option. */
+  mediasVehicules: MediasVehiculesService;
   /** Personnel interne : shifts, pointage, maintenance, squads (session Équipes). */
   staff: StaffService;
   /** Annuaire du personnel : un identifiant de connexion par employé et par chauffeur. */
@@ -283,6 +286,7 @@ export function createContainer(): Container {
   drivers.onChange((d) => realtime.publish(driverRoom(d.id), 'driver.update', { driver: d }));
   // Tarifs de location : réglés depuis la console, persistés, diffusés en direct aux
   // apps clientes connectées — un ajustement de prix prend effet sans redéploiement.
+  const mediasVehicules = new MediasVehiculesService(createRepository('medias_vehicules'));
   const rentalSettings = new RentalSettingsService(createRepository<RentalTarifRecord>('rental_tarifs'));
   const rentalService = new RentalService(rentalSettings, createRepository<RentalReservation>('rental'));
   rentalSettings.onChange(() => realtime.publish(CONFIG_ROOM, 'rental-config.update', {
@@ -390,6 +394,7 @@ export function createContainer(): Container {
     appareils: new AppareilsService(() => config.ORION_CODE_SYNCHRO_EMPREINTE, createRepository<Appareil>('appareils')),
     security: new SecurityAlertsService(),
     reservations: new ReservationService(createRepository<Reservation>('reservations')),
+    mediasVehicules,
     staff: new StaffService(createRepository('staff_shifts'), createRepository('staff_tickets')),
     accounts: comptes,
     crewRequests: requetesChauffeurs,

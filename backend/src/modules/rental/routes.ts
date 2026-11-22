@@ -63,6 +63,13 @@ export async function rentalRoutes(app: FastifyInstance, container: Container): 
   };
 
   /**
+   * VITRINE DES VÉHICULES — photos et vidéos réelles (Mariage et Location Signature), par
+   * véhicule et par option. Publique : l'application la lit avant toute réservation. La
+   * liste se règle depuis la console (PUT /admin/medias/vehicules).
+   */
+  app.get('/rental/medias-vehicules', async () => ({ version: 1, medias: container.mediasVehicules.liste() }));
+
+  /**
    * Catalogue complet : gamme Signature, formules, durées, options et barème.
    * L'app cliente et la console lisent TOUT ici — aucune liste de prix dupliquée
    * côté interface, donc aucun écart possible entre l'affiché et le facturé.

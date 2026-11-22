@@ -30,7 +30,15 @@ export const GROUPES_SANGUINS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-
 export const ANTECEDENTS = [
   'asthme', 'hypertension', 'diabete', 'drepanocytose', 'epilepsie',
   'cardiaque', 'renale', 'coagulation', 'grossesse', 'mobilite_reduite',
+  // Questionnaire enrichi (application 1.5.7).
+  'avc', 'respiratoire', 'cancer', 'hepatique',
 ] as const;
+
+/** Allergies qui changent un geste de secours ou un médicament donné en urgence. */
+export const ALLERGIES = ['penicilline', 'aspirine_ains', 'anesthesiques', 'iode', 'latex', 'aliments', 'venins'] as const;
+
+/** Ce que les secours doivent savoir pour se faire comprendre du client. */
+export const COMMUNICATION = ['malentendant', 'malvoyant', 'parole_difficile', 'non_francophone'] as const;
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
 // Les espaces, points et tirets de saisie (« +225 07 58 42 19 63 ») sont retirés avant
@@ -64,13 +72,37 @@ export const ficheSchema = z.object({
     anticoagulants: z.boolean(),
     stimulateurCardiaque: z.boolean(),
     reactionAllergiqueGrave: z.boolean(),
+    /*
+     * Questionnaire enrichi : tout est facultatif, pour que les dossiers déjà enregistrés
+     * restent valides et que personne ne soit forcé de répondre à ce qu'il ignore.
+     */
+    poidsKg: z.number().min(20).max(300).optional(),
+    tailleCm: z.number().min(80).max(250).optional(),
+    allergiesConnues: z.array(z.enum(ALLERGIES)).max(ALLERGIES.length).optional(),
+    insuline: z.boolean().optional(),
+    grossesseMois: z.number().int().min(1).max(9).optional(),
+    hospitalisationRecente: z.boolean().optional(),
+    chirurgies: texteLibre(300),
+    implants: texteLibre(200),
+    communication: z.array(z.enum(COMMUNICATION)).max(COMMUNICATION.length).optional(),
+    langues: texteLibre(80),
+    consignes: texteLibre(300),
+    hopital: texteLibre(80),
   }),
   urgence: z.object({
     nom: z.string().trim().min(2, 'Nom du contact trop court').max(80),
     lien: z.string().trim().min(2).max(40),
     telephone,
   }),
+  /** Seconde personne à prévenir, si la première ne répond pas. */
+  urgence2: z.object({
+    nom: z.string().trim().min(2, 'Nom du contact trop court').max(80),
+    lien: z.string().trim().min(2).max(40),
+    telephone,
+  }).optional(),
   medecin: z.object({ nom: z.string().trim().max(80).optional(), telephone: telephone.optional() }).optional(),
+  /** Mutuelle ou assurance santé privée : demandée à l'admission dans une clinique. */
+  mutuelle: z.object({ compagnie: z.string().trim().max(80).optional(), numero: z.string().trim().max(40).optional() }).optional(),
 }).superRefine((f, ctx) => {
   // « En cours de validité » : une pièce expirée ne permet pas d'identifier le client.
   if (f.piece.expiration < aujourdHui()) {

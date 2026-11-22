@@ -43,6 +43,18 @@ export const IconBolt = ({ size, strokeWidth }: P) => (
 export const IconChevron = ({ size, strokeWidth }: P) => (
   <svg {...base(size, strokeWidth)}><path d="m9 6 6 6-6 6" /></svg>
 );
+export const IconMobile = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><rect x="6.5" y="2.5" width="11" height="19" rx="2.6" /><path d="M10.5 5.5h3" /></svg>
+);
+export const IconContacts = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><rect x="5" y="3" width="14" height="18" rx="2.4" /><circle cx="12" cy="10" r="2.3" /><path d="M8.6 16c.6-1.7 1.8-2.5 3.4-2.5s2.8.8 3.4 2.5M3 7.5h2M3 12h2M3 16.5h2" /></svg>
+);
+export const IconReceipt = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" /><path d="M9 8h6M9 12h6" /></svg>
+);
+export const IconGift = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><rect x="3.5" y="8.5" width="17" height="4" rx="1" /><path d="M5 12.5V20h14v-7.5M12 8.5V20" /><path d="M12 8.5c-1.2-3.4-5.4-3.6-5.4-1.3 0 1.5 2.4 1.5 5.4 1.3Zm0 0c1.2-3.4 5.4-3.6 5.4-1.3 0 1.5-2.4 1.5-5.4 1.3Z" /></svg>
+);
 export const IconChevronDown = ({ size, strokeWidth }: P) => (
   <svg {...base(size, strokeWidth)}><path d="m6 9 6 6 6-6" /></svg>
 );
