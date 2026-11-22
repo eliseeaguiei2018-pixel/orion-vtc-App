@@ -16,7 +16,7 @@
   background: var(--danger); color: #fff; font-size: 10.5px; font-weight: 600; display: grid; place-items: center; }
 
 /* ---- Barre d'onglets ---- */
-.dv-tabs { display: grid; grid-template-columns: repeat(6, 1fr); border-top: 1px solid var(--stroke);
+.dv-tabs { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid var(--stroke);
   background: var(--sheet-grad); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
   padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); z-index: 20; }
 .dv-tab { background: none; border: none; color: var(--text-faint); display: flex; flex-direction: column; align-items: center; gap: 3px;
@@ -638,3 +638,36 @@ a.dv-pill { text-decoration: none; }
 :root .dv-hero.sans-marque h1 { margin-top: 2px; }
 /* Bouton principal : l'aplat de la couleur, texte à l'encre choisie pour lui (comme l'app cliente). */
 :root .dv-page .btn-primary, :root .dv-form .btn-primary { background: var(--accent-fill); color: var(--btn-on); }
+
+/* ---- Chauffeur salarié : activité du mois et prime de performance ---- */
+.tnum { font-variant-numeric: tabular-nums; }
+.cap::first-letter { text-transform: uppercase; }
+.dv-mois { display: inline-flex; align-items: center; gap: 4px; margin-top: 10px; padding: 4px; border-radius: 14px;
+  background: var(--surface-2); border: 1px solid var(--stroke); }
+.dv-mois-b { display: inline-grid; place-items: center; width: 32px; height: 32px; border: none; border-radius: 10px;
+  background: none; color: var(--text); cursor: pointer; }
+.dv-mois-b:disabled { opacity: 0.35; cursor: default; }
+.dv-mois-b:not(:disabled):active { background: rgba(var(--accent-rgb), 0.12); }
+.dv-mois-l { min-width: 132px; text-align: center; font-weight: 600; font-size: 13.5px; }
+.dv-mois-l::first-letter { text-transform: uppercase; }
+.dv-paliers { display: grid; gap: 6px; margin-top: 12px; }
+.dv-palier { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 12px;
+  border: 1px solid var(--stroke); color: var(--text-dim); font-size: 13.5px; }
+.dv-palier.on { color: var(--text); border-color: rgba(245, 196, 81, 0.5); background: rgba(245, 196, 81, 0.08); }
+.dv-palier-ico { display: inline-grid; place-items: center; width: 26px; height: 26px; flex: none; border-radius: 50%;
+  background: var(--surface-2); color: var(--text-faint); }
+.dv-palier.on .dv-palier-ico, .dv-condition.ok .dv-palier-ico { background: rgba(var(--accent-rgb), 0.14); color: var(--green); }
+.dv-condition { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 18px; }
+.dv-condition.ko .dv-palier-ico { background: rgba(255, 77, 79, 0.12); color: var(--danger); }
+.dv-jour { padding: 12px 14px; border-radius: 18px; display: grid; gap: 8px; }
+.dv-stat-bouton { display: block; padding: 0; border: none; background: none; text-align: inherit; color: inherit; font: inherit; cursor: pointer; }
+.dv-stat-bouton > .dv-stat { height: 100%; }
+.dv-lien-serveur { display: inline-flex; align-items: center; gap: 8px; margin: 12px auto 0; padding: 8px 12px; border: none;
+  border-radius: 12px; background: none; color: var(--text-faint); font: 500 12.5px var(--font-body); cursor: pointer; }
+.dv-lien-serveur:active { background: var(--surface-2); }
+.dv-point-serveur { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--danger); }
+.dv-point-serveur.on { background: var(--green); }
+/* Sept onglets (Activité et Prime) : libellés serrés, sans retour à la ligne. */
+:root .dv-tabs { margin-inline: 8px; padding: 5px; }
+:root .dv-tab { min-width: 0; font-size: 10.5px; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:root .dv-tab > span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }

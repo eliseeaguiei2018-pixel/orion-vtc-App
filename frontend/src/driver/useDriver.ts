@@ -258,6 +258,23 @@ export function useDriver() {
 
   /* ---------- GPS : position réelle, sinon GPS simulé (démo / ordinateur) ---------- */
   const tracking = driver?.availability === 'online' || driver?.availability === 'on_trip' || Boolean(activeRide);
+
+  // FILET DE SÉCURITÉ RÉSEAU MOBILE : si le canal temps réel est coupé (4G instable, tunnel,
+  // changement d'antenne), l'app interroge le serveur toutes les 4 s pour ne rater aucune
+  // offre ni aucun changement de course ; canal ouvert, une resynchronisation toutes les 20 s
+  // suffit. Au retour du canal, resynchronisation complète.
+  useEffect(() => {
+    if (!backend.live || !session || !tracking) return;
+    const id = window.setInterval(() => {
+      void backend.activeRide().then((r) => setActiveRide((avant) => (JSON.stringify(avant) === JSON.stringify(r) ? avant : r))).catch(() => undefined);
+    }, link === 'online' ? 20_000 : 4000);
+    return () => window.clearInterval(id);
+  }, [backend, session, tracking, link]);
+  const aEteCoupe = useRef(false);
+  useEffect(() => {
+    if (link === 'offline') aEteCoupe.current = true;
+    else if (link === 'online' && aEteCoupe.current) { aEteCoupe.current = false; void refresh(); }
+  }, [link, refresh]);
   useEffect(() => {
     if (!tracking || !('geolocation' in navigator)) return;
     // Position exacte du chauffeur : puce GPS (haute précision), sans point mis en cache. Un

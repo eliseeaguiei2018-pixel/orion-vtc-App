@@ -1,19 +1,20 @@
 import { useState, type ReactNode } from 'react';
 import { LogoApp } from '../components/Logo';
 import { Scooter, Voiture, vehiculeDeGamme } from '../components/Vehicules';
-import { IconBell, IconBriefcase, IconCar, IconCheck, IconGlobe, IconHome, IconLeaf, IconSettings, IconWallet } from '../icons';
+import { IconActivity, IconAward, IconBell, IconBriefcase, IconCar, IconCheck, IconGlobe, IconHome, IconLeaf, IconSettings } from '../icons';
 import { tr } from './i18n';
 import { LANGUAGES, useI18n, type Lang } from '../i18n';
 import { Drapeau } from '../components/Drapeau';
 
-export type Tab = 'home' | 'rides' | 'earnings' | 'poste' | 'green' | 'profile';
+export type Tab = 'home' | 'rides' | 'activite' | 'prime' | 'poste' | 'green' | 'profile';
 
 /** Barre d'onglets du bas (pouce-friendly). */
 export function BottomNav({ tab, onTab, alert }: { tab: Tab; onTab: (t: Tab) => void; alert?: Partial<Record<Tab, boolean>> }) {
   const items: Array<{ id: Tab; label: string; icon: ReactNode }> = [
     { id: 'home', label: tr('Accueil'), icon: <IconHome size={21} /> },
     { id: 'rides', label: tr('Courses'), icon: <IconCar size={21} /> },
-    { id: 'earnings', label: tr('Gains'), icon: <IconWallet size={21} /> },
+    { id: 'activite', label: tr('Activité'), icon: <IconActivity size={21} /> },
+    { id: 'prime', label: tr('Prime'), icon: <IconAward size={21} /> },
     { id: 'poste', label: tr('Poste'), icon: <IconBriefcase size={21} /> },
     { id: 'green', label: tr('Éco'), icon: <IconLeaf size={21} /> },
     { id: 'profile', label: tr('Profil'), icon: <IconSettings size={21} /> },

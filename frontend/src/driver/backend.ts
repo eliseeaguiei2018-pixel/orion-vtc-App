@@ -1,5 +1,6 @@
 import { baseTempsReel, enTeteRecaptcha, enTetesPasserelle } from '../securiteGoogle';
-import { configSocketUrl, fetchAppConfig, isLiveBackend, sosRepondre, sosSocketUrl, sosSuivi, type AppConfig, type SosSuivi } from '../api';
+import { configSocketUrl, etatServeur, fetchAppConfig, isLiveBackend, sosRepondre, sosSocketUrl, sosSuivi, type AppConfig, type SosSuivi } from '../api';
+import type { ActiviteMois, PrimeMois } from './salarie';
 import type {
   EtapeLocation, LocationChauffeur, MessagesChef, MotifAnnulationChauffeur, NouvelleRequete, Poste, RequeteVue,
   ActiveRide, Announcement, DemandCell, DriverConfig, DriverEvent, DriverProfile, Finance, LatLng, LinkState,
@@ -85,6 +86,10 @@ export interface DriverBackend {
   /** Adresse complète de la photo d'un chauffeur (null si aucune). */
   photoSrc(driver: { id: string; photoUpdatedAt?: string }): string | null;
 
+  /** Chauffeur salarié : activité du mois (`AAAA-MM`, le mois en cours par défaut). */
+  activite(mois?: string): Promise<ActiviteMois>;
+  /** Chauffeur salarié : prime de performance du mois. */
+  prime(mois?: string): Promise<PrimeMois>;
   wallet(): Promise<Wallet>;
   payout(amount: number, method: string): Promise<void>;
   training(): Promise<Training>;
@@ -94,7 +99,9 @@ export interface DriverBackend {
 }
 
 
-const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
+// Le serveur ORION auquel l'app est reliée : réglé dans l'app (Serveur ORION), sinon fixé à la
+// construction (VITE_API_URL) — la même règle que l'app cliente (voir ../api.ts).
+const API = etatServeur().url;
 function wsBase(): string | null {
   // Canaux temps réel : adresse de l'API, ou VITE_WS_URL quand l'API passe par API Gateway.
   return API ? baseTempsReel(API) : null;
@@ -293,6 +300,8 @@ function createLiveBackend(): DriverBackend {
     async deletePhoto() { await call(`/drivers/${id()}/photo`, { method: 'DELETE' }); },
     photoSrc: (d) => (d.photoUpdatedAt && photoSignee ? `${API}${photoSignee}` : null),
 
+    async activite(mois) { return (await call<{ activite: ActiviteMois }>(`/drivers/${id()}/activite${mois ? `?mois=${mois}` : ''}`)).activite; },
+    async prime(mois) { return (await call<{ prime: PrimeMois }>(`/drivers/${id()}/prime${mois ? `?mois=${mois}` : ''}`)).prime; },
     wallet: () => call(`/drivers/${id()}/wallet`),
     async payout(amount, method) { await post(`/drivers/${id()}/payout`, { amount, method }); },
     async training() {

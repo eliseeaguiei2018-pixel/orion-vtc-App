@@ -155,7 +155,7 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
             ) : (
               <Banner tone="warn" title={tr('Espèces désactivées par ORION')}>{tr('Le paiement doit se faire par mobile money ou carte.')}</Banner>
             )}
-            {!electronic && cashAllowed && <div className="faint" style={{ fontSize: 12, textAlign: 'center' }}>{tr('Espèces : la commission ORION est inscrite en dette sur votre portefeuille.')}</div>}
+            {!electronic && cashAllowed && <div className="faint" style={{ fontSize: 12, textAlign: 'center' }}>{tr('Espèces : remettez ce montant à la caisse ORION.')}</div>}
           </div>
         )}
 
@@ -290,7 +290,6 @@ export function SettledModal({ app }: { app: DriverApp }) {
   useEffect(() => {
     void app.backend.history().then((h) => setView(h.rides.find((r) => r.id === settled.rideId) ?? null)).catch(() => undefined);
   }, [app.backend, settled.rideId]);
-  const e = view?.earnings;
   return (
     <Modal title={view?.serviceType === 'delivery' ? tr('Livraison payée') : tr('Course payée')} onClose={app.actions.dismissSettled}>
       <div className="col" style={{ gap: 10 }}>
@@ -298,19 +297,13 @@ export function SettledModal({ app }: { app: DriverApp }) {
           <span className="muted">{settled.amount === 0 ? tr('Payé par le client') : tr('Montant payé ({0})', [methodLabel(settled.method)])}</span>
           <strong>{settled.amount === 0 ? tr('Inclus dans son abonnement') : fcfa(settled.amount)}</strong>
         </div>
-        {e && <div className="row between"><span className="muted">{tr('Prix de la course (votre base)')}</span><strong>{fcfa(e.net + e.commission)}</strong></div>}
-        {e && (
-          <>
-            <div className="row between"><span className="muted">{tr('Commission ORION')}</span><span className="dv-amount neg">− {fcfa(e.commission)}</span></div>
-            {e.bonus > 0 && <div className="row between"><span className="muted">{tr('Bonus (secteur, approche)')}</span><span className="dv-amount pos">+ {fcfa(e.bonus)}</span></div>}
-            <div className="divider" />
-            <div className="row between"><strong>{tr('Votre gain net')}</strong><span className="dv-amount pos" style={{ fontSize: 20 }}>{fcfa(e.net + e.bonus)}</span></div>
-            {e.cashCollected > 0 && (
-              <Banner tone="info" icon={<IconWallet size={18} />} title={tr('Payé en espèces')}>
-                {tr('Vous avez encaissé {0} : la commission ({1}) est due à ORION et déduite de votre portefeuille.', [fcfa(e.cashCollected), fcfa(e.commission)])}
-              </Banner>
-            )}
-          </>
+        {view && <div className="row between"><span className="muted">{tr('Distance')}</span><strong>{km(view.distanceMeters)}</strong></div>}
+        <div className="divider" />
+        <div className="row between"><strong>{tr('Comptée dans votre activité du mois')}</strong><span className="dv-pill green">+1 {tr('course')}</span></div>
+        {settled.method === 'cash' && settled.amount > 0 && (
+          <Banner tone="info" icon={<IconWallet size={18} />} title={tr('Payé en espèces')}>
+            {tr('Vous avez encaissé {0} pour ORION : remettez-les à la caisse ORION.', [fcfa(settled.amount)])}
+          </Banner>
         )}
         <button className="btn btn-primary" onClick={app.actions.dismissSettled}>{tr('Continuer')}</button>
       </div>

@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { IconCar, IconClock, IconPeage, IconPin, IconSablier, IconWallet } from '../../icons';
 import type { DriverApp } from '../useDriver';
 import type { ActiveRide } from '../types';
+import type { PrimeMois } from '../salarie';
 import { VehiculeChauffeur } from '../ui';
-import { fcfa, haversine, km, methodLabel, minutes, pct, TAILLE_COLIS, TIER_LABEL, zoneAt } from '../format';
+import { fcfa, haversine, km, methodLabel, minutes, TAILLE_COLIS, TIER_LABEL, zoneAt } from '../format';
 import { aTraduire, tr } from '../i18n';
 
 /** Bip d'alerte (WebAudio, sans fichier) à l'arrivée d'une offre. */
@@ -61,10 +62,11 @@ export function OfferSheet({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
   // Le vrai quartier et la commune (serveur) ; à défaut, le secteur tarifé ou les coordonnées.
   const fromName = ride.lieux?.depart ?? ride.pickupZone?.name ?? zoneAt(ride.origin, app.driverConfig.zones)?.name ?? coords(ride.origin);
   const toName = ride.lieux?.arrivee ?? zoneAt(ride.destination, app.driverConfig.zones)?.name ?? coords(ride.destination);
-  const rate = app.finance?.commissionRate ?? app.driverConfig.commission.green;
-  // Le péage compris dans le prix revient en entier au chauffeur (pas de commission dessus).
+  // Péage compris dans le prix : le chauffeur le règle au poste avec l'argent de la course.
   const peage = ride.itineraire?.peage ?? 0;
-  const net = Math.round((ride.amount - peage) * (1 - rate)) + peage + (ride.pickupZone?.driverBonus ?? 0);
+  // Prime du mois : combien de courses avant le prochain palier (motivation, pas un gain par course).
+  const [prime, setPrime] = useState<PrimeMois | null>(null);
+  useEffect(() => { void app.backend.prime().then(setPrime).catch(() => undefined); }, [app.backend, ride.id]);
   const r = 32;
   const c = 2 * Math.PI * r;
   const ratio = total > 0 ? left / total : 0;
@@ -85,7 +87,10 @@ export function OfferSheet({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
           <div>
             <div className="eyebrow">{livraison ? tr('Nouvelle livraison moto · {0}', [TAILLE_COLIS[ride.category] ?? ride.category]) : tr('Nouvelle course · {0}', [TIER_LABEL[ride.category] ?? ride.category])}</div>
             <div className="dv-price">{fcfa(ride.amount)}</div>
-            <div className="muted" style={{ fontSize: 13 }}>{tr('≈ {0} nets pour vous · commission {1}', [fcfa(net), pct(rate)])}</div>
+            <div className="muted" style={{ fontSize: 13 }}>
+              {ride.paymentMethod === 'cash' ? tr('Prix payé par le client, à encaisser pour ORION') : tr('Prix payé par le client à ORION')}
+              {prime?.prochain ? ` · ${tr('{0} course(s) avant le palier de {1}', [prime.prochain.reste, fcfa(prime.prochain.montant)])}` : ''}
+            </div>
           </div>
           <div className="dv-ring" aria-label={tr('{0} secondes restantes', [Math.ceil(left)])}>
             <svg width="74" height="74" viewBox="0 0 74 74">
@@ -108,9 +113,8 @@ export function OfferSheet({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
               <span className="dv-pill"><IconClock size={13} /> {minutes(ride.etaSeconds)}</span>
             </>
           )}
-          {ride.itineraire?.choix === 'peage' && <span className="dv-pill gold"><IconPeage size={13} /> {tr('Pont à péage · {0} reversé', [fcfa(peage)])}</span>}
+          {ride.itineraire?.choix === 'peage' && <span className="dv-pill gold"><IconPeage size={13} /> {tr('Pont à péage · {0} inclus', [fcfa(peage)])}</span>}
           {ride.itineraire?.choix === 'normal' && <span className="dv-pill"><IconCar size={13} /> {tr('Voie normale (sans péage)')}</span>}
-          {ride.pickupZone && ride.pickupZone.driverBonus > 0 && <span className="dv-pill green">{tr('Bonus {0} +{1}', [ride.pickupZone.name, fcfa(ride.pickupZone.driverBonus)])}</span>}
         </div>
 
         <div className="dv-route card" style={{ padding: '12px 14px 12px 36px' }}>

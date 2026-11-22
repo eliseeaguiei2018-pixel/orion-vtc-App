@@ -87,6 +87,12 @@ function Rendu({ nom, largeur, ratio, classe = '' }: { nom: string; largeur: num
     <img
       className={`vehicule ${classe}`.trim()} src={rendu(nom)} alt="" aria-hidden="true" draggable={false}
       width={Math.round(largeur)} height={Math.round(largeur * ratio)} decoding="async"
+      // Objet absent de la palette d'accueil (vif/, urbain/…) : on montre son rendu de base.
+      onError={(e) => {
+        const img = e.currentTarget;
+        const base = nom.replace(/^[a-z]+\//, '');
+        if (base !== nom && !img.dataset['repli']) { img.dataset['repli'] = '1'; img.src = rendu(base); }
+      }}
     />
   );
 }

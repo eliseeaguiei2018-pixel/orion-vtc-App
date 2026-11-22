@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { OrionMap } from '../../components/OrionMap';
-import { IconBolt, IconCar, IconClock, IconLeaf, IconPin, IconShield } from '../../icons';
+import { IconBolt, IconClock, IconLeaf, IconPin } from '../../icons';
 import { Objet, type Icone3D, type ObjetService } from '../../components/Vehicules';
 import type { ScreenProps } from '../Driver';
+import type { PrimeMois } from '../salarie';
 import type { DemandCell, QueueInfo, RideHistory } from '../types';
 import { BellButton, Banner, PageHeader, Section, Stat, VehiculeChauffeur, type Tab } from '../ui';
 import { fcfa, inOffPeak, meetsStandard, pct, TIER_LABEL, zoneAt } from '../format';
@@ -16,7 +17,7 @@ import { tr } from '../i18n';
  * standard minimal), file d'attente, gains du jour et zones à forte demande.
  */
 export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab: (t: Tab) => void }) {
-  const { driverConfig, appConfig, position, finance } = app;
+  const { driverConfig, appConfig, position } = app;
   // Le shell n'affiche les onglets qu'une fois la fiche chargée.
   const driver = app.driver!;
   const [queue, setQueue] = useState<QueueInfo | null>(null);
@@ -36,8 +37,10 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
   const photo = app.backend.photoSrc(driver);
   const locations = app.rentals.filter((r) => r.status === 'confirmee' || r.status === 'reservee' || r.status === 'en_cours').length;
 
-  // Gains du jour (rafraîchis à chaque paiement reçu).
+  // Courses du jour (rafraîchies à chaque paiement reçu) et prime du mois.
   useEffect(() => { void app.backend.history().then(setHistory).catch(() => undefined); }, [app.backend, app.settled, driver.availability]);
+  const [prime, setPrime] = useState<PrimeMois | null>(null);
+  useEffect(() => { void app.backend.prime().then(setPrime).catch(() => undefined); }, [app.backend, app.settled]);
   // File d'attente FIFO (zones denses) tant que le chauffeur est en ligne.
   useEffect(() => {
     if (!online) { setQueue(null); return; }
@@ -78,7 +81,7 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
         </>}
       >
         <div className="dv-hero-kpis">
-          <div className="dv-hero-kpi"><strong>{fcfa(history?.today.net ?? 0)}</strong><span>{tr('Gains du jour')}</span></div>
+          <div className="dv-hero-kpi"><strong>{history?.today.rides ?? 0}</strong><span>{tr('Courses du jour')}</span></div>
           <div className="dv-hero-kpi"><strong>★ {driver.ratingCount ? driver.ratingAvg.toFixed(2) : '—'}</strong><span>{tr('{0} avis', [driver.ratingCount])}</span></div>
           <div className="dv-hero-kpi"><strong>{acceptance === null ? '—' : pct(acceptance)}</strong><span>{tr('Acceptation')}</span></div>
         </div>
@@ -112,7 +115,7 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
       <div className="tuiles cinq">
         <Raccourci objet="location" rang={0} label={tr('Locations')} n={locations} onClick={() => onTab('rides')} />
         <Raccourci objet="bureau" rang={1} label={tr('Mon poste')} onClick={() => onTab('poste')} />
-        <Raccourci objet="portefeuille" rang={2} label={tr('Gains')} onClick={() => onTab('earnings')} />
+        <Raccourci objet="objectif" rang={2} label={tr('Activité')} onClick={() => onTab('activite')} />
         <Raccourci objet="eco" rang={3} label={tr('Éco')} onClick={() => onTab('green')} />
         <Raccourci objet="alertes-sos" rang={4} label={tr('SOS')} onClick={() => setConfirmSos(true)} />
       </div>
@@ -143,8 +146,10 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
       )}
 
       <div className="dv-stats">
-        <Stat label={tr('Solde portefeuille')} value={fcfa(finance?.balance ?? 0)} sub={finance && finance.cashDebt > 0 ? tr('Dette espèces {0}', [fcfa(finance.cashDebt)]) : tr('Commission {0}', [pct(finance?.commissionRate ?? driverConfig.commission.green)])} />
-        <Stat label={tr('Courses du jour')} value={history?.today.rides ?? 0} sub={tr('Note minimale {0} ★', [driverConfig.quality.minRating])} />
+        <button type="button" className="dv-stat-bouton" onClick={() => onTab('prime')}>
+          <Stat label={tr('Prime estimée')} value={prime ? fcfa(prime.montantEstime) : '—'} sub={prime ? tr('Ce mois · {0} course(s)', [prime.courses]) : tr('Prime de performance')} />
+        </button>
+        <Stat label={tr('Encaissé aujourd’hui')} value={fcfa(history?.today.gross ?? 0)} sub={tr('Note minimale {0} ★', [driverConfig.quality.minRating])} />
       </div>
 
       {offPeak && driverConfig.offPeak.bonus > 0 && (
@@ -164,10 +169,7 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
       <Section title={tr('Règles du moment (console ORION)')}>
         <div className="card" style={{ padding: 14, display: 'grid', gap: 8, fontSize: 13.5 }}>
           <Rule icon={<IconClock size={16} />} label={tr('Délai pour accepter une offre')} value={`${driverConfig.offer.timeoutSec} s`} />
-          <Rule icon={<IconLeaf size={16} />} label={tr('Commission flotte électrique')} value={pct(driverConfig.commission.green)} />
-          <Rule icon={<IconCar size={16} />} label={tr('Commission standard')} value={pct(driverConfig.commission.standard)} />
           <Rule icon={<IconClock size={16} />} label={tr('Attente offerte puis facturée')} value={`${driverConfig.wait.freeMinutes} min · ${fcfa(driverConfig.wait.feePerMin)}/min`} />
-          <Rule icon={<IconShield size={16} />} label={tr('Plafond dette espèces')} value={fcfa(driverConfig.cashDebtLimit)} />
         </div>
       </Section>
 

@@ -1,6 +1,7 @@
 import type { AppConfig } from '../api';
 import type { DriverBackend } from './backend';
 import { ApiError } from './errors';
+import { calculerPrime, moisCourant, type ActiviteMois } from './salarie';
 import { saveSession, loadSession } from './session';
 import { Capacitor } from '@capacitor/core';
 import {
@@ -96,6 +97,21 @@ interface DemoState {
   sos?: SosSuivi[];
   /** Mot de passe console choisi depuis l'app (démo : seul le fait compte, jamais le mot de passe). */
   mdpConsoleChoisi?: boolean;
+  /** Temps en service (démo) : début de la période en cours et minutes par jour. */
+  service?: { depuis?: number; parJour: Record<string, number> };
+}
+
+/** Ajoute la période [debut, fin] (ms) aux minutes de service, jour par jour. */
+function compterService(parJour: Record<string, number>, debut: number, fin: number): void {
+  let t = debut;
+  while (t < fin) {
+    const d = new Date(t);
+    const minuit = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
+    const bout = Math.min(fin, minuit);
+    const k = d.toISOString().slice(0, 10);
+    parJour[k] = Math.round(((parJour[k] ?? 0) + (bout - t) / 60_000) * 10) / 10;
+    t = bout;
+  }
 }
 
 const now = () => new Date().toISOString();
@@ -172,6 +188,50 @@ export function createDemoBackend(): DriverBackend {
     if (!r) return null;
     const offer = st.offer && st.offer.rideId === r.id ? { expiresAt: st.offer.expiresAt, timeoutSec: st.offer.timeoutSec } : null;
     return { ...view(r), events: r.events, client: { id: `client-${r.id}`, name: r.clientName.split(' ')[0] ?? r.clientName, phone: r.clientPhone, rides: 3 + Math.floor(Math.random() * 20), photo: null }, pickupZone: null, offer };
+  };
+  /** Activité du mois calculée sur les courses de la démonstration (même forme que le serveur). */
+  const activiteLocale = (mois: string): ActiviteMois => {
+    const fini = (r: DemoRide) => ['completed', 'paid', 'rated'].includes(r.status);
+    const quand = (r: DemoRide) => r.events.find((e) => e.type === 'completed')?.at ?? r.updatedAt ?? r.createdAt;
+    const courses = st.rides.filter((r) => fini(r) && quand(r).startsWith(mois));
+    const aujourdHui = new Date().toISOString().slice(0, 10);
+    const parJour = new Map<string, { courses: number; km: number; heures: number }>();
+    const minutes: Record<string, number> = { ...(st.service?.parJour ?? {}) };
+    if (st.service?.depuis) compterService(minutes, st.service.depuis, Date.now());
+    let km = 0, recettes = 0, especes = 0, livraisons = 0, notes = 0, somme = 0;
+    const auj = { courses: 0, km: 0, recettes: 0, heuresService: 0 };
+    for (const r of courses) {
+      const jour = quand(r).slice(0, 10);
+      const k = r.distanceMeters / 1000;
+      km += k; recettes += r.amount;
+      if (r.serviceType === 'delivery') livraisons += 1;
+      if (r.paymentMethod === 'cash') especes += r.amount;
+      if (typeof r.rating === 'number') { notes += 1; somme += r.rating; }
+      const j = parJour.get(jour) ?? { courses: 0, km: 0, heures: 0 };
+      j.courses += 1; j.km += k; parJour.set(jour, j);
+      if (jour === aujourdHui) { auj.courses += 1; auj.km += k; auj.recettes += r.amount; }
+    }
+    let totalMin = 0;
+    for (const [jour, m] of Object.entries(minutes)) {
+      if (!jour.startsWith(mois)) continue;
+      totalMin += m;
+      const j = parJour.get(jour) ?? { courses: 0, km: 0, heures: 0 };
+      j.heures = Math.round((m / 60) * 10) / 10; parJour.set(jour, j);
+      if (jour === aujourdHui) auj.heuresService = j.heures;
+    }
+    const d = st.driver;
+    const acceptees = d?.offersAccepted ?? 0, refusees = d?.offersDeclined ?? 0, expirees = d?.offersExpired ?? 0;
+    const repondues = acceptees + refusees + expirees;
+    return {
+      mois, courses: courses.length, livraisons, km: Math.round(km * 10) / 10, recettes: Math.round(recettes), especes: Math.round(especes),
+      heuresService: Math.round((totalMin / 60) * 10) / 10,
+      joursActifs: [...parJour.values()].filter((j) => j.courses > 0 || j.heures >= 0.5).length,
+      note: { moyenne: notes ? Math.round((somme / notes) * 100) / 100 : null, nombre: notes },
+      offres: { recues: d?.offersReceived ?? repondues, acceptees, refusees, expirees, tauxAcceptation: repondues ? Math.round((acceptees / repondues) * 100) : null },
+      annulations: d?.cancellations ?? 0,
+      aujourdhui: { ...auj, km: Math.round(auj.km * 10) / 10 },
+      parJour: [...parJour.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([jour, j]) => ({ jour, courses: j.courses, km: Math.round(j.km * 10) / 10, heures: j.heures })),
+    };
   };
   const ledger = (type: LedgerEntry['type'], amount: number, note: string, rideId?: string) => {
     st.ledger.unshift({ id: uid(), type, amount: Math.round(amount), rideId, at: now(), note });
@@ -496,6 +556,8 @@ export function createDemoBackend(): DriverBackend {
       if (d.kycStatus === 'suspended') throw new ApiError(403, `Compte suspendu par ORION${d.suspensionReason ? ` : ${d.suspensionReason}` : ''}`);
       if (d.kycStatus !== 'approved' && d.kycStatus !== 'active') throw new ApiError(403, 'Dossier en cours de validation par ORION — mise en ligne possible après validation');
       d.availability = st.activeRideId ? 'on_trip' : 'online';
+      st.service ??= { parJour: {} };
+      st.service.depuis ??= Date.now();
       driverChanged();
       publierPresence(true);
       if (!st.activeRideId) scheduleOffer();
@@ -503,6 +565,7 @@ export function createDemoBackend(): DriverBackend {
     async goOffline() {
       const d = drv();
       d.availability = 'offline';
+      if (st.service?.depuis) { compterService(st.service.parJour, st.service.depuis, Date.now()); st.service.depuis = undefined; }
       driverChanged();
       publierPresence(true);
     },
@@ -783,6 +846,8 @@ export function createDemoBackend(): DriverBackend {
     async deletePhoto() { st.photo = null; delete drv().photoUpdatedAt; driverChanged(); },
     photoSrc: (d) => (d.photoUpdatedAt ? st.photo ?? null : null),
 
+    async activite(mois) { return activiteLocale(mois ?? moisCourant()); },
+    async prime(mois) { return calculerPrime(activiteLocale(mois ?? moisCourant())); },
     async wallet() { return { balance: Math.round(balance()), currency: 'XOF', history: [...st.ledger] }; },
     async payout(amount) {
       if (amount <= 0) throw new ApiError(400, 'Montant de retrait invalide');

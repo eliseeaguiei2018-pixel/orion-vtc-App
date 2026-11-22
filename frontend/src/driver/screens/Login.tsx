@@ -5,6 +5,7 @@ import { OrionMap } from '../../components/OrionMap';
 import { DEFAULT_ORIGIN } from '../../data';
 import type { DriverApp } from '../useDriver';
 import { Banner, BoutonLangue, VehiculeChauffeur } from '../ui';
+import { LienServeur } from './Serveur';
 import { IconBolt, IconChevron, IconLeaf, IconShield } from '../../icons';
 import { tr } from '../i18n';
 
@@ -111,6 +112,7 @@ export function Login({ app }: { app: DriverApp }) {
           <button type="button" className="btn btn-ghost" onClick={() => { setStep('phone'); setCode(''); }}>{tr('Changer de numéro')}</button>
         </form>
       )}
+      <LienServeur />
       </div>
     </div>
   );

@@ -9,7 +9,7 @@ import { tr } from '../i18n';
 
 type Filter = 'all' | 'paid' | 'cancelled' | 'locations';
 
-/** HISTORIQUE DES COURSES : statut, montant, gain net, moyen de paiement, note client. */
+/** HISTORIQUE DES COURSES : statut, montant payé par le client, moyen de paiement, note client. */
 export function Rides({ app, unread, openNotices }: ScreenProps) {
   const [history, setHistory] = useState<RideHistory | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
@@ -26,8 +26,8 @@ export function Rides({ app, unread, openNotices }: ScreenProps) {
     <div className="dv-page">
       <PageHeader title={tr('Mes courses')} sub={history ? tr(history.total > 1 ? '{0} courses au total' : '{0} course au total', [history.total]) : tr('Historique')} right={<BellButton count={unread} onClick={openNotices} />} />
       <div className="dv-stats">
-        <Stat accent label={tr('Aujourd’hui')} value={history?.today.rides ?? 0} sub={tr('{0} nets', [fcfa(history?.today.net ?? 0)])} />
-        <Stat label={tr('7 jours')} value={history?.week.rides ?? 0} sub={tr('{0} nets', [fcfa(history?.week.net ?? 0)])} />
+        <Stat accent label={tr('Aujourd’hui')} value={history?.today.rides ?? 0} sub={tr('{0} encaissés pour ORION', [fcfa(history?.today.gross ?? 0)])} />
+        <Stat label={tr('7 jours')} value={history?.week.rides ?? 0} sub={tr('{0} encaissés pour ORION', [fcfa(history?.week.gross ?? 0)])} />
       </div>
       <div className="dv-seg" role="group" aria-label={tr('Filtre')}>
         {([['all', tr('Toutes')], ['paid', tr('Payées')], ['cancelled', tr('Annulées')], ['locations', `${tr('Locations')}${app.rentals.some((r) => r.status === 'confirmee' || r.status === 'en_cours' || r.status === 'reservee') ? ' •' : ''}`]] as Array<[Filter, string]>).map(([f, l]) => (
@@ -45,7 +45,6 @@ export function Rides({ app, unread, openNotices }: ScreenProps) {
 }
 
 function RideRow({ r }: { r: RideView }) {
-  const net = r.earnings.net + r.earnings.bonus;
   const tone = r.status === 'cancelled' ? 'danger' : r.paidAmount !== null ? 'green' : 'gold';
   return (
     <div className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -59,11 +58,10 @@ function RideRow({ r }: { r: RideView }) {
           <div className="dv-item-sub">{km(r.distanceMeters)} · {methodLabel(r.paymentMethod)}{r.waitMinutes ? tr(' · attente {0} min', [r.waitMinutes]) : ''}</div>
         </div>
         <div style={{ textAlign: 'end' }}>
-          {r.paidAmount !== null && <div className="dv-amount pos">+ {fcfa(net)}</div>}
           {r.rating !== null && <div className="row" style={{ gap: 2, justifyContent: 'flex-end' }}>{Array.from({ length: r.rating }, (_, i) => <IconStar key={i} size={13} color="var(--gold)" />)}</div>}
         </div>
       </div>
-      {r.earnings.cashCollected > 0 && <div className="faint" style={{ fontSize: 12 }}>{tr('Espèces encaissées {0} · commission due {1}', [fcfa(r.earnings.cashCollected), fcfa(r.earnings.commission)])}</div>}
+      {r.paymentMethod === 'cash' && r.paidAmount !== null && <div className="faint" style={{ fontSize: 12 }}>{tr('Espèces encaissées {0} · à remettre à la caisse ORION', [fcfa(r.paidAmount)])}</div>}
     </div>
   );
 }

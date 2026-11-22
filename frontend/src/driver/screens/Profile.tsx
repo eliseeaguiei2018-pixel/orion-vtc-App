@@ -11,6 +11,7 @@ import { aTraduire, tr } from '../i18n';
 import { ConnecterEcranVehicule } from './Appairage';
 import { BlocBiometrie } from '../../components/CompteScreens';
 import { VERSION_APP } from '../../version';
+import { LienServeur } from './Serveur';
 
 const PIPELINE: KycStatus[] = ['draft', 'docs_submitted', 'manual_review', 'active'];
 
@@ -163,6 +164,7 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
         <div className="faint" style={{ fontSize: 12 }}>
           {tr('ORION Chauffeur · version {0}', [VERSION_APP])} · {driver.appLinkedAt ? tr('App liée depuis le {0} · ', [shortDate(driver.appLinkedAt)]) : ''}{app.live ? tr('Serveur ORION') : tr('Mode démo')}
         </div>
+        <LienServeur />
         <button className="btn btn-ghost" onClick={() => void app.actions.logout()} disabled={driver.availability === 'on_trip'}>{tr('Se déconnecter')}</button>
       </Section>
 

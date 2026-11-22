@@ -8,7 +8,8 @@ import { dateTime } from './format';
 import { Login } from './screens/Login';
 import { Home } from './screens/Home';
 import { Rides } from './screens/Rides';
-import { Earnings } from './screens/Earnings';
+import { Activite } from './screens/Activite';
+import { Prime } from './screens/Prime';
 import { Green } from './screens/Green';
 import { Profile } from './screens/Profile';
 import { OfferSheet } from './screens/Offer';
@@ -150,13 +151,13 @@ function Shell({ app, vehicule = false }: { app: DriverApp; vehicule?: boolean }
     <div className="dv-app">
       {tab === 'home' && <Home {...common} onTab={setTab} />}
       {tab === 'rides' && <Rides {...common} />}
-      {tab === 'earnings' && <Earnings {...common} />}
+      {tab === 'activite' && <Activite {...common} />}
+      {tab === 'prime' && <Prime {...common} />}
       {tab === 'poste' && <Poste {...common} />}
       {tab === 'green' && <Green {...common} />}
       {tab === 'profile' && <Profile {...common} />}
       <BottomNav tab={tab} onTab={setTab} alert={{
         profile: app.driver.kycStatus === 'draft',
-        earnings: Boolean(app.finance?.cashBlocked),
         rides: app.rentals.some((r) => r.status === 'confirmee' && Date.parse(r.debut) - Date.now() < 86_400_000),
       }} />
 
