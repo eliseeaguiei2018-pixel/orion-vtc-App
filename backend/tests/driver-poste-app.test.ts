@@ -114,7 +114,10 @@ test('Photo du chauffeur : vérifiée, servie à part, visible du passager', asy
   t.after(() => app.close());
   const d = await appDriver(app, '0190000004', 'Konan Photo');
   await app.inject({ method: 'POST', url: `/admin/drivers/${d.id}/kyc`, headers: AUTH, payload: { status: 'active' } });
-  await app.inject({ method: 'POST', url: `/drivers/${d.id}/profile`, headers: d.headers, payload: { vehicleModel: 'BYD Dolphin', vehiclePlate: '4521 KL 01', vehicleColor: 'Blanc' } });
+  // Véhicule attribué par ORION (chauffeur salarié) : l'app chauffeur ne peut plus le saisir.
+  const refus = await app.inject({ method: 'POST', url: `/drivers/${d.id}/profile`, headers: d.headers, payload: { vehicleModel: 'BYD Dolphin' } });
+  assert.equal(refus.statusCode, 403);
+  await app.inject({ method: 'POST', url: `/admin/drivers/${d.id}/attribution`, headers: AUTH, payload: { vehicleModel: 'BYD Dolphin', vehiclePlate: '4521 KL 01', vehicleColor: 'Blanc' } });
 
   assert.equal((await app.inject({ method: 'PUT', url: `/drivers/${d.id}/photo`, headers: d.headers, payload: { photo: 'data:image/jpeg;base64,AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' } })).statusCode, 400, 'contenu vérifié');
   const put = await app.inject({ method: 'PUT', url: `/drivers/${d.id}/photo`, headers: d.headers, payload: { photo: JPEG } });

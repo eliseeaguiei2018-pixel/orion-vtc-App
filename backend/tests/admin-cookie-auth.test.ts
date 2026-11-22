@@ -163,9 +163,9 @@ test('Le limiteur de débit ne peut jamais empêcher une déconnexion', async (t
   const login = await connecter(app);
   const session = cookieDe(login.headers['set-cookie'], 'orion_admin')!;
 
-  // On sature volontairement le limiteur (120 requêtes/minute par défaut).
+  // On sature volontairement le limiteur (600 requêtes/minute par adresse, par défaut).
   let vu429 = false;
-  for (let i = 0; i < 140; i += 1) {
+  for (let i = 0; i < 700; i += 1) {
     const r = await app.inject({ method: 'GET', url: '/' });
     if (r.statusCode === 429) { vu429 = true; break; }
   }

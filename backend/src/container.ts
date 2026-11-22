@@ -190,12 +190,9 @@ export function createContainer(): Container {
       inQueueZone: (p) => Boolean(settings.zoneForPoint(p)),
       maxEtaMinutes: ops.maxEtaMinutes,
       originZone: z ? { id: z.id, minStandard: z.minStandard } : null,
-      // Rayons évolutifs pilotés depuis la console (initial → intermédiaire → max).
-      radiiMeters: [
-        ops.radiusKm * 1000,
-        Math.max(ops.radiusKm, (ops.radiusKm + ops.radiusMaxKm) / 2) * 1000,
-        Math.max(ops.radiusKm, ops.radiusMaxKm) * 1000,
-      ],
+      // Rayons évolutifs pilotés depuis la console : le rayon initial double à chaque
+      // palier jusqu'au rayon maximal (1,5 → 3 → 6 → 12 → 24 → 30 km par défaut).
+      radiiMeters: paliersDeRecherche(ops.radiusKm, ops.radiusMaxKm),
       weightRating: ops.weightRating,
       weightIdle: ops.weightIdle,
       greenPriority: ops.greenPriority,
@@ -597,4 +594,16 @@ export function controlerCoursesEnCours(c: Container, apresSecondes: number, mai
     envoyes += 1;
   }
   return envoyes;
+}
+
+/**
+ * Paliers de recherche d'un chauffeur (m) : du rayon initial au rayon maximal, en doublant.
+ * Le plus proche est toujours cherché d'abord ; on n'élargit que si personne n'est libre.
+ */
+export function paliersDeRecherche(initialKm: number, maxKm: number): number[] {
+  const max = Math.max(initialKm, maxKm);
+  const paliers: number[] = [];
+  for (let r = Math.max(0.5, initialKm); r < max; r *= 2) paliers.push(Math.round(r * 1000));
+  paliers.push(Math.round(max * 1000));
+  return paliers;
 }

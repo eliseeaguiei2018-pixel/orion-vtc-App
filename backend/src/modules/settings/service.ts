@@ -120,7 +120,10 @@ export interface OpsConfig {
   strategy: DispatchStrategy;
   minRating: number;        // seuil qualité (note moyenne)
   autoWarn: boolean;        // avertissement automatique sous le seuil
-  /** Filtre ETA : un chauffeur n'est éligible que si son temps d'approche ≤ ce seuil. */
+  /**
+   * Filtre ETA : un chauffeur n'est éligible que si son temps d'approche ≤ ce seuil. Par
+   * défaut 80 min : la recherche va jusqu'au rayon maximal (30 km), le plus proche d'abord.
+   */
   maxEtaMinutes: number;
   /** Cascade d'attribution : délai d'acceptation d'une offre (10–15 s) avant bascule au suivant. */
   offerTimeoutSec: number;
@@ -132,7 +135,11 @@ export interface OpsConfig {
   waitFeePerMin: number;
   /** Rayon de recherche INITIAL du matching (km) — élargi automatiquement si vide. */
   radiusKm: number;
-  /** Rayon MAXIMAL d'élargissement automatique (km). */
+  /**
+   * Rayon MAXIMAL d'élargissement automatique (km). La recherche part du rayon initial et
+   * double à chaque palier (1,5 → 3 → 6 → 12 → 24 → 30 km) : le chauffeur le plus proche
+   * est toujours servi d'abord, un chauffeur à 30 km seulement si personne n'est plus près.
+   */
   radiusMaxKm: number;
   /** Cascade (un chauffeur à la fois) ou broadcast (3 plus proches, 1er qui accepte). */
   offerMode: 'cascade' | 'broadcast';
@@ -163,18 +170,87 @@ export interface OpsConfig {
   loyaltyRideThreshold: number;
   /** Commission fidélité (0..1) accordée au-delà du seuil de courses électriques. */
   commissionLoyalty: number;
+  /** Prime de performance mensuelle des chauffeurs salariés (grille réglée en console). */
+  prime: PrimeConfig;
+}
+
+/**
+ * PRIME DE PERFORMANCE (chauffeurs salariés, payés au mois).
+ *
+ * Le palier atteint dépend du nombre de courses réalisées dans le mois ; il n'est acquis
+ * que si les conditions de qualité sont tenues (note moyenne, taux d'acceptation des
+ * offres, annulations). Deux bonus s'ajoutent : excellence (note très haute sur assez de
+ * notes) et assiduité (heures en service). Montants en F CFA, versés avec le salaire.
+ */
+export interface PrimeConfig {
+  actif: boolean;
+  /** Paliers par nombre de courses du mois (croissants). */
+  paliers: Array<{ courses: number; montant: number }>;
+  /** Note moyenne minimale du mois (0 = sans condition). */
+  noteMin: number;
+  /** Taux d'acceptation minimal des offres du mois, en % (0 = sans condition). */
+  tauxAcceptationMin: number;
+  /** Annulations du chauffeur tolérées dans le mois (hors motif de sécurité). */
+  annulationsMax: number;
+  bonusExcellence: { note: number; minNotes: number; montant: number };
+  bonusAssiduite: { heures: number; montant: number };
+}
+export const DEFAULT_PRIME: PrimeConfig = {
+  actif: true,
+  paliers: [
+    { courses: 100, montant: 15_000 },
+    { courses: 160, montant: 30_000 },
+    { courses: 220, montant: 50_000 },
+  ],
+  noteMin: 4.6,
+  tauxAcceptationMin: 85,
+  annulationsMax: 4,
+  bonusExcellence: { note: 4.9, minNotes: 30, montant: 10_000 },
+  bonusAssiduite: { heures: 200, montant: 10_000 },
+};
+
+/** Grille de prime propre : paliers triés, montants entiers, bornes raisonnables. */
+export function normaliserPrime(p: Partial<PrimeConfig> | undefined, base: PrimeConfig = DEFAULT_PRIME): PrimeConfig {
+  const borne = (v: unknown, min: number, max: number, defaut: number) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : defaut;
+  };
+  const paliers = (p?.paliers ?? base.paliers)
+    .map((x) => ({ courses: Math.round(borne(x.courses, 1, 2000, 1)), montant: Math.round(borne(x.montant, 0, 5_000_000, 0)) }))
+    .sort((a, b) => a.courses - b.courses)
+    .filter((x, i, t) => i === 0 || x.courses !== t[i - 1]!.courses)
+    .slice(0, 8);
+  const be = { ...base.bonusExcellence, ...(p?.bonusExcellence ?? {}) };
+  const ba = { ...base.bonusAssiduite, ...(p?.bonusAssiduite ?? {}) };
+  return {
+    actif: p?.actif ?? base.actif,
+    paliers,
+    noteMin: borne(p?.noteMin ?? base.noteMin, 0, 5, base.noteMin),
+    tauxAcceptationMin: Math.round(borne(p?.tauxAcceptationMin ?? base.tauxAcceptationMin, 0, 100, base.tauxAcceptationMin)),
+    annulationsMax: Math.round(borne(p?.annulationsMax ?? base.annulationsMax, 0, 100, base.annulationsMax)),
+    bonusExcellence: {
+      note: borne(be.note, 0, 5, DEFAULT_PRIME.bonusExcellence.note),
+      minNotes: Math.round(borne(be.minNotes, 0, 1000, DEFAULT_PRIME.bonusExcellence.minNotes)),
+      montant: Math.round(borne(be.montant, 0, 5_000_000, 0)),
+    },
+    bonusAssiduite: {
+      heures: Math.round(borne(ba.heures, 0, 744, DEFAULT_PRIME.bonusAssiduite.heures)),
+      montant: Math.round(borne(ba.montant, 0, 5_000_000, 0)),
+    },
+  };
 }
 export const DEFAULT_OPS: OpsConfig = {
   strategy: 'nearest', minRating: 4.5, autoWarn: true,
-  maxEtaMinutes: 7, offerTimeoutSec: 12, surgeEnabled: true, surgeCapGreen: 1.3,
+  maxEtaMinutes: 80, offerTimeoutSec: 12, surgeEnabled: true, surgeCapGreen: 1.3,
   waitFeePerMin: 100,
-  radiusKm: 1.5, radiusMaxKm: 6, offerMode: 'cascade',
+  radiusKm: 1.5, radiusMaxKm: 30, offerMode: 'cascade',
   weightRating: 0, weightIdle: 0, greenPriority: false,
   surgeThreshold: 1.3, surgeSmoothingMin: 10,
   refundCap: 5000,
   offPeakBonus: 500, offPeakStart: 22, offPeakEnd: 6,
   cashDebtLimit: 30_000, commissionStandard: 0.20, commissionGreen: 0.12,
   loyaltyRideThreshold: 1000, commissionLoyalty: 0.10,
+  prime: DEFAULT_PRIME,
 };
 interface OpsRecord extends OpsConfig { id: string; }
 const OPS_ID = 'ops';
@@ -240,7 +316,7 @@ export class SettingsService {
       // Fusion avec les défauts : les enregistrements persistés avant l'ajout
       // d'un champ (ETA, cascade, surge) restent valides.
       const { id: _opsId, ...rest } = savedOps;
-      this.ops = { ...DEFAULT_OPS, ...rest };
+      this.ops = { ...DEFAULT_OPS, ...rest, prime: normaliserPrime(rest.prime) };
     } else {
       this.ops = { ...DEFAULT_OPS };
     }
@@ -267,13 +343,13 @@ export class SettingsService {
       ...this.ops,
       ...patch,
       minRating: Math.min(5, Math.max(1, patch.minRating ?? this.ops.minRating)),
-      maxEtaMinutes: Math.min(30, Math.max(2, patch.maxEtaMinutes ?? this.ops.maxEtaMinutes ?? 7)),
+      maxEtaMinutes: Math.min(120, Math.max(2, patch.maxEtaMinutes ?? this.ops.maxEtaMinutes ?? 80)),
       offerTimeoutSec: Math.min(15, Math.max(10, patch.offerTimeoutSec ?? this.ops.offerTimeoutSec ?? 12)),
       surgeEnabled: patch.surgeEnabled ?? this.ops.surgeEnabled ?? true,
       surgeCapGreen: Math.min(2, Math.max(1, patch.surgeCapGreen ?? this.ops.surgeCapGreen ?? 1.3)),
       waitFeePerMin: Math.min(1000, Math.max(0, patch.waitFeePerMin ?? this.ops.waitFeePerMin ?? 100)),
       radiusKm: Math.min(10, Math.max(0.5, patch.radiusKm ?? this.ops.radiusKm ?? 1.5)),
-      radiusMaxKm: Math.min(20, Math.max(1, patch.radiusMaxKm ?? this.ops.radiusMaxKm ?? 6)),
+      radiusMaxKm: Math.min(50, Math.max(1, patch.radiusMaxKm ?? this.ops.radiusMaxKm ?? 30)),
       offerMode: patch.offerMode ?? this.ops.offerMode ?? 'cascade',
       weightRating: Math.min(10, Math.max(0, patch.weightRating ?? this.ops.weightRating ?? 0)),
       weightIdle: Math.min(10, Math.max(0, patch.weightIdle ?? this.ops.weightIdle ?? 0)),
@@ -289,6 +365,7 @@ export class SettingsService {
       commissionGreen: Math.min(0.5, Math.max(0, patch.commissionGreen ?? this.ops.commissionGreen ?? 0.12)),
       loyaltyRideThreshold: Math.max(0, Math.round(patch.loyaltyRideThreshold ?? this.ops.loyaltyRideThreshold ?? 1000)),
       commissionLoyalty: Math.min(0.5, Math.max(0, patch.commissionLoyalty ?? this.ops.commissionLoyalty ?? 0.10)),
+      prime: normaliserPrime(patch.prime, this.ops.prime ?? DEFAULT_PRIME),
     };
     this.opsRepo?.put({ id: OPS_ID, ...this.ops });
     this.notifyDriverConfig();

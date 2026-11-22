@@ -12,7 +12,12 @@ const schema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
   // Limitation de débit (back-pressure) — protège contre la surcharge.
-  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
+  // Limiteur de débit (par minute) : par compte vérifié (client, chauffeur), par membre du
+  // personnel ORION (la console interroge beaucoup), et par adresse pour l'anonyme — une
+  // adresse d'opérateur mobile est partagée par de nombreux téléphones (voir core/limiteur.ts).
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(240),
+  RATE_LIMIT_MAX_STAFF: z.coerce.number().int().positive().default(1200),
+  RATE_LIMIT_MAX_IP: z.coerce.number().int().positive().default(600),
   RATE_LIMIT_WINDOW: z.string().default('1 minute'),
 
   // Verrouillage d'estimation de prix.

@@ -1,6 +1,7 @@
-import { verifyToken, bearerToken, isSessionInactive } from './auth.js';
+import { verifyToken, bearerToken, isSessionInactive, isSessionRevoked } from './auth.js';
 import { parseCookies, SESSION_COOKIE, CSRF_COOKIE, CSRF_HEADER, estEcriture } from './cookies.js';
 import { resolveAccount, can, type AdminAccount, type Permission } from './roles.js';
+import { consommerBillet } from './billets-ws.js';
 
 /**
  * Authentification du personnel EN DEHORS des routes /admin : flux WebSocket de
@@ -17,7 +18,7 @@ export type ResultatAcces =
   | { ok: false; code: 401 | 403; message: string };
 
 export function accesPersonnel(
-  req: { headers: Record<string, string | string[] | undefined>; method: string },
+  req: { headers: Record<string, string | string[] | undefined>; method: string; query?: unknown },
   permission: Permission,
 ): ResultatAcces {
   const entete = (n: string) => {
@@ -26,7 +27,12 @@ export function accesPersonnel(
   };
   const cookies = parseCookies(entete('cookie'));
   const parCookie = verifyToken(cookies[SESSION_COOKIE]);
-  const verifie = parCookie ?? verifyToken(bearerToken(entete('authorization')));
+  // Application console (téléphone) : billet à usage unique obtenu avec sa session, pour
+  // ouvrir un canal WebSocket en lecture (voir billets-ws.ts). Jamais pour une écriture.
+  const billet = !estEcriture(req.method) ? (req.query as { billet?: unknown } | undefined)?.billet : undefined;
+  const parBillet = typeof billet === 'string' ? consommerBillet(billet) : null;
+  if (parBillet?.jti && isSessionRevoked(parBillet.jti)) return { ok: false, code: 401, message: 'Session révoquée' };
+  const verifie = parCookie ?? parBillet ?? verifyToken(bearerToken(entete('authorization')));
   const compte = verifie ?? resolveAccount(entete('x-admin-token'));
   if (!compte) return { ok: false, code: 401, message: 'Session invalide ou expirée' };
   if (verifie?.jti && isSessionInactive(verifie.jti)) {

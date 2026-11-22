@@ -178,10 +178,10 @@ export function DispatchSection({ ops, onSave, onSimulate, onConfigPdf, onMatrix
             <input type="number" min={0.5} max={10} step={0.5} value={ops.radiusKm} onChange={(e) => onSave({ radiusKm: Number(e.target.value) })} />
           </label>
           <label className="price-field"><span>Rayon max (élargissement auto, km)</span>
-            <input type="number" min={1} max={20} step={0.5} value={ops.radiusMaxKm} onChange={(e) => onSave({ radiusMaxKm: Number(e.target.value) })} />
+            <input type="number" min={1} max={50} step={1} value={ops.radiusMaxKm} onChange={(e) => onSave({ radiusMaxKm: Number(e.target.value) })} />
           </label>
           <label className="price-field"><span>ETA max chauffeur (minutes)</span>
-            <input type="number" min={2} max={30} value={ops.maxEtaMinutes} onChange={(e) => onSave({ maxEtaMinutes: Number(e.target.value) })} />
+            <input type="number" min={2} max={120} value={ops.maxEtaMinutes} onChange={(e) => onSave({ maxEtaMinutes: Number(e.target.value) })} />
           </label>
           <label className="price-field"><span>Délai d'acceptation (10–15 s)</span>
             <input type="number" min={10} max={15} value={ops.offerTimeoutSec} onChange={(e) => onSave({ offerTimeoutSec: Number(e.target.value) })} />
@@ -197,8 +197,9 @@ export function DispatchSection({ ops, onSave, onSimulate, onConfigPdf, onMatrix
           </label>
         </div>
         <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
-          La recherche démarre au rayon initial et s'élargit automatiquement jusqu'au rayon max si personne
-          n'accepte. Au-delà de l'ETA max, un chauffeur n'est jamais proposé.
+          La recherche démarre au rayon initial et double à chaque palier jusqu'au rayon max
+          (1,5 → 3 → 6 → 12 → 24 → 30 km) : le chauffeur le plus proche est toujours proposé d'abord.
+          Au-delà de l'ETA max, un chauffeur n'est jamais proposé.
         </p>
       </div>
       <div className="adm-card">

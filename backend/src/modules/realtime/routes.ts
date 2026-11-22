@@ -76,6 +76,19 @@ export async function realtimeRoutes(app: FastifyInstance, container: Container)
       attach(socket, container, sosRoom(id), { suivi: container.safety.suiviPour(id, userId) });
     });
 
+    // CONSOLE EN TEMPS RÉEL : la console (navigateur ou application téléphone) est
+    // prévenue dès qu'une course, un chauffeur, une alerte ou une inscription change, et
+    // se met à jour aussitôt au lieu d'attendre son tour de rafraîchissement.
+    scoped.get('/ws/console', {
+      websocket: true,
+      preValidation: async (req, reply) => {
+        const acces = accesPersonnel(req, 'overview:read');
+        if (!acces.ok) await reply.code(acces.code).send({ error: acces.message });
+      },
+    }, (socket) => {
+      attacherConsole(socket, container);
+    });
+
     // Config publique temps réel : l'app cliente reçoit l'état courant à la connexion
     // (message `connected` avec `config`), puis chaque changement (message `config.update`).
     scoped.get('/ws/config', { websocket: true }, (socket) => {
@@ -153,6 +166,60 @@ function attach(
     clearInterval(heartbeat);
     if (minuterie) clearTimeout(minuterie);
     unsubscribe();
+    mesures.connexionFermee();
+  });
+}
+
+/** Domaine de la console concerné par un message temps réel (null : sans intérêt pour elle). */
+export function domaineConsole(msg: { type: string; room: string }): string | null {
+  if (msg.type === 'journal') return null;
+  if (msg.room.startsWith('ride:')) return msg.type === 'driver.location' ? 'positions' : 'courses';
+  if (msg.room.startsWith('driver:')) {
+    if (msg.type === 'driver.location') return 'positions';
+    return msg.type === 'driver.update' ? 'chauffeurs' : 'courses';
+  }
+  if (msg.room === EMERGENCY_ROOM || msg.room.startsWith('sos:')) return 'sos';
+  if (msg.room === 'support' || msg.room.startsWith('client:')) return 'support';
+  return null;
+}
+
+function attacherConsole(
+  socket: { send: (data: string) => void; on: (ev: string, cb: (...a: unknown[]) => void) => void; ping?: () => void },
+  container: Container,
+): void {
+  const mesures = container.mesures;
+  const envoyer = (texte: string) => {
+    try { socket.send(texte); mesures.noterEnvois(1); } catch { /* fermeture en cours */ }
+  };
+  mesures.connexionOuverte();
+  envoyer(JSON.stringify({ type: 'connected', room: 'console', at: new Date().toISOString() }));
+  // Regroupement : au plus un avis par seconde (les positions, au plus toutes les 4 s).
+  const domaines = new Set<string>();
+  let minuterie: ReturnType<typeof setTimeout> | undefined;
+  let dernierePosition = 0;
+  const vider = () => {
+    minuterie = undefined;
+    if (!domaines.size) return;
+    envoyer(JSON.stringify({ type: 'console.maj', room: 'console', at: new Date().toISOString(), data: { domaines: [...domaines] } }));
+    domaines.clear();
+  };
+  const desabonner = container.realtime.subscribeAll((msg) => {
+    const d = domaineConsole(msg);
+    if (!d) return;
+    if (d === 'positions') {
+      const t = Date.now();
+      if (t - dernierePosition < 4000) return;
+      dernierePosition = t;
+    }
+    domaines.add(d);
+    minuterie ??= setTimeout(vider, 1000);
+  });
+  const battement = setInterval(() => { try { socket.ping?.(); } catch { /* ignore */ } }, 30_000);
+  battement.unref?.();
+  socket.on('close', () => {
+    clearInterval(battement);
+    if (minuterie) clearTimeout(minuterie);
+    desabonner();
     mesures.connexionFermee();
   });
 }

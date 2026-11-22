@@ -109,7 +109,9 @@ export class MatchingEngine {
     const radii = fifo ? [baseRadii[baseRadii.length - 1]!] : baseRadii;
 
     for (const radius of radii) {
-      const nearby = await this.geo.nearby(origin, radius, 20);
+      // Jusqu'à 200 voisins : les plus proches peuvent être occupés ou d'une autre gamme,
+      // un chauffeur libre un peu plus loin dans le même rayon doit rester trouvable.
+      const nearby = await this.geo.nearby(origin, radius, 200);
       // Tous les candidats éligibles du rayon courant (pas seulement le premier).
       const candidates: Candidate[] = [];
       for (const c of nearby) {

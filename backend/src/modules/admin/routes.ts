@@ -33,6 +33,8 @@ import { photoUrl } from '../driver-app/photo-url.js';
 import { categorieDeFlotte } from '../rides/matching.js';
 import { ROLES_HABILITABLES, STATUT_HABILITATION_LABEL, type ErreurHabilitation, type Habilitation } from '../dashboard/habilitations.js';
 import { lieuDe } from '../maps/lieux.js';
+import { moisValide, primeDuMois } from '../driver-app/activite.js';
+import { emettreBillet } from './billets-ws.js';
 
 /**
  * VOLUME : un export s'écrit par tranches de 2 000 lignes, en rendant la main au serveur
@@ -1367,14 +1369,14 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         strategy: z.enum(['nearest', 'longest_idle', 'zone_queue']).optional(),
         minRating: z.number().min(1).max(5).optional(),
         autoWarn: z.boolean().optional(),
-        maxEtaMinutes: z.number().min(2).max(30).optional(),
+        maxEtaMinutes: z.number().min(2).max(120).optional(),
         offerTimeoutSec: z.number().min(10).max(15).optional(),
         surgeEnabled: z.boolean().optional(),
         surgeCapGreen: z.number().min(1).max(2).optional(),
         waitFeePerMin: z.number().min(0).max(1000).optional(),
         // Rayons évolutifs + mode d'offre + pondération scoring + priorisation verte.
         radiusKm: z.number().min(0.5).max(10).optional(),
-        radiusMaxKm: z.number().min(1).max(20).optional(),
+        radiusMaxKm: z.number().min(1).max(50).optional(),
         offerMode: z.enum(['cascade', 'broadcast']).optional(),
         weightRating: z.number().min(0).max(10).optional(),
         weightIdle: z.number().min(0).max(10).optional(),
@@ -1404,8 +1406,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     scoped.post('/admin/dispatch/simulate', async (req) => {
       require(req, 'rides:read');
       const body = parse(z.object({
-        maxEtaMinutes: z.number().min(2).max(30).optional(),
-        radiusMaxKm: z.number().min(1).max(20).optional(),
+        maxEtaMinutes: z.number().min(2).max(120).optional(),
+        radiusMaxKm: z.number().min(1).max(50).optional(),
       }), req.body ?? {});
       return admin.simulateDispatch(body);
     });
@@ -2057,6 +2059,122 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       container.drivers.persist(id);
       audit(req, 'driver.kyc', id, { status: body.status, reason: body.reason });
       return { driver: { id: d.id, kycStatus: d.kycStatus, availability: d.availability, suspensionReason: d.suspensionReason ?? null } };
+    });
+
+    // Application console (téléphone) : billet à usage unique pour ouvrir un canal temps réel.
+    scoped.post('/admin/ws-billet', async (req) => {
+      const { admin: account } = req as FastifyRequest & { admin: AdminAccount & { jti?: string } };
+      const jwt = bearerToken(req.headers['authorization'] as string | undefined);
+      const session = verifyToken(parseCookies(req.headers['cookie'] as string | undefined)[SESSION_COOKIE]) ?? verifyToken(jwt);
+      return emettreBillet({ ...account, jti: session?.jti });
+    });
+
+    /**
+     * ATTRIBUTION PAR ORION (chauffeurs salariés) : le chauffeur ne saisit que ses
+     * informations personnelles ; ORION lui attribue sa gamme, son véhicule (modèle,
+     * plaque, couleur, motorisation) et, au besoin, un matricule. Avec `valider`, le
+     * dossier passe « actif » en même temps : le chauffeur peut se mettre en ligne. L'app
+     * du chauffeur reçoit la fiche à jour en direct.
+     */
+    scoped.post('/admin/drivers/:id/attribution', async (req, reply) => {
+      require(req, 'drivers:write');
+      const { id } = req.params as { id: string };
+      assertManagerScope(req, id);
+      const body = parse(z.object({
+        category: z.enum(['argent', 'or', 'diamant', 'moto']).optional(),
+        vehicleModel: z.string().trim().min(2).max(60).optional(),
+        vehiclePlate: z.string().trim().min(3).max(15).optional(),
+        vehicleColor: z.string().trim().min(3).max(20).optional(),
+        engine: z.enum(['electric', 'hybrid']).optional(),
+        batteryKwh: z.number().min(0).max(300).optional(),
+        matricule: z.string().trim().regex(/^[A-Za-z0-9-]{4,24}$/).optional(),
+        valider: z.boolean().optional(),
+      }), req.body ?? {});
+      const d = container.drivers.get(id);
+      if (!d) throw notFound('Chauffeur introuvable');
+      if (body.matricule && body.matricule !== d.matricule
+        && container.drivers.list().some((x) => x.id !== id && x.matricule.toLowerCase() === body.matricule!.toLowerCase())) {
+        reply.code(409);
+        return { error: `Le matricule ${body.matricule} est déjà attribué à un autre chauffeur.` };
+      }
+      if (body.valider && d.kycStatus === 'suspended') {
+        reply.code(409);
+        return { error: 'Chauffeur suspendu : réactivez-le avant de valider son dossier.' };
+      }
+      const avant = { category: d.category, vehicleModel: d.vehicleModel, vehiclePlate: d.vehiclePlate, matricule: d.matricule, kycStatus: d.kycStatus };
+      if (body.category) d.category = body.category;
+      if (body.vehicleModel) d.vehicleModel = body.vehicleModel;
+      if (body.vehiclePlate) d.vehiclePlate = body.vehiclePlate.toUpperCase();
+      if (body.vehicleColor) d.vehicleColor = body.vehicleColor;
+      if (body.engine) d.engine = body.engine;
+      if (body.batteryKwh !== undefined) d.batteryKwh = body.batteryKwh;
+      if (body.matricule) d.matricule = body.matricule.toUpperCase();
+      if (body.valider) { d.kycStatus = 'active'; d.suspensionReason = undefined; }
+      container.drivers.persist(id);
+      audit(req, 'driver.attribution', id, { avant, apres: { category: d.category, vehicleModel: d.vehicleModel, vehiclePlate: d.vehiclePlate, matricule: d.matricule, kycStatus: d.kycStatus } });
+      if (body.valider && avant.kycStatus !== 'active') {
+        container.notifications.notify({ driverId: id }, 'Dossier validé',
+          `Bienvenue chez ORION. Matricule ${d.matricule}${d.vehiclePlate ? ` · véhicule ${d.vehiclePlate}` : ''}. Vous pouvez vous mettre en ligne.`);
+      }
+      return {
+        driver: {
+          id: d.id, name: d.name, matricule: d.matricule, category: d.category, kycStatus: d.kycStatus,
+          vehicleModel: d.vehicleModel ?? null, vehiclePlate: d.vehiclePlate ?? null, vehicleColor: d.vehicleColor ?? null,
+          engine: d.engine ?? null, batteryKwh: d.batteryKwh ?? null,
+        },
+      };
+    });
+
+    /* ------------------- Prime de performance (chauffeurs salariés) ------------------- */
+    scoped.get('/admin/primes', async (req) => {
+      require(req, 'drivers:read');
+      const q = parse(z.object({ mois: z.string().max(7).optional() }), req.query ?? {});
+      const lignes = container.drivers.list()
+        .filter((d) => d.appLinkedAt || d.kycStatus === 'active' || d.kycStatus === 'approved')
+        .map((d) => {
+          const p = primeDuMois(container, d.id, q.mois);
+          return {
+            id: d.id, name: d.name, matricule: d.matricule, category: d.category,
+            courses: p.courses, heures: p.activite.heuresService, note: p.activite.note.moyenne,
+            tauxAcceptation: p.activite.offres.tauxAcceptation, annulations: p.activite.annulations,
+            palier: p.palier, conditionsTenues: p.conditions.every((c) => c.ok), montant: p.montantEstime,
+          };
+        })
+        .sort((a, b) => b.montant - a.montant || b.courses - a.courses)
+        .slice(0, 500);
+      return { mois: moisValide(q.mois), grille: container.settings.getOps().prime, chauffeurs: lignes, total: lignes.reduce((s, l) => s + l.montant, 0) };
+    });
+
+    scoped.get('/admin/drivers/:id/prime', async (req) => {
+      require(req, 'drivers:read');
+      const { id } = req.params as { id: string };
+      if (!container.drivers.get(id)) throw notFound('Chauffeur introuvable');
+      const q = parse(z.object({ mois: z.string().max(7).optional() }), req.query ?? {});
+      return { prime: primeDuMois(container, id, q.mois) };
+    });
+
+    scoped.put('/admin/primes/grille', async (req) => {
+      require(req, 'pricing:write');
+      const palier = z.object({ courses: z.number().int().min(1).max(2000), montant: z.number().int().min(0).max(5_000_000) });
+      const body = parse(z.object({
+        actif: z.boolean().optional(),
+        paliers: z.array(palier).min(1).max(8).optional(),
+        noteMin: z.number().min(0).max(5).optional(),
+        tauxAcceptationMin: z.number().int().min(0).max(100).optional(),
+        annulationsMax: z.number().int().min(0).max(100).optional(),
+        bonusExcellence: z.object({ note: z.number().min(0).max(5), minNotes: z.number().int().min(0).max(1000), montant: z.number().int().min(0).max(5_000_000) }).partial().optional(),
+        bonusAssiduite: z.object({ heures: z.number().int().min(0).max(744), montant: z.number().int().min(0).max(5_000_000) }).partial().optional(),
+      }), req.body ?? {});
+      const actuelle = container.settings.getOps().prime;
+      const ops = container.settings.updateOps({
+        prime: {
+          ...actuelle, ...body,
+          bonusExcellence: { ...actuelle.bonusExcellence, ...(body.bonusExcellence ?? {}) },
+          bonusAssiduite: { ...actuelle.bonusAssiduite, ...(body.bonusAssiduite ?? {}) },
+        },
+      });
+      audit(req, 'primes.grille', 'prime', { grille: ops.prime });
+      return { grille: ops.prime };
     });
 
     // Documents expirant sous 30 jours (assurance / contrôle technique).

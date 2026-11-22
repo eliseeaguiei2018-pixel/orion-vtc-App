@@ -210,6 +210,9 @@ export class OfferService {
     const d = this.c.drivers.get(driverId);
     if (!d) return;
     d[key] = (d[key] ?? 0) + 1;
+    // Compte du mois (taux d'acceptation de la prime de performance).
+    const PAR_MOIS = { offersReceived: 'recues', offersAccepted: 'acceptees', offersDeclined: 'refusees', offersExpired: 'expirees' } as const;
+    this.c.drivers.noterOffre(driverId, PAR_MOIS[key]);
     this.c.drivers.persist(driverId);
   }
 

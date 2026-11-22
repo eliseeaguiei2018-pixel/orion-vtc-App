@@ -168,9 +168,9 @@ const me = {
 
 /** Réglages dispatch & qualité (démo). */
 const ops = {
-  strategy: 'nearest', minRating: 4.5, autoWarn: true, maxEtaMinutes: 7, offerTimeoutSec: 12,
+  strategy: 'nearest', minRating: 4.5, autoWarn: true, maxEtaMinutes: 80, offerTimeoutSec: 12,
   surgeEnabled: true, surgeCapGreen: 1.3, waitFeePerMin: 100,
-  radiusKm: 1.5, radiusMaxKm: 6, offerMode: 'cascade', weightRating: 0, weightIdle: 0, greenPriority: false,
+  radiusKm: 1.5, radiusMaxKm: 30, offerMode: 'cascade', weightRating: 0, weightIdle: 0, greenPriority: false,
   surgeThreshold: 1.3, surgeSmoothingMin: 10, refundCap: 5000, offPeakBonus: 500, offPeakStart: 22, offPeakEnd: 6,
   cashDebtLimit: 30000, commissionStandard: 0.20, commissionGreen: 0.12, loyaltyRideThreshold: 1000, commissionLoyalty: 0.10,
 };

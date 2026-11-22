@@ -172,6 +172,16 @@ export async function greenTelemetryRoutes(app: import('fastify').FastifyInstanc
     }), req.body);
     const d = container.drivers.get(id);
     if (!d) throw notFound('Chauffeur introuvable');
+    // Chauffeurs SALARIÉS : depuis l'app chauffeur, seules les informations personnelles
+    // sont acceptées. Le véhicule (modèle, plaque, couleur, batterie) est attribué par ORION
+    // (console : POST /admin/drivers/:id/attribution).
+    if (fromDriverApp(req)) {
+      const vehicule = ['vehicleModel', 'insuranceExpiry', 'vehiclePlate', 'vehicleColor', 'batteryKwh', 'plugType', 'cablesConfirmed', 'ribVerified'] as const;
+      if (vehicule.some((k) => body[k] !== undefined)) {
+        const { forbidden } = await import('../../core/errors.js');
+        throw forbidden('Le véhicule et ses documents sont attribués par ORION : seules vos informations personnelles se modifient ici.');
+      }
+    }
     if (body.vehicleModel) d.vehicleModel = body.vehicleModel;
     if (body.insuranceExpiry) d.insuranceExpiry = body.insuranceExpiry;
     if (body.phone) d.phone = body.phone;

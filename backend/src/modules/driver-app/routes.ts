@@ -16,6 +16,7 @@ import { ETAPES_CHAUFFEUR } from '../rental/service.js';
 import { rideStateMachine } from '../services/ride/stateMachine.js';
 import type { Ride } from '../rides/store.js';
 import { offersOf } from './offers.js';
+import { activiteDuMois, primeDuMois } from './activite.js';
 import { assurerIdentifiantChauffeur, posteChauffeurRoutes } from './poste.js';
 import { photoUrl } from './photo-url.js';
 import {
@@ -165,6 +166,26 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
     container.drivers.persist(id);
     container.audit.log({ actor: d.name, role: 'chauffeur', action: 'driver.kyc_submit', target: id, details: { matricule: d.matricule } });
     return { driver: d };
+  });
+
+  /* ---------------- Chauffeur salarié : activité du mois et prime ---------------- */
+
+  // Activité du mois (courses, km, heures en service, recettes encaissées, note, offres).
+  app.get('/drivers/:id/activite', async (req) => {
+    const { id } = req.params as { id: string };
+    requireDriver(req, id);
+    if (!container.drivers.get(id)) throw notFound('Chauffeur introuvable');
+    const q = parse(z.object({ mois: z.string().max(7).optional() }), req.query ?? {});
+    return { activite: activiteDuMois(container, id, q.mois) };
+  });
+
+  // Prime de performance du mois : palier atteint, prochain palier, conditions, bonus.
+  app.get('/drivers/:id/prime', async (req) => {
+    const { id } = req.params as { id: string };
+    requireDriver(req, id);
+    if (!container.drivers.get(id)) throw notFound('Chauffeur introuvable');
+    const q = parse(z.object({ mois: z.string().max(7).optional() }), req.query ?? {});
+    return { prime: primeDuMois(container, id, q.mois) };
   });
 
   /* --------------------------- Courses & gains --------------------------- */
@@ -318,7 +339,7 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
       target: rideId, details: { motif: body.motif, details: body.details, status: ride.status },
     });
     // Qualité de service : les annulations du chauffeur sont comptées (sauf insécurité).
-    if (body.motif !== 'securite') { d.cancellations = (d.cancellations ?? 0) + 1; container.drivers.persist(id); }
+    if (body.motif !== 'securite') { d.cancellations = (d.cancellations ?? 0) + 1; container.drivers.noterAnnulation(id); container.drivers.persist(id); }
 
     if (body.motif === 'client_absent') {
       const arrivee = [...ride.events].reverse().find((e) => e.type === 'arrived');

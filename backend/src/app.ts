@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { config } from './config/index.js';
 import { loggerOptions } from './core/logger.js';
 import { AppError } from './core/errors.js';
+import { cleDeLimite, plafondDeLimite } from './core/limiteur.js';
 import { createContainer, type Container } from './container.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { brancherPasserelle } from './modules/gcp/securite.js';
@@ -97,7 +98,9 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
 
   // Back-pressure : protège contre la surcharge (renvoie 429 plutôt que de s'effondrer).
   await app.register(rateLimit, {
-    max: config.RATE_LIMIT_MAX,
+    // Par compte vérifié, sinon par adresse (NAT des opérateurs mobiles) : core/limiteur.ts.
+    keyGenerator: cleDeLimite,
+    max: plafondDeLimite,
     timeWindow: config.RATE_LIMIT_WINDOW,
     // Se DÉCONNECTER doit toujours rester possible : un administrateur bloqué par
     // le limiteur garderait sinon une session ouverte, ce qui est exactement
