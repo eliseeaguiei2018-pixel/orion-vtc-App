@@ -1405,3 +1405,30 @@ APK (même signature, certificat `de10eef9…bf7dc`), SHA-256 :
 - `ORION-chauffeur-1.6.0.apk` (code 19) : `45e4b092e4e51ff75f4b501c368e6ef6fe2fcddea523712a85b4740cec5f70f4`
 - `ORION-test-client-1.6.0.apk` (code 2) : `8ec3218b5320b5cc1b9fc491a756587f0e02c0550d7495cd006159a921d2f7eb`
 - `ORION-console-test-1.6.0.apk` (code 2) : `d8339ef432e72fbb7aa31bc77d4cf18fa96b625b4af61904d278e3cdcd2cf2cc`
+
+## 28. Version 1.6.1 : le choix pont à péage / voie normale avec la carte Google (22 novembre)
+
+Constat sur l'APK 1.6.0 : le péage était reconnu (« Péage compris : Pont Henri Konan Bédié »),
+mais le client ne pouvait pas choisir la voie normale. Reproduit avec la vraie clé Google, l'app
+servie comme dans l'APK : Google ne sait pas que les ponts d'Abidjan sont payants ; ses variantes
+et sa route « sans péage » passent toutes par le pont HKB, et le point de contournement retenu
+(au milieu du pont Général-de-Gaulle) le ramenait lui aussi sur HKB.
+
+Correction : chaque péage a plusieurs points de contournement, vérifiés sur les routes de Google
+dans les deux sens (aucun poste sur le trajet obtenu) — HKB : Plateau ; 4ᵉ pont : Adjamé ;
+Grand-Bassam : ancienne route par Modeste. Ils sont essayés en même temps ; la voie normale la
+plus rapide est retenue, sauf détour de plus de moitié plus long (le prix suit la distance). À
+défaut, les variantes du calcul ORION sont essayées. Même règle sur le serveur (tracé de la
+course) et dans le guidage du chauffeur.
+
+Vérifié avec la clé Google : Cocody → Zone 4, pont HKB 17 min (Argent 2 450 F, péage compris)
+ou voie normale par le Plateau 34 min (2 950 F) ; Yopougon → Plateau, 4ᵉ pont 18 min (2 550 F)
+ou voie normale 21 min (2 600 F). Le tracé et les prix changent avec le choix ; les feux
+tricolores apparaissent sur la carte Google aux carrefours (zoom 14 et plus) et le poste de
+péage choisi est mis en avant (« Péage · 500 F »).
+
+APK 1.6.1 (code 20 ; APK de test code 3), même signature, SHA-256 :
+- `ORION-client-1.6.1.apk` : `8052ec6b5e29416de50ed21d9df83c31113648ed47019f2a0a002d52e8711e02`
+- `ORION-chauffeur-1.6.1.apk` : `c5a4966de66112c59cda631d2c6cc78db84fc9a00cb803e7cfac89e80bb15ecb`
+- `ORION-test-client-1.6.1.apk` : `c1d67724921952e5d94b50c7cdfa0e9e5721431467ed0b1a19ff192331a412fb`
+- `ORION-console-test-1.6.1.apk` : `83b9ff08692deedc867eee61fe189cd3f8aa7519e5a368d39229beb7206b70e8`

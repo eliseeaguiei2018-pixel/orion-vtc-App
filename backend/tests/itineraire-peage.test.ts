@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildApp } from '../src/app.js';
 import { Routage } from '../src/modules/maps/routage.js';
-import { classerItineraires, PEAGES } from '../src/modules/geo-ci/abidjan.js';
+import { classerItineraires, meilleureVoieNormale, PEAGES, viasDeContournement } from '../src/modules/geo-ci/abidjan.js';
 
 /**
  * PONT À PÉAGE OU VOIE NORMALE, MISE À DISPOSITION À L'HEURE : le choix du client voyage
@@ -91,16 +91,25 @@ test('itinéraire selon le choix : variante sans péage, sinon contournement du 
   assert.equal((await avecVariante.itineraireSelonChoix([COCODY, ZONE4], 'normal')).distanceMeters, 14000);
   assert.ok(urls.some((u) => u.includes('alternatives=3')), 'variantes demandées à OSRM');
 
-  // OSRM ne propose que le pont : la voie normale passe par le contournement (pont Général-de-Gaulle).
+  // OSRM ne propose que le pont : la voie normale passe par un point de contournement (Plateau).
+  // Comme Google, le calcul ne sait pas que le pont est payant : chaque point est essayé.
   urls.length = 0;
-  const sansVariante = new Routage('https://osrm.test', (async (u: string) => { urls.push(u); return reponse(u.includes(String(HKB.contournement!.lng.toFixed(6))) ? [parPlateau] : [parHkb]); }) as unknown as typeof fetch);
+  const [via1, via2] = HKB.contournements!;
+  const sansVariante = new Routage('https://osrm.test', (async (u: string) => {
+    urls.push(u);
+    return reponse(u.includes(via2!.lng.toFixed(6)) ? [parPlateau] : [parHkb]);   // seul le 2ᵉ point évite le pont
+  }) as unknown as typeof fetch);
   const normal = await sansVariante.itineraireSelonChoix([COCODY, ZONE4], 'normal');
   assert.equal(normal.distanceMeters, 14000);
-  assert.ok(urls.some((u) => u.includes(HKB.contournement!.lng.toFixed(6))), 'passage par le contournement');
+  assert.ok(urls.some((u) => u.includes(via1!.lng.toFixed(6))) && urls.some((u) => u.includes(via2!.lng.toFixed(6))), 'les deux points de contournement essayés');
 
   // Classement : une voie normale absurde (trois fois plus longue + 20 min) n'est pas proposée.
   const r = (d: number, s: number, geo: { lat: number; lng: number }[]) => ({ geometrie: geo, distanceMeters: d, durationSeconds: s });
   const c = classerItineraires([r(9000, 900, [COCODY, HKB, ZONE4]), r(60000, 5000, [COCODY, { lat: 5.3164, lng: -4.0104 }, ZONE4])]);
   assert.equal(c.peage?.peages[0]?.id, 'hkb');
   assert.equal(c.normal, null);
+  // Voie normale retenue : la plus rapide, sauf détour de plus de moitié plus long (le prix suit la distance).
+  const v = meilleureVoieNormale([r(14900, 3240, [COCODY, ZONE4]), r(28900, 2760, [COCODY, ZONE4]), r(9000, 900, [COCODY, HKB, ZONE4])]);
+  assert.equal(v?.distanceMeters, 14900);
+  assert.deepEqual(viasDeContournement([HKB]).length, HKB.contournements!.length);
 });

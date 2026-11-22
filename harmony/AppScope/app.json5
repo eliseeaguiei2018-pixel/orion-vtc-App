@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "ci.orion.chauffeur",
     "vendor": "ORION",
-    "versionCode": 19,
-    "versionName": "1.6.0",
+    "versionCode": 20,
+    "versionName": "1.6.1",
     "icon": "$media:app_icon",
     "label": "$string:app_name"
   }

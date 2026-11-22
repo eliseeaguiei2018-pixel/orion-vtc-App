@@ -1,5 +1,5 @@
 import { haversineMeters, type LatLng } from '../../core/geo.js';
-import { classerItineraires, PEAGES, type Peage } from '../geo-ci/abidjan.js';
+import { classerItineraires, meilleureVoieNormale, PEAGES, viasDeContournement, type Peage } from '../geo-ci/abidjan.js';
 
 /**
  * ITINÉRAIRE ROUTIER RÉEL (Côte d'Ivoire).
@@ -148,16 +148,16 @@ export class Routage {
     const habituel = await this.itineraire(points);
     if (!this.baseUrl || habituel.provider !== 'osrm') return habituel;
     const variantes = points.length === 2 ? await this.osrmTous(points, true).catch(() => [] as Itineraire[]) : [];
-    let classe = classerItineraires([habituel, ...variantes], liste);
+    const classe = classerItineraires([habituel, ...variantes], liste);
     const voulu = choix === 'peage' ? classe.peage : classe.normal;
     if (voulu) return voulu.route;
     if (choix === 'normal' && classe.peage) {
-      const via = classe.peage.peages.map((p) => PEAGES.find((x) => x.id === p.id)?.contournement).filter((v): v is LatLng => Boolean(v));
-      if (via.length > 0) {
-        const detour = await this.itineraire([points[0]!, ...via, ...points.slice(1)]);
-        classe = classerItineraires([detour], liste);
-        if (classe.normal) return classe.normal.route;
-      }
+      // Points de contournement des péages franchis (Plateau, Adjamé, ancienne route), essayés
+      // en même temps : la voie normale la plus rapide (sans détour démesuré) est retenue.
+      const detours = await Promise.all(viasDeContournement(classe.peage.peages)
+        .map((via) => this.itineraire([points[0]!, ...via, ...points.slice(1)]).catch(() => null)));
+      const voie = meilleureVoieNormale(detours.filter((d): d is Itineraire => d !== null && d.provider === 'osrm'), liste);
+      if (voie) return voie;
     }
     return habituel;
   }

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { LatLng } from './types';
 import { itineraire, variantesOrion, type ItineraireRoute } from './api';
-import { variantesGoogle } from './itineraireGoogle';
-import { classerItineraires, PEAGES, type Peage } from './routesAbidjan';
+import { itineraireGoogle, variantesGoogle } from './itineraireGoogle';
+import { classerItineraires, meilleureVoieNormale, viasDeContournement, type Peage } from './routesAbidjan';
 import { PEAGES_TARIF } from './tarifServeur';
 import { dansLeDelai } from './servicesGoogle';
 
@@ -16,8 +16,10 @@ import { dansLeDelai } from './servicesGoogle';
  * (`estimatePrice`, champs `itineraire`, `peages`, `routeMeters`).
  *
  * Les itinéraires viennent de Google (variantes et route sans péage), sinon du calcul
- * routier d'ORION (variantes d'OSRM). S'il n'en propose pas de sans péage, on passe par le
- * contournement connu du péage (pont gratuit, ancienne route). Un tracé est rangé « par le
+ * routier d'ORION (variantes d'OSRM). Google ne sait pas que les ponts d'Abidjan sont payants :
+ * ses variantes passent toutes par le pont. La voie normale est alors cherchée par les points
+ * de contournement de chaque péage (Plateau, Adjamé, ancienne route de Bassam), essayés en
+ * même temps, puis, à défaut, parmi les variantes d'ORION. Un tracé est rangé « par le
  * péage » s'il passe à moins de 90 m d'un poste.
  */
 export type ChoixItineraire = 'peage' | 'normal';
@@ -51,15 +53,15 @@ async function calculer(points: LatLng[]): Promise<Itineraires | null> {
   if (routes.length === 0) { const r = await itineraire(points); if (r) routes = [r]; }
   if (routes.length === 0) return null;
   let { peage, normal } = classerItineraires(routes, PEAGES_TARIF as Peage[]);
-  // Aucune voie normale proposée : on la cherche par le contournement du péage.
+  // Aucune voie normale proposée : on la cherche par les points de contournement des péages
+  // franchis (tous essayés en même temps), puis parmi les variantes d'ORION.
   if (peage && !normal) {
-    const via = peage.peages.map((p) => PEAGES.find((x) => x.id === p.id)?.contournement).filter((v): v is LatLng => Boolean(v));
-    if (via.length > 0) {
-      const detour = [points[0]!, ...via, ...points.slice(1)];
-      const r = (await variantesGoogle(detour).catch(() => []))[0] ?? await itineraire(detour);
-      if (r) normal = classerItineraires([r], PEAGES_TARIF as Peage[]).normal;
-      if (normal && normal.route.durationSeconds > peage.route.durationSeconds * 3 + 1200) normal = null;
-    }
+    const liste = PEAGES_TARIF as Peage[];
+    const detours = viasDeContournement(peage.peages).map((via) => [points[0]!, ...via, ...points.slice(1)]);
+    const candidates = await Promise.all(detours.map((d) => itineraireGoogle(d).then((r) => r ?? itineraire(d)).catch(() => null)));
+    let voie = meilleureVoieNormale(candidates.filter((r): r is ItineraireRoute => r !== null), liste);
+    if (!voie) voie = meilleureVoieNormale(await variantesOrion(points).catch(() => []), liste);
+    if (voie && voie.durationSeconds <= peage.route.durationSeconds * 3 + 1200) normal = { route: voie, peages: [] };
   }
   if (!peage && !normal) return null;
   const p = peage ? option('peage', peage.route, peage.peages) : null;
@@ -74,7 +76,7 @@ export function chargerItineraires(points: LatLng[]): Promise<Itineraires | null
   if (connus.has(k)) return Promise.resolve(connus.get(k) ?? null);
   const deja = enCours.get(k);
   if (deja) return deja;
-  const promesse = dansLeDelai(calculer(points), 7000).then((r) => {
+  const promesse = dansLeDelai(calculer(points), 10_000).then((r) => {
     enCours.delete(k);
     if (r) connus.set(k, r);
     if (connus.size > 40) for (const vieux of [...connus.keys()].slice(0, connus.size - 40)) connus.delete(vieux);

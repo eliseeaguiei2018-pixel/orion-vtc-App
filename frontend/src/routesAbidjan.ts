@@ -61,19 +61,22 @@ export interface Peage {
   /** Pont à péage : le client choisit entre ce pont et la voie normale. */
   pont: boolean;
   /**
-   * Point de passage d'une voie normale qui évite ce péage (pont gratuit, ancienne route),
-   * quand le calcul d'itinéraire n'en propose pas de lui-même.
+   * Points de passage d'une voie normale qui évite ce péage (ponts gratuits du Plateau,
+   * Adjamé, ancienne route), essayés quand le calcul d'itinéraire n'en propose pas de
+   * lui-même. Google ne sait pas que ces ponts sont payants : ses variantes et sa route
+   * « sans péage » passent toutes par le pont. Chaque point a été vérifié sur les routes de
+   * Google, dans les deux sens (aucun poste de péage sur le trajet obtenu).
    */
-  contournement?: PointGeo;
+  contournements?: PointGeo[];
 }
 
 export const PEAGES: Peage[] = [
-  // Voie normale : par le pont Général-de-Gaulle (Plateau ↔ Treichville), gratuit.
-  { id: 'hkb', nom: 'Pont Henri Konan Bédié', lat: 5.32741, lng: -3.98102, montant: 500, pont: true, contournement: { lat: 5.31640, lng: -4.01040 } },
-  // Voie normale : par Adjamé et le boulevard Nangui-Abrogoua (sans le 4ᵉ pont).
-  { id: 'pont4', nom: '4ᵉ pont (Yopougon – Plateau)', lat: 5.33573, lng: -4.04411, montant: 500, pont: true, contournement: { lat: 5.35560, lng: -4.02530 } },
-  // Voie normale : l'ancienne route de Bassam, par Port-Bouët et Gonzagueville.
-  { id: 'bassam', nom: 'Péage de Grand-Bassam', lat: 5.23431, lng: -3.81362, montant: 500, pont: false, contournement: { lat: 5.21600, lng: -3.85500 } },
+  // Voie normale : par le Plateau et ses ponts gratuits (Félix-Houphouët-Boigny, Général-de-Gaulle).
+  { id: 'hkb', nom: 'Pont Henri Konan Bédié', lat: 5.32741, lng: -3.98102, montant: 500, pont: true, contournements: [{ lat: 5.32220, lng: -4.01850 }, { lat: 5.33650, lng: -4.01900 }] },
+  // Voie normale : par Adjamé (boulevard Nangui-Abrogoua, autoroute du Nord), sans le 4ᵉ pont.
+  { id: 'pont4', nom: '4ᵉ pont (Yopougon – Plateau)', lat: 5.33573, lng: -4.04411, montant: 500, pont: true, contournements: [{ lat: 5.35560, lng: -4.02530 }, { lat: 5.37000, lng: -4.03000 }] },
+  // Voie normale : l'ancienne route de Bassam, par Port-Bouët et Modeste.
+  { id: 'bassam', nom: 'Péage de Grand-Bassam', lat: 5.23431, lng: -3.81362, montant: 500, pont: false, contournements: [{ lat: 5.21600, lng: -3.85500 }] },
   { id: 'attinguie', nom: "Péage d'Attinguié (autoroute du Nord)", lat: 5.47032, lng: -4.20152, montant: 500, pont: false },
   { id: 'thomasset', nom: 'Péage de Thomasset', lat: 5.56092, lng: -4.06886, montant: 500, pont: false },
 ];
@@ -119,4 +122,26 @@ export function classerItineraires<R extends RouteCandidate>(routes: R[], liste:
   }
   if (peage && normal && normal.route.durationSeconds > peage.route.durationSeconds * 3 + 1200) normal = null;
   return { peage, normal };
+}
+
+/**
+ * Suites de points de passage à essayer pour éviter les péages franchis : une par point de
+ * contournement (le n-ième point de chaque péage, ou son premier s'il en a moins).
+ */
+export function viasDeContournement(franchis: Peage[]): PointGeo[][] {
+  const listes = franchis.map((p) => PEAGES.find((x) => x.id === p.id)?.contournements ?? []).filter((l) => l.length > 0);
+  const n = Math.max(0, ...listes.map((l) => l.length));
+  return Array.from({ length: n }, (_, i) => listes.map((l) => l[i] ?? l[0]!));
+}
+
+/**
+ * La voie normale retenue parmi plusieurs candidates sans péage : la plus rapide, sauf si
+ * elle fait beaucoup plus de kilomètres (le prix suit la distance) — on écarte celles qui
+ * dépassent de moitié la plus courte.
+ */
+export function meilleureVoieNormale<R extends RouteCandidate>(candidates: R[], liste: Peage[] = PEAGES): R | null {
+  const sansPeage = candidates.filter((r) => r && r.geometrie?.length > 1 && r.distanceMeters > 0 && peagesSurTrace(r.geometrie, liste).length === 0);
+  if (sansPeage.length === 0) return null;
+  const plusCourte = Math.min(...sansPeage.map((r) => r.distanceMeters));
+  return sansPeage.filter((r) => r.distanceMeters <= plusCourte * 1.5).sort((a, b) => a.durationSeconds - b.durationSeconds)[0] ?? null;
 }

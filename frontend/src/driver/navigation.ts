@@ -3,7 +3,7 @@ import { itineraire, type ItineraireRoute, type Manoeuvre } from '../api';
 import type { LatLng } from './types';
 import { haversine } from './format';
 import { aTraduire, tr } from './i18n';
-import { PEAGES, peagesSurTrace } from '../routesAbidjan';
+import { meilleureVoieNormale, PEAGES, peagesSurTrace, viasDeContournement } from '../routesAbidjan';
 
 /**
  * NAVIGATION GUIDÉE DE L'APP CHAUFFEUR, sur la vraie carte de Côte d'Ivoire.
@@ -198,7 +198,9 @@ async function itineraireSelonConsigne(depart: LatLng, vers: LatLng, consigne: C
   const franchis = peagesSurTrace(r.geometrie);
   let via: LatLng[] = [];
   if (consigne.choix === 'normal' && franchis.length > 0) {
-    via = franchis.map((p) => PEAGES.find((x) => x.id === p.id)?.contournement).filter((v): v is LatLng => Boolean(v));
+    // Points de contournement essayés en même temps ; la voie normale la plus rapide est suivie.
+    const essais = await Promise.all(viasDeContournement(franchis).map((v) => itineraire([depart, ...v, vers]).catch(() => null)));
+    return meilleureVoieNormale(essais.filter((x): x is ItineraireRoute => x !== null)) ?? r;
   } else if (consigne.choix === 'peage') {
     via = PEAGES.filter((p) => consigne.peages.includes(p.id) && !passes.has(p.id) && !franchis.some((f) => f.id === p.id)).map((p) => ({ lat: p.lat, lng: p.lng }));
   }
