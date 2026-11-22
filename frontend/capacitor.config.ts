@@ -16,11 +16,20 @@ import type { CapacitorConfig } from '@capacitor/cli';
  *   scripts/construire-app-chauffeur.mjs et NATIVE.md.
  */
 const chauffeur = process.env.ORION_APP === 'chauffeur';
+/**
+ * APK de test temps réel (installées À PART des apps officielles, voir src/tempsReel.ts) :
+ * ORION_APP=test-client → app client de test ; ORION_APP=test-console → mini console.
+ */
+const TESTS: Record<string, { appId: string; appName: string; webDir: string; path: string }> = {
+  'test-client': { appId: 'ci.orion.test.client', appName: 'ORION Test', webDir: 'dist-test-client', path: 'test/client/android' },
+  'test-console': { appId: 'ci.orion.test.console', appName: 'ORION Console test', webDir: 'dist-test-console', path: 'test/console/android' },
+};
+const test = TESTS[process.env.ORION_APP ?? ''];
 
 const config: CapacitorConfig = {
-  appId: chauffeur ? 'ci.orion.chauffeur' : 'ci.orion.app',
-  appName: chauffeur ? 'ORION Chauffeur' : 'ORION',
-  webDir: chauffeur ? 'dist-chauffeur' : 'dist',
+  appId: test?.appId ?? (chauffeur ? 'ci.orion.chauffeur' : 'ci.orion.app'),
+  appName: test?.appName ?? (chauffeur ? 'ORION Chauffeur' : 'ORION'),
+  webDir: test?.webDir ?? (chauffeur ? 'dist-chauffeur' : 'dist'),
   backgroundColor: '#0c0d0f',
   plugins: {
     SplashScreen: { launchShowDuration: 0 },
@@ -34,7 +43,7 @@ const config: CapacitorConfig = {
     // ProMotion / taux de rafraîchissement adaptatif (jusqu'à 120 Hz) géré par le système.
   },
   android: {
-    ...(chauffeur ? { path: 'chauffeur/android' } : {}),
+    ...(test ? { path: test.path } : chauffeur ? { path: 'chauffeur/android' } : {}),
     allowMixedContent: false,
   },
 };

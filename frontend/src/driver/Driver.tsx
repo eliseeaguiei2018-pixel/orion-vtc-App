@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App as AppNative } from '@capacitor/app';
 import { LogoApp } from '../components/Logo';
@@ -18,6 +18,8 @@ import { SosLive, SosPill } from './screens/SosLive';
 import { tr, useLangueChauffeur } from './i18n';
 import { estEcranVehicule } from './ecran';
 import { Appairage } from './screens/Appairage';
+import { LockScreen } from '../components/Verrou';
+import { isBiometricEnabled } from '../security';
 
 /**
  * APP CHAUFFEUR ORION — troisième page du projet (driver.html), à côté de l'app cliente
@@ -69,7 +71,36 @@ function SuggestionEcranVehicule() {
 }
 
 function Shell({ app, vehicule = false }: { app: DriverApp; vehicule?: boolean }) {
-  const [tab, setTab] = useState<Tab>('home');
+  const [tab, setTabBrut] = useState<Tab>('home');
+  // Empreinte ou visage liés dans le profil : demandés à l'ouverture (comme l'app client).
+  // L'écran de véhicule s'appaire par code : pas de verrou par empreinte.
+  const [verrouille, setVerrouille] = useState(() => !vehicule && isBiometricEnabled());
+
+  /*
+   * POSITION GARDÉE (comme le volet Compte de l'app client 1.5.8) : chaque onglet retient
+   * où sa page était arrêtée et y revient ; toucher l'onglet déjà ouvert remonte en haut.
+   */
+  const positions = useRef<Partial<Record<Tab, number>>>({});
+  const page = () => document.querySelector<HTMLElement>('.dv-app .dv-page');
+  const setTab = (t: Tab) => {
+    const courante = page();
+    if (t === tab) { courante?.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    if (courante) positions.current[tab] = courante.scrollTop;
+    setTabBrut(t);
+  };
+  useLayoutEffect(() => {
+    const voulu = positions.current[tab] ?? 0;
+    if (voulu <= 0) return;
+    let essais = 0, image = 0;
+    const replacer = () => {
+      const el = page();
+      if (!el) return;
+      el.scrollTop = voulu;
+      if (Math.abs(el.scrollTop - voulu) > 1 && ++essais < 40) image = requestAnimationFrame(replacer);
+    };
+    replacer();
+    return () => cancelAnimationFrame(image);
+  }, [tab]);
   const [noticesOpen, setNoticesOpen] = useState(false);
   const [seen, setSeen] = useState(0);
 
@@ -82,7 +113,7 @@ function Shell({ app, vehicule = false }: { app: DriverApp; vehicule?: boolean }
     const ecoute = AppNative.addListener('backButton', () => {
       const e = etatRetour.current;
       if (e.noticesOpen) { setNoticesOpen(false); return; }
-      if (e.tab !== 'home') { setTab('home'); return; }
+      if (e.tab !== 'home') { setTabBrut('home'); return; }
       void AppNative.minimizeApp();
     });
     return () => { void ecoute.then((l) => l.remove()); };
@@ -112,6 +143,8 @@ function Shell({ app, vehicule = false }: { app: DriverApp; vehicule?: boolean }
   const openNotices = () => { setNoticesOpen(true); setSeen(app.notices.length); };
   const common = { app, unread, openNotices };
   const ride = app.activeRide;
+
+  if (verrouille) return <div className="dv-app"><LockScreen onUnlock={() => setVerrouille(false)} /></div>;
 
   return (
     <div className="dv-app">

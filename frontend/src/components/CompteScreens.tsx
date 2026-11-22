@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { VERSION_APP } from '../version';
 import { createPortal } from 'react-dom';
 import { Sheet, TopBar } from './ui';
 import {
@@ -231,7 +232,7 @@ export function ProfileScreen({ profil, onBack, onSaved, onToast }: {
 
 /* =============================== PARAMÈTRES =============================== */
 
-const VERSION = '1.5.9';
+const VERSION = VERSION_APP;
 
 /* ============================ MENU (trois traits) ============================ */
 
@@ -466,7 +467,8 @@ export function PreferencesScreen({ profil, onBack, onLogout, onDelete }: {
  * ou le visage — la liaison n'est enregistrée que si le téléphone répond « reconnu » ;
  * (3) « Tester maintenant » redemande le capteur et affiche sa réponse avec l'heure.
  */
-function BlocBiometrie() {
+/** Empreinte ou visage : liaison, essai et retrait (app client et app chauffeur). */
+export function BlocBiometrie() {
   const { t, lang } = useI18n();
   const [etat, setEtat] = useState<EtatBio | null>(null);
   const [liee, setLiee] = useState(isBiometricEnabled());

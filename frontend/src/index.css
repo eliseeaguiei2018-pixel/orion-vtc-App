@@ -2131,3 +2131,9 @@ button.menu-texte { cursor: pointer; }
 
 /* Serveur de test partagé : la course est partie vers l'app ORION Chauffeur du même téléphone. */
 .bus-avis { margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--stroke); font-size: 13px; line-height: 1.4; text-align: center; color: var(--text-dim); }
+
+/* APK de test temps réel (VITE_TEMPS_REEL=1) : repère sur l'accueil, lignes de prix du test. */
+.test-reel-badge { display: inline-block; margin-left: 8px; padding: 3px 9px; border-radius: 999px; vertical-align: middle;
+  background: #f59e0b; color: #1b1300; font: 600 11px/1.4 var(--font-body); letter-spacing: 0.01em; }
+.test-reel-ligne { margin: -4px 0 10px; font-size: 12.5px; line-height: 1.4; color: var(--text-dim); }
+.fare-line.test-reel span:first-child { color: var(--text-dim); }

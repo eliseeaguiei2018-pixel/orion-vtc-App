@@ -1,6 +1,8 @@
 package ci.orion.chauffeur;
 
 import android.content.ContentValues;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
 import com.getcapacitor.JSObject;
@@ -17,13 +19,27 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  */
 @CapacitorPlugin(name = "BusTest")
 public class BusTestPlugin extends Plugin {
-  private static final Uri ADRESSE = Uri.parse("content://ci.orion.app.bustest/entrees");
+  /**
+   * Adresse du registre. Par défaut, celui de l'app client ORION ; les APK de test temps réel
+   * (app client et mini console, installées à part) en désignent un autre par la méta-donnée
+   * « ci.orion.bustest.autorite » de leur manifeste : les deux paires ne se mélangent pas.
+   */
+  private Uri adresse() {
+    String autorite = "ci.orion.app.bustest";
+    try {
+      ApplicationInfo ai = getContext().getPackageManager().getApplicationInfo(getContext().getPackageName(), PackageManager.GET_META_DATA);
+      if (ai.metaData != null && ai.metaData.getString("ci.orion.bustest.autorite") != null) autorite = ai.metaData.getString("ci.orion.bustest.autorite");
+    } catch (Exception ignore) {
+      // Sans méta-donnée lisible : le registre de l'app client ORION.
+    }
+    return Uri.parse("content://" + autorite + "/entrees");
+  }
 
   @PluginMethod
   public void lire(PluginCall call) {
     JSObject reponse = new JSObject();
     JSObject entrees = new JSObject();
-    try (Cursor c = getContext().getContentResolver().query(ADRESSE, null, null, null, null)) {
+    try (Cursor c = getContext().getContentResolver().query(adresse(), null, null, null, null)) {
       if (c == null) {
         reponse.put("disponible", false);
       } else {
@@ -52,7 +68,7 @@ public class BusTestPlugin extends Plugin {
       ContentValues v = new ContentValues();
       v.put("cle", cle);
       v.put("valeur", valeur);
-      reponse.put("ok", getContext().getContentResolver().insert(ADRESSE, v) != null);
+      reponse.put("ok", getContext().getContentResolver().insert(adresse(), v) != null);
     } catch (Exception e) {
       reponse.put("ok", false);
     }
@@ -64,7 +80,7 @@ public class BusTestPlugin extends Plugin {
     String cle = call.getString("cle");
     JSObject reponse = new JSObject();
     try {
-      reponse.put("ok", cle != null && getContext().getContentResolver().delete(ADRESSE, null, new String[] { cle }) > 0);
+      reponse.put("ok", cle != null && getContext().getContentResolver().delete(adresse(), null, new String[] { cle }) > 0);
     } catch (Exception e) {
       reponse.put("ok", false);
     }

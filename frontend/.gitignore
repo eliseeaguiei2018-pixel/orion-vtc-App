@@ -7,5 +7,8 @@ dist/
 
 *.tsbuildinfo
 dist-chauffeur/
+# APK de test temps réel (scripts/construire-apk-test.sh)
+dist-test-client/
+dist-test-console/
 fumee-captures/
 dist-fumee/

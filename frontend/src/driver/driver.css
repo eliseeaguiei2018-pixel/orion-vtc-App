@@ -568,3 +568,31 @@ a.dv-pill { text-decoration: none; }
 :root .veh-code-affiche { color: var(--accent-ink, var(--green)); }
 :root .dv-suggestion-veh { background: var(--plein); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
 :root .dv-btn-veh { background: var(--accent-fill); color: var(--btn-on); }
+
+/* ---- Version 1.5.9 : alignement sur l'app client ---- */
+/* Barre du bas en pilule flottante, sélection neutre (comme la barre de l'app client). */
+:root .dv-tabs {
+  margin: 0 12px calc(10px + env(safe-area-inset-bottom)); padding: 6px; border-radius: 999px;
+  background: color-mix(in srgb, var(--plein) 90%, transparent); border: 1px solid var(--stroke-strong);
+  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+  box-shadow: 0 14px 30px -16px rgba(0, 0, 0, 0.38), 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+:root .dv-tab { border-radius: 999px; color: var(--text-dim); font-weight: 500; min-height: 52px; justify-content: center; }
+:root .dv-tab.on { background: rgba(118, 118, 128, 0.16); color: var(--text); font-weight: 600; }
+:root:not([data-theme='light']) .dv-tab.on { background: rgba(255, 255, 255, 0.12); }
+.ecran-vehicule .dv-tabs { height: auto; min-height: 78px; }
+
+/* Raccourcis de l'accueil : pastilles rondes sur fond neutre (comme l'accueil de l'app client). */
+.tuiles.cinq .tuile.ronde .tuile-fond { aspect-ratio: 1; border-radius: 50%; }
+.tuiles.cinq .tuile.ronde .tuile-fond .objet { width: 76%; bottom: 12%; }
+
+/* Relié à l'app client du même téléphone (serveur de test partagé). */
+.dv-lien-client { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 16px;
+  background: var(--surface); border: 1px solid var(--stroke); font-size: 13px; line-height: 1.4; color: var(--text-dim); }
+.dv-lien-client strong { display: block; color: var(--text); font-size: 14px; margin-bottom: 2px; }
+.dv-lien-point { flex: none; width: 10px; height: 10px; margin-top: 4px; border-radius: 50%; background: var(--green);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 22%, transparent); }
+
+/* Préférences : mêmes réglages que l'app client (puces, pastilles de couleur, empreinte). */
+.dv-page .accent-choix { margin: 6px 0 4px; }
+.dv-page .chips { margin: 6px 0 4px; }

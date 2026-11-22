@@ -49,6 +49,9 @@ export interface Quote {
   breakdown: {
     base: number; distance: number; time: number; surge: number; traffic: number;
     discount: number; subtotal: number; tva: number; fee: number; insurance: number;
+    /* APK de test temps réel (voir tempsReel.ts) : trafic et approche réels. */
+    approche?: number; approcheKm?: number; approcheMin?: number; approcheGoogle?: boolean;
+    minutesTrafic?: number; minutesFluide?: number; traficReel?: number; traficFacteur?: number; traficNiveau?: 'fluid' | 'dense' | 'jam';
   };
 }
 

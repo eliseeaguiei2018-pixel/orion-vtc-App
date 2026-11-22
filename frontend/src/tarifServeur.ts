@@ -174,7 +174,20 @@ export interface DetailPrix {
   amount: number; trafficLevel: NiveauTrafic; trafficFactor: number;
   /** Zone tarifaire du départ, quand il y en a une. */
   zone?: string; zoneFactor: number; pickupFee: number;
-  breakdown: { base: number; distance: number; time: number; surge: number; traffic: number; discount: number; subtotal: number; tva: number; fee: number; insurance: number };
+  breakdown: {
+    base: number; distance: number; time: number; surge: number; traffic: number; discount: number; subtotal: number; tva: number; fee: number; insurance: number;
+    approche?: number; approcheKm?: number; approcheMin?: number; approcheGoogle?: boolean; minutesTrafic?: number; minutesFluide?: number; traficReel?: number; traficFacteur?: number; traficNiveau?: 'fluid' | 'dense' | 'jam';
+  };
+}
+
+/**
+ * Données du « temps réel » (APK de test, voir tempsReel.ts) : durées du trajet avec et
+ * sans trafic données par Google, et approche du chauffeur le plus proche.
+ */
+export interface DonneesTempsReel {
+  durationSeconds: number; fluideSeconds: number;
+  trafic: { level: NiveauTrafic; factor: number; ratio: number };
+  approche?: { distanceMeters: number; durationSeconds: number; cout: number; google: boolean } | null;
 }
 
 /** Prix d'une course, comme `estimatePrice` du serveur (sans majoration de demande ni code promo). */
@@ -185,15 +198,18 @@ export function prixCourse(d: {
   /** Multiplicateur de la grille et gamme choisie (Argent si elle manque). */
   multiplier: number; gamme?: Gamme;
   bodyType?: string; insurance?: boolean; at?: Date;
+  /** APK de test temps réel uniquement : trafic réel et approche réelle. */
+  reel?: DonneesTempsReel;
 }): DetailPrix {
   const s = BAREME;
   const m = d.multiplier;
   const carrosserie = s.bodySurcharge[d.bodyType ?? 'berline'] ?? 1;
-  const trafic = traficServeur(d.origin, d.destination, d.at);
+  const trafic = d.reel ? d.reel.trafic : traficServeur(d.origin, d.destination, d.at);
   const regles = reglesTrajet(d.origin, d.destination);
   const km = d.distanceMeters / 1000;
   // Temps facturé à vitesse libre : les embouteillages ne sont pas facturés à la minute.
-  const minutes = (km / s.avgSpeedKmh) * 60;
+  // (Test temps réel : le temps prévu avec le trafic du moment.)
+  const minutes = d.reel ? d.reel.durationSeconds / 60 : (km / s.avgSpeedKmh) * 60;
   const arrets = d.stops?.length ?? 0;
 
   const base = s.baseFare * m * carrosserie;
@@ -201,7 +217,8 @@ export function prixCourse(d: {
   const temps = minutes * s.perMinute * m * carrosserie;
   const coutArrets = arrets * s.stopFee * m;
   const coefTrafic = 1 + (trafic.factor - 1) * s.trafficWeight;
-  const auCompteur = (base + distance + temps + coutArrets) * coefTrafic * Math.max(0.1, regles.zoneFactor) + regles.pickupFee;
+  const coutApprocheHt = d.reel?.approche?.cout ?? 0;
+  const auCompteur = (base + distance + temps + coutArrets) * coefTrafic * Math.max(0.1, regles.zoneFactor) + regles.pickupFee + coutApprocheHt;
   const brut = (regles.flatAmount && regles.flatAmount > 0 ? regles.flatAmount : auCompteur) + regles.extraFee;
   const plancher = Math.max(brut, s.minFare * m, regles.premiumFloor ?? 0);
 
@@ -217,6 +234,10 @@ export function prixCourse(d: {
       traffic: 0, discount: 0, subtotal: Math.round(subtotal),
       tva: Math.round(subtotal * s.tvaRate), fee: Math.round(subtotal * s.feeRate),
       insurance: d.insurance ? Math.round(subtotal * s.insuranceRate) : 0,
+      ...(d.reel ? {
+        minutesTrafic: Math.round(d.reel.durationSeconds / 60), minutesFluide: Math.round(d.reel.fluideSeconds / 60), traficReel: Math.round(d.reel.trafic.ratio * 100) / 100, traficFacteur: d.reel.trafic.factor, traficNiveau: d.reel.trafic.level,
+        ...(d.reel.approche ? { approche: Math.round(coutApprocheHt), approcheKm: Math.round(d.reel.approche.distanceMeters / 100) / 10, approcheMin: Math.round(d.reel.approche.durationSeconds / 60), approcheGoogle: d.reel.approche.google } : {}),
+      } : {}),
     },
   };
 }

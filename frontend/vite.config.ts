@@ -10,6 +10,9 @@ import react from '@vitejs/plugin-react';
 // App native « ORION Chauffeur » (ORION_APP=chauffeur) : seule l'app chauffeur est
 // construite, dans dist-chauffeur (voir scripts/construire-app-chauffeur.mjs).
 const appChauffeur = process.env.ORION_APP === 'chauffeur';
+// APK de test temps réel : la mini console (ORION_APP=test-console) est construite seule,
+// dans dist-test-console (voir scripts/construire-apk-test.sh).
+const consoleTest = process.env.ORION_APP === 'test-console';
 
 export default defineConfig(({ command }) => ({
   base: process.env.VITE_BASE ?? (command === 'build' ? './' : '/'),
@@ -22,7 +25,7 @@ export default defineConfig(({ command }) => ({
     target: ['es2020', 'safari15', 'chrome87', 'edge88', 'firefox91'],
     ...(appChauffeur ? { outDir: 'dist-chauffeur', emptyOutDir: true } : {}),
     rollupOptions: {
-      input: appChauffeur ? { driver: new URL('./driver.html', import.meta.url).pathname } : {
+      input: consoleTest ? { 'console-test': new URL('./console-test.html', import.meta.url).pathname } : appChauffeur ? { driver: new URL('./driver.html', import.meta.url).pathname } : {
         main: new URL('./index.html', import.meta.url).pathname,
         admin: new URL('./admin.html', import.meta.url).pathname,
         // Tableau de bord ORION : écran de supervision à part, synchronisé en direct.

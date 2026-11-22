@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ORION Console test</string>
+    <string name="title_activity_main">ORION Console test</string>
+    <string name="package_name">ci.orion.test.console</string>
+    <string name="custom_url_scheme">ci.orion.test.console</string>
+</resources>

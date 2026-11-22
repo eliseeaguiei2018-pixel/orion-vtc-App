@@ -7,6 +7,8 @@ import type { DemandCell, QueueInfo, RideHistory } from '../types';
 import { BellButton, Banner, PageHeader, Section, Stat, VehiculeChauffeur, type Tab } from '../ui';
 import { fcfa, inOffPeak, meetsStandard, pct, TIER_LABEL, zoneAt } from '../format';
 import { Alerts } from './Alerts';
+import { Capacitor } from '@capacitor/core';
+import { clientRecent, suivreBus } from '../../busTest';
 import { tr } from '../i18n';
 
 /**
@@ -103,6 +105,7 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
         </div>
       </div>
 
+      <LienAppClient live={app.live} />
       <Alerts app={app} onFixDossier={() => onTab('profile')} />
 
       {/* Raccourcis : les mêmes tuiles que l'accueil de l'app cliente, objets en volume. */}
@@ -181,10 +184,30 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
   );
 }
 
+/**
+ * Serveur de test partagé : l'app chauffeur est reliée à l'app client du même téléphone
+ * (ou à un onglet client de la page partagée). Le chauffeur sait alors que les courses
+ * qu'il reçoit sont celles commandées dans l'app client, et non des courses simulées.
+ */
+function LienAppClient({ live }: { live: boolean }) {
+  const [relie, setRelie] = useState(false);
+  useEffect(() => {
+    if (live) return;
+    return suivreBus((e) => setRelie(e.disponible && (Capacitor.isNativePlatform() || e.clients.some(clientRecent))), 4000);
+  }, [live]);
+  if (!relie) return null;
+  return (
+    <div className="dv-lien-client" role="status">
+      <span className="dv-lien-point" aria-hidden />
+      <span><strong>{tr('Relié à l’app client ORION')}</strong>{tr('Les courses commandées dans l’app client de ce téléphone arrivent ici. Passez en ligne pour les recevoir.')}</span>
+    </div>
+  );
+}
+
 /** Raccourci de l'accueil : objet en volume sur son carré, nom dessous, pastille de compte. */
 function Raccourci({ objet, label, n = 0, rang, onClick }: { objet: ObjetService | Icone3D; label: string; n?: number; rang: number; onClick: () => void }) {
   return (
-    <button className="tuile" style={{ '--i': rang } as CSSProperties} onClick={onClick}>
+    <button className="tuile ronde" style={{ '--i': rang } as CSSProperties} onClick={onClick}>
       <span className="tuile-fond"><Objet nom={objet} taille={64} />{n > 0 && <span className="dv-quick-n">{n}</span>}</span>
       <strong className="tuile-nom">{label}</strong>
     </button>

@@ -1,3 +1,4 @@
+import { TEMPS_REEL, approcheConnue, coutApproche, traficReel } from './tempsReel';
 import type {
   LatLng, PrestigeVehicle, Quote, RentalAvailability, RentalDuree, RentalFormula, RentalOptions,
   RentalQuote, RentalReservation, SubCoverage, SubInvoice, SubPlanInfo, SubState, TierOption,
@@ -183,9 +184,18 @@ function localEstimate(origin: LatLng, destination: LatLng, tier: TierOption, op
   const trafic = traficServeur(origin, destination);
   // Distance par la route (et non à vol d'oiseau) et durée du trajet.
   const { distanceMeters, etaSeconds } = baseTarifaire([origin, ...stops, destination], BAREME.avgSpeedKmh, trafic.factor);
+  // APK de test temps réel : trafic réel de Google sur CE trajet, temps prévu avec le trafic,
+  // et approche réelle du chauffeur le plus proche (voir tempsReel.ts).
+  const route = TEMPS_REEL ? trajetConnu([origin, ...stops, destination]) : null;
+  const app = TEMPS_REEL ? approcheConnue(origin) : null;
+  const reel = route && route.fluideSeconds ? {
+    durationSeconds: route.durationSeconds, fluideSeconds: route.fluideSeconds,
+    trafic: traficReel(route.durationSeconds, route.fluideSeconds),
+    approche: app ? { distanceMeters: app.distanceMeters, durationSeconds: app.durationSeconds, cout: coutApproche(app.distanceMeters, app.durationSeconds), google: app.google } : null,
+  } : undefined;
   const prix = prixCourse({
     origin, destination, stops, distanceMeters,
-    multiplier: tier.multiplier, gamme: tier.id, bodyType: opts.bodyType, insurance: opts.insurance,
+    multiplier: tier.multiplier, gamme: tier.id, bodyType: opts.bodyType, insurance: opts.insurance, reel,
   });
   return {
     lockId: `local-${Date.now()}`,

@@ -8,6 +8,8 @@ import { Banner, BellButton, ChoixLangue, PageHeader, Progress, Section, Stat, V
 import { daysUntil, initials, KYC_LABEL, pct, shortDate, TIER_LABEL } from '../format';
 import { aTraduire, tr } from '../i18n';
 import { ConnecterEcranVehicule } from './Appairage';
+import { BlocBiometrie } from '../../components/CompteScreens';
+import { VERSION_APP } from '../../version';
 
 const PIPELINE: KycStatus[] = ['draft', 'docs_submitted', 'manual_review', 'active'];
 const PLUGS = ['Type 2', 'CCS', 'CHAdeMO', 'Type 1', 'GB/T'];
@@ -170,21 +172,28 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
       </Section>
 
       <Section title={tr('Préférences')}>
-        <div className="dv-seg" role="group" aria-label={tr('Thème')}>
+        {/* Mêmes réglages que l'app cliente 1.5.9 : thème, couleur, empreinte ou visage, langue. */}
+        <div className="dv-pref-titre">{tr('Thème')}</div>
+        <div className="chips" role="group" aria-label={tr('Thème')}>
           {([['system', tr('Auto')], ['light', tr('Clair')], ['dark', tr('Sombre')]] as Array<[ThemeMode, string]>).map(([m, l]) => (
-            <button key={m} className={mode === m ? 'on' : ''} onClick={() => setMode(m)}>{l}</button>
+            <button key={m} className={`chip${mode === m ? ' active' : ''}`} aria-pressed={mode === m} onClick={() => setMode(m)}>{l}</button>
           ))}
         </div>
-        {/* Même choix de couleur que l'app cliente (design ORION) : appliqué en temps réel. */}
-        <div className="dv-seg" role="group" aria-label={tr('Couleur')}>
+        <div className="dv-pref-titre">{tr('Couleur')}</div>
+        <div className="accent-choix" role="radiogroup" aria-label={tr('Couleur')}>
           {([['vert', tr('Vert ORION')], ['orange', tr('Orange')], ['bleu', tr('Bleu')]] as Array<[Accent, string]>).map(([a, l]) => (
-            <button key={a} className={accent === a ? 'on' : ''} onClick={() => setAccent(a)}>{l}</button>
+            <button key={a} role="radio" aria-checked={accent === a} className={`accent-option${accent === a ? ' active' : ''}`} onClick={() => setAccent(a)}>
+              <span className={`accent-pastille accent-${a}`}>{accent === a && <IconCheck size={16} />}</span>
+              <span>{l}</span>
+            </button>
           ))}
         </div>
+        <div className="dv-pref-titre">{tr('Empreinte digitale / Face ID')}</div>
+        <BlocBiometrie />
         <div className="dv-pref-titre">{tr('Langue de l’application')}</div>
         <ChoixLangue />
         <div className="faint" style={{ fontSize: 12 }}>
-          {driver.appLinkedAt ? tr('App liée depuis le {0} · ', [shortDate(driver.appLinkedAt)]) : ''}{app.live ? tr('Serveur ORION') : tr('Mode démo')}
+          {tr('ORION Chauffeur · version {0}', [VERSION_APP])} · {driver.appLinkedAt ? tr('App liée depuis le {0} · ', [shortDate(driver.appLinkedAt)]) : ''}{app.live ? tr('Serveur ORION') : tr('Mode démo')}
         </div>
         <button className="btn btn-ghost" onClick={() => void app.actions.logout()} disabled={driver.availability === 'on_trip'}>{tr('Se déconnecter')}</button>
       </Section>

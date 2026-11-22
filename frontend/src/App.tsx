@@ -5,10 +5,11 @@ import { OrionMap } from './components/OrionMap';
 import { Sheet, TopBar, Toast } from './components/ui';
 import {
   IconBell, IconClose, IconBolt, IconCalendar, IconCamera, IconCar, IconCheck, IconChevron, IconChevronDown, IconClock, IconCrown,
-  IconFingerprint, IconGem, IconGlobe, IconLeaf, IconLock, IconMessage, IconMinus,
+  IconGem, IconGlobe, IconLeaf, IconMessage, IconMinus,
   IconPhone, IconPin, IconPlus, IconRing, IconSearch, IconShare,
   IconShield, IconShieldCheck, IconMedical, IconStar, IconTraffic, IconWallet, } from './icons';
 import { LogoApp } from './components/Logo';
+import { LockScreen } from './components/Verrou';
 import { heureLocale, libelleQuand, programmerCourse } from './programmees';
 import { NavBas, ONGLETS, type Onglet } from './components/NavBas';
 import { ServicesScreen } from './components/ServicesScreen';
@@ -20,7 +21,7 @@ import { AssuranceScreen } from './components/AssuranceScreens';
 import { BoutonMessages, ControleSecurite, MessagesScreen, useMessagerie } from './components/MessagesOrion';
 import { ServeurScreen } from './components/ServeurScreen';
 import type { MessageOrion } from './api';
-import { etatBiometrie, isBiometricEnabled, setBiometricEnabled, verifierBiometrie, verifierCodeTelephone, type MotifEchec, type ResultatBio } from './security';
+import { isBiometricEnabled } from './security';
 import type { TrustedContact } from './api';
 import { NUMERO_DEMONSTRATION, numeroLisible, ouvrirClavier } from './telephone';
 import { lienPosition, partager } from './partage';
@@ -29,6 +30,7 @@ import {
   DELAI_OFFRE_MS, DELAI_RECHERCHE_MS, STATUTS_ACTIFS, chauffeurLibre, codePriseEnCharge, etatBus, idCourseBus, majCourse,
   noterPresenceClient, publierCourse, suivreBus, type CourseBus, type FicheChauffeurBus,
 } from './busTest';
+import { REGLES_TEST, TEMPS_REEL, useApprocheTest } from './tempsReel';
 import {
   DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
@@ -411,6 +413,8 @@ export function App() {
     return true;
   };
 
+  // APK de test temps réel : l'approche du chauffeur le plus proche entre dans le prix.
+  const approcheTest = useApprocheTest(TEMPS_REEL ? origin.location : null);
   // Le prix se calcule sur le trajet par la route (celui que la carte trace), pas à vol d'oiseau.
   const trajetCourse = useTrajetTarif(destination ? [origin.location, ...stops.map((s) => s.location), destination.location] : null);
   useEffect(() => {
@@ -418,7 +422,7 @@ export function App() {
       void estimateWithCoverage(origin.location, destination.location, tier, { bodyType, stops: stops.map((s) => s.location), insurance, promoCode: promo || undefined })
         .then(({ quote: q, coverage: c }) => { setQuote(q); setCoverage(c); });
     }
-  }, [screen, destination, tier, bodyType, stops, insurance, promo, origin.location, trajetCourse.pret, trajetCourse.trajet]);
+  }, [screen, destination, tier, bodyType, stops, insurance, promo, origin.location, trajetCourse.pret, trajetCourse.trajet, approcheTest?.at]);
 
   const chooseDestination = (place: Place) => {
     memoriserRecent(place);
@@ -523,11 +527,13 @@ export function App() {
   };
 
   /* Le client signale sa présence au registre de test (le chauffeur sait qu'il y a un client). */
+  const positionClient = useRef<LatLng | null>(null);
+  positionClient.current = origin.location;
   useEffect(() => {
     if (!modeLocal() || !profil) return;
-    const noter = () => { if (document.visibilityState === 'visible') void noterPresenceClient(clientId(), profil.name ?? 'Client ORION'); };
+    const noter = () => { if (document.visibilityState === 'visible') void noterPresenceClient(clientId(), profil.name ?? 'Client ORION', TEMPS_REEL ? positionClient.current : undefined); };
     noter();
-    const id = window.setInterval(noter, 60_000);
+    const id = window.setInterval(noter, TEMPS_REEL ? 5000 : 60_000);
     document.addEventListener('visibilitychange', noter);
     return () => { window.clearInterval(id); document.removeEventListener('visibilitychange', noter); };
   }, [profil]);
@@ -543,6 +549,11 @@ export function App() {
       const c = etat.courses.find((x) => x.id === busId);
       if (!c) return;
       if (c.statut === 'demandee' && Date.now() - c.creeLe > DELAI_RECHERCHE_MS) { void majCourse(c.id, { statut: 'expiree' }); return; }
+      // Test temps réel : la voiture affichée est la position réelle du chauffeur de test.
+      if (TEMPS_REEL && c.chauffeur && ['acceptee', 'arrivee', 'en_cours'].includes(c.statut)) {
+        const pos = etat.chauffeurs.find((x) => x.id === c.chauffeur!.id)?.position;
+        if (pos) setCarPos(pos);
+      }
       if (c.statut === dernierStatutBus.current) return;
       dernierStatutBus.current = c.statut;
       appliquerStatutBus(c);
@@ -1358,41 +1369,6 @@ function Splash({ onDone }: { onDone: () => void }) {
  * Pour ne jamais enfermer quelqu'un dehors : après un échec, le code du téléphone est
  * proposé ; et si le téléphone n'a plus ni capteur utilisable ni code, la liaison est levée.
  */
-function LockScreen({ onUnlock }: { onUnlock: () => void }) {
-  const { t } = useI18n();
-  const [busy, setBusy] = useState(false);
-  const [echec, setEchec] = useState<MotifEchec | null>(null);
-  const [code, setCode] = useState(false);
-  const textes = { titre: t('lock_title'), sousTitre: t('lock_hint'), annuler: t('bio_annuler') };
-  const conclure = (r: ResultatBio) => { setBusy(false); if (r.ok) onUnlock(); else setEchec(r.motif); };
-  const unlock = async () => {
-    setBusy(true); setEchec(null);
-    const etat = await etatBiometrie();
-    if (!etat.dispo && (etat.raison === 'web' || !etat.codeTelephone)) { setBiometricEnabled(false); onUnlock(); return; }
-    setCode(etat.codeTelephone);
-    conclure(etat.dispo ? await verifierBiometrie(textes) : await verifierCodeTelephone(textes));
-  };
-  const parCode = async () => { setBusy(true); setEchec(null); conclure(await verifierCodeTelephone(textes)); };
-  useEffect(() => { void unlock(); /* tente automatiquement à l'ouverture */ // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  return (
-    <div className="lock-screen">
-      <LogoApp size={72} />
-      <div className="lock-fp" onClick={() => { if (!busy) void unlock(); }} role="button">
-        <IconFingerprint size={56} />
-      </div>
-      <h2 className="h-title">{t('lock_title')}</h2>
-      <p className="h-sub" style={{ textAlign: 'center' }}>{echec ? t(`bio_motif_${echec}`) : t('lock_hint')}</p>
-      <button className="btn btn-primary" style={{ maxWidth: 280, marginTop: 18 }} disabled={busy} onClick={() => void unlock()}>
-        <IconLock size={18} /> {t('lock_unlock')}
-      </button>
-      {echec && code && (
-        <button className="btn btn-ghost" style={{ maxWidth: 280, marginTop: 10 }} disabled={busy} onClick={() => void parCode()}>{t('lock_code')}</button>
-      )}
-    </div>
-  );
-}
-
 /* ----------------------------- Onboarding ---------------------------- */
 function Onboarding({ onStart, onLang }: { onStart: () => void; onLang: () => void }) {
   const { t } = useI18n();
@@ -1685,6 +1661,7 @@ function HomeScreen({ announce, closed, deliveryOff, city, depart, onPosition, o
             volet Compte de la barre du bas. */}
         <div className="hub-titre rise">
           <span className="hub-mot">Orion</span>
+          {TEMPS_REEL && <span className="test-reel-badge">Test temps réel</span>}
         </div>
         {/* La recherche : une pilule, la destination à gauche, « Plus tard » à droite. */}
         <div className="hub-barre rise rise-2">
@@ -1871,10 +1848,12 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
   const stopLocs = stops.map((s) => s.location);
   // Trajet par la route : tant qu'il n'est pas connu, aucun prix n'est annoncé (il ne changera plus ensuite).
   const trajet = useTrajetTarif([origin.location, ...stopLocs, destination.location]);
+  // APK de test temps réel : approche du chauffeur de test le plus proche, trafic compris.
+  const approche = useApprocheTest(TEMPS_REEL ? origin.location : null);
   const apercus = useMemo(
     () => Object.fromEntries(TIERS.map((v) => [v.id, previewQuote(origin.location, destination.location, v, { bodyType, stops: stopLocs }).amount])) as Record<string, number>,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [origin.location, destination.location, bodyType, stops, trajet.pret, trajet.trajet],
+    [origin.location, destination.location, bodyType, stops, trajet.pret, trajet.trajet, approche?.at],
   );
   // PRIX FIXE : l'aperçu local s'affiche sans attendre, puis le prix du serveur le
   // remplace (zone, majoration, frais de prise en charge). Sans cela, la liste annonçait
@@ -1892,7 +1871,7 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
       .catch(() => { /* hors ligne : l'aperçu local reste affiché */ });
     return () => { annule = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origin.location, destination.location, bodyType, stops, trajet.pret, trajet.trajet]);
+  }, [origin.location, destination.location, bodyType, stops, trajet.pret, trajet.trajet, approche?.at]);
   const prices = serveur?.prix ?? apercus;
   const traffic = serveur?.trafic ?? previewQuote(origin.location, destination.location, tier, { stops: stopLocs }).trafficLevel;
   return (
@@ -1903,8 +1882,16 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
       <Sheet>
         <div className="row between" style={{ marginBottom: 10 }}>
           <span className="eyebrow">{t('est_choose')}</span>
-          <span className="row gap-sm"><TrafficBadge level={traffic} /><span className="badge green"><IconClock size={12} /> {tier.eta} {t('est_min')}</span></span>
+          <span className="row gap-sm"><TrafficBadge level={traffic} /><span className="badge green"><IconClock size={12} /> {TEMPS_REEL && approche ? Math.max(1, Math.round(approche.durationSeconds / 60)) : tier.eta} {t('est_min')}</span></span>
         </div>
+        {TEMPS_REEL && (
+          // Version de test (en français) : ce qui entre dans le prix, en direct.
+          <p className="test-reel-ligne" role="status">
+            {approche
+              ? `Chauffeur le plus proche : ${(approche.distanceMeters / 1000).toFixed(1).replace('.', ',')} km par la route · ${Math.round(approche.durationSeconds / 60)} min avec le trafic (${Math.round(approche.fluideSeconds / 60)} sans)`
+              : 'Aucun chauffeur de test en ligne : le prix est calculé sans approche.'}
+          </p>
+        )}
 
         {/* Carrosserie : SUV ou Berline */}
         <div className="chips" style={{ marginBottom: 12 }}>
@@ -2097,6 +2084,12 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
                 <div className="fare-line"><span>{t('p_base')}</span><span>{formatXOF(quote.breakdown.base)}</span></div>
                 <div className="fare-line"><span>{t('p_distance')} · {(quote.distanceMeters / 1000).toFixed(1)} km</span><span>{formatXOF(quote.breakdown.distance)}</span></div>
                 <div className="fare-line"><span>{t('p_time')} · ~{Math.round(quote.etaSeconds / 60)} {t('est_min')}</span><span>{formatXOF(quote.breakdown.time)}</span></div>
+                {TEMPS_REEL && quote.breakdown.minutesTrafic !== undefined && (
+                  <div className="fare-line test-reel"><span>Trafic réel (Google) · {quote.breakdown.minutesTrafic} min avec, {quote.breakdown.minutesFluide} sans · {({ fluid: 'fluide', dense: 'dense', jam: 'embouteillage' } as const)[quote.breakdown.traficNiveau ?? 'fluid']}</span><span>×{String(quote.breakdown.traficFacteur ?? 1).replace('.', ',')}</span></div>
+                )}
+                {TEMPS_REEL && (quote.breakdown.approche !== undefined
+                  ? <div className="fare-line test-reel"><span>Approche du chauffeur · {String(quote.breakdown.approcheKm).replace('.', ',')} km, {quote.breakdown.approcheMin} min{quote.breakdown.approcheGoogle ? '' : ' (estimée)'} · {REGLES_TEST.approcheOfferteKm} km et {REGLES_TEST.approcheOfferteMin} min offerts</span><span>{formatXOF(quote.breakdown.approche)}</span></div>
+                  : <div className="fare-line test-reel"><span>Approche : aucun chauffeur de test en ligne</span><span>—</span></div>)}
                 {quote.breakdown.traffic > 0 && <div className="fare-line"><span>{t('p_traffic')}</span><span>+{formatXOF(quote.breakdown.traffic)}</span></div>}
                 {quote.breakdown.discount > 0 && <div className="fare-line" style={{ color: 'var(--green)' }}><span>{t('promo_line')}</span><span>−{formatXOF(quote.breakdown.discount)}</span></div>}
                 <div className="fare-line"><span>{t('p_subtotal')}</span><span>{formatXOF(quote.breakdown.subtotal)}</span></div>
@@ -2260,7 +2253,8 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
   const pauseRef = useRef(pause);
   useEffect(() => { pauseRef.current = pause; }, [pause]);
   useEffect(() => {
-    if (live) return;
+    // Course réelle, ou test temps réel : la voiture suit la vraie position du chauffeur.
+    if (live || (TEMPS_REEL && codeTest)) return;
     progressRef.current = 0;
     // Course de test : la voiture s'approche plus lentement et attend le geste du chauffeur.
     const durations: Record<TripPhase, number> = codeTest

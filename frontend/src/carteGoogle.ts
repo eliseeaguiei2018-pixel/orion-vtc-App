@@ -139,6 +139,8 @@ export interface GoogleMaps {
   Point: new (x: number, y: number) => GPoint;
   event: { addListener(o: unknown, e: string, f: () => void): { remove(): void }; addListenerOnce(o: unknown, e: string, f: () => void): { remove(): void }; trigger(o: unknown, e: string): void };
   ColorScheme?: { DARK: string; LIGHT: string };
+  /** Couche du trafic en direct (APK de test temps réel). */
+  TrafficLayer?: new () => { setMap(m: GMap | null): void };
 }
 
 let chargement: Promise<GoogleMaps> | null = null;

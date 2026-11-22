@@ -65,7 +65,7 @@ export interface CourseBus {
   /** Note donnée par le client à la fin de la course (1 à 5). */
   note?: number;
 }
-export interface PresenceClient { id: string; nom: string; majLe: number }
+export interface PresenceClient { id: string; nom: string; majLe: number; position?: { lat: number; lng: number } | null }
 export interface EtatBus { courses: CourseBus[]; chauffeurs: ChauffeurBus[]; clients: PresenceClient[] }
 
 const PREFIXE = 'orion.bus.';
@@ -172,8 +172,8 @@ export async function majChauffeur(ch: Omit<ChauffeurBus, 'majLe'>): Promise<voi
   await ecrireBrut(`chauffeur:${ch.id}`, { ...ch, majLe: Date.now() });
 }
 
-export async function noterPresenceClient(id: string, nom: string): Promise<void> {
-  await ecrireBrut(`client:${id}`, { id, nom, majLe: Date.now() });
+export async function noterPresenceClient(id: string, nom: string, position?: { lat: number; lng: number } | null): Promise<void> {
+  await ecrireBrut(`client:${id}`, { id, nom, majLe: Date.now(), ...(position ? { position } : {}) });
 }
 
 /* ------------------------------ Suivi ------------------------------ */

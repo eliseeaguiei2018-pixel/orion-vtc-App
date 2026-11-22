@@ -1232,3 +1232,40 @@ dont la majoration sur 80 distances, son réglage depuis la console et la repris
 tarifs.
 Parcours rejoués sur ce contenu, tous réussis : parcours client 9 sur 9, volets et compte 13 sur
 13, parcours complet 20 sur 20.
+
+## 24. APK de test « temps réel » : app client à part et mini console chauffeur (22 novembre)
+
+Deux APK de test, installées à côté de l'app officielle sans la remplacer, pour comparer les prix
+d'ORION à ceux de la concurrence dans des conditions réelles. Rien de ce qui suit ne touche l'app
+officielle 1.5.9 tant que le fondateur ne l'a pas validé.
+
+- **ORION Test** (`ci.orion.test.client`, 1.5.9-test) : toute l'app client 1.5.9, construite avec
+  `VITE_TEMPS_REEL=1` (`frontend/src/tempsReel.ts`). Trois différences, affichées au client :
+  1. le trafic du prix est le trafic réel de Google sur ce trajet au moment de la commande
+     (durée avec circulation comparée à la durée sans circulation : à partir de 1,15 dense ×1,15,
+     à partir de 1,5 embouteillage ×1,35) ;
+  2. le temps facturé est le temps prévu avec la circulation ;
+  3. l'approche du chauffeur compte : distance et temps par la route, trafic compris, depuis la
+     position du chauffeur de test le plus proche ; 2 km et 5 min offerts, puis 100 F par km et
+     18 F par minute (hors taxes).
+  La carte Google affiche la couche du trafic en direct. Le prix reste fixe une fois commandé.
+- **ORION Console test** (`ci.orion.test.console`) : une mini console qui joue le chauffeur, avec la
+  même carte Google et le trafic en direct. Elle voit la position du client, place le chauffeur à
+  la distance choisie (curseur de 0,3 à 20 km et direction), reçoit les courses commandées dans
+  ORION Test, les accepte ou les refuse, roule vers le client sur la route de Google à la vitesse
+  du trafic (×1, ×5 ou ×20), vérifie le code, fait la course et reçoit le paiement.
+
+Les deux partagent le registre de test du téléphone (fournisseur `ci.orion.test.client.bustest`,
+permission « signature ») : elles doivent être installées sur le même téléphone. La construction :
+`frontend/scripts/construire-apk-test.sh` (clé Google prise dans l'environnement, jamais écrite
+dans le dépôt).
+
+Vérification dans un navigateur, sur le contenu des deux APK, avec Google en direct : 9 contrôles
+sur 9, sans erreur JavaScript. Exemple relevé de nuit vers Riviera Golf (5,4 km) : chauffeur à
+7,2 km par la route (10 min) → 2 100 / 2 200 / 2 400 F ; chauffeur ramené à 1,4 km (4 min) →
+1 400 / 1 450 / 1 600 F, recalculé en direct chez le client. Course commandée, acceptée par la
+console, voiture qui avance chez le client, code vérifié, course terminée et payée.
+
+Limites : le passage d'une app à l'autre n'a pas été essayé sur un vrai téléphone (pas d'émulateur
+ici) ; la durée « sans circulation » de Google est parfois plus longue que la durée réelle la nuit,
+le trafic est alors compté fluide.

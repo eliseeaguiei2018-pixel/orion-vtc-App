@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:screenOrientation="portrait"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
+        </provider>
+        <!-- APK de test temps réel : registre de test propre à cette paire (client test + mini console). -->
+        <meta-data android:name="ci.orion.bustest.autorite" android:value="ci.orion.test.client.bustest" />
+    </application>
+
+    <!--
+      ORION CHAUFFEUR — permissions : uniquement ce que l'app utilise AUJOURD'HUI (même
+      règle que l'app cliente, Google Play examine chaque permission sensible).
+    -->
+    <!--
+      REGISTRE DE TEST PARTAGÉ (APK de test, en attendant le serveur ORION en ligne) : l'app
+      client et l'app chauffeur installées sur le même téléphone s'échangent les courses.
+      Permission de niveau « signature », déclarée dans les deux apps : seules les apps
+      signées avec la même clé qu'ORION y ont accès, quel que soit l'ordre d'installation.
+    -->
+    <permission android:name="ci.orion.permission.BUS_TEST" android:protectionLevel="signature" />
+    <uses-permission android:name="ci.orion.permission.BUS_TEST" />
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      Position du chauffeur PENDANT qu'il utilise l'app : offres de course autour de lui,
+      navigation vers le client, tracé de la course, alerte SOS localisée. Pas de
+      localisation en arrière-plan (ACCESS_BACKGROUND_LOCATION) : elle exige une
+      justification spécifique auprès de Google Play ; voir NATIVE.md pour l'ajouter le
+      jour où le suivi écran éteint sera branché.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+
+    <!--
+      Bouton « Appeler » (passager, chef d'équipe, secours) : un lien tel: ouvre le CLAVIER
+      du téléphone avec le numéro déjà composé. Aucune permission CALL_PHONE : l'app ne
+      passe jamais un appel à la place du chauffeur. Navigation : Google Maps et Waze.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="sms" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <package android:name="com.google.android.apps.maps" />
+        <package android:name="com.waze" />
+        <!-- Registre de test tenu par l'app client ORION, sur le même téléphone. -->
+        <provider android:authorities="ci.orion.test.client.bustest" />
+    </queries>
+    <!-- Photo du chauffeur (reconnaissance à la prise en charge) : caméra frontale. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- L'app s'installe aussi sur un appareil sans caméra (la galerie reste possible). -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+</manifest>

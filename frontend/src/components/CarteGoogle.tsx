@@ -1,3 +1,4 @@
+import { TEMPS_REEL } from '../tempsReel';
 import { useEffect, useRef, useState } from 'react';
 import type { LatLng } from '../types';
 import { useTheme } from '../theme';
@@ -98,6 +99,7 @@ export function prechaufferCarte(sombre: boolean, centre: LatLng): void {
     reserve.appendChild(hote);
     document.body.appendChild(reserve);
     partagee = { carte: new g.Map(hote, optionsCarte(g, sombre, centre, 15)), hote, sombre, occupee: false };
+    traficEnDirect(g, partagee.carte);
   }).catch(() => { /* pas de réseau : la carte sera créée, ou signalée indisponible, à l'ouverture */ });
 }
 
@@ -118,6 +120,11 @@ function memeCadre(a: Cadre, b: Cadre): boolean {
 const tracer = (points: LatLng[]): Promise<ItineraireRoute | null> => itineraireGoogle(points).then((r) => r ?? itineraire(points));
 
 /** Options communes aux cartes Google de l'application. */
+/** APK de test temps réel : la carte montre la circulation du moment (vert, orange, rouge). */
+export function traficEnDirect(g: GoogleMaps, carte: GMap): void {
+  if (TEMPS_REEL && g.TrafficLayer) new g.TrafficLayer().setMap(carte);
+}
+
 export function optionsCarte(g: GoogleMaps, sombre: boolean, centre: LatLng, zoom: number): Record<string, unknown> {
   return {
     center: centre, zoom, disableDefaultUI: true, clickableIcons: false, gestureHandling: 'greedy', keyboardShortcuts: false,
@@ -197,6 +204,7 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
       hote.className = 'carte-hote';
       boite.current.appendChild(hote);
       const m = new g.Map(hote, optionsCarte(g, sombre, origin, 14));
+      traficEnDirect(g, m);
       carte.current = m;
       if (libre) partagee = { carte: m, hote, sombre, occupee: true }; else propre.current = true;
       g.event.addListenerOnce(m, 'tilesloaded', () => fermerAvisSansCle(hote));
