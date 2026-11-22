@@ -26,6 +26,10 @@ import { NUMERO_DEMONSTRATION, numeroLisible, ouvrirClavier } from './telephone'
 import { lienPosition, partager } from './partage';
 import { cloreSosLocal, controleSecuriteLocal, enregistrerCourseLocale } from './serveurLocal';
 import {
+  DELAI_OFFRE_MS, DELAI_RECHERCHE_MS, STATUTS_ACTIFS, chauffeurLibre, codePriseEnCharge, etatBus, idCourseBus, majCourse,
+  noterPresenceClient, publierCourse, suivreBus, type CourseBus, type FicheChauffeurBus,
+} from './busTest';
+import {
   DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
@@ -258,6 +262,12 @@ export function App() {
   const [tripPhase, setTripPhase] = useState<TripPhase>('enroute');
   const [rideId, setRideId] = useState<string | null>(null);
   const [live, setLive] = useState(false);
+  /**
+   * SERVEUR DE TEST PARTAGÉ (voir busTest.ts) : course envoyée à l'app ORION Chauffeur
+   * installée sur le même téléphone (ou ouverte dans un autre onglet de la page partagée).
+   */
+  const [busId, setBusId] = useState<string | null>(null);
+  const [busCode, setBusCode] = useState<string | null>(null);
   const [rating, setRating] = useState(0);
   const [phone, setPhone] = useState('');
   const [toast, setToast] = useState<{ message: string; danger?: boolean } | null>(null);
@@ -454,6 +464,11 @@ export function App() {
     photo: urlApi(s.photoUrl),
   });
 
+  const driverFromBus = (c: FicheChauffeurBus): Driver => ({
+    name: c.nom, matricule: c.matricule, rating: c.note || 5, trips: c.nbCourses,
+    plate: c.plaque || plateFromMatricule(c.matricule), car: c.vehicule || (tier.cars[0] ?? ''), color: c.couleur, photo: null,
+  });
+
   const confirmRide = async () => {
     setScreen('searching');
     if (shareRides && trusted) showToast(t('toast_shared', { name: trusted.name }));
@@ -476,6 +491,27 @@ export function App() {
       reset();
       return;
     }
+    // Sans serveur, avec l'app ORION Chauffeur sur le même téléphone (ou un onglet chauffeur
+    // ouvert sur la page partagée) : la course part vers ce chauffeur, pour de vrai.
+    if (modeLocal() && destination) {
+      const bus = await etatBus();
+      if (bus.disponible && bus.chauffeurs.length > 0) {
+        const libre = bus.chauffeurs.find(chauffeurLibre);
+        if (!libre) { showToast(t('bus_aucun_en_ligne'), true); setScreen('confirm'); return; }
+        const id = idCourseBus();
+        const code = codePriseEnCharge();
+        const q = quote ?? previewQuote(origin.location, destination.location, tier, { bodyType, stops: stops.map((s) => s.location), insurance });
+        const publiee = await publierCourse({
+          id, statut: 'demandee', code, gamme: tier.id, carrosserie: bodyType, paiement: payment,
+          origine: { ...origin.location, nom: origin.name }, destination: { ...destination.location, nom: destination.name },
+          arrets: stops.map((s) => ({ ...s.location, nom: s.name })),
+          montant: q.amount, distanceMetres: q.distanceMeters, dureeSecondes: q.etaSeconds,
+          client: { id: clientId(), nom: profil?.name || clientName || 'Client ORION', telephone: profil?.phone || '' },
+          chauffeurId: libre.id, offreJusqua: Date.now() + DELAI_OFFRE_MS,
+        });
+        if (publiee) { setRideId(null); setLive(false); setBusId(id); setBusCode(code); return; }
+      }
+    }
     // Mode démo uniquement (pas de backend) : course simulée.
     window.setTimeout(() => {
       setRideId(null);
@@ -485,6 +521,76 @@ export function App() {
       setScreen('tracking');
     }, 2400);
   };
+
+  /* Le client signale sa présence au registre de test (le chauffeur sait qu'il y a un client). */
+  useEffect(() => {
+    if (!modeLocal() || !profil) return;
+    const noter = () => { if (document.visibilityState === 'visible') void noterPresenceClient(clientId(), profil.name ?? 'Client ORION'); };
+    noter();
+    const id = window.setInterval(noter, 60_000);
+    document.addEventListener('visibilitychange', noter);
+    return () => { window.clearInterval(id); document.removeEventListener('visibilitychange', noter); };
+  }, [profil]);
+
+  /*
+   * Suivi de la course envoyée au chauffeur de test : chaque geste du chauffeur (accepter,
+   * arriver, démarrer avec le code, terminer) fait avancer l'écran du client.
+   */
+  const dernierStatutBus = useRef<string>('');
+  useEffect(() => {
+    if (!busId) { dernierStatutBus.current = ''; return; }
+    return suivreBus((etat) => {
+      const c = etat.courses.find((x) => x.id === busId);
+      if (!c) return;
+      if (c.statut === 'demandee' && Date.now() - c.creeLe > DELAI_RECHERCHE_MS) { void majCourse(c.id, { statut: 'expiree' }); return; }
+      if (c.statut === dernierStatutBus.current) return;
+      dernierStatutBus.current = c.statut;
+      appliquerStatutBus(c);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busId]);
+  const appliquerStatutBus = (c: CourseBus) => {
+    if (c.chauffeur && ['acceptee', 'arrivee', 'en_cours', 'terminee'].includes(c.statut)) setDriver(driverFromBus(c.chauffeur));
+    if (c.statut === 'acceptee') { setTripPhase('enroute'); setCarPos(null); setScreen('tracking'); showToast(t('bus_acceptee', { nom: c.chauffeur?.nom ?? '' })); }
+    else if (c.statut === 'arrivee') { setTripPhase('arrived'); setScreen('tracking'); }
+    else if (c.statut === 'en_cours') { setTripPhase('inprogress'); setScreen('tracking'); }
+    else if (c.statut === 'terminee') { setTripPhase('completed'); setScreen((s) => (s === 'rating' ? s : 'payment')); }
+    else if (c.statut === 'refusee' || c.statut === 'expiree' || (c.statut === 'annulee' && c.annuleePar === 'chauffeur')) {
+      showToast(t(c.statut === 'refusee' ? 'bus_refusee' : c.statut === 'expiree' ? 'bus_expiree' : 'bus_annulee_chauffeur'), true);
+      reset();
+    }
+  };
+  /** Le client annule une course envoyée au chauffeur de test : le chauffeur en est prévenu. */
+  const annulerCourseBus = () => {
+    if (busId) void majCourse(busId, { statut: 'annulee', annuleePar: 'client' });
+    showToast(t('toast_cancelled'));
+    reset();
+  };
+
+  /*
+   * Reprise : l'app (ou la page) a été fermée pendant une course de test. On la retrouve
+   * dans le registre et on reprend là où elle en est, au lieu de la perdre.
+   */
+  const repriseFaite = useRef(false);
+  useEffect(() => {
+    if (repriseFaite.current || !modeLocal() || !profil || screen !== 'home') return;
+    repriseFaite.current = true;
+    void etatBus().then((etat) => {
+      const c = etat.courses.find((x) => x.client.id === clientId() && STATUTS_ACTIFS.includes(x.statut) && Date.now() - x.creeLe < 2 * 3_600_000);
+      if (!c) return;
+      position.choisir({ id: 'bus-depart', name: c.origine.nom, area: '', location: { lat: c.origine.lat, lng: c.origine.lng } });
+      setDestination({ id: 'bus-destination', name: c.destination.nom, area: '', location: { lat: c.destination.lat, lng: c.destination.lng } });
+      setStops(c.arrets.map((a, i) => ({ id: `bus-arret-${i}`, name: a.nom, area: '', location: { lat: a.lat, lng: a.lng } })));
+      setTier(TIERS.find((x) => x.id === c.gamme) ?? TIERS[0]!);
+      setQuote({ ...previewQuote({ lat: c.origine.lat, lng: c.origine.lng }, { lat: c.destination.lat, lng: c.destination.lng }, TIERS.find((x) => x.id === c.gamme) ?? TIERS[0]!), amount: c.montant, distanceMeters: c.distanceMetres, etaSeconds: c.dureeSecondes });
+      setPayment(c.paiement);
+      setMode('ride'); setLive(false); setRideId(null);
+      setBusId(c.id); setBusCode(c.code);
+      if (c.statut === 'demandee') setScreen('searching');
+      else dernierStatutBus.current = '';
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profil, screen]);
 
   /**
    * SOS. Fonction de sécurité : on n'annonce « secours prévenus » QUE si ORION a
@@ -582,6 +688,7 @@ export function App() {
   const cancelCurrentRide = () => {
     // Course réelle : motif demandé et frais annoncés avant de confirmer.
     if (live && rideId) { setAnnulationOuverte(true); return; }
+    if (busId) { annulerCourseBus(); return; }
     showToast(t('toast_cancelled'));
     reset();
   };
@@ -696,6 +803,8 @@ export function App() {
     setPromo('');
     setPassager(null);
     setPro({ actif: false, motif: '' });
+    setBusId(null);
+    setBusCode(null);
     setMode('ride');
     setScreen('home');
   };
@@ -821,12 +930,12 @@ export function App() {
         )}
 
         {screen === 'searching' && destination && (
-          <SearchingScreen origin={origin} destination={destination} mode={mode} onCancel={reset} />
+          <SearchingScreen origin={origin} destination={destination} mode={mode} test={busId !== null} onCancel={busId ? annulerCourseBus : reset} />
         )}
 
         {screen === 'tracking' && destination && driver && (
           <TrackingScreen onMessage={messagerie.recevoir} messages={messagerie.actif ? { nonLus: messagerie.nonLus, ouvrir: () => { setRetourMessages('tracking'); setScreen('messages'); } } : undefined} origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase} mode={mode}
-            carPos={carPos} setCarPos={setCarPos} setPhase={setTripPhase} live={live} rideId={rideId} stops={stops}
+            carPos={carPos} setCarPos={setCarPos} setPhase={setTripPhase} live={live} rideId={rideId} stops={stops} codeTest={busId ? busCode : null}
             passager={passager} commandePar={profil?.name ?? ''}
             pause={controleOuvert || (sosOuvert && modeLocal())}
             onSos={triggerSos} onShare={() => void partagerTrajet()} onArrived={() => setScreen('payment')}
@@ -850,13 +959,14 @@ export function App() {
             onPaid={() => {
               // Course professionnelle : elle entre dans le relevé du tableau de bord ORION Business.
               if (pro.actif && quote) noterCoursePro({ trajet: `${origin.name} → ${destination.name}`, montant: quote.amount, motif: pro.motif.trim() || undefined });
+              if (busId) void majCourse(busId, { paiementRegle: payment });
               setScreen('rating');
             }} />
         )}
 
         {screen === 'rating' && destination && driver && (
           <RatingScreen origin={origin} driver={driver} quote={quote} payment={payment} destination={destination} rating={rating} livraison={mode === 'delivery'}
-            setRating={setRating} onDone={() => { if (live && rideId && rating) void rateRide(rideId, rating); if (!live) noterCourseLocale(); showToast(t(mode === 'delivery' ? 'toast_done_liv' : 'toast_done')); reset(); }} />
+            setRating={setRating} onDone={() => { if (live && rideId && rating) void rateRide(rideId, rating); if (busId && rating) void majCourse(busId, { note: rating }); if (!live) noterCourseLocale(); showToast(t(mode === 'delivery' ? 'toast_done_liv' : 'toast_done')); reset(); }} />
         )}
 
         {assuranceRequise && screen === 'confirm' && (
@@ -2040,7 +2150,7 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
 }
 
 /* ----------------------------- Searching ----------------------------- */
-function SearchingScreen({ origin, destination, mode = 'ride', onCancel }: { origin: Place; destination: Place; mode?: 'ride' | 'delivery'; onCancel: () => void }) {
+function SearchingScreen({ origin, destination, mode = 'ride', test = false, onCancel }: { origin: Place; destination: Place; mode?: 'ride' | 'delivery'; test?: boolean; onCancel: () => void }) {
   const { t } = useI18n();
   const del = mode === 'delivery';
   return (
@@ -2052,6 +2162,7 @@ function SearchingScreen({ origin, destination, mode = 'ride', onCancel }: { ori
         <div className="radar"><span className="ring" /><span className="ring" /><span className="ring" /><span className="core">{del ? <IconBolt size={26} /> : <IconLeaf size={28} />}</span></div>
         <h2 className="h-title" style={{ textAlign: 'center' }}>{del ? t('del_searching') : t('search_title')}</h2>
         <p className="h-sub" style={{ textAlign: 'center', marginTop: 6 }}>{del ? t('del_searching_sub') : t('search_sub')}</p>
+        {test && <p className="bus-avis" role="status">{t('bus_envoyee')}</p>}
         <button className="btn btn-ghost" style={{ marginTop: 18 }} onClick={onCancel}>{t('search_cancel')}</button>
       </Sheet>
     </div>
@@ -2059,11 +2170,16 @@ function SearchingScreen({ origin, destination, mode = 'ride', onCancel }: { ori
 }
 
 /* ----------------------------- Tracking ------------------------------ */
-function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, pause = false, passager = null, commandePar = '', onSos, onShare, onArrived, onCancel, onReassigned, onServerCancel, onMessage, messages }: {
+function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, codeTest = null, pause = false, passager = null, commandePar = '', onSos, onShare, onArrived, onCancel, onReassigned, onServerCancel, onMessage, messages }: {
   origin: Place; destination: Place; driver: Driver; tier: TierOption; phase: TripPhase; mode?: 'ride' | 'delivery';
   carPos: LatLng | null; setCarPos: (p: LatLng) => void; setPhase: (p: TripPhase) => void;
   /** Course simulée en attente : le contrôle de sécurité ou le SOS est à l'écran. */
   pause?: boolean;
+  /**
+   * Course envoyée au chauffeur de test (serveur de test partagé) : son code de prise en
+   * charge, et les étapes viennent des gestes du chauffeur, pas d'une minuterie.
+   */
+  codeTest?: string | null;
   /** Course commandée pour un proche (famille) : on peut le prévenir par SMS. */
   passager?: Proche | null; commandePar?: string;
   live: boolean; rideId: string | null; stops: Place[]; onSos: () => void; onShare: () => void; onArrived: () => void; onCancel: () => void;
@@ -2104,9 +2220,10 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
   const [codeEtat, setCodeEtat] = useState<'attente' | 'ok' | 'bloque'>('attente');
   useEffect(() => {
     if (del) return;
+    if (codeTest) { setCode(codeTest); return; }
     if (!live || !rideId) { setCode(String(1000 + Math.floor(Math.random() * 9000))); return; }
     void lireCodePriseEnCharge(rideId).then((c) => { if (c) { setCode(c.code); if (c.verifie) setCodeEtat('ok'); } });
-  }, [del, live, rideId]);
+  }, [del, live, rideId, codeTest]);
   useEffect(() => { if (!live && phase === 'inprogress') setCodeEtat('ok'); }, [live, phase]);
   const driverStart = useMemo<LatLng>(() => ({ lat: origin.location.lat - 0.018, lng: origin.location.lng - 0.012 }), [origin.location]);
 
@@ -2145,7 +2262,10 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
   useEffect(() => {
     if (live) return;
     progressRef.current = 0;
-    const durations: Record<TripPhase, number> = { enroute: 6000, arrived: 1800, inprogress: 9000, completed: 0 };
+    // Course de test : la voiture s'approche plus lentement et attend le geste du chauffeur.
+    const durations: Record<TripPhase, number> = codeTest
+      ? { enroute: 45_000, arrived: 1, inprogress: 90_000, completed: 0 }
+      : { enroute: 6000, arrived: 1800, inprogress: 9000, completed: 0 };
     const from = phase === 'inprogress' ? origin.location : driverStart;
     const to = phase === 'inprogress' ? destination.location : origin.location;
     setCarPos(from);
@@ -2160,6 +2280,7 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
       setCarPos(pointSurTrace(trace, tt));
       if (tt >= 1) {
         window.clearInterval(id);
+        if (codeTest) return;
         if (phase === 'enroute') setPhase('arrived');
         else if (phase === 'arrived') setPhase('inprogress');
         else if (phase === 'inprogress') { setPhase('completed'); onArrived(); }

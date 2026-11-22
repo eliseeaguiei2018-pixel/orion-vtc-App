@@ -19,6 +19,8 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
   @Override
   public void onCreate(Bundle savedInstanceState) {
+    // Registre de test partagé entre l'app client et l'app chauffeur (même téléphone).
+    registerPlugin(BusTestPlugin.class);
     super.onCreate(savedInstanceState);
     demanderRafraichissementMax();
   }

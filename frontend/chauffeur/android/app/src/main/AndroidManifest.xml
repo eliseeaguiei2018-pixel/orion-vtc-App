@@ -36,6 +36,14 @@
       ORION CHAUFFEUR — permissions : uniquement ce que l'app utilise AUJOURD'HUI (même
       règle que l'app cliente, Google Play examine chaque permission sensible).
     -->
+    <!--
+      REGISTRE DE TEST PARTAGÉ (APK de test, en attendant le serveur ORION en ligne) : l'app
+      client et l'app chauffeur installées sur le même téléphone s'échangent les courses.
+      Permission de niveau « signature », déclarée dans les deux apps : seules les apps
+      signées avec la même clé qu'ORION y ont accès, quel que soit l'ordre d'installation.
+    -->
+    <permission android:name="ci.orion.permission.BUS_TEST" android:protectionLevel="signature" />
+    <uses-permission android:name="ci.orion.permission.BUS_TEST" />
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
@@ -73,6 +81,8 @@
         </intent>
         <package android:name="com.google.android.apps.maps" />
         <package android:name="com.waze" />
+        <!-- Registre de test tenu par l'app client ORION, sur le même téléphone. -->
+        <provider android:authorities="ci.orion.app.bustest" />
     </queries>
     <!-- Photo du chauffeur (reconnaissance à la prise en charge) : caméra frontale. -->
     <uses-permission android:name="android.permission.CAMERA" />

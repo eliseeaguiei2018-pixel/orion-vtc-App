@@ -2,6 +2,10 @@ import type { AppConfig } from '../api';
 import type { DriverBackend } from './backend';
 import { ApiError } from './errors';
 import { saveSession, loadSession } from './session';
+import { Capacitor } from '@capacitor/core';
+import {
+  clientRecent, etatBus, majChauffeur, majCourse, type CourseBus, type FicheChauffeurBus, type StatutBus,
+} from '../busTest';
 import type { SosSuivi } from '../api';
 import type {
   EtapeLocation, LocationChauffeur, MessagesChef, Poste, RequeteVue,
@@ -67,6 +71,11 @@ interface DemoRide extends RideView {
   events: { type: string; at: string }[];
   clientName: string;
   clientPhone: string;
+  /**
+   * Course venue de l'app client du même téléphone (serveur de test partagé) : son code de
+   * prise en charge, à vérifier au démarrage. Absent pour une course simulée.
+   */
+  bus?: { code: string };
   /** Part prise en charge par l'abonnement du client (démo : une course sur six). */
   couvert?: number;
 }
@@ -150,9 +159,11 @@ export function createDemoBackend(): DriverBackend {
   };
   const view = (r: DemoRide): RideView => {
     const sum = (types: string[]) => st.ledger.filter((e) => e.rideId === r.id && types.includes(e.type)).reduce((s, e) => s + e.amount, 0);
-    const { events: _e, clientName: _n, clientPhone: _p, couvert: _c, ...rest } = r;
+    const { events: _e, clientName: _n, clientPhone: _p, couvert: _c, bus: _b, ...rest } = r;
     return {
       ...rest, encaissement: encaissement(r), liberee: false,
+      // Course de l'app client : le chauffeur démarre avec le code affiché chez le passager.
+      ...(r.bus ? { codeRequis: true } : {}),
       earnings: { net: sum(['ride_earning']), bonus: sum(['adjustment']), commission: -sum(['commission']), cashCollected: -sum(['cash_collected']) },
     };
   };
@@ -178,6 +189,8 @@ export function createDemoBackend(): DriverBackend {
     later(delay, () => {
       const d = st.driver;
       if (!d || d.availability !== 'online' || st.activeRideId) return;
+      // Relié à l'app client (serveur de test) : seules ses vraies commandes arrivent.
+      if (modeTest) { scheduleOffer(20_000); return; }
       const origin = { lat: lastPos.lat + (Math.random() - 0.5) * 0.012, lng: lastPos.lng + (Math.random() - 0.5) * 0.012 };
       const destination = pick(PLACES.filter((p) => haversine(p, origin) > 2500)) ?? PLACES[0]!;
       const meters = Math.round(haversine(origin, destination) * 1.3);
@@ -235,8 +248,10 @@ export function createDemoBackend(): DriverBackend {
     setStatus(r, 'paid');
     emit('payment.received', { rideId: r.id, amount: aEncaisser, method });
     driverChanged();
-    // Note du client quelques secondes plus tard.
-    later(3500, () => {
+    versBus(r, { statut: 'payee', paiementRegle: method });
+    publierPresence(true);
+    // Note du client quelques secondes plus tard (course de test : c'est le vrai client qui note).
+    if (!r.bus) later(3500, () => {
       const stars = Math.random() < 0.8 ? 5 : 4;
       r.rating = stars;
       setStatus(r, 'rated');
@@ -264,6 +279,118 @@ export function createDemoBackend(): DriverBackend {
     if (!r) throw new ApiError(404, 'Course introuvable');
     return r;
   };
+
+  /* ===================== SERVEUR DE TEST PARTAGÉ (voir ../busTest.ts) =====================
+   * Avec l'app client ORION sur le même téléphone (ou un onglet client sur la page
+   * partagée), les courses ne sont plus simulées : celles que le client commande arrivent
+   * ici, et chaque geste du chauffeur (accepter, arriver, démarrer, terminer) lui revient.
+   */
+  let modeTest = false;
+  const refusees = new Set<string>();
+  const fiche = (d: DriverProfile): FicheChauffeurBus => ({
+    id: d.id, nom: d.name, matricule: d.matricule, gamme: d.category,
+    vehicule: d.vehicleModel ?? '', plaque: d.vehiclePlate ?? '', couleur: d.vehicleColor ?? '',
+    telephone: d.phone ?? st.phone ?? '', note: d.ratingAvg || 5, nbCourses: d.ratingCount,
+  });
+  let presenceEcrite = 0;
+  const publierPresence = (forcer = false) => {
+    const d = st.driver;
+    if (!d || (!forcer && Date.now() - presenceEcrite < 4000)) return;
+    presenceEcrite = Date.now();
+    void majChauffeur({ ...fiche(d), enLigne: d.availability === 'online' || d.availability === 'on_trip', occupe: Boolean(st.activeRideId), position: lastPos });
+  };
+  const STATUT_BUS: Partial<Record<RideStatus, StatutBus>> = { arrived: 'arrivee', in_progress: 'en_cours', completed: 'terminee', paid: 'payee' };
+  const versBus = (r: DemoRide, patch: Partial<CourseBus>) => { if (r.bus) void majCourse(r.id, patch); };
+
+  /** Une course commandée dans l'app client devient une offre, comme celles de la console. */
+  const offrirCourseBus = (c: CourseBus) => {
+    const d = st.driver;
+    if (!d) return;
+    const timeoutSec = Math.max(5, Math.round(((c.offreJusqua ?? Date.now() + 60_000) - Date.now()) / 1000));
+    const r: DemoRide = {
+      id: c.id, status: 'accepted', serviceType: 'ride', category: c.gamme, origin: { lat: c.origine.lat, lng: c.origine.lng },
+      destination: { lat: c.destination.lat, lng: c.destination.lng }, stops: c.arrets.map((a) => ({ lat: a.lat, lng: a.lng })),
+      distanceMeters: c.distanceMetres, etaSeconds: c.dureeSecondes, amount: c.montant, waitMinutes: 0,
+      paymentMethod: c.paiement, paidAmount: null, earnings: { net: 0, bonus: 0, commission: 0, cashCollected: 0 },
+      rating: null, createdAt: now(), updatedAt: now(), events: [{ type: 'accepted', at: now() }],
+      clientName: c.client.nom || 'Client ORION', clientPhone: c.client.telephone || '', bus: { code: c.code },
+    };
+    st.rides = [r, ...st.rides.filter((x) => x.id !== r.id)];
+    st.activeRideId = r.id;
+    st.offer = { rideId: r.id, expiresAt: new Date(Date.now() + timeoutSec * 1000).toISOString(), timeoutSec };
+    d.availability = 'on_trip';
+    d.offersReceived = (d.offersReceived ?? 0) + 1;
+    persist();
+    publierPresence(true);
+    emit('ride.assigned', { ride: view(r), offer: { expiresAt: st.offer.expiresAt, timeoutSec }, etaToPickupSeconds: 240 });
+    emit('driver.update', { driver: d });
+    notify('Nouvelle course', `${r.clientName} · ${c.origine.nom} → ${c.destination.nom}`);
+    later(timeoutSec * 1000, () => {
+      if (st.offer?.rideId !== r.id) return;
+      st.offer = null;
+      st.activeRideId = null;
+      st.rides = st.rides.filter((x) => x.id !== r.id);
+      d.availability = 'online';
+      d.offersExpired = (d.offersExpired ?? 0) + 1;
+      persist();
+      void majCourse(r.id, { statut: 'expiree' });
+      emit('ride.withdrawn', { rideId: r.id, reason: 'expired' });
+      driverChanged();
+      publierPresence(true);
+    });
+  };
+
+  /** Le client a annulé : la course quitte l'écran du chauffeur. */
+  const clientAAnnule = (r: DemoRide) => {
+    const d = st.driver;
+    st.activeRideId = null;
+    st.offer = null;
+    st.rides = st.rides.filter((x) => x.id !== r.id);
+    if (d) d.availability = 'online';
+    persist();
+    emit('ride.withdrawn', { rideId: r.id, reason: 'client_annule' });
+    driverChanged();
+    publierPresence(true);
+    notify('Course annulée', 'Le client a annulé la course.');
+  };
+
+  const surveiller = async () => {
+    const d = st.driver;
+    if (!d) return;
+    const etat = await etatBus();
+    const natif = Capacitor.isNativePlatform();
+    // Sur le téléphone : l'app client est installée (registre joignable). Sur la page
+    // partagée : un onglet client a été ouvert depuis moins de 30 minutes.
+    modeTest = etat.disponible && (natif || etat.clients.some(clientRecent));
+    if (!etat.disponible) return;
+    publierPresence();
+    const active = st.rides.find((x) => x.id === st.activeRideId);
+    if (active?.bus) {
+      const c = etat.courses.find((x) => x.id === active.id);
+      if (c?.statut === 'annulee' && c.annuleePar === 'client') clientAAnnule(active);
+      // Le client a réglé dans son application (Wave, Orange Money, carte…).
+      else if (active.status === 'completed' && c?.paiementRegle && c.paiementRegle !== 'cash') settle(active, c.paiementRegle);
+    } else if (!st.activeRideId && (d.availability === 'online')) {
+      const c = etat.courses.find((x) => x.statut === 'demandee' && (!x.chauffeurId || x.chauffeurId === d.id)
+        && (x.offreJusqua ?? 0) > Date.now() && !refusees.has(x.id));
+      if (c) offrirCourseBus(c);
+    }
+    // Note donnée par le client après la course.
+    for (const r of st.rides) {
+      if (!r.bus || r.rating !== null || (r.status !== 'paid' && r.status !== 'completed')) continue;
+      const c = etat.courses.find((x) => x.id === r.id);
+      if (!c?.note) continue;
+      r.rating = c.note;
+      setStatus(r, 'rated');
+      emit('ride.rated', { rideId: r.id, stars: c.note, tags: [] });
+      d.ratingAvg = Math.round(((d.ratingAvg * d.ratingCount + c.note) / (d.ratingCount + 1)) * 100) / 100;
+      d.ratingCount += 1;
+      driverChanged();
+    }
+  };
+  window.setInterval(() => { void surveiller(); }, 1500);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void surveiller(); });
+  void surveiller();
 
   return {
     live: false,
@@ -354,14 +481,16 @@ export function createDemoBackend(): DriverBackend {
       if (d.kycStatus !== 'approved' && d.kycStatus !== 'active') throw new ApiError(403, 'Dossier en cours de validation par ORION — mise en ligne possible après validation');
       d.availability = st.activeRideId ? 'on_trip' : 'online';
       driverChanged();
+      publierPresence(true);
       if (!st.activeRideId) scheduleOffer();
     },
     async goOffline() {
       const d = drv();
       d.availability = 'offline';
       driverChanged();
+      publierPresence(true);
     },
-    async sendLocation(position) { lastPos = position; },
+    async sendLocation(position) { lastPos = position; publierPresence(); },
     async queue() {
       const d = drv();
       return d.availability === 'online' ? { inQueue: true, position: 2, total: 9 } : { inQueue: false, position: null, total: 9 };
@@ -411,26 +540,37 @@ export function createDemoBackend(): DriverBackend {
       st.offer = null;
       const d = drv();
       d.offersAccepted = (d.offersAccepted ?? 0) + 1;
-      ride(rideId).events.push({ type: 'driver_confirmed', at: now() });
+      const r = ride(rideId);
+      r.events.push({ type: 'driver_confirmed', at: now() });
       driverChanged();
+      // Course de l'app client : le client voit le chauffeur et son véhicule, pour de vrai.
+      if (r.bus) await majCourse(r.id, { statut: 'acceptee', chauffeurId: d.id, chauffeur: fiche(d) });
+      publierPresence(true);
       return active();
     },
     async declineOffer(rideId) {
       if (!st.offer || st.offer.rideId !== rideId) throw new ApiError(409, 'Cette offre n’est plus d’actualité');
       const d = drv();
+      const refuseeBus = Boolean(st.rides.find((x) => x.id === rideId)?.bus);
       st.offer = null;
       st.activeRideId = null;
       st.rides = st.rides.filter((x) => x.id !== rideId);
       d.availability = 'online';
       d.offersDeclined = (d.offersDeclined ?? 0) + 1;
       driverChanged();
+      if (refuseeBus) { refusees.add(rideId); void majCourse(rideId, { statut: 'refusee' }); }
+      publierPresence(true);
       emit('ride.withdrawn', { rideId, reason: 'declined' });
       scheduleOffer(8000);
     },
     async start(rideId, code) {
-      // Démonstration : le passager fictif donne toujours un code valide à 4 chiffres.
       if (!/^\d{4}$/.test(code)) throw new ApiError(400, 'Le code compte 4 chiffres');
+      // Course de l'app client : le code est celui affiché chez le passager. (Course simulée :
+      // le passager fictif donne toujours un code valide.)
+      const r = ride(rideId);
+      if (r.bus && code !== r.bus.code) throw new ApiError(400, 'Code incorrect : demandez au passager le code affiché dans son application.');
       await this.transition(rideId, 'in_progress');
+      versBus(r, { codeVerifie: true });
     },
     async transition(rideId, to) {
       const r = ride(rideId);
@@ -440,6 +580,8 @@ export function createDemoBackend(): DriverBackend {
       };
       if (!allowed[r.status]?.includes(to)) throw new ApiError(409, `Transition interdite : ${r.status} → ${to}`);
       setStatus(r, to);
+      const statutBus = to === 'cancelled' ? 'annulee' : STATUT_BUS[to];
+      if (statutBus) versBus(r, { statut: statutBus, ...(to === 'cancelled' ? { annuleePar: 'chauffeur' as const } : {}) });
       if (to === 'cancelled') {
         st.activeRideId = null;
         st.offer = null;
@@ -447,8 +589,9 @@ export function createDemoBackend(): DriverBackend {
         driverChanged();
         scheduleOffer(9000);
       }
-      // Paiement électronique : le client règle depuis son app.
-      if (to === 'completed' && r.paymentMethod && r.paymentMethod !== 'cash') later(2500, () => settle(r, r.paymentMethod!));
+      // Paiement électronique : le client règle depuis son app. Course de l'app client du
+      // même téléphone : on attend son vrai paiement (voir surveiller), sans rien simuler.
+      if (to === 'completed' && r.paymentMethod && r.paymentMethod !== 'cash' && !r.bus) later(2500, () => settle(r, r.paymentMethod!));
     },
     async wait(rideId, minutes) {
       const r = ride(rideId);
@@ -509,6 +652,7 @@ export function createDemoBackend(): DriverBackend {
       }
       const d = drv();
       if (motif !== 'securite') d.cancellations = (d.cancellations ?? 0) + 1;
+      versBus(r, { statut: 'annulee', annuleePar: 'chauffeur', motif });
       st.activeRideId = null;
       st.offer = null;
       st.rides = st.rides.filter((x) => x.id !== rideId);

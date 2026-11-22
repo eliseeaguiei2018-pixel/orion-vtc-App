@@ -5,6 +5,8 @@ import { LogoApp } from '../components/Logo';
 import { Objet, type Icone3D, type ObjetService } from '../components/Vehicules';
 import { IconMenu, IconActivity, IconAlarm, IconAlert, IconBank, IconBell, IconBellOff, IconBuilding, IconCar, IconCash, IconChart, IconCompass, IconCrown, IconFile, IconGem, IconGrid, IconIdCard, IconInbox, IconKey, IconLeaf, IconLock, IconMail, IconMap, IconMegaphone, IconMessage, IconMonitor, IconMoon, IconScale, IconShield, IconSignal, IconStar, IconSteering, IconSun, IconTag, IconTarget, IconTicket, IconTrend, IconUsers, IconWallet } from '../icons';
 import { DEMO } from './demo';
+import { suivreBus, type EtatBus } from '../busTest';
+import { empreinteBus, fusionBusConsole } from './busConsole';
 import { API, LIVE, AdminError, H, PAGE_SIZE, adminDel, adminGet, adminPost, adminPut, clearSession, expKey, fcfa, logout, onUnauthorized, setCsrf, setDemoSession, pageSlice, reportResponse, safePost, safePostData, safePut, sessionValid, setAdminErrorSink } from './api';
 import { AuditSection, CorporateSection, FinanceSection, GlobalSearch, GreenSection, IntelSection, NotifySection, PricingEditor, PromosSection, ServicesSection, SupportSection, TreasurySection, ZonesSection } from './sections/business';
 import { ClientsSection, DispatchSection, DisputesSection, DriversSection, ForensicDrawer, QualitySection, ReservationsCard, RidesSection } from './sections/operations';
@@ -403,8 +405,15 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [driversMeta, setDriversMeta] = useState<PageMeta>(emptyMeta);
   const [clientsMeta, setClientsMeta] = useState<PageMeta>(emptyMeta);
 
+  /*
+   * Démonstration sans serveur : les courses du serveur de test partagé (app client et app
+   * chauffeur ouvertes depuis la même adresse, ou sur le même téléphone) s'ajoutent en tête
+   * des données d'exemple, avec le chauffeur de test, et les compteurs les comptent.
+   */
+  const busRef = useRef<EtatBus | null>(null);
   const loadDemo = useCallback(() => {
-    setMe(DEMO.me); setOv(DEMO.overview); setStats(DEMO.stats(statsDays)); setAlerts(DEMO.sos as Alert[]); setFleet(DEMO.fleet);
+    const bus = fusionBusConsole(busRef.current, DEMO.overview, DEMO.rides, DEMO.drivers);
+    setMe(DEMO.me); setOv(bus.overview); setStats(DEMO.stats(statsDays)); setAlerts(DEMO.sos as Alert[]); setFleet(DEMO.fleet);
     setSecurity(DEMO.security as SecurityAttempt[]);
     setSupportStats(DEMO.supportStats); setMacros(DEMO.macros);
     setTriggers(DEMO.triggers as Triggers); setReservations(DEMO.reservations as Reservation[]);
@@ -413,8 +422,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
     setFraud(DEMO.fraud as FraudReport); setElasticity(DEMO.elasticity as ElasticityCell[]);
     setExpiring(DEMO.expiring as ExpiringDoc[]); setCashDebt(DEMO.cashDebt as CashDebtor[]); setGateways(DEMO.gateways as GatewayStatus[]);
     setExpenses(DEMO.expenses as ExpenseTicket[]); setLiquidity(DEMO.liquidity as Liquidity); setAmortization(DEMO.amortization as Amortization);
-    const dr = pageSlice(DEMO.rides, ridesPage); setRides(dr.items); setRidesMeta(dr.meta);
-    const dd = pageSlice(DEMO.drivers, driversPage); setDrivers(dd.items); setDriversMeta(dd.meta);
+    const dr = pageSlice(bus.rides, ridesPage); setRides(dr.items); setRidesMeta(dr.meta);
+    const dd = pageSlice(bus.drivers, driversPage); setDrivers(dd.items); setDriversMeta(dd.meta);
     const dc = pageSlice(DEMO.clients, clientsPage); setClients(dc.items); setClientsMeta(dc.meta);
     setPricing(DEMO.pricing); setZones(DEMO.zones as Zone[]);
     setPromos(DEMO.promos as Promo[]); setServices(DEMO.services);
@@ -630,6 +639,22 @@ function Console({ onLogout }: { onLogout: () => void }) {
     const p = LIVE ? setInterval(() => void refresh(), 6000) : undefined;
     return () => { clearInterval(t); if (p) clearInterval(p); };
   }, [refresh]);
+  // Serveur de test partagé : une course de l'app client ou un geste du chauffeur de test
+  // rafraîchit les courses, la flotte et les compteurs — rien d'autre n'est remis à zéro.
+  useEffect(() => {
+    if (LIVE) return;
+    let empreinte = '';
+    return suivreBus((e) => {
+      const k = empreinteBus(e);
+      if (k === empreinte) return;
+      empreinte = k;
+      busRef.current = e;
+      const bus = fusionBusConsole(e, DEMO.overview, DEMO.rides, DEMO.drivers);
+      setOv(bus.overview);
+      const dr = pageSlice(bus.rides, ridesPage); setRides(dr.items); setRidesMeta(dr.meta);
+      const dd = pageSlice(bus.drivers, driversPage); setDrivers(dd.items); setDriversMeta(dd.meta);
+    }, 2500);
+  }, [ridesPage, driversPage]);
 
   // Rend VISIBLE tout refus ou erreur d'appel à l'API. Exigence transversale : un 403
   // doit afficher à l'employé qu'il n'a pas le droit d'agir sans autorisation de la

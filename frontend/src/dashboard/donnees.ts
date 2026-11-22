@@ -1,6 +1,7 @@
 import { enTeteRecaptcha } from '../securiteGoogle';
 import { API, H, LIVE, clearSession, expKey, logout, setCsrf } from '../admin/api';
 import type { AnalysePeriode, AnalyseTableau, EntreeJournal, EtatTableau, JourCommandes, ObjectifsFinanciers, PointCommandes, PointCourbe } from './types';
+import { etatBus, suivreBus, type CourseBus, type EtatBus, type StatutBus } from '../busTest';
 
 /**
  * Données du tableau de bord : même session que la console (cookie HttpOnly posé par
@@ -65,7 +66,7 @@ export async function demanderAcces(motif: string): Promise<string | null> {
 export async function changerDeCompte(): Promise<void> { await logout(); }
 
 export async function lireEtat(): Promise<EtatTableau> {
-  if (!LIVE) return etatDemo();
+  if (!LIVE) return avecBus(etatDemo(), await etatBus().catch(() => null));
   const r = await fetch(`${API}/admin/dashboard`, { credentials: 'include' });
   await verifier(r);
   return r.json() as Promise<EtatTableau>;
@@ -109,10 +110,27 @@ export function oublierSession() { clearSession(); }
  */
 export function ecouter(onLot: (entrees: EntreeJournal[], recus: number) => void, onEtat: (connecte: boolean) => void, onObjectifs?: () => void): () => void {
   if (!LIVE) {
-    // Démonstration sans serveur : un journal qui vit quand même.
+    // Démonstration sans serveur : un journal qui vit quand même, et les VRAIS événements
+    // du serveur de test partagé (app client et app chauffeur de la même adresse).
     onEtat(true);
     const t = window.setInterval(() => onLot([entreeDemo()], 1), 6500);
-    return () => window.clearInterval(t);
+    const vus = new Map<string, string>();
+    let premier = true;
+    const arret = suivreBus((e) => {
+      const lot: EntreeJournal[] = [];
+      for (const c of e.courses) {
+        const cle = `${c.statut}${c.codeVerifie ? '+code' : ''}`;
+        if (vus.get(c.id) === cle) continue;
+        const avant = vus.get(c.id);
+        vus.set(c.id, cle);
+        if (premier) continue;
+        if (c.codeVerifie && !avant?.endsWith('+code')) lot.push(entreeBus(c, 'identite'));
+        if (!avant || !avant.startsWith(c.statut)) lot.push(entreeBus(c, c.statut));
+      }
+      premier = false;
+      if (lot.length) onLot(lot, lot.length);
+    }, 2000);
+    return () => { window.clearInterval(t); arret(); };
   }
   let ws: WebSocket | null = null;
   let ferme = false;
@@ -141,6 +159,57 @@ export function ecouter(onLot: (entrees: EntreeJournal[], recus: number) => void
 }
 
 /* ------------------------------ Démonstration ------------------------------ */
+
+/* Serveur de test partagé : les courses de l'app client et de l'app chauffeur de test. */
+const fcfaBus = (n: number) => `${new Intl.NumberFormat('fr-FR').format(n).replace(/\u202f|\u00a0/g, ' ')} F`;
+const GENRE_BUS: Record<StatutBus, EntreeJournal['genre']> = {
+  demandee: 'commande', acceptee: 'attribution', arrivee: 'arrivee', en_cours: 'depart', terminee: 'terminee',
+  payee: 'paiement', annulee: 'annulation', refusee: 'annulation', expiree: 'annulation',
+};
+function entreeBus(c: CourseBus, etape: StatutBus | 'identite'): EntreeJournal {
+  const trajet = `${c.origine.nom} → ${c.destination.nom}`;
+  const chauffeur = c.chauffeur?.nom ?? 'chauffeur de test';
+  const titres: Record<StatutBus | 'identite', string> = {
+    demandee: `Nouvelle course de test · ${c.client.nom}`, acceptee: `Chauffeur attribué : ${chauffeur}`,
+    arrivee: `${chauffeur} est arrivé au point de rendez-vous`, identite: 'Code de prise en charge vérifié',
+    en_cours: 'Client à bord, course en cours', terminee: 'Course de test terminée',
+    payee: `Paiement reçu · ${fcfaBus(c.montant)}`, annulee: c.annuleePar === 'client' ? 'Course annulée par le client' : 'Course annulée par le chauffeur',
+    refusee: 'Offre refusée par le chauffeur', expiree: 'Aucun chauffeur n’a accepté à temps',
+  };
+  const niveau: EntreeJournal['niveau'] = ['terminee', 'payee', 'identite'].includes(etape) ? 'succes' : ['annulee', 'refusee', 'expiree'].includes(etape) ? 'alerte' : 'info';
+  return {
+    id: `bus-${c.id}-${etape}-${Date.now()}`, at: new Date().toISOString(), genre: etape === 'identite' ? 'identite' : GENRE_BUS[etape],
+    niveau, service: 'course', titre: titres[etape], detail: `${trajet} · ${fcfaBus(c.montant)}`, rideId: c.id,
+  };
+}
+function avecBus(base: EtatTableau, e: (EtatBus & { disponible: boolean }) | null): EtatTableau {
+  if (!e || (!e.courses.length && !e.chauffeurs.length)) return base;
+  const jour = new Date(); jour.setHours(0, 0, 0, 0);
+  const duJour = e.courses.filter((c) => c.creeLe >= jour.getTime());
+  const actives = duJour.filter((c) => ['acceptee', 'arrivee', 'en_cours'].includes(c.statut));
+  const payees = duJour.filter((c) => c.statut === 'payee' || c.statut === 'terminee');
+  const enLigne = e.chauffeurs.filter((c) => c.enLigne);
+  const s: EtatTableau = structuredClone(base);
+  s.enDirect.courses += actives.length;
+  s.enDirect.enRecherche += duJour.filter((c) => c.statut === 'demandee').length;
+  s.conducteurs.enLigne += enLigne.length;
+  s.conducteurs.enCourse += enLigne.filter((c) => c.occupe).length;
+  s.conducteurs.total += e.chauffeurs.length;
+  s.aujourdhui.commandes += duJour.length;
+  s.aujourdhui.courses += payees.length;
+  s.aujourdhui.annulees += duJour.filter((c) => ['annulee', 'refusee', 'expiree'].includes(c.statut)).length;
+  s.aujourdhui.chiffreAffaires += payees.reduce((t, c) => t + c.montant, 0);
+  for (const ch of enLigne) {
+    if (ch.position) s.flotte.unshift({ id: ch.id, nom: `${ch.nom} (test)`, categorie: ch.gamme, moto: false, enCourse: ch.occupe, lat: ch.position.lat, lng: ch.position.lng });
+  }
+  s.coursesActives = [...actives.map((c) => ({
+    id: c.id, service: 'course' as const, statut: c.statut === 'acceptee' ? 'driver_en_route' : c.statut === 'arrivee' ? 'arrived' : 'in_progress',
+    client: c.client.nom, conducteur: c.chauffeur?.nom ?? null, montant: c.montant,
+    origine: { lat: c.origine.lat, lng: c.origine.lng }, destination: { lat: c.destination.lat, lng: c.destination.lng },
+    position: e.chauffeurs.find((ch) => ch.id === c.chauffeur?.id)?.position ?? null, trajet: `${c.origine.nom} → ${c.destination.nom}`, itineraire: null,
+  })), ...s.coursesActives];
+  return s;
+}
 
 const DEMO_FLOTTE = [
   { nom: 'Konan Yao', categorie: 'argent', lat: 5.3258, lng: -4.0205 },

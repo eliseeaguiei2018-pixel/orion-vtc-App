@@ -2128,3 +2128,6 @@ button.menu-texte { cursor: pointer; }
 .btn.simple-aide { margin-top: 22px; min-height: 64px; font-size: 18px; }
 .simple-quitter { margin: 18px auto 0; padding: 10px; background: none; border: 0; cursor: pointer; color: var(--text-dim); font: 500 15px/1.2 var(--font-body); text-decoration: underline; text-underline-offset: 3px; }
 .phone.mode-simple .nav-onglet { font-size: 13px; min-height: 62px; }
+
+/* Serveur de test partagé : la course est partie vers l'app ORION Chauffeur du même téléphone. */
+.bus-avis { margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--stroke); font-size: 13px; line-height: 1.4; text-align: center; color: var(--text-dim); }

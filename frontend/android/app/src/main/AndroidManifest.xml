@@ -30,6 +30,12 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+        <!-- Registre de test partagé avec l'app chauffeur (voir BusTestProvider). -->
+        <provider
+            android:name=".BusTestProvider"
+            android:authorities="ci.orion.app.bustest"
+            android:exported="true"
+            android:permission="ci.orion.permission.BUS_TEST" />
     </application>
 
     <!--
@@ -38,6 +44,14 @@
       micro…) retarde la validation sans rien apporter. Voir NATIVE.md pour les
       ajouter le jour où la fonction correspondante est branchée.
     -->
+    <!--
+      REGISTRE DE TEST PARTAGÉ (APK de test, en attendant le serveur ORION en ligne) : l'app
+      client et l'app chauffeur installées sur le même téléphone s'échangent les courses.
+      Permission de niveau « signature », déclarée dans les deux apps : seules les apps
+      signées avec la même clé qu'ORION y ont accès, quel que soit l'ordre d'installation.
+    -->
+    <permission android:name="ci.orion.permission.BUS_TEST" android:protectionLevel="signature" />
+    <uses-permission android:name="ci.orion.permission.BUS_TEST" />
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
