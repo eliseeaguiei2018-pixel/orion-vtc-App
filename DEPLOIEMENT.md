@@ -18,7 +18,7 @@ reliées dès l'installation.
 | Service | `orion-backend`, région Francfort (la plus proche d'Abidjan) |
 | Formule | Standard : 1 processeur, 2 Go, toujours allumé (25 $/mois) |
 | Données | disque persistant de 1 Go, base SQLite `/var/data/orion.db` (0,25 $/mois) |
-| Mises à jour | à chaque envoi sur la branche de travail, ou « Manual Deploy » dans Render |
+| Mises à jour | Render → `orion-backend` → **Manual Deploy** → *Deploy latest commit* (automatique une fois GitHub relié dans Render → Account Settings) |
 
 Le fichier `render.yaml` décrit le même service (Blueprint).
 
