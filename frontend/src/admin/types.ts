@@ -157,7 +157,10 @@ export interface DriverRow { id: string; name: string; matricule: string; catego
 export interface Pricing {
   baseFare: number; perKm: number; perMinute: number; minFare: number; avgSpeedKmh: number;
   tvaRate: number; feeRate: number; insuranceRate: number; trafficWeight: number; stopFee: number;
-  multipliers: Record<string, number>; supplements?: Record<string, number>; bodySurcharge: Record<string, number>;
+  multipliers: Record<string, number>;
+  /** Écart TTC de chaque gamme avec la précédente, du trajet court au trajet long. */
+  ecarts?: Record<string, { min: number; max: number }>; ecartKm?: { court: number; long: number };
+  bodySurcharge: Record<string, number>;
   freeWaitMinutes?: number; cancelGraceMinutes?: number; cancelFee?: number;
   cleaningLight?: number; cleaningMajor?: number; longPickupPerKm?: number; longPickupThresholdKm?: number;
 }

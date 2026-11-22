@@ -1,6 +1,6 @@
 import type { EstimateRequest, QuoteBreakdown, TrafficLevel } from '../types.js';
 import { haversineMeters, type LatLng } from '../../../core/geo.js';
-import { FLEET, isTier, type Tier } from '../../fleet/catalog.js';
+import { FLEET, TIER_ORDER, isTier, type EcartGamme, type Tier } from '../../fleet/catalog.js';
 
 /** Taxes & frais appliqués à chaque course (transparence). */
 export const TVA_RATE = 0.05; // TVA État de Côte d'Ivoire
@@ -19,10 +19,13 @@ export interface PricingSettings {
   tvaRate: number; feeRate: number; insuranceRate: number; trafficWeight: number; stopFee: number;
   multipliers: Record<Tier, number>;
   /**
-   * Supplément FIXE de chaque gamme par rapport à l'Argent, en F CFA TTC : le client voit
-   * exactement cet écart entre deux gammes sur le même trajet (Or +700, Diamant +1 700).
+   * Écart TTC de chaque gamme avec la gamme PRÉCÉDENTE, en F CFA : Or = Argent + 100 à 200,
+   * Diamant = Or + 500 à 1 000. Le minimum vaut pour un trajet court, le maximum pour un
+   * trajet long (`ecartKm`) ; entre les deux, l'écart monte avec la distance.
    */
-  supplements: Record<Tier, number>;
+  ecarts: Record<Tier, EcartGamme>;
+  /** Distances (km) du trajet « court » et du trajet « long » qui bornent ces écarts. */
+  ecartKm: { court: number; long: number };
   bodySurcharge: Record<string, number>;
   /* --- Frais annexes & pénalités (session Tarification S16) --- */
   /** Minutes d'attente offertes à l'arrivée du chauffeur (courtoisie). */
@@ -43,7 +46,8 @@ export const DEFAULT_PRICING: PricingSettings = {
   baseFare: 300, perKm: 130, perMinute: 18, minFare: 600, avgSpeedKmh: 24,
   tvaRate: TVA_RATE, feeRate: APP_FEE_RATE, insuranceRate: INSURANCE_RATE, trafficWeight: 0.6, stopFee: 250,
   multipliers: { argent: FLEET.argent.multiplier, or: FLEET.or.multiplier, diamant: FLEET.diamant.multiplier },
-  supplements: { argent: FLEET.argent.supplement, or: FLEET.or.supplement, diamant: FLEET.diamant.supplement },
+  ecarts: { argent: { ...FLEET.argent.ecart }, or: { ...FLEET.or.ecart }, diamant: { ...FLEET.diamant.ecart } },
+  ecartKm: { court: 2, long: 20 },
   bodySurcharge: { berline: 1.0, suv: 1.08 },
   freeWaitMinutes: 5, cancelGraceMinutes: 2, cancelFee: 500,
   cleaningLight: 10_000, cleaningMajor: 50_000,
@@ -122,6 +126,27 @@ export function distanceFacturee(origin: LatLng, destination: LatLng, stops: Lat
 /** Le FCFA n'a pas de centimes : on arrondit au multiple de 50 le plus proche. */
 const roundFcfa = (n: number) => Math.round(n / 50) * 50;
 
+/**
+ * Supplément TTC d'une gamme par rapport à l'Argent, pour un trajet de `distanceKm`.
+ * Chaque gamme ajoute son écart à celui de la gamme précédente ; l'écart va de son minimum
+ * (trajet court) à son maximum (trajet long), par pas de 50 F comme tous les prix.
+ * L'application en garde une copie exacte (frontend/src/tarifServeur.ts).
+ */
+export function supplementGamme(category: Tier, distanceKm: number, s: Pick<PricingSettings, 'ecarts' | 'ecartKm'> = DEFAULT_PRICING): number {
+  const { court, long } = s.ecartKm;
+  const part = long > court ? Math.min(1, Math.max(0, (distanceKm - court) / (long - court))) : distanceKm >= long ? 1 : 0;
+  let total = 0;
+  for (const gamme of TIER_ORDER) {
+    const e = s.ecarts[gamme];
+    if (e) {
+      const min = Math.max(0, e.min);
+      total += roundFcfa(min + (Math.max(min, e.max) - min) * part);
+    }
+    if (gamme === category) break;
+  }
+  return total;
+}
+
 export interface PricingContext {
   /** Coefficient multiplicateur de demande (1 = normal). Fourni par la tarification dynamique. */
   surgeMultiplier?: number;
@@ -193,10 +218,11 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
   const promo = ctx.promoDiscount ? ctx.promoDiscount(floored) : 0;
   const discount = Math.min(floored, promo > 0 ? promo : floored * discountRate);
 
-  // Supplément de gamme (Or, Diamant) : un écart FIXE et TTC par rapport à l'Argent. Il est
-  // ajouté après l'arrondi du prix Argent pour que l'écart affiché soit exact, puis
-  // réparti hors taxes dans le détail (sous-total, TVA, frais, assurance) qui reste juste.
-  const supplementTtc = Math.max(0, s.supplements?.[category] ?? 0);
+  // Supplément de gamme (Or, Diamant) : un écart TTC par rapport à l'Argent, qui monte avec
+  // la distance entre ses deux bornes. Il est ajouté après l'arrondi du prix Argent pour que
+  // l'écart affiché soit exact, puis réparti hors taxes dans le détail (sous-total, TVA,
+  // frais, assurance) qui reste juste.
+  const supplementTtc = supplementGamme(category, distanceKm, s);
   const tauxTtc = 1 + s.tvaRate + s.feeRate + (req.insurance ? s.insuranceRate : 0);
   const sansSupplement = floored - discount;
   const montantArgent = roundFcfa(sansSupplement * tauxTtc);

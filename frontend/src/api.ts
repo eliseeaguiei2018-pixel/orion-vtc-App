@@ -185,7 +185,7 @@ function localEstimate(origin: LatLng, destination: LatLng, tier: TierOption, op
   const { distanceMeters, etaSeconds } = baseTarifaire([origin, ...stops, destination], BAREME.avgSpeedKmh, trafic.factor);
   const prix = prixCourse({
     origin, destination, stops, distanceMeters,
-    multiplier: tier.multiplier, supplement: tier.supplement, bodyType: opts.bodyType, insurance: opts.insurance,
+    multiplier: tier.multiplier, gamme: tier.id, bodyType: opts.bodyType, insurance: opts.insurance,
   });
   return {
     lockId: `local-${Date.now()}`,

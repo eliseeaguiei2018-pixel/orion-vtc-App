@@ -231,7 +231,7 @@ export function ProfileScreen({ profil, onBack, onSaved, onToast }: {
 
 /* =============================== PARAMÈTRES =============================== */
 
-const VERSION = '1.5.7';
+const VERSION = '1.5.8';
 
 /* ============================ MENU (trois traits) ============================ */
 

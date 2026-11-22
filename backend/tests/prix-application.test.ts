@@ -21,7 +21,7 @@ import { ALL_ZONES } from '../src/modules/geo-ci/zones.js';
 type Pt = { lat: number; lng: number };
 interface Detail { amount: number; trafficLevel: string; breakdown: Record<string, number> }
 interface Appli {
-  prixCourse(d: { origin: Pt; destination: Pt; stops?: Pt[]; distanceMeters: number; multiplier: number; supplement?: number; bodyType?: string; insurance?: boolean; at?: Date }): Detail;
+  prixCourse(d: { origin: Pt; destination: Pt; stops?: Pt[]; distanceMeters: number; multiplier: number; gamme?: 'argent' | 'or' | 'diamant'; bodyType?: string; insurance?: boolean; at?: Date }): Detail;
   prixLivraison(d: { origin: Pt; destination: Pt; distanceMeters: number; tailleFacteur: number; at?: Date }): Detail;
   ZONES_TARIF: { id: string; factor: number; lat: number; lng: number; radiusKm: number; pickupFee?: number }[];
   ZONES_DENSITE: readonly (readonly [string, number, number, number])[];
@@ -86,7 +86,7 @@ test('course : même prix dans l’application et sur le serveur, pour chaque ga
           assert.equal(res.statusCode, 200, res.body);
           const local = appli.prixCourse({
             origin, destination, stops: option.stops, distanceMeters: vol([origin, ...(option.stops ?? []), destination]) * 1.3,
-            multiplier: FLEET[gamme].multiplier, supplement: FLEET[gamme].supplement, bodyType: option.bodyType, insurance: option.insurance, at,
+            multiplier: FLEET[gamme].multiplier, gamme, bodyType: option.bodyType, insurance: option.insurance, at,
           });
           return { serveur: res.json().quote as Detail, local };
         });
@@ -141,7 +141,7 @@ test('ORION Assurance : même supplément dans l’application et sur le serveur
       });
       const local = appli.prixCourse({
         origin, destination, distanceMeters: vol([origin, destination]) * 1.3,
-        multiplier: FLEET[gamme].multiplier, supplement: FLEET[gamme].supplement, insurance: true, at,
+        multiplier: FLEET[gamme].multiplier, gamme, insurance: true, at,
       });
       if (!zone) continue;                                 // lieux hors centre de zone : couverts par le test HTTP
       assert.equal(local.amount, serveur.amount, `montant assuré ${a} → ${b}, ${gamme}`);

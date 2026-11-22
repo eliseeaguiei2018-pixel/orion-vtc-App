@@ -26,12 +26,13 @@ export const ABIDJAN_PLACES: Place[] = [
 /**
  * Trois gammes de course (Argent, Or, Diamant), flottes 100 % électriques. Miroir du
  * catalogue du serveur : l'Argent est la grille de référence (l'ancienne grille Bronze),
- * l'Or coûte 700 F de plus sur le même trajet, le Diamant 1 000 F de plus que l'Or.
+ * l'Or coûte 100 à 200 F de plus sur le même trajet, le Diamant 500 à 1 000 F de plus que
+ * l'Or, selon la longueur du trajet (barème dans tarifServeur.ts).
  */
 export const TIERS: TierOption[] = [
-  { id: 'argent', key: 'tier_argent', multiplier: 0.9, supplement: 0, capacity: 4, eta: 3, accent: '#c8d2dc', weddingDayPrice: 60000, cars: ['Geely Galaxy E8', 'Dongfeng 007', 'Changan Qiyuan A07', 'Deepal S07', 'AVATR 06'] },
-  { id: 'or', key: 'tier_or', multiplier: 0.9, supplement: 700, capacity: 4, eta: 4, accent: '#f5c451', weddingDayPrice: 110000, cars: ['AVATR 11', 'AVATR 12', 'Xiaomi YU7', 'XPENG G9'] },
-  { id: 'diamant', key: 'tier_diamant', multiplier: 0.9, supplement: 1700, capacity: 4, eta: 5, accent: '#7fe7ff', weddingDayPrice: 190000, cars: ['XPENG GX 750 Ultra', 'Huawei Stelato S9', 'NIO ET9', 'NIO ES9', 'Zeekr 8X'] },
+  { id: 'argent', key: 'tier_argent', multiplier: 0.9, capacity: 4, eta: 3, accent: '#c8d2dc', weddingDayPrice: 60000, cars: ['Geely Galaxy E8', 'Dongfeng 007', 'Changan Qiyuan A07', 'Deepal S07', 'AVATR 06'] },
+  { id: 'or', key: 'tier_or', multiplier: 0.9, capacity: 4, eta: 4, accent: '#f5c451', weddingDayPrice: 110000, cars: ['AVATR 11', 'AVATR 12', 'Xiaomi YU7', 'XPENG G9'] },
+  { id: 'diamant', key: 'tier_diamant', multiplier: 0.9, capacity: 4, eta: 5, accent: '#7fe7ff', weddingDayPrice: 190000, cars: ['XPENG GX 750 Ultra', 'Huawei Stelato S9', 'NIO ET9', 'NIO ES9', 'Zeekr 8X'] },
 ];
 
 export const tierById = (id: string): TierOption => TIERS.find((t) => t.id === id) ?? TIERS[0]!;

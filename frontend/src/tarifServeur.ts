@@ -41,7 +41,31 @@ export const BAREME = {
   baseFare: 300, perKm: 130, perMinute: 18, minFare: 600, avgSpeedKmh: 24,
   tvaRate: 0.05, feeRate: 0.1, insuranceRate: 0.02, trafficWeight: 0.6, stopFee: 250,
   bodySurcharge: { berline: 1, suv: 1.08 } as Record<string, number>,
+  /** Écart TTC de chaque gamme avec la précédente : du trajet court au trajet long. */
+  ecarts: { argent: { min: 0, max: 0 }, or: { min: 100, max: 200 }, diamant: { min: 500, max: 1000 } },
+  ecartKm: { court: 2, long: 20 },
 } as const;
+
+export type Gamme = 'argent' | 'or' | 'diamant';
+const ORDRE_GAMMES: readonly Gamme[] = ['argent', 'or', 'diamant'];
+
+/**
+ * Supplément TTC d'une gamme par rapport à l'Argent sur un trajet de `km` kilomètres, comme
+ * `supplementGamme` du serveur : Or = Argent + 100 à 200 F, Diamant = Or + 500 à 1 000 F,
+ * du trajet court au trajet long, par pas de 50 F.
+ */
+export function supplementGamme(gamme: Gamme, km: number): number {
+  const { court, long } = BAREME.ecartKm;
+  const part = long > court ? Math.min(1, Math.max(0, (km - court) / (long - court))) : km >= long ? 1 : 0;
+  let total = 0;
+  for (const g of ORDRE_GAMMES) {
+    const e = BAREME.ecarts[g];
+    const min = Math.max(0, e.min);
+    total += arrondi50(min + (Math.max(min, e.max) - min) * part);
+    if (g === gamme) break;
+  }
+  return total;
+}
 
 /** Barème des livraisons à moto (DELIVERY_TARIFF du serveur). */
 export const BAREME_LIVRAISON = { baseFare: 220, perKm: 88, perMinute: 8, minFare: 500, avgSpeedKmh: 26 } as const;
@@ -159,8 +183,8 @@ export function prixCourse(d: {
   origin: Pt; destination: Pt; stops?: Pt[];
   /** Distance du trajet par la route, en mètres. */
   distanceMeters: number;
-  /** Multiplicateur et supplément TTC de la gamme (Argent, Or, Diamant). */
-  multiplier: number; supplement?: number;
+  /** Multiplicateur de la grille et gamme choisie (Argent si elle manque). */
+  multiplier: number; gamme?: Gamme;
   bodyType?: string; insurance?: boolean; at?: Date;
 }): DetailPrix {
   const s = BAREME;
@@ -183,7 +207,7 @@ export function prixCourse(d: {
   const plancher = Math.max(brut, s.minFare * m, regles.premiumFloor ?? 0);
 
   const tauxTtc = 1 + s.tvaRate + s.feeRate + (d.insurance ? s.insuranceRate : 0);
-  const amount = arrondi50(plancher * tauxTtc) + Math.max(0, d.supplement ?? 0);
+  const amount = arrondi50(plancher * tauxTtc) + supplementGamme(d.gamme ?? 'argent', km);
   const subtotal = amount / tauxTtc;
   return {
     amount, trafficLevel: trafic.level, trafficFactor: trafic.factor,

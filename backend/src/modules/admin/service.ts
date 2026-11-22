@@ -8,6 +8,8 @@ import { simplePdf } from '../../core/pdf.js';
 import { config } from '../../config/index.js';
 import { CacheCourt } from '../../core/cache-court.js';
 import { lieuDe } from '../maps/lieux.js';
+import { isTier } from '../fleet/catalog.js';
+import { supplementGamme } from '../services/ride/pricing.js';
 
 /**
  * Service d'agrégation pour le dashboard Admin / supervision SAMU.
@@ -672,14 +674,16 @@ export class AdminService {
     const p = this.c.settings.getPricing();
     const zones = this.c.settings.getZones();
     const cats = Object.keys(p.multipliers ?? { argent: 1 });
-    const head = 'zone,facteur_zone,frais_prise_en_charge,categorie,multiplicateur,supplement_gamme,base_fcfa,par_km,par_min,exemple_5km_15min';
+    const head = 'zone,facteur_zone,frais_prise_en_charge,categorie,multiplicateur,supplement_gamme_trajet_court,supplement_gamme_trajet_long,base_fcfa,par_km,par_min,exemple_5km_15min';
     const rows: string[] = [];
     for (const z of zones) {
       for (const cat of cats) {
         const mult = (p.multipliers as Record<string, number>)[cat] ?? 1;
-        const supp = (p.supplements as Record<string, number> | undefined)?.[cat] ?? 0;
-        const example = Math.round((p.baseFare + 5 * p.perKm + 15 * p.perMinute) * mult * z.factor + (z.pickupFee ?? 0)) + supp;
-        rows.push([z.name.replace(/,/g, ' '), z.factor, z.pickupFee ?? 0, cat, mult, supp, p.baseFare, p.perKm, p.perMinute, example].join(','));
+        // Supplément de la gamme par rapport à l'Argent : sur un trajet court, long, et sur l'exemple de 5 km.
+        const gamme = isTier(cat) ? cat : 'argent';
+        const court = supplementGamme(gamme, p.ecartKm.court, p), long = supplementGamme(gamme, p.ecartKm.long, p);
+        const example = Math.round((p.baseFare + 5 * p.perKm + 15 * p.perMinute) * mult * z.factor + (z.pickupFee ?? 0)) + supplementGamme(gamme, 5, p);
+        rows.push([z.name.replace(/,/g, ' '), z.factor, z.pickupFee ?? 0, cat, mult, court, long, p.baseFare, p.perKm, p.perMinute, example].join(','));
       }
     }
     return [head, ...rows].join('\n');

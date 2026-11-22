@@ -1272,11 +1272,12 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
           multipliers: z.object({
             argent: num.optional(), or: num.optional(), diamant: num.optional(),
           }).partial().optional(),
-          // Écart fixe de chaque gamme par rapport à l'Argent (F CFA TTC).
-          supplements: z.object({
-            argent: z.number().min(0).max(100_000).optional(), or: z.number().min(0).max(100_000).optional(),
-            diamant: z.number().min(0).max(100_000).optional(),
+          // Écart de chaque gamme avec la précédente (F CFA TTC), du trajet court au trajet long.
+          ecarts: z.object({
+            or: z.object({ min: z.number().min(0).max(100_000), max: z.number().min(0).max(100_000) }).partial(),
+            diamant: z.object({ min: z.number().min(0).max(100_000), max: z.number().min(0).max(100_000) }).partial(),
           }).partial().optional(),
+          ecartKm: z.object({ court: z.number().min(0).max(200), long: z.number().min(1).max(500) }).partial().optional(),
           // Frais annexes & pénalités (session Tarification).
           freeWaitMinutes: z.number().min(0).max(30).optional(),
           cancelGraceMinutes: z.number().min(0).max(30).optional(),

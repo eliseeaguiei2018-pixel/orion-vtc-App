@@ -1115,3 +1115,63 @@ parrainage, Business, demandes, commande pour un proche avec course professionne
 7 contrôles de l'assurance, des vitrines et du mode simplifié (champs enrichis relus, 1234
 refusé, pause après cinq erreurs, code absent du stockage en clair, vitrine vide puis alimentée
 selon l'option). Serveur : 415 tests réussis, dont le questionnaire enrichi et la vitrine.
+
+## 22. Version 1.5.8 : écarts de prix entre gammes resserrés, volets qui gardent leur position (22 novembre)
+
+### Prix
+
+Le fondateur trouvait les gammes Or et Diamant trop chères face à la concurrence. L'écart fixe
+(Or = Argent + 700 F, Diamant = Or + 1 000 F) est remplacé par un écart borné :
+
+| | Trajet court | Trajet long |
+|---|---|---|
+| Argent → Or | + 100 F | + 200 F |
+| Or → Diamant | + 500 F | + 1 000 F |
+
+Le prix de l'Argent ne change pas. L'écart part du minimum jusqu'à 2 km, atteint le maximum à
+partir de 20 km et monte entre les deux avec la distance, par pas de 50 F comme tous les prix
+(`supplementGamme`, `backend/src/modules/services/ride/pricing.ts`). En pratique : Or + 100 F
+jusqu'à 6,5 km, + 150 F jusqu'à 15,5 km, + 200 F au-delà ; Diamant + 500 F de plus que l'Or sous
+3 km, puis 50 F de plus tous les 1,8 km environ, jusqu'à + 1 000 F. L'écart ne dépend ni de la
+carrosserie ni de l'assurance.
+
+Relevé dans l'application 1.5.8 (berline, en journée, Argent / Or / Diamant) :
+
+| Destination | Distance | Prix | Écarts |
+|---|---|---|---|
+| Cocody Danga | 1,7 km | 850 / 950 / 1 450 F | + 100, + 500 |
+| Plateau | 3,9 km | 1 300 / 1 400 / 1 950 F | + 100, + 550 |
+| Riviera Golf | 5,4 km | 1 500 / 1 600 / 2 200 F | + 100, + 600 |
+| Aéroport | 16,6 km | 3 700 / 3 900 / 4 800 F | + 200, + 900 |
+| Grand-Bassam | 37,7 km | 7 850 / 8 050 / 9 050 F | + 200, + 1 000 |
+
+Les quatre bornes et les deux distances se règlent dans la console (Tarification, « Gammes —
+écart de prix avec la gamme précédente »). Un tarif enregistré avec l'ancien supplément fixe est
+repris au démarrage avec les nouveaux écarts, les autres réglages étant gardés. L'application
+garde sa copie du barème (`frontend/src/tarifServeur.ts`) ; le test qui compare les deux calculs
+au franc près passe toujours.
+
+### Volets qui gardent leur position
+
+Défaut constaté par le fondateur : dans le volet Compte, ouvrir une option puis en sortir
+ramenait en haut de la page. Chaque écran est reconstruit quand on y revient ; rien ne retenait
+où il était arrêté. L'application note maintenant la position de chaque page et la replace au
+retour, sans animation (`frontend/src/App.tsx`) :
+
+- en sortant d'une option, on retrouve le volet exactement où on l'avait laissé ;
+- les quatre volets de la barre du bas gardent leur position d'un passage à l'autre ;
+- toucher le volet déjà ouvert ramène en haut de sa page ;
+- une option que l'on rouvre repart du haut.
+
+### APK et vérifications
+
+`ORION-client-1.5.8.apk` : version 1.5.8, code 15, même signature, SHA-256
+`b241a35054eccfbe9863327fdddd5aec4b11f3b5c0563b1b2c24c7bd4a335b63`, 14,2 Mo, contenu web
+identique au contenu construit.
+
+Sur le contenu de cette APK, en clair et en sombre, sans erreur JavaScript : 11 contrôles sur 11
+— prix des trois gammes vers cinq destinations en berline et en SUV (écarts dans les bornes,
+croissants avec la distance), position retrouvée au retour de treize options du volet Compte
+(jusqu'à 1 500 px de défilement), option rouverte en haut, volets de la barre du bas. Serveur :
+419 tests, 417 réussis, 2 ignorés, dont les écarts bornés sur 80 distances, leur réglage depuis
+la console et la reprise d'un ancien tarif.

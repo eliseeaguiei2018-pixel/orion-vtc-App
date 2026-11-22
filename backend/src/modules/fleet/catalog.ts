@@ -6,21 +6,27 @@
  * (la gamme Bronze a été supprimée : sa grille tarifaire est devenue celle de l'Argent,
  * et ses véhicules ont rejoint la flotte Argent).
  *
- * PRIX : l'Argent est la grille de référence (multiplicateur). L'Or coûte exactement
- * 700 F de plus que l'Argent sur le même trajet, le Diamant 1 000 F de plus que l'Or :
- * un écart FIXE, lisible par le client, quel que soit le trajet (`supplement`, pilotable
- * depuis la console comme le reste des tarifs).
+ * PRIX : l'Argent est la grille de référence (multiplicateur). L'Or coûte 100 à 200 F de
+ * plus que l'Argent sur le même trajet, le Diamant 500 à 1 000 F de plus que l'Or : l'écart
+ * (`ecart`) part du minimum sur un trajet court et atteint le maximum sur un trajet long.
+ * Il se règle depuis la console comme le reste des tarifs.
  * Chaque gamme a aussi son tarif de location mariage (à la journée).
  */
 export type Tier = 'argent' | 'or' | 'diamant';
+
+/** Les gammes, de la plus accessible à la plus haut de gamme. */
+export const TIER_ORDER: readonly Tier[] = ['argent', 'or', 'diamant'];
+
+/** Écart de prix TTC avec la gamme précédente (F CFA) : du trajet court au trajet long. */
+export interface EcartGamme { min: number; max: number }
 
 export interface TierDefinition {
   tier: Tier;
   label: string;
   /** Multiplicateur appliqué au tarif de base (course). */
   multiplier: number;
-  /** Supplément fixe TTC ajouté au prix de la gamme Argent (F CFA). */
-  supplement: number;
+  /** Écart TTC avec la gamme précédente (F CFA) ; nul pour l'Argent, la référence. */
+  ecart: EcartGamme;
   capacity: number;
   /** ETA indicatif (min) — disponibilité moyenne. */
   eta: number;
@@ -40,7 +46,7 @@ export const FLEET: Record<Tier, TierDefinition> = {
     tier: 'argent',
     label: 'Argent',
     multiplier: GRILLE_REFERENCE,
-    supplement: 0,
+    ecart: { min: 0, max: 0 },
     capacity: 4,
     eta: 3,
     cars: ['Geely Galaxy E8', 'Dongfeng 007', 'Changan Qiyuan A07', 'Deepal S07', 'AVATR 06'],
@@ -51,7 +57,7 @@ export const FLEET: Record<Tier, TierDefinition> = {
     tier: 'or',
     label: 'Or',
     multiplier: GRILLE_REFERENCE,
-    supplement: 700,
+    ecart: { min: 100, max: 200 },
     capacity: 4,
     eta: 4,
     cars: ['AVATR 11', 'AVATR 12', 'Xiaomi YU7', 'XPENG G9'],
@@ -62,7 +68,7 @@ export const FLEET: Record<Tier, TierDefinition> = {
     tier: 'diamant',
     label: 'Diamant',
     multiplier: GRILLE_REFERENCE,
-    supplement: 1_700,
+    ecart: { min: 500, max: 1_000 },
     capacity: 4,
     eta: 5,
     cars: ['XPENG GX 750 Ultra', 'Huawei Stelato S9', 'NIO ET9', 'NIO ES9', 'Zeekr 8X'],

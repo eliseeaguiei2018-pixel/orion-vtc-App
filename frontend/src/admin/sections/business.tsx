@@ -548,8 +548,27 @@ export function exampleFare(p: Pricing, tier: string, km: number): number {
   const distance = km * p.perKm * m;
   const time = (km / p.avgSpeedKmh) * 60 * p.perMinute * m;
   const subtotal = Math.max(base + distance + time, p.minFare * m);
-  // Écart fixe de la gamme (Or, Diamant) ajouté au prix TTC, comme sur le serveur.
-  return Math.round((subtotal * (1 + p.tvaRate + p.feeRate)) / 50) * 50 + (p.supplements?.[tier] ?? 0);
+  // Écart de la gamme (Or, Diamant) ajouté au prix TTC, comme sur le serveur.
+  return Math.round((subtotal * (1 + p.tvaRate + p.feeRate)) / 50) * 50 + ecartGamme(p, tier, km);
+}
+
+const ECARTS_DEFAUT: Record<string, { min: number; max: number }> = { argent: { min: 0, max: 0 }, or: { min: 100, max: 200 }, diamant: { min: 500, max: 1000 } };
+const ECART_KM_DEFAUT = { court: 2, long: 20 };
+
+/** Supplément d'une gamme par rapport à l'Argent sur `km` kilomètres (copie de `supplementGamme` du serveur). */
+export function ecartGamme(p: Pricing, tier: string, km: number): number {
+  const { court, long } = p.ecartKm ?? ECART_KM_DEFAUT;
+  const part = long > court ? Math.min(1, Math.max(0, (km - court) / (long - court))) : km >= long ? 1 : 0;
+  let total = 0;
+  for (const g of ['argent', 'or', 'diamant']) {
+    const e = (p.ecarts ?? ECARTS_DEFAUT)[g];
+    if (e) {
+      const min = Math.max(0, e.min);
+      total += Math.round((min + (Math.max(min, e.max) - min) * part) / 50) * 50;
+    }
+    if (g === tier) break;
+  }
+  return total;
 }
 
 export function PricingEditor({ pricing, canWrite, onSave, onShadow, onMatrixCsv }: {
@@ -575,7 +594,7 @@ export function PricingEditor({ pricing, canWrite, onSave, onShadow, onMatrixCsv
         baseFare: form.baseFare, perKm: form.perKm, perMinute: form.perMinute, minFare: form.minFare,
         avgSpeedKmh: form.avgSpeedKmh, tvaRate: form.tvaRate, feeRate: form.feeRate,
         insuranceRate: form.insuranceRate, trafficWeight: form.trafficWeight, stopFee: form.stopFee,
-        multipliers: form.multipliers, supplements: form.supplements,
+        multipliers: form.multipliers, ecarts: form.ecarts, ecartKm: form.ecartKm,
         freeWaitMinutes: form.freeWaitMinutes, cancelGraceMinutes: form.cancelGraceMinutes, cancelFee: form.cancelFee,
         cleaningLight: form.cleaningLight, cleaningMajor: form.cleaningMajor,
         longPickupPerKm: form.longPickupPerKm, longPickupThresholdKm: form.longPickupThresholdKm,
@@ -606,11 +625,17 @@ export function PricingEditor({ pricing, canWrite, onSave, onShadow, onMatrixCsv
           <label className="price-field"><span>Poids trafic (0–1)</span><input type="number" step={0.1} value={form.trafficWeight} onChange={num('trafficWeight')} disabled={!canWrite} /></label>
         </div>
 
-        <div className="adm-card-h" style={{ marginTop: 18 }}><h3 style={{ fontSize: 14 }}>Gammes — écart fixe par rapport à l’Argent (F CFA)</h3><span className="adm-muted">Or = Argent + 700 F · Diamant = Or + 1 000 F</span></div>
+        <div className="adm-card-h" style={{ marginTop: 18 }}><h3 style={{ fontSize: 14 }}>Gammes — écart de prix avec la gamme précédente (F CFA)</h3><span className="adm-muted">Minimum sur un trajet court, maximum sur un trajet long</span></div>
         <div className="price-grid">
-          {tiers.map((t) => (
-            <label key={t} className="price-field cap"><span>{t}</span><input type="number" step={50} min={0} value={form.supplements?.[t] ?? 0}
-              onChange={(e) => setForm((f) => ({ ...f, supplements: { ...(f.supplements ?? {}), [t]: Number(e.target.value) } }))} disabled={!canWrite || t === 'argent'} /></label>
+          {(['or', 'diamant'] as const).map((t) => (['min', 'max'] as const).map((borne) => (
+            <label key={t + borne} className="price-field cap"><span>{t === 'or' ? 'Argent → Or' : 'Or → Diamant'}, {borne === 'min' ? 'minimum' : 'maximum'}</span>
+              <input type="number" step={50} min={0} value={(form.ecarts ?? ECARTS_DEFAUT)[t]?.[borne] ?? 0}
+                onChange={(e) => setForm((f) => { const ec = f.ecarts ?? ECARTS_DEFAUT; return { ...f, ecarts: { ...ec, [t]: { ...ec[t]!, [borne]: Number(e.target.value) } } }; })} disabled={!canWrite} /></label>
+          )))}
+          {(['court', 'long'] as const).map((borne) => (
+            <label key={borne} className="price-field"><span>Trajet {borne} (km)</span>
+              <input type="number" step={1} min={0} value={(form.ecartKm ?? ECART_KM_DEFAUT)[borne]}
+                onChange={(e) => setForm((f) => ({ ...f, ecartKm: { ...(f.ecartKm ?? ECART_KM_DEFAUT), [borne]: Number(e.target.value) } }))} disabled={!canWrite} /></label>
           ))}
         </div>
         <div className="adm-card-h" style={{ marginTop: 18 }}><h3 style={{ fontSize: 14 }}>Multiplicateur de la grille par gamme</h3></div>

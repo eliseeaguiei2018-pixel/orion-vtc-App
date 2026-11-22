@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App as AppNative } from '@capacitor/app';
 import { OrionMap } from './components/OrionMap';
@@ -193,6 +193,63 @@ export function App() {
   const [retours, setRetours] = useState<Partial<Record<Screen, Screen>>>({});
   const aller = (ecran: Screen, depuis: Screen) => { setRetours((x) => ({ ...x, [ecran]: depuis })); setScreen(ecran); };
   const revenir = (ecran: Screen) => setScreen(retours[ecran] ?? 'settings');
+
+  // POSITION DE DÉFILEMENT. Chaque écran est reconstruit quand on y revient : sans mémoire,
+  // sortir d'une option du volet Compte ramenait en haut de la liste. On retient donc où
+  // chaque page était arrêtée, et on la replace là au retour. Les quatre volets de la barre
+  // du bas gardent leur position d'un passage à l'autre ; les autres écrans la retrouvent
+  // quand on y REVIENT (ils sont dans la pile des écrans traversés) et repartent du haut
+  // quand on y entre à nouveau.
+  const cadre = useRef<HTMLDivElement>(null);
+  const pileEcrans = useRef<Screen[]>([]);
+  const positions = useRef<Partial<Record<Screen, number>>>({});
+  const ecranCourant = useRef<Screen>(screen);
+  const corpsDePage = () => cadre.current?.querySelector<HTMLElement>('.page-body') ?? null;
+  useEffect(() => {
+    const el = cadre.current;
+    if (!el) return;
+    // Le défilement ne remonte pas dans la page : on l'écoute en phase de capture.
+    const noter = (e: Event) => {
+      const cible = e.target as HTMLElement;
+      if (cible.classList?.contains('page-body')) positions.current[ecranCourant.current] = cible.scrollTop;
+    };
+    el.addEventListener('scroll', noter, { capture: true, passive: true });
+    return () => el.removeEventListener('scroll', noter, { capture: true });
+  }, []);
+  useLayoutEffect(() => {
+    ecranCourant.current = screen;
+    const pile = pileEcrans.current;
+    const rang = pile.indexOf(screen);
+    if (rang === -1) {
+      pile.push(screen);
+      if (!(ONGLETS as readonly string[]).includes(screen)) { delete positions.current[screen]; return; }
+    } else pile.length = rang + 1;
+    const voulu = positions.current[screen] ?? 0;
+    if (voulu <= 0) return;
+    // Sans animation (la page défile en douceur d'ordinaire), et en insistant quelques
+    // images si le contenu n'a pas encore toute sa hauteur ; un geste du client arrête tout.
+    let essais = 0, image = 0, arrete = false;
+    const replacer = () => {
+      const corps = corpsDePage();
+      if (!corps || arrete) return;
+      const douceur = corps.style.scrollBehavior;
+      corps.style.scrollBehavior = 'auto';
+      corps.scrollTop = voulu;
+      corps.style.scrollBehavior = douceur;
+      if (Math.abs(corps.scrollTop - voulu) > 1 && ++essais < 40) image = requestAnimationFrame(replacer);
+    };
+    const arreter = () => { arrete = true; };
+    const el = cadre.current;
+    el?.addEventListener('touchstart', arreter, { passive: true, once: true });
+    el?.addEventListener('wheel', arreter, { passive: true, once: true });
+    replacer();
+    return () => { arrete = true; cancelAnimationFrame(image); el?.removeEventListener('touchstart', arreter); el?.removeEventListener('wheel', arreter); };
+  }, [screen]);
+  /** Barre du bas : toucher le volet déjà ouvert ramène en haut de sa page. */
+  const allerOnglet = (o: Onglet) => {
+    if (o === screen) corpsDePage()?.scrollTo({ top: 0, behavior: 'smooth' });
+    else setScreen(o);
+  };
   // Le contact de confiance d'avant le carnet devient son premier contact.
   useEffect(() => { reprendreContactDeConfiance(trusted); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -681,7 +738,7 @@ export function App() {
   return (
     <GpsCarte.Provider value={gps}>
     <div className="app-shell">
-      <div className={`phone${sosLive && !sosOuvert ? ' sos-reduit' : ''}${navVisible ? ' a-nav' : ''}${simple ? ' mode-simple' : ''}`}>
+      <div ref={cadre} className={`phone${sosLive && !sosOuvert ? ' sos-reduit' : ''}${navVisible ? ' a-nav' : ''}${simple ? ' mode-simple' : ''}`}>
         {toast && <Toast message={toast.message} danger={toast.danger} />}
         {sosState && <SosOverlay state={sosState} onRetry={() => void triggerSos()} onClose={() => setSosState(null)} />}
         {sosLive && sosOuvert && (
@@ -926,7 +983,7 @@ export function App() {
         {screen === 'revenus' && <RevenusScreen nom={profil?.name ?? ''} telephone={profil?.phone ?? ''} onBack={() => setScreen('settings')} onToast={showToast} />}
 
         {/* Barre du bas : sur les quatre écrans racines seulement. */}
-        {navVisible && <NavBas actif={screen as Onglet} nonLus={messagerie.actif ? messagerie.nonLus : 0} onAller={(o) => setScreen(o)} />}
+        {navVisible && <NavBas actif={screen as Onglet} nonLus={messagerie.actif ? messagerie.nonLus : 0} onAller={allerOnglet} />}
       </div>
     </div>
     </GpsCarte.Provider>

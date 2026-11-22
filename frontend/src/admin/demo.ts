@@ -131,7 +131,7 @@ const overview: Overview = {
 const pricing = {
   baseFare: 300, perKm: 130, perMinute: 18, minFare: 600, avgSpeedKmh: 24,
   tvaRate: 0.05, feeRate: 0.1, insuranceRate: 0.02, trafficWeight: 0.6, stopFee: 250,
-  multipliers: { argent: 0.9, or: 0.9, diamant: 0.9 }, supplements: { argent: 0, or: 700, diamant: 1700 },
+  multipliers: { argent: 0.9, or: 0.9, diamant: 0.9 }, ecarts: { argent: { min: 0, max: 0 }, or: { min: 100, max: 200 }, diamant: { min: 500, max: 1000 } }, ecartKm: { court: 2, long: 20 },
   bodySurcharge: { berline: 1, suv: 1.08 },
   freeWaitMinutes: 5, cancelGraceMinutes: 2, cancelFee: 500, cleaningLight: 10000, cleaningMajor: 50000,
   longPickupPerKm: 100, longPickupThresholdKm: 5,
