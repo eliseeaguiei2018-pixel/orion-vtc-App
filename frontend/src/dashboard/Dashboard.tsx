@@ -5,7 +5,6 @@ import { chargerML } from '../components/chargerCarte';
 import { styleOrion } from '../components/styleCarte';
 import { comblerCarte } from '../lieux';
 import { LogoApp } from '../components/Logo';
-import { Objet, Scooter, Voiture, type Icone3D, type ObjetService } from '../components/Vehicules';
 import { getVectorConfig } from '../mapConfig';
 import { LIVE } from '../admin/api';
 import { AccesRefuse, NonConnecte, ecouter, lireEtat, seConnecter } from './donnees';
@@ -285,16 +284,13 @@ function Entete({ direct, maintenant, vue, setVue, defilement, setDefilement, ch
 
 /* --------------------------------- Tuiles --------------------------------- */
 
-/** Tuile de chiffre. `objet` : l'objet en volume de ce que le chiffre compte (comme l'app cliente). */
-function Tuile({ libelle, valeur, detail, ton, icone, objet }: {
+/** Tuile de chiffre. L'icône au trait, dans une bulle neutre, comme les paramètres de l'app cliente. */
+function Tuile({ libelle, valeur, detail, ton, icone }: {
   libelle: string; valeur: string; detail: string; ton?: 'alerte' | 'calme'; icone: React.ReactNode;
-  objet?: 'voiture' | 'scooter' | ObjetService | Icone3D;
 }) {
   return (
     <div className={`tb-tuile${ton ? ` ${ton}` : ''}`}>
-      <span className={`tb-tuile-ico${objet ? ' volume' : ''}`} aria-hidden>
-        {objet === 'voiture' ? <Voiture largeur={44} /> : objet === 'scooter' ? <Scooter largeur={44} /> : objet ? <Objet nom={objet} taille={38} /> : icone}
-      </span>
+      <span className="tb-tuile-ico" aria-hidden>{icone}</span>
       <span className="tb-tuile-lib">{libelle}</span>
       <span className="tb-tuile-val">{valeur}</span>
       <span className="tb-tuile-det">{detail}</span>
@@ -307,17 +303,17 @@ function Tuiles({ e }: { e: EtatTableau }) {
   const s = e.securite;
   return (
     <div className="tb-tuiles">
-      <Tuile objet="voiture" icone={<IcoVoiture />} libelle="Courses en cours" valeur={String(e.enDirect.courses)}
+      <Tuile icone={<IcoVoiture />} libelle="Courses en cours" valeur={String(e.enDirect.courses)}
         detail={e.enDirect.enRecherche ? `${e.enDirect.enRecherche} en recherche de chauffeur` : 'VTC électrique, en direct'} />
-      <Tuile objet="scooter" icone={<IcoScooter />} libelle="Livraisons moto en cours" valeur={String(e.enDirect.livraisons)}
+      <Tuile icone={<IcoScooter />} libelle="Livraisons moto en cours" valeur={String(e.enDirect.livraisons)}
         detail={`${pl(e.conducteurs.coursiers, 'coursier')} en service`} />
-      <Tuile objet="chauffeur" icone={<IcoVolant />} libelle="Conducteurs en ligne" valeur={String(e.conducteurs.enLigne)}
+      <Tuile icone={<IcoVolant />} libelle="Conducteurs en ligne" valeur={String(e.conducteurs.enLigne)}
         detail={`${e.conducteurs.enCourse} en course · ${pl(e.conducteurs.enLigne - e.conducteurs.enCourse, 'disponible')}`} />
-      <Tuile objet="finances" icone={<IcoCaisse />} libelle="Chiffre d’affaires du jour" valeur={fcfa(a.chiffreAffaires)}
+      <Tuile icone={<IcoCaisse />} libelle="Chiffre d’affaires du jour" valeur={fcfa(a.chiffreAffaires)}
         detail={a.panierMoyen ? `panier moyen ${fcfa(a.panierMoyen)}` : 'aucune course terminée'} />
-      <Tuile objet="destination" icone={<IcoDrapeau />} libelle="Terminées aujourd’hui" valeur={String(a.courses + a.livraisons)}
+      <Tuile icone={<IcoDrapeau />} libelle="Terminées aujourd’hui" valeur={String(a.courses + a.livraisons)}
         detail={`${pl(a.courses, 'course')} · ${pl(a.livraisons, 'livraison')}${a.noteMoyenne ? ` · ${a.noteMoyenne.toLocaleString('fr-FR')} ★` : ''}`} />
-      <Tuile objet="assurance" icone={<IcoBouclier />} libelle="Sécurité" ton={s.alertesOuvertes ? 'alerte' : 'calme'}
+      <Tuile icone={<IcoBouclier />} libelle="Sécurité" ton={s.alertesOuvertes ? 'alerte' : 'calme'}
         valeur={s.alertesOuvertes ? pl(s.alertesOuvertes, 'alerte') : 'RAS'}
         detail={`${pl(s.controles, 'contrôle')} · ${pl(e.assurance.inscrits, 'assuré')} ORION`} />
     </div>

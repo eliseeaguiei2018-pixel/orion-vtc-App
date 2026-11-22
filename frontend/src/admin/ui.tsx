@@ -5,7 +5,7 @@
  * mélangeait types, couche réseau, orchestration et 37 composants.
  */
 import { type ReactNode } from 'react';
-import { Objet, type Icone3D, type ObjetService } from '../components/Vehicules';
+import { IconAlert, IconBank, IconCar, IconCash, IconCheck, IconClock, IconFile, IconLeaf, IconMessage, IconSteering, IconTarget, IconTicket, IconTrend, IconUsers } from '../icons';
 import { API, fcfa } from './api';
 import type { ClientDetail, DriverDetail, PageMeta } from './types';
 
@@ -50,40 +50,42 @@ export function ContactRapide({ type, id, numero, nom, onContact }: {
   );
 }
 
-/** Objet en volume d'une tuile de chiffre, d'après ce que le chiffre compte. */
-const OBJETS_KPI: Array<[RegExp, ObjetService | Icone3D]> = [
-  [/alerte|sos|sécurité|anomal|incident/i, 'alertes-sos'],
-  [/batter|électri|co2|recharge|soh/i, 'eco'],
-  [/revenu|gmv|commission|chiffre d|tva|mrr|récurrent/i, 'finances'],
-  [/chauffeur|effectif|équipage|flotte|véhicule/i, 'chauffeur'],
-  [/abonn|forfait|pack/i, 'abonnement'],
-  [/message|réponse|ticket|csat|lus\b/i, 'message'],
-  [/client|compte|rôle|désactiv|passager/i, 'clients'],
-  [/course|trajet|dossier|événement/i, 'mes-courses'],
-  [/rapport|demande|requête|arrêté|action/i, 'document'],
-  [/banque|runway|couverture|séquestre|cash on hand/i, 'banque'],
-  [/caisse|espèces|encaiss|sorti|fond de|dû aux|solde/i, 'portefeuille'],
-  [/délai|burn|mot de passe|pouvoir/i, 'historique'],
-  [/revenu|gmv|commission|chiffre|tva|virement|encours|valeur|entrées|sorties|impay|écart/i, 'finances'],
-  [/objectif|taux|ratio|qualité|note/i, 'objectif'],
+/** Icône au trait d'une tuile de chiffre, d'après ce que le chiffre compte (comme les paramètres de l'app cliente). */
+type IconeTrait = (p: { size?: number; strokeWidth?: number }) => React.JSX.Element;
+const ICONES_KPI: Array<[RegExp, IconeTrait]> = [
+  [/alerte|sos|sécurité|anomal|incident/i, IconAlert],
+  [/batter|électri|co2|recharge|soh/i, IconLeaf],
+  [/revenu|gmv|commission|chiffre d|tva|mrr|récurrent/i, IconTrend],
+  [/chauffeur|effectif|équipage|flotte|véhicule/i, IconSteering],
+  [/abonn|forfait|pack/i, IconTicket],
+  [/message|réponse|ticket|csat|lus\b/i, IconMessage],
+  [/client|compte|rôle|désactiv|passager/i, IconUsers],
+  [/action/i, IconCheck],
+  [/course|trajet|événement/i, IconCar],
+  [/rapport|dossier|demande|requête|arrêté/i, IconFile],
+  [/banque|runway|couverture|séquestre|cash on hand/i, IconBank],
+  [/caisse|espèces|encaiss|sorti|fond de|dû aux|solde/i, IconCash],
+  [/délai|burn|mot de passe|pouvoir/i, IconClock],
+  [/revenu|gmv|commission|chiffre|tva|virement|encours|valeur|entrées|sorties|impay|écart/i, IconTrend],
+  [/objectif|taux|ratio|qualité|note/i, IconTarget],
 ];
-export function objetKpi(label: string): ObjetService | Icone3D | null {
-  for (const [motif, objet] of OBJETS_KPI) if (motif.test(label)) return objet;
+export function iconeKpi(label: string): IconeTrait | null {
+  for (const [motif, icone] of ICONES_KPI) if (motif.test(label)) return icone;
   return null;
 }
 
 /**
- * Tuile de chiffre. L'objet en volume (le même jeu que l'app cliente) montre ce que le
- * chiffre compte ; `objet={null}` le retire, `objet="…"` l'impose.
+ * Tuile de chiffre. L'icône au trait, dans une bulle neutre, montre ce que le chiffre compte ;
+ * `icone={null}` la retire.
  */
-export function Kpi({ label, value, sub, tone, objet }: { label: string; value: string; sub: string; tone: string; objet?: ObjetService | Icone3D | null }) {
-  const o = objet === undefined ? objetKpi(label) : objet;
+export function Kpi({ label, value, sub, tone, icone }: { label: string; value: string; sub: string; tone: string; icone?: IconeTrait | null }) {
+  const I = icone === undefined ? iconeKpi(label) : icone;
   return (
-    <div className={`adm-kpi ${tone}${o ? ' avec-objet' : ''}`}>
+    <div className={`adm-kpi ${tone}${I ? ' avec-objet' : ''}`}>
       <span className="adm-kpi-label">{label}</span>
       <span className="adm-kpi-value">{value}</span>
       <span className="adm-kpi-sub">{sub}</span>
-      {o && <span className="adm-kpi-objet" aria-hidden="true"><Objet nom={o} taille={46} /></span>}
+      {I && <span className="adm-kpi-objet" aria-hidden="true"><I size={22} strokeWidth={1.8} /></span>}
     </div>
   );
 }

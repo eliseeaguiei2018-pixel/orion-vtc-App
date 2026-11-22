@@ -1294,3 +1294,12 @@ JavaScript. Le passage d'une app à l'autre n'a pas été essayé sur un vrai t�
 
 iPhone : deux apps ne peuvent pas partager ce registre sans groupe d'apps signé ; la liaison
 client ↔ chauffeur reste réservée à Android en attendant le serveur en ligne.
+
+### Console et tableau de bord : icônes au trait, comme les paramètres de l'app client
+
+Le menu de la console, le titre de chaque session et les tuiles de chiffres prennent le style des
+paramètres de l'app client : une icône au trait fin, de la couleur du texte, sur une bulle ronde
+neutre et translucide. Même chose pour les tuiles et le fil d'activité du tableau de bord. Les
+objets en volume restent là où ils montrent une chose (numéros de secours, packs de location),
+comme dans l'app client. Vérifié en clair et en sombre, sur ordinateur et sur téléphone, sans
+erreur JavaScript.

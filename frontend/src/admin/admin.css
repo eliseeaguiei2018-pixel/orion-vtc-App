@@ -665,3 +665,20 @@ html[data-adm-theme='light'] .adm-alarme .adm-btn.ghost { background: transparen
   background: var(--a-panel); border: 1px solid var(--a-stroke); box-shadow: var(--a-ombre); font-size: 13.5px; line-height: 1.4; animation: adm-fade .15s ease; }
 .adm-avis span { flex: 1; min-width: 0; }
 .adm-avis button { flex: none; width: 28px; height: 28px; border-radius: 8px; border: 0; background: var(--a-panel2); color: var(--a-muted); font-size: 16px; cursor: pointer; }
+
+/* ==========================================================================================
+   ICÔNES AU TRAIT — le même style que les paramètres de l'app cliente
+   ==========================================================================================
+   Menu, titre de session et tuiles de chiffres : une icône au trait fin, de la couleur du
+   texte, posée sur une bulle ronde neutre et translucide. Les objets en volume restent là où
+   ils montrent une chose (secours, packs), comme dans l'app cliente. */
+.adm-navi-ico { width: 30px; height: 30px; border-radius: 50%; color: var(--a-text);
+  background: color-mix(in srgb, var(--a-text) 6%, transparent); }
+.adm-navi.on .adm-navi-ico { background: color-mix(in srgb, var(--a-text) 10%, transparent); }
+.adm-navi.locked .adm-navi-ico { opacity: 0.5; }
+.adm-titre-objet { width: 40px; height: 40px; border-radius: 50%; color: var(--a-text);
+  background: color-mix(in srgb, var(--a-text) 6%, transparent); }
+.adm-kpi.avec-objet { padding-right: 72px; }
+.adm-kpi-objet { width: 46px; height: 46px; border-radius: 50%; color: var(--a-text);
+  background: color-mix(in srgb, var(--a-text) 6%, transparent); }
+@media (max-width: 560px) { .adm-titre-objet { width: 32px; height: 32px; border-radius: 50%; } }

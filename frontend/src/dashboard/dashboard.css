@@ -418,3 +418,18 @@ body { min-height: 100vh; }
 .tb-tuile-ico.volume + .tb-tuile-lib { padding-right: 52px; }
 .tb-tuile.alerte .tb-tuile-ico.volume { background: var(--danger-doux); }
 .tb-cadenas-volume { display: grid; place-items: center; width: 84px; height: 84px; border-radius: 24px; background: var(--panneau-2); margin: 0 auto 14px; }
+
+/* ==========================================================================================
+   ICÔNES AU TRAIT — le même style que les paramètres de l'app cliente
+   ==========================================================================================
+   Une icône au trait fin, de la couleur du texte, sur une bulle ronde neutre et translucide.
+   Seule l'alerte garde sa couleur ; le type d'événement (course, livraison) est déjà écrit. */
+.tb-tuile-ico { width: 40px; height: 40px; top: 12px; right: 12px; border-radius: 50%; color: var(--texte);
+  background: color-mix(in srgb, var(--texte) 6%, transparent); }
+.tb-tuile-ico svg { width: 20px; height: 20px; }
+.tb-tuile-lib { padding-right: 46px; }
+.tb-ligne-ico, .tb-ligne-ico.course, .tb-ligne-ico.livraison { border-radius: 50%; color: var(--texte);
+  background: color-mix(in srgb, var(--texte) 6%, transparent); }
+.ob-point-ico, .ob-points li.objectif .ob-point-ico, .ob-points li.hausse .ob-point-ico,
+.ob-points li.baisse .ob-point-ico, .ob-points li.pic .ob-point-ico { border-radius: 50%; color: var(--texte);
+  background: color-mix(in srgb, var(--texte) 6%, transparent); }

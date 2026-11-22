@@ -2,7 +2,6 @@ import { enTeteRecaptcha } from '../securiteGoogle';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { avis, demander, demanderLieu } from './dialogues';
 import { LogoApp } from '../components/Logo';
-import { Objet, type Icone3D, type ObjetService } from '../components/Vehicules';
 import { IconMenu, IconActivity, IconAlarm, IconAlert, IconBank, IconBell, IconBellOff, IconBuilding, IconCar, IconCash, IconChart, IconCompass, IconCrown, IconFile, IconGem, IconGrid, IconIdCard, IconInbox, IconKey, IconLeaf, IconLock, IconMail, IconMap, IconMegaphone, IconMessage, IconMonitor, IconMoon, IconScale, IconShield, IconSignal, IconStar, IconSteering, IconSun, IconTag, IconTarget, IconTicket, IconTrend, IconUsers, IconWallet } from '../icons';
 import { DEMO } from './demo';
 import { suivreBus, type EtatBus } from '../busTest';
@@ -211,15 +210,6 @@ function Login({ onDone }: { onDone: () => void }) {
 
 /* ------------------------------ Navigation --------------------------- */
 type Section = 'monPoste' | 'posteEquipe' | 'crew' | 'caisses' | 'telematique' | 'comptes' | 'overview' | 'direction' | 'vigilance' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'clients' | 'support' | 'messagesClients' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles' | 'habilitations';
-/** L'objet en volume de chaque session : le même jeu d'objets que l'app cliente. */
-const OBJET_SESSION: Record<Section, ObjetService | Icone3D> = {
-  monPoste: 'bureau', posteEquipe: 'clients', overview: 'carte', direction: 'pack-or', vigilance: 'assurance', alerts: 'samu',
-  support: 'aide', messagesClients: 'message', notify: 'telephone', rides: 'mes-courses', dispatch: 'destination', quality: 'pack-diamant',
-  green: 'eco', teams: 'clients', crew: 'chauffeur', intel: 'objectif', b2b: 'immeuble', rental: 'location', rentalTarifs: 'abonnement',
-  telematique: 'wifi', subscriptions: 'pack-argent', disputes: 'document', drivers: 'chauffeur', clients: 'clients', finance: 'finances',
-  treasury: 'banque', caisses: 'portefeuille', pricing: 'finances', zones: 'lieu', promos: 'achat', services: 'reglages', audit: 'historique',
-  sessions: 'serveur', security: 'cadenas', comptes: 'clients', habilitations: 'cadenas', roles: 'assurance',
-};
 const NAV: { id: Section; label: string; perm: string; icon: (p: { size?: number; strokeWidth?: number }) => React.JSX.Element }[] = [
   { id: 'monPoste', label: 'Mon poste', perm: '', icon: IconInbox },
   { id: 'posteEquipe', label: 'Mon équipe', perm: 'teams:read', icon: IconCompass },
@@ -1529,7 +1519,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
                 title={allowed ? undefined : 'Session non autorisée pour votre rôle'}
                 onClick={() => { setMenuOuvert(false); if (allowed) setSection(n.id); else void openLocked(n.id, n.label); }}
               >
-                <span className="adm-navi-ico" aria-hidden="true"><Objet nom={OBJET_SESSION[n.id]} taille={24} /></span> {n.label}
+                <span className="adm-navi-ico" aria-hidden="true">{n.icon({ size: 17, strokeWidth: 1.8 })}</span> {n.label}
                 {allowed && n.id === 'alerts' && openAlerts.length > 0 && <span className="adm-navi-badge">{openAlerts.length}</span>}
                 {allowed && n.id === 'security' && security.length > 0 && <span className="adm-navi-badge">{security.length}</span>}
                 {!allowed && <span className="adm-navi-lock" aria-hidden><IconLock size={14} strokeWidth={1.5} /></span>}
@@ -1558,7 +1548,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
         )}
         <header className="adm-mhead">
           <button type="button" className="adm-menu-btn" aria-label="Ouvrir le menu des sessions" aria-controls="adm-menu" aria-expanded={menuOuvert} onClick={() => setMenuOuvert(true)}><IconMenu size={20} strokeWidth={1.5} /></button>
-          <h2><span className="adm-titre-objet" aria-hidden="true"><Objet nom={OBJET_SESSION[section]} taille={34} /></span>{NAV.find((n) => n.id === section)?.label}</h2>
+          <h2><span className="adm-titre-objet" aria-hidden="true">{NAV.find((n) => n.id === section)?.icon({ size: 21, strokeWidth: 1.8 })}</span>{NAV.find((n) => n.id === section)?.label}</h2>
           {can('search:read') && (
             <GlobalSearch
               onSearch={runSearch}
