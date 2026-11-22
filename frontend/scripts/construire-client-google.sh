@@ -15,7 +15,7 @@ SORTIE=$(realpath -m "$1")
 cd "$(dirname "$0")/.."
 # Un .env.local de développement pointe vers un serveur local : on l'écarte le temps du build.
 if [ -f .env.local ]; then mv .env.local .env.local.ecarte; trap 'mv .env.local.ecarte .env.local' EXIT; fi
-VITE_API_URL= \
+VITE_API_URL="${VITE_API_URL:-}" \
 VITE_MAP_GOOGLE_SEUL=1 \
 VITE_MAP_DONNEES_URL='./carte/' \
   npx vite build --outDir "$SORTIE" --emptyOutDir --logLevel error
