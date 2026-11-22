@@ -583,7 +583,7 @@ a.dv-pill { text-decoration: none; }
 .ecran-vehicule .dv-tabs { height: auto; min-height: 78px; }
 
 /* Raccourcis de l'accueil : pastilles rondes sur fond neutre (comme l'accueil de l'app client). */
-.tuiles.cinq .tuile.ronde .tuile-fond { aspect-ratio: 1; border-radius: 50%; }
+.tuiles.cinq .tuile.ronde .tuile-fond { aspect-ratio: 1; border-radius: 50%; width: 100%; max-width: 76px; margin-inline: auto; }
 .tuiles.cinq .tuile.ronde .tuile-fond .objet { width: 76%; bottom: 12%; }
 
 /* Relié à l'app client du même téléphone (serveur de test partagé). */
