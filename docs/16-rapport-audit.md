@@ -1269,3 +1269,28 @@ console, voiture qui avance chez le client, code vérifié, course terminée et 
 Limites : le passage d'une app à l'autre n'a pas été essayé sur un vrai téléphone (pas d'émulateur
 ici) ; la durée « sans circulation » de Google est parfois plus longue que la durée réelle la nuit,
 le trafic est alors compté fluide.
+
+## 25. App chauffeur 1.5.9 alignée sur l'app client, reliée sur le même téléphone (22 novembre)
+
+L'app chauffeur reprend les apports de l'app client 1.5.9 : carte Google, objets en volume,
+barre du bas en pilule, raccourcis ronds, couleur au choix (vert, orange, bleu), mode clair et
+sombre, verrouillage par empreinte ou visage, position gardée dans chaque onglet, langues avec
+drapeaux. Les nouvelles phrases sont traduites dans les 8 langues. Sur l'écran large de la
+voiture (et HarmonyOS, qui charge la même page), les raccourcis gardent une taille fixe.
+
+Versions : Android client et chauffeur 1.5.9, code 17 ; HarmonyOS 1.5.9, code 17 ; iOS client et
+chauffeur 1.5.9, build 17, avec le texte d'autorisation Face ID dans les deux apps et les modules
+natifs (partage, empreinte) ajoutés au projet iOS du chauffeur.
+
+`ORION-client-1.5.9.apk` (code 17, SHA-256
+`f5a031abb1adb63f685e833c3636100c680c5d5c8863e6fca29393d160dbacd2`) et
+`ORION-chauffeur-1.5.9.apk` (`ci.orion.chauffeur`, code 17, SHA-256
+`11bfb3babddff2575b510fbcf7cf86ee4eb6d4cc9c3430ee56831e8c83089747`), même signature. Installées
+sur le même téléphone, une course commandée dans l'app client arrive dans l'app chauffeur
+(registre `ci.orion.app.bustest`, section 21 et suivantes). Contrôle croisé sur le contenu de ces
+APK, dans un navigateur : parcours complet 10 sur 10 (offre, acceptation, arrivée, mauvais code
+refusé, course, paiement, note), refus, annulation et chauffeur hors ligne 5 sur 5, sans erreur
+JavaScript. Le passage d'une app à l'autre n'a pas été essayé sur un vrai téléphone.
+
+iPhone : deux apps ne peuvent pas partager ce registre sans groupe d'apps signé ; la liaison
+client ↔ chauffeur reste réservée à Android en attendant le serveur en ligne.
