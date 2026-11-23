@@ -3,8 +3,11 @@
  * Le serveur ORION signe chaque manifeste (backend/src/modules/mises-a-jour/service.ts) ;
  * l'application ne télécharge une version que si la signature est valide.
  */
-/** Clé publique ORION de vérification des mises à jour (ECDSA P-256, SPKI). */
-const CLE_PUBLIQUE = 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEzvC6h7+tdFIAKZCXzRdGhJP8b0ZmTa+vWhNdZgzALLQbYXjUtflHiLevI07ZFdHrQZmPhXtDElqdVaWGW+jqRw==';
+/**
+ * Clé publique ORION de vérification des mises à jour (ECDSA P-256, SPKI) : celle du serveur
+ * (GET /apps/cle-publique), dont la clé privée ne quitte jamais son disque.
+ */
+const CLE_PUBLIQUE = 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEDHRzAwKboI3TBMDVWn7WFUdgOmSGG8YDnHhe6eZjMbiGShKOciLEL+bZa68pnmR9UAUO3dBpseIjCDpO6XxUcw==';
 
 export type AppOrion = 'client' | 'chauffeur' | 'console';
 export interface ManifesteMaj {

@@ -201,3 +201,24 @@ Un vrai appel par internet, avec numéros masqués, demandera un fournisseur de 
 ## 9. Détection de choc / SOS
 - Accéléromètre (`DeviceMotion`) → endpoint `/safety/sensor` (déjà codé) → alerte SAMU (185).
 - Notifications **critiques** iOS (entitlement Apple requis) pour percer le mode silencieux.
+
+## Mises à jour à chaud (sans nouvelle APK)
+
+Depuis la version 1.9.0 (versionCode 25), les apps ORION client, chauffeur et console se
+mettent à jour depuis le serveur ORION, sans réinstaller d'APK :
+
+1. La direction publie la nouvelle application web d'une app :
+   `ORION_SERVEUR=https://… ORION_JETON_ADMIN=<session direction> frontend/scripts/publier-mise-a-jour.sh <client|chauffeur|console> <version>`
+   (le paquet est construit sans la clé Google, signé par le serveur, annoncé en direct).
+2. Chaque téléphone vérifie la signature (clé publique dans `frontend/src/miseAJourSignature.ts`,
+   celle de `GET /apps/cle-publique`), puis l'empreinte SHA-256 du paquet, le télécharge et
+   l'installe au bon moment : à l'ouverture de l'app ou après deux minutes sans geste, jamais
+   pendant une course, une offre ou une saisie. Si la nouvelle version ne démarre pas, le
+   téléphone revient seul à la précédente.
+
+Une nouvelle APK reste nécessaire seulement pour un changement natif (permission, module
+Android/iOS) : publier alors le paquet avec un `natifMin` égal au nouveau versionCode, les
+téléphones plus anciens l'ignorent. La clé de signature est créée et gardée par le serveur
+sur son disque persistant (`/var/data/paquets/cle-signature.pk8`) ; si ce disque était perdu,
+le serveur en créerait une autre et il faudrait de nouvelles APK portant sa clé publique.
+Projets iOS : lancer `npx cap sync ios` sur un Mac pour y ajouter le module de mise à jour.
