@@ -1309,6 +1309,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
           approche: z.object({
             actif: z.boolean(), offerteKm: z.number().min(0).max(30), offerteMin: z.number().min(0).max(60),
             parKm: z.number().min(0).max(2000), parMin: z.number().min(0).max(500),
+            // Montant maximal (F hors taxes) que l'approche peut ajouter au prix d'une course.
+            plafond: z.number().min(0).max(20_000),
           }).partial().optional(),
         }),
         req.body,

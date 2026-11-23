@@ -11,15 +11,22 @@ import { ChauffeursProches } from '../src/modules/proches/service.js';
 const YOP = { lat: 5.3441, lng: -4.0637 }; // Yopougon, zone industrielle
 const GOLF = { lat: 5.3588, lng: -3.964 }; // Riviera Golf
 
-test('approche : offerte jusqu’à 2 km et 5 min, puis au km et à la minute', () => {
-  assert.equal(coutApproche({ km: 1.5, minutes: 4 }), 0);
-  assert.equal(coutApproche({ km: 4, minutes: 10 }), 2 * 100 + 5 * 18);
+test('approche : offerte jusqu’à 5 km et 15 min, puis au km et à la minute, plafonnée à 200 F', () => {
+  assert.equal(coutApproche({ km: 4.5, minutes: 14 }), 0);
+  assert.equal(coutApproche({ km: 6, minutes: 18 }), 1 * 60 + 3 * 10);
   assert.equal(coutApproche(null), 0);
+  // Chauffeur venu de loin (flotte encore peu dense) : jamais plus que le plafond.
+  assert.equal(coutApproche({ km: 17.7, minutes: 51 }), 200);
   const sans = estimatePrice({ origin: YOP, destination: GOLF, category: 'argent' }, {});
-  const loin = estimatePrice({ origin: YOP, destination: GOLF, category: 'argent' }, { approche: { km: 9, minutes: 25 } });
+  const loin = estimatePrice({ origin: YOP, destination: GOLF, category: 'argent' }, { approche: { km: 7, minutes: 20 } });
   assert.ok(loin.amount > sans.amount);
-  assert.equal(loin.breakdown.approche, 7 * 100 + 20 * 18);
-  assert.equal(loin.breakdown.approcheMin, 25);
+  assert.equal(loin.breakdown.approche, 2 * 60 + 5 * 10);
+  assert.equal(loin.breakdown.approcheMin, 20);
+  const tresLoin = estimatePrice({ origin: YOP, destination: GOLF, category: 'argent' }, { approche: { km: 25, minutes: 70 } });
+  assert.equal(tresLoin.breakdown.approche, 200);
+  // Plafond réglable en console.
+  const reglé = { ...DEFAULT_PRICING, approche: { ...DEFAULT_PRICING.approche, plafond: 100 } };
+  assert.equal(coutApproche({ km: 25, minutes: 70 }, reglé), 100);
   const coupe = estimatePrice({ origin: YOP, destination: GOLF, category: 'argent' }, {
     approche: { km: 9, minutes: 25 }, settings: { ...DEFAULT_PRICING, approche: { ...DEFAULT_PRICING.approche, actif: false } },
   });

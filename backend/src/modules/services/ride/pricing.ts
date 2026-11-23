@@ -76,7 +76,14 @@ export function coefAjustement(s: Pick<PricingSettings, 'ajustementPct'>): numbe
   return 1 + Math.min(AJUSTEMENT_MAX, Math.max(AJUSTEMENT_MIN, p)) / 100;
 }
 
-export interface ApprocheTarif { actif: boolean; offerteKm: number; offerteMin: number; parKm: number; parMin: number }
+/**
+ * Approche du chauffeur facturée au client : offerte jusqu'au seuil, puis au km et à la minute,
+ * et JAMAIS plus que `plafond` (F hors taxes). Yango ne fait pas payer l'approche : sans plafond,
+ * un chauffeur venu de loin (flotte encore peu dense) ajoutait des milliers de francs et annulait
+ * l'avantage de prix d'ORION. Au-delà, c'est ORION qui compense le chauffeur (prime d'approche
+ * longue, longPickupPerKm), pas le client.
+ */
+export interface ApprocheTarif { actif: boolean; offerteKm: number; offerteMin: number; parKm: number; parMin: number; plafond: number }
 
 /**
  * GRILLE ORION : environ 40 % moins chère que Yango à Abidjan. La flotte ORION est 100 %
@@ -99,7 +106,7 @@ export const DEFAULT_PRICING: PricingSettings = {
   freeWaitMinutes: 5, cancelGraceMinutes: 2, cancelFee: 500,
   cleaningLight: 10_000, cleaningMajor: 50_000,
   longPickupPerKm: 100, longPickupThresholdKm: 5,
-  approche: { actif: true, offerteKm: 2, offerteMin: 5, parKm: 100, parMin: 18 },
+  approche: { actif: true, offerteKm: 5, offerteMin: 15, parKm: 60, parMin: 10, plafond: 200 },
   ajustementPct: 0,
 };
 
@@ -107,7 +114,9 @@ export const DEFAULT_PRICING: PricingSettings = {
 export function coutApproche(a: { km: number; minutes: number } | null | undefined, s: PricingSettings = DEFAULT_PRICING): number {
   const r = s.approche ?? DEFAULT_PRICING.approche;
   if (!a || !r.actif) return 0;
-  return Math.max(0, a.km - r.offerteKm) * r.parKm + Math.max(0, a.minutes - r.offerteMin) * r.parMin;
+  const cout = Math.max(0, a.km - r.offerteKm) * r.parKm + Math.max(0, a.minutes - r.offerteMin) * r.parMin;
+  const plafond = Number.isFinite(r.plafond) ? Math.max(0, r.plafond) : DEFAULT_PRICING.approche.plafond;
+  return Math.min(cout, plafond);
 }
 
 /**
