@@ -78,6 +78,13 @@
 	     localisation en arrière-plan (voir NATIVE.md). -->
 	<key>NSFaceIDUsageDescription</key>
 	<string>ORION Chauffeur utilise Face ID pour vérifier que c’est bien vous à l’ouverture de l’application. Votre visage reste dans l’iPhone : ORION reçoit seulement « reconnu » ou « non reconnu ».</string>
+	<!-- Course ou service en cours : position gardée en arrière-plan (indicateur bleu d’iOS). -->
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>ORION Chauffeur garde votre position pendant votre service, même écran éteint ou application quittée, pour recevoir des courses et que les clients vous voient approcher.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>ORION Chauffeur utilise votre position pendant votre service pour vous proposer les courses proches, vous guider vers le client, tracer la course et localiser une alerte SOS.</string>
 	<!-- Réseau local autorisé (serveur de développement) ; Internet reste en HTTPS. -->

@@ -7,6 +7,8 @@ haut à gauche, pose l'ombre. L'image couvre tout le cadre : Android la découpe
 forme du téléphone (rond, carré arrondi, « squircle »).
 
 Usage : python icone_app.py <dossier-sortie>          → <dossier-sortie>/icone-app.png (864 px)
+        ORION_ICONE=chauffeur | console : même icône, avec l'emblème de l'app en relief en bas à
+        gauche (volant pour ORION Chauffeur, cadran de supervision pour ORION Console).
 Puis   : python icone_android.py <dossier-sortie> ../../android/app/src/main/res ../../public
 """
 import math, os, sys
@@ -70,8 +72,31 @@ for X, Y, r in ((372, 120, 15), (406, 150, 12), (430, 186, 9)):
     rayon = r * K * 1.45
     o3.sphere('étoile', rayon, pt(X, Y, HAUT + rayon * 0.72), blanc)
 
+# Emblème de l'application, dans la même céramique que la feuille et les étoiles.
+EMBLEME = os.environ.get('ORION_ICONE', 'client')
+if EMBLEME in ('chauffeur', 'console'):
+    # En bas à gauche, entièrement dans la zone sûre (cercle de 66 dp) : visible quelle que
+    # soit la découpe du téléphone.
+    cx, cy, R = 152, 372, 36
+    epais = 6.8 * K                                            # demi-épaisseur de l'anneau
+    z = HAUT + epais * 0.95
+    centre = pt(cx, cy, z)
+    o3.tore('anneau', R * K, epais, centre, blanc)
+    if EMBLEME == 'chauffeur':
+        # Volant : moyeu et trois branches (gauche, droite, bas), comme le pictogramme de l'app.
+        o3.cylindre('moyeu', 9 * K, epais * 1.6, pt(cx, cy + 4, HAUT + epais * 0.8), blanc, arrondi=0.01)
+        for X, Y in ((cx - R + 4, cy - 5), (cx + R - 4, cy - 5), (cx, cy + R - 4)):
+            o3.tube('branche-volant', [pt(cx, cy + 4, z), pt(X, Y, z)], epais * 0.72, blanc)
+    else:
+        # Cadran de supervision : graduations, aiguille vers le haut à droite, moyeu.
+        for a in (200, 245, 290, 335, 20):
+            r = math.radians(a)
+            o3.sphere('graduation', 3.0 * K, pt(cx + math.cos(r) * (R - 12), cy - math.sin(r) * (R - 12), HAUT + 3.0 * K), blanc)
+        o3.tube('aiguille', [pt(cx, cy, z), pt(cx + 19, cy - 17, z)], epais * 0.6, blanc)
+        o3.sphere('moyeu', 7 * K, pt(cx, cy, HAUT + 5.5 * K), blanc)
+
 # Cadre : les 108 dp de l'icône adaptative (3 unités), vus d'aplomb.
 bpy.ops.mesh.primitive_plane_add(size=3.0, location=(0, 0, HAUT)); cadre = bpy.context.object; cadre.hide_render = True
 o3.cadrer(scene, cam, azimut=90, elevation=89.9, marge=0.0, objets=[cadre], ortho=True)
 o3.rendre(scene, os.path.join(SORTIE, 'icone-app.png'))
-print('icone-app : ok')
+print('icone-app : ok', EMBLEME)
