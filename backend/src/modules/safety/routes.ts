@@ -59,6 +59,19 @@ export async function safetyRoutes(app: FastifyInstance, container: Container): 
     return { suivi: container.safety.suiviPour(id, body.userId) };
   });
 
+  /**
+   * L'usager met fin à SON alerte (et à la discussion avec l'agent) : « je suis en sécurité »
+   * ou « fausse alerte ». Réservé à son auteur ; une autre personne obtient 404.
+   */
+  app.post('/safety/sos/:id/terminer', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = parse(z.object({ userId: z.string().min(1), motif: z.enum(['en_securite', 'fausse_alerte']) }), req.body);
+    titulaire(req, body.userId);
+    const a = container.safety.terminerParUsager(id, body.userId, body.motif);
+    if (!a || a === 'interdit') { reply.code(404); return { error: 'Alerte introuvable' }; }
+    return { suivi: vueUsager(a) };
+  });
+
   // Flux capteurs (accéléromètre) → détection automatique d'accident.
   app.post('/safety/sensor', async (req) => {
     const body = parse(

@@ -14,6 +14,12 @@
 type D = Record<string, string>;
 
 const es: D = {
+  sos_end: 'Terminar la alerta',
+  sos_end_question: '¿Por qué termina la alerta? Se informará al agente de ORION.',
+  sos_end_safe: 'Estoy a salvo',
+  sos_end_false: 'Fue una falsa alarma',
+  sos_end_keep: 'Mantener la alerta activa',
+  sos_end_failed: 'No se pudo terminar la alerta ahora: inténtelo de nuevo. ORION sigue su alerta.',
   sos_demo_end: 'Terminar la alerta de demostración',
   wed_date: 'Fecha de la boda',
   wed_done: 'Boda del {d} reservada ({m}): ORION le llamará para finalizar.',
@@ -57,6 +63,12 @@ const es: D = {
 };
 
 const it: D = {
+  sos_end: 'Termina l’avviso',
+  sos_end_question: 'Perché termini l’avviso? L’operatore ORION sarà informato.',
+  sos_end_safe: 'Sono al sicuro',
+  sos_end_false: 'Era un falso allarme',
+  sos_end_keep: 'Mantieni l’avviso attivo',
+  sos_end_failed: 'Impossibile terminare l’avviso ora: riprova. ORION continua a seguire il tuo avviso.',
   sos_demo_end: 'Termina l’avviso dimostrativo',
   wed_date: 'Data del matrimonio',
   wed_done: 'Matrimonio del {d} prenotato ({m}): ORION la chiamerà per finalizzare.',
@@ -100,6 +112,12 @@ const it: D = {
 };
 
 const de: D = {
+  sos_end: 'Alarm beenden',
+  sos_end_question: 'Warum beenden Sie den Alarm? Der ORION-Mitarbeiter wird informiert.',
+  sos_end_safe: 'Ich bin in Sicherheit',
+  sos_end_false: 'Es war ein Fehlalarm',
+  sos_end_keep: 'Alarm aktiv lassen',
+  sos_end_failed: 'Der Alarm konnte gerade nicht beendet werden: erneut versuchen. ORION verfolgt Ihren Alarm weiter.',
   sos_demo_end: 'Demo-Alarm beenden',
   wed_date: 'Hochzeitsdatum',
   wed_done: 'Hochzeit am {d} gebucht ({m}): ORION ruft Sie zur Bestätigung an.',
@@ -143,6 +161,12 @@ const de: D = {
 };
 
 const ar: D = {
+  sos_end: 'إنهاء التنبيه',
+  sos_end_question: 'لماذا تنهي التنبيه؟ سيتم إبلاغ موظف ORION.',
+  sos_end_safe: 'أنا في أمان',
+  sos_end_false: 'كان إنذارًا كاذبًا',
+  sos_end_keep: 'إبقاء التنبيه نشطًا',
+  sos_end_failed: 'تعذّر إنهاء التنبيه الآن: أعد المحاولة. لا يزال ORION يتابع تنبيهك.',
   sos_demo_end: 'إنهاء التنبيه التجريبي',
   wed_date: 'تاريخ الزفاف',
   wed_done: 'تم حجز زفاف يوم {d} ({m}): سيتصل بك ORION لإتمام الحجز.',
@@ -186,6 +210,12 @@ const ar: D = {
 };
 
 const zh: D = {
+  sos_end: '结束警报',
+  sos_end_question: '为什么要结束警报？ORION 工作人员会收到通知。',
+  sos_end_safe: '我很安全',
+  sos_end_false: '这是误报',
+  sos_end_keep: '保持警报',
+  sos_end_failed: '目前无法结束警报：请重试。ORION 仍在跟进您的警报。',
   sos_demo_end: '结束演示警报',
   wed_date: '婚礼日期',
   wed_done: '{d} 的婚礼已预订（{m}）：ORION 将致电与您确认。',
@@ -229,6 +259,12 @@ const zh: D = {
 };
 
 const ru: D = {
+  sos_end: 'Завершить тревогу',
+  sos_end_question: 'Почему вы завершаете тревогу? Сотрудник ORION будет уведомлён.',
+  sos_end_safe: 'Я в безопасности',
+  sos_end_false: 'Это была ложная тревога',
+  sos_end_keep: 'Оставить тревогу активной',
+  sos_end_failed: 'Не удалось завершить тревогу: попробуйте ещё раз. ORION продолжает следить за вашей тревогой.',
   sos_demo_end: 'Завершить демонстрационную тревогу',
   wed_date: 'Дата свадьбы',
   wed_done: 'Свадьба {d} забронирована ({m}): ORION позвонит вам для подтверждения.',

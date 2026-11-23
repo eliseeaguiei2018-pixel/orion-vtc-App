@@ -1296,6 +1296,9 @@ body { letter-spacing: 0; text-rendering: optimizeLegibility; }
 @media (prefers-reduced-motion: reduce) { .sos-ecrit i { animation: none; opacity: 0.6; } }
 /* SOS — dernier recours : visible seulement si le centre ne peut pas agir. */
 .sos-recours { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+/* Fin de l'alerte par l'usager : motif en un toucher, l'agent ORION est informé. */
+.sos-fin { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.sos-fin > p { margin: 0 0 4px; font-size: 13px; color: var(--muted); }
 .sos-recours > span { display: block; font-size: 12.5px; color: var(--muted); }
 
 /* Paramètres → Serveur ORION : l'état de la liaison, lisible d'un coup d'œil. */

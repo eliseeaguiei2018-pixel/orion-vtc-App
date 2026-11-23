@@ -35,7 +35,7 @@ import {
   DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { urlApi, contactCourse, lireCodePriseEnCharge, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, modeLocal, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, reserverMariage, mesMariages, type ReservationMariage, chargerPortefeuille, resumeCotisations, transfererPortefeuille, type Cotisations, type MouvementPortefeuille, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, subscribePlan, type Announcement, type AppConfig, type CanalCode, type PkgSize, type SafeDriver, type SosSuivi, type StatutDemandeSos, type SupportMessage } from './api';
+import { urlApi, contactCourse, lireCodePriseEnCharge, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, modeLocal, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, reserverMariage, mesMariages, type ReservationMariage, chargerPortefeuille, resumeCotisations, transfererPortefeuille, type Cotisations, type MouvementPortefeuille, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, sosTerminer, type MotifFinSos, subscribePlan, type Announcement, type AppConfig, type CanalCode, type PkgSize, type SafeDriver, type SosSuivi, type StatutDemandeSos, type SupportMessage } from './api';
 import { useI18n } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
@@ -712,6 +712,12 @@ export function App() {
     const sv = await sosRepondre(sosLive.id, clientId(), texte);
     if (sv) setSosLive(sv);
   };
+  const terminerSos = async (motif: MotifFinSos): Promise<boolean> => {
+    if (!sosLive) return false;
+    const sv = await sosTerminer(sosLive.id, clientId(), motif);
+    if (sv) setSosLive(sv);
+    return Boolean(sv?.clotureeA);
+  };
   const fermerSos = () => {
     setSosLive(null); setSosOuvert(false); setSosNonLu(0);
     try { localStorage.removeItem('orion.sos'); } catch { /* ignore */ }
@@ -938,7 +944,7 @@ export function App() {
         {toast && <Toast message={toast.message} danger={toast.danger} />}
         {sosState && <SosOverlay state={sosState} onRetry={() => void triggerSos()} onClose={() => setSosState(null)} />}
         {sosLive && sosOuvert && (
-          <SosLive suivi={sosLive} horsLigne={sosHorsLigne} demo={modeLocal()} onMinimize={() => setSosOuvert(false)} onClose={fermerSos} onSend={(x) => void repondreSos(x)} />
+          <SosLive suivi={sosLive} horsLigne={sosHorsLigne} demo={modeLocal()} onMinimize={() => setSosOuvert(false)} onClose={fermerSos} onSend={(x) => void repondreSos(x)} onEnd={terminerSos} />
         )}
         {sosLive && !sosOuvert && <SosPill suivi={sosLive} nonLu={sosNonLu} demo={modeLocal()} onOpen={() => setSosOuvert(true)} />}
         {locked && <LockScreen onUnlock={() => setLocked(false)} />}
@@ -1288,9 +1294,20 @@ const classeDemandeSos = (st: StatutDemandeSos) =>
  * police : l'agent ORION lui répond, comprend ce qui se passe, et c'est le centre de
  * contrôle qui prévient le service qu'il faut. L'écran montre où en est le centre.
  */
-function SosLive({ suivi, horsLigne, demo, onMinimize, onClose, onSend }: {
+function SosLive({ suivi, horsLigne, demo, onMinimize, onClose, onSend, onEnd }: {
   suivi: SosSuivi; horsLigne: boolean; demo?: boolean; onMinimize: () => void; onClose: () => void; onSend: (t: string) => void;
+  /** Mettre fin à l'alerte et à la discussion avec l'agent ; renvoie false en cas d'échec. */
+  onEnd: (motif: MotifFinSos) => Promise<boolean>;
 }) {
+  const [finOuverte, setFinOuverte] = useState(false);
+  const [finEnvoi, setFinEnvoi] = useState(false);
+  const [finEchec, setFinEchec] = useState(false);
+  const terminer = async (motif: MotifFinSos) => {
+    setFinEnvoi(true); setFinEchec(false);
+    const ok = await onEnd(motif);
+    setFinEnvoi(false);
+    if (ok) setFinOuverte(false); else setFinEchec(true);
+  };
   // Démonstration : aucun centre ne clôt l'alerte, la personne peut y mettre fin.
   const terminerDemo = () => { cloreSosLocal(suivi.id); onClose(); };
   const { t } = useI18n();
@@ -1416,6 +1433,17 @@ function SosLive({ suivi, horsLigne, demo, onMinimize, onClose, onSend }: {
         )}
         {close && <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={onClose}>{t('sos_live_close')}</button>}
         {demo && !close && <button className="btn btn-ghost" style={{ marginTop: 14 }} onClick={terminerDemo}>{t('sos_demo_end')}</button>}
+        {/* Fin de l'alerte par la personne elle-même : motif demandé, l'agent ORION en est informé. */}
+        {!demo && !close && !finOuverte && <button className="btn btn-ghost" style={{ marginTop: 14 }} onClick={() => setFinOuverte(true)}>{t('sos_end')}</button>}
+        {!demo && !close && finOuverte && (
+          <div className="sos-fin" role="group" aria-label={t('sos_end')}>
+            <p>{t('sos_end_question')}</p>
+            <button className="btn btn-primary" disabled={finEnvoi} onClick={() => void terminer('en_securite')}>{t('sos_end_safe')}</button>
+            <button className="btn btn-ghost" disabled={finEnvoi} onClick={() => void terminer('fausse_alerte')}>{t('sos_end_false')}</button>
+            <button className="btn btn-ghost" disabled={finEnvoi} onClick={() => { setFinOuverte(false); setFinEchec(false); }}>{t('sos_end_keep')}</button>
+            {finEchec && <p className="sos-offline" role="alert">{t('sos_end_failed')}</p>}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -3095,19 +3123,35 @@ function PaymentScreen({ quote, coverage, payment, driver, rideId, onPaid, desti
    */
   useEffect(() => {
     if (!isLiveBackend() || !rideId) return;
-    const url = rideSocketUrl(rideId);
-    if (!url) return;
-    const ws = new WebSocket(url);
     let fini = false;
-    ws.onmessage = (ev) => {
+    const payee = () => { if (fini) return; fini = true; setPhase('success'); window.setTimeout(onPaid, 2200); };
+    /*
+     * Le chauffeur a pu confirmer l'encaissement AVANT que cet écran ne s'ouvre (ou pendant
+     * que l'app était en arrière-plan) : l'avis en direct est alors manqué. On relit donc
+     * l'état de la course à l'ouverture de l'écran, au retour dans l'app, puis toutes les 5 s.
+     */
+    const relire = async () => {
       try {
-        const m = JSON.parse(ev.data as string) as { type: string; data?: { status?: string } };
-        if (!fini && m.type === 'ride.status' && m.data?.status === 'paid') {
-          fini = true; setPhase('success'); window.setTimeout(onPaid, 2200);
-        }
-      } catch { /* message illisible : ignoré */ }
+        const r = await fetch(`${import.meta.env.VITE_API_URL}/rides/${rideId}`);
+        const j = await r.json().catch(() => null) as { ride?: { status?: string } } | null;
+        if (j?.ride?.status === 'paid' || j?.ride?.status === 'rated') payee();
+      } catch { /* hors ligne : nouvel essai au prochain tour */ }
     };
-    return () => ws.close();
+    void relire();
+    const tour = window.setInterval(() => void relire(), 5000);
+    const auRetour = () => { if (!document.hidden) void relire(); };
+    document.addEventListener('visibilitychange', auRetour);
+    const url = rideSocketUrl(rideId);
+    const ws = url ? new WebSocket(url) : null;
+    if (ws) {
+      ws.onmessage = (ev) => {
+        try {
+          const m = JSON.parse(ev.data as string) as { type: string; data?: { status?: string } };
+          if (m.type === 'ride.status' && m.data?.status === 'paid') payee();
+        } catch { /* message illisible : ignoré */ }
+      };
+    }
+    return () => { fini = true; window.clearInterval(tour); document.removeEventListener('visibilitychange', auRetour); ws?.close(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rideId]);
 

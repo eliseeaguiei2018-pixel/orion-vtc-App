@@ -710,6 +710,16 @@ export function createDemoBackend(): DriverBackend {
       sosEcoutes.get(a.id)?.forEach((f) => f({ ...a, chat: [...a.chat] }));
       return a;
     },
+    async sosTerminer(alertId, motif) {
+      const a = (st.sos ?? []).find((x) => x.id === alertId);
+      if (!a) return null;
+      a.chat.push({ from: 'usager', text: motif === 'en_securite' ? 'Je mets fin à l’alerte : je suis en sécurité.' : 'Je mets fin à l’alerte : c’était une fausse alerte.', at: now() });
+      a.status = 'cancelled';
+      a.clotureeA = now();
+      persist();
+      sosEcoutes.get(a.id)?.forEach((f) => f({ ...a, chat: [...a.chat] }));
+      return a;
+    },
     sosSubscribe(alertId, onSuivi, onLink) {
       const set = sosEcoutes.get(alertId) ?? new Set();
       set.add(onSuivi);

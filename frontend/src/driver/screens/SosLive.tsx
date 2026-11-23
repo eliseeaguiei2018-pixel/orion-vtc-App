@@ -15,6 +15,16 @@ const heure = (iso: string) => new Date(iso).toLocaleTimeString(localeCourante()
 export function SosLive({ app }: { app: DriverApp }) {
   const suivi = app.sosLive!;
   const [texte, setTexte] = useState('');
+  // Fin de l'alerte par le chauffeur lui-même : motif demandé, l'agent ORION en est informé.
+  const [finOuverte, setFinOuverte] = useState(false);
+  const [finEnvoi, setFinEnvoi] = useState(false);
+  const [finEchec, setFinEchec] = useState(false);
+  const terminer = async (motif: 'en_securite' | 'fausse_alerte') => {
+    setFinEnvoi(true); setFinEchec(false);
+    const ok = await app.actions.sosTerminer(motif);
+    setFinEnvoi(false);
+    if (ok) setFinOuverte(false); else setFinEchec(true);
+  };
   const fin = useRef<HTMLDivElement>(null);
   useEffect(() => { fin.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [suivi.chat.length]);
   const close = suivi.clotureeA !== null;
@@ -90,6 +100,16 @@ export function SosLive({ app }: { app: DriverApp }) {
             <a key={num} href={`tel:${num}`}><IconPhone size={15} /> <strong>{num}</strong> <span>{label}</span></a>
           ))}
         </div>
+        {!close && !finOuverte && <button className="btn btn-ghost" style={{ marginTop: 14 }} onClick={() => setFinOuverte(true)}>{tr('Mettre fin à l’alerte')}</button>}
+        {!close && finOuverte && (
+          <div className="sos-fin" role="group" aria-label={tr('Mettre fin à l’alerte')}>
+            <p>{tr('Pourquoi mettez-vous fin à l’alerte ? L’agent ORION en sera informé.')}</p>
+            <button className="btn btn-primary" disabled={finEnvoi} onClick={() => void terminer('en_securite')}>{tr('Je suis en sécurité')}</button>
+            <button className="btn btn-ghost" disabled={finEnvoi} onClick={() => void terminer('fausse_alerte')}>{tr('C’était une fausse alerte')}</button>
+            <button className="btn btn-ghost" disabled={finEnvoi} onClick={() => { setFinOuverte(false); setFinEchec(false); }}>{tr('Garder l’alerte active')}</button>
+            {finEchec && <p className="sos-offline" role="alert">{tr('Impossible de mettre fin à l’alerte pour l’instant : réessayez. L’alerte reste suivie par ORION.')}</p>}
+          </div>
+        )}
         {close && <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={app.actions.sosFermer}>{tr('Fermer')}</button>}
       </div>
     </div>

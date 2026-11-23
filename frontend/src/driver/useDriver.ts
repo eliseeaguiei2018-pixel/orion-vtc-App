@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { AppConfig, SosSuivi } from '../api';
+import type { AppConfig, MotifFinSos, SosSuivi } from '../api';
 import { ApiError, createBackend, type DriverBackend } from './backend';
 import { DEMO_DRIVER_CONFIG } from './demo';
 import type {
@@ -500,6 +500,13 @@ export function useDriver() {
       if (!sosId) return;
       const s = await backend.sosRepondre(sosId, text).catch(() => null);
       if (s) setSosLive(s); else showToast(tr('Message non envoyé — réessayez'), 'danger');
+    },
+    /** Mettre fin à son alerte : renvoie true si le serveur l'a close. */
+    sosTerminer: async (motif: MotifFinSos): Promise<boolean> => {
+      if (!sosId) return false;
+      const s = await backend.sosTerminer(sosId, motif).catch(() => null);
+      if (s) setSosLive(s);
+      return Boolean(s?.clotureeA);
     },
     sosReduire: () => setSosOuvert(false),
     sosOuvrir: () => setSosOuvert(true),

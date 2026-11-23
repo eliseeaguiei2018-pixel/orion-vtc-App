@@ -63,6 +63,21 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
 
     const ride = container.rides.get(id);
     if (!ride) throw notFound('Course introuvable');
+    // DÉJÀ PAYÉE : le chauffeur a confirmé l'encaissement en espèces (ou l'opérateur a
+    // confirmé). Le « J'ai payé » du client arrive ensuite : c'est un succès, sans rien
+    // encaisser ni créditer une seconde fois. Avant, il recevait « La course doit être
+    // terminée avant paiement » et restait bloqué sur l'écran de paiement.
+    if (ride.status === 'paid' || ride.status === 'rated') {
+      const paye = [...ride.events].reverse().find((e) => e.type === 'paid');
+      return {
+        payment: {
+          reference: `deja-${ride.id}`, method: (paye?.payload?.['method'] as string | undefined) ?? body.method,
+          amount: (paye?.payload?.['amount'] as number | undefined) ?? ride.quote.amount, currency: 'XOF',
+          status: 'captured', message: 'Paiement déjà confirmé',
+        },
+        rideStatus: ride.status === 'rated' ? 'paid' : ride.status, dejaPayee: true, emailSent: false,
+      };
+    }
     if (ride.status !== 'completed') {
       throw badRequest('La course doit être terminée avant paiement');
     }

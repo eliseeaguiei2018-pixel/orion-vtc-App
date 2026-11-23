@@ -127,6 +127,8 @@ export interface EmergencyAlert {
   chat?: SosChatMessage[];
   /** Note de synthèse OBLIGATOIRE à la clôture. */
   closingNote?: string;
+  /** L'usager a lui-même mis fin à son alerte (en sécurité, fausse alerte). */
+  fermeeParUsager?: { at: string; motif: MotifFinSos };
   /** Dossier scellé numériquement (accès direction uniquement après clôture). */
   sealed?: boolean;
   sealedAt?: string;
@@ -217,6 +219,13 @@ export function agentPublic(nom: string | undefined): string {
   if (!prenom || /^(super|admin|système|systeme)$/i.test(prenom)) return 'Supervision ORION';
   return prenom;
 }
+
+/** Pourquoi l'usager met fin à son alerte. */
+export type MotifFinSos = 'en_securite' | 'fausse_alerte';
+const TEXTE_FIN: Record<MotifFinSos, string> = {
+  en_securite: 'Je mets fin à l’alerte : je suis en sécurité.',
+  fausse_alerte: 'Je mets fin à l’alerte : c’était une fausse alerte.',
+};
 
 export function vueUsager(a: EmergencyAlert): SuiviUsager {
   return {
@@ -560,6 +569,29 @@ export class SafetyService {
     a.sealed = true;
     a.sealedAt = new Date().toISOString();
     a.updatedAt = a.sealedAt;
+    this.realtime.publish(EMERGENCY_ROOM, 'emergency.update', a);
+    this.informerUsager(a);
+    return a;
+  }
+
+  /**
+   * FIN DE L'ALERTE PAR L'USAGER : la personne qui a lancé le SOS indique qu'elle est en
+   * sécurité (ou que c'était une fausse alerte). L'alerte et l'échange avec l'agent sont clos ;
+   * le motif reste écrit dans la discussion et la console le voit aussitôt. Le dossier n'est
+   * pas scellé : l'agent peut encore le relire et le clôturer avec sa note.
+   * En cas de nouveau danger, l'usager relance un SOS.
+   */
+  terminerParUsager(id: string, userId: string, motif: MotifFinSos): EmergencyAlert | 'interdit' | undefined {
+    const a = this.alerts.get(id);
+    if (!a) return undefined;
+    if (a.userId !== userId) return 'interdit';
+    if (a.status === 'resolved' || a.status === 'cancelled') return a;
+    const at = new Date().toISOString();
+    (a.chat ??= []).push({ from: 'usager', text: TEXTE_FIN[motif], at });
+    if (a.agentAuto) a.agentAuto.actif = false;
+    a.fermeeParUsager = { at, motif };
+    a.status = 'cancelled';
+    a.updatedAt = at;
     this.realtime.publish(EMERGENCY_ROOM, 'emergency.update', a);
     this.informerUsager(a);
     return a;

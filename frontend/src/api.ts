@@ -833,6 +833,13 @@ export async function sosRepondre(alertId: string, userId: string, text: string)
   return r?.suivi ?? null;
 }
 
+/** L'usager met fin à SON alerte et à la discussion avec l'agent (en sécurité, fausse alerte). */
+export type MotifFinSos = 'en_securite' | 'fausse_alerte';
+export async function sosTerminer(alertId: string, userId: string, motif: MotifFinSos): Promise<SosSuivi | null> {
+  const r = await tryFetch<{ suivi: SosSuivi }>(`/safety/sos/${alertId}/terminer`, { method: 'POST', body: JSON.stringify({ userId, motif }) }, 8000);
+  return r?.suivi ?? null;
+}
+
 /**
  * URL WebSocket de la config publique temps réel. L'app cliente s'y abonne pour recevoir
  * instantanément les changements pilotés depuis la console (maintenance, services,

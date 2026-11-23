@@ -1,6 +1,6 @@
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { baseTempsReel, enTeteRecaptcha, enTetesPasserelle } from '../securiteGoogle';
-import { configSocketUrl, etatServeur, fetchAppConfig, isLiveBackend, sosRepondre, sosSocketUrl, sosSuivi, type AppConfig, type SosSuivi } from '../api';
+import { configSocketUrl, etatServeur, fetchAppConfig, isLiveBackend, sosRepondre, sosSocketUrl, sosSuivi, sosTerminer, type AppConfig, type MotifFinSos, type SosSuivi } from '../api';
 import type { ActiviteMois, PrimeMois } from './salarie';
 import type {
   EtapeLocation, LocationChauffeur, MessagesChef, MotifAnnulationChauffeur, NouvelleRequete, Poste, RequeteVue,
@@ -66,6 +66,8 @@ export interface DriverBackend {
   /** Suivi de SON alerte (comme le client) : état, agent, secours, chat discret. */
   sosSuivi(alertId: string): Promise<SosSuivi | null>;
   sosRepondre(alertId: string, text: string): Promise<SosSuivi | null>;
+  /** Mettre fin à son alerte et à la discussion avec l'agent (en sécurité, fausse alerte). */
+  sosTerminer(alertId: string, motif: MotifFinSos): Promise<SosSuivi | null>;
   /** Abonnement temps réel au suivi de l'alerte. Renvoie la fonction d'arrêt. */
   sosSubscribe(alertId: string, onSuivi: (s: SosSuivi) => void, onLink: (ok: boolean) => void): () => void;
   /** Annulation motivée par le chauffeur (le passager garde sa course, sauf absence). */
@@ -283,6 +285,7 @@ function createLiveBackend(): DriverBackend {
     },
     sosSuivi: (alertId) => sosSuivi(alertId, id()),
     sosRepondre: (alertId, text) => sosRepondre(alertId, id(), text),
+    sosTerminer: (alertId, motif) => sosTerminer(alertId, id(), motif),
     sosSubscribe(alertId, onSuivi, onLink) {
       const url = sosSocketUrl(alertId, id());
       if (!url) return () => undefined;
