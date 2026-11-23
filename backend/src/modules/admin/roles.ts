@@ -92,7 +92,13 @@ export type Permission =
   /** Service informatique : inscrire, transmettre à la direction, révoquer une habilitation. */
   | 'habilitations:write'
   /** Direction : accorder ou refuser une habilitation transmise par le service informatique. */
-  | 'habilitations:approve';
+  | 'habilitations:approve'
+  /**
+   * SIMULATEUR DU MARCHÉ : placer des chauffeurs et des clients simulés que l'app cliente
+   * prend pour des vrais. Réservé au PDG (et au compte principal de la direction) : hors
+   * de la liste commune de la direction, aucun autre directeur ne l'a.
+   */
+  | 'simulateur:use';
 
 const ALL: Permission[] = [
   'overview:read', 'rides:read', 'rides:write', 'drivers:read', 'drivers:write',
@@ -117,8 +123,8 @@ const DIRECTION_TABLEAU: Permission[] = ['dashboard:read', 'habilitations:read',
 
 /** Matrice rôle → permissions (couches d'accès selon le poste). */
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
-  super_admin: ALL,
-  ceo: ALL.filter((p) => p !== 'habilitations:write'),
+  super_admin: [...ALL, 'simulateur:use'],
+  ceo: [...ALL.filter((p) => p !== 'habilitations:write'), 'simulateur:use'],
   dg: ALL.filter((p) => p !== 'habilitations:write'),
   daa: ALL.filter((p) => p !== 'habilitations:write'),
   coo: ALL.filter((p) => p !== 'habilitations:write'),

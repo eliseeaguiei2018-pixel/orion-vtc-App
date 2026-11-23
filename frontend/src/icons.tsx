@@ -196,6 +196,9 @@ export const IconTicket = ({ size, strokeWidth }: P) => (
 export const IconCompass = ({ size, strokeWidth }: P) => (
   <svg {...base(size, strokeWidth)}><circle cx="12" cy="12" r="9" /><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z" /></svg>
 );
+export const IconSliders = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></svg>
+);
 export const IconTarget = ({ size, strokeWidth }: P) => (
   <svg {...base(size, strokeWidth)}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" /></svg>
 );

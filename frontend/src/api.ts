@@ -1305,7 +1305,13 @@ export async function repondreMessage(
 /* --- Véhicules libres autour du client (avant la commande, comme Yango) --- */
 export interface VehiculeProche { id: string; lat: number; lng: number; cap: number; gamme: string }
 export interface ApprocheGamme { km: number; minutes: number }
-export interface VehiculesProches { vehicules: VehiculeProche[]; approche: Record<string, ApprocheGamme | null>; at: string }
+export interface VehiculesProches {
+  vehicules: VehiculeProche[];
+  approche: Record<string, ApprocheGamme | null>;
+  /** Repère du marché (simulateur de la direction) : quand il change, l'app refait son devis. */
+  marche?: number;
+  at: string;
+}
 
 /** Véhicules libres autour d'un point et temps d'approche par gamme. Null sans serveur ORION. */
 export async function vehiculesProches(p: LatLng): Promise<VehiculesProches | null> {

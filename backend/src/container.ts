@@ -1,5 +1,6 @@
 import { configPublique } from './modules/support/configPublique.js';
 import { MisesAJour } from './modules/mises-a-jour/service.js';
+import { Simulateur, type Simulation } from './modules/simulateur/service.js';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { TableauDeBord } from './modules/dashboard/service.js';
@@ -92,6 +93,8 @@ export interface Container {
   proches: ChauffeursProches;
   /** Mises à jour à chaud des apps (paquets signés publiés par la direction). */
   misesAJour: MisesAJour;
+  /** Simulateur du marché (PDG) : chauffeurs et clients simulés, vus par l'app cliente. */
+  simulateur: Simulateur;
   idempotency: IdempotencyStore;
   registry: ServiceRegistry;
   drivers: DriverStore;
@@ -244,15 +247,17 @@ export function createContainer(): Container {
       const traffic = trafficInfo(req.origin, req.destination);
       // Surge : chaque devis compte comme une demande dans sa cellule ;
       // plafonné (incitation verte) — la flotte ORION est électrique.
-      demand.record(req.origin, req.clientId);
+      // Simulateur du PDG actif : ses chauffeurs et ses clients comptent aussi.
+      const simulation = { simulation: req.modeSimulation !== 'sans', projet: req.modeSimulation === 'projet' };
+      if (!req.apercu) demand.record(req.origin, req.clientId);
       const ops = settings.getOps();
-      const surgeRaw = ops.surgeEnabled ? await demand.surgeFor(req.origin) : 1;
+      const surgeRaw = ops.surgeEnabled ? await demand.surgeFor(req.origin, simulation) : 1;
       // Surge MANUEL d'urgence (zone dessinée dans la console) — toujours plafonné (cap vert).
       const surgeManual = settings.zoneForPoint(req.origin)?.surgeManual ?? 1;
       // Règles géographiques du trajet : forfait plat A→B, retour à vide, plancher premium.
       const trip = settings.tripPricing(req.origin, req.destination);
       // Approche du chauffeur LIBRE le plus proche de la gamme demandée : comprise dans le prix fixe.
-      const approche = req.miseADisposition ? undefined : await proches.approche(req.origin, req.category ?? 'argent', traffic.factor);
+      const approche = req.miseADisposition ? undefined : await proches.approche(req.origin, req.category ?? 'argent', traffic.factor, simulation);
       return {
         approche,
         trafficFactor: traffic.factor,
@@ -276,9 +281,9 @@ export function createContainer(): Container {
   registry.register(
     new DeliveryServiceModule(async (req) => {
       const traffic = trafficInfo(req.origin, req.destination);
-      demand.record(req.origin, req.clientId);
+      if (!req.apercu) demand.record(req.origin, req.clientId);
       const ops = settings.getOps();
-      const surgeRaw = ops.surgeEnabled ? await demand.surgeFor(req.origin) : 1;
+      const surgeRaw = ops.surgeEnabled ? await demand.surgeFor(req.origin, { simulation: req.modeSimulation !== 'sans', projet: req.modeSimulation === 'projet' }) : 1;
       const surgeManual = settings.zoneForPoint(req.origin)?.surgeManual ?? 1;
       return {
         trafficFactor: traffic.factor,
@@ -293,6 +298,16 @@ export function createContainer(): Container {
   );
 
   const realtime = new RealtimeHub();
+  // SIMULATEUR DU PDG : ses chauffeurs entrent dans la carte et l'approche de l'app cliente,
+  // ses chauffeurs et ses clients dans l'offre et la demande du surge. Jamais dans le dispatch.
+  const simulateur = new Simulateur(createRepository<Simulation>('simulateur'));
+  proches.brancherSimulation(simulateur);
+  demand.brancherSimulation(simulateur);
+  simulateur.onChange((s) => {
+    proches.viderCache();
+    // Les apps clientes refont aussitôt leurs devis (prix) ; la carte suit à la prochaine relève.
+    realtime.publish(CONFIG_ROOM, 'marche.maj', { rev: s.rev });
+  });
   // MISES À JOUR À CHAUD : paquets sur le disque persistant (à côté de la base), sinon dans un
   // dossier temporaire. Chaque publication est annoncée en direct aux apps et à la console.
   const misesAJour = new MisesAJour(
@@ -364,6 +379,7 @@ export function createContainer(): Container {
   const container: Container = {
     geo,
     proches,
+    simulateur,
     mesures: new Mesures(),
     idempotency: new IdempotencyStore(),
     registry,

@@ -23,6 +23,7 @@ export async function prochesRoutes(app: FastifyInstance, container: Container):
     if (!isWithinCotedIvoire(p)) throw badRequest('Position hors zone de service (Côte d’Ivoire)', { code: 'OUT_OF_SERVICE_AREA' });
     const r = await container.proches.autour(p, trafficInfo(p, p).factor);
     reply.header('cache-control', 'no-store');
-    return { ...r, at: new Date().toISOString() };
+    // `marche` change quand le simulateur du PDG change : l'app refait alors son devis.
+    return { ...r, marche: container.simulateur.rev, at: new Date().toISOString() };
   });
 }

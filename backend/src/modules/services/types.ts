@@ -30,6 +30,13 @@ export interface EstimateRequest {
   /** Identifiant du demandeur : sert à ne compter qu'une fois la même personne
    *  dans le calcul du surge (un client qui compare les gammes = UNE demande). */
   clientId?: string;
+  /**
+   * Usage interne du serveur (jamais lu dans une requête d'app) : devis d'APERÇU de la console
+   * (ne compte pas comme une demande), avec ou sans le scénario du simulateur du PDG.
+   */
+  apercu?: boolean;
+  /** 'sans' : sans le simulateur ; 'projet' : avec le scénario du simulateur, même coupé. */
+  modeSimulation?: 'sans' | 'projet';
 }
 
 /** Détail transparent du prix (le client sait pourquoi sa course coûte ce montant). */

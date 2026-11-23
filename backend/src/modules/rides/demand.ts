@@ -16,7 +16,14 @@ import type { GeoIndex, LatLng } from '../../core/geo.js';
  */
 const CELL_DEG = 0.0072;        // ~800 m à la latitude d'Abidjan
 const WINDOW_MS = 10 * 60_000;  // fenêtre de demande : 10 minutes
-const SUPPLY_RADIUS_M = 1200;   // rayon de l'offre autour du point
+export const SUPPLY_RADIUS_M = 1200;   // rayon de l'offre autour du point
+
+/** Règle du surge : demande au-delà de 2 × l'offre → ×1,5 ; au-delà de 1,3 × → ×1,3. */
+export function multiplicateur(demande: number, offre: number): number {
+  if (demande > Math.max(1, offre) * 2) return 1.5;
+  if (demande > Math.max(1, offre) * 1.3) return 1.3;
+  return 1;
+}
 
 export interface CellDemand {
   cell: string;
@@ -34,7 +41,17 @@ interface DemandEntry {
   by?: string;
 }
 
+/** Offre et demande ajoutées par le simulateur du PDG (console), quand il est actif. */
+export interface ComplementMarche {
+  demande(p: LatLng, projet?: boolean): number;
+  offre(p: LatLng, rayonM: number, projet?: boolean): number;
+}
+
+/** `simulation: false` : sans le simulateur ; `projet` : son scénario, même coupé (aperçu). */
+export interface OptionsSimulation { simulation?: boolean; projet?: boolean }
+
 export class DemandService {
+  private complement: ComplementMarche | null = null;
   /** cellule → demandes de la fenêtre glissante. */
   private readonly cells = new Map<string, DemandEntry[]>();
   /** Conversion : sessions (devis) et commandes (courses) cumulées par cellule. */
@@ -109,14 +126,27 @@ export class DemandService {
     return arr.filter((e) => now - e.at < WINDOW_MS).length;
   }
 
+  /** Simulateur du PDG : ses chauffeurs et ses clients comptent dans l'offre et la demande. */
+  brancherSimulation(c: ComplementMarche): void { this.complement = c; }
+
+  /** Offre et demande au point, avec ou sans le simulateur (aperçu de la console). */
+  async marcheEn(p: LatLng, o: OptionsSimulation = {}): Promise<{ demandeReelle: number; demandeSimulee: number; offreReelle: number; offreSimulee: number }> {
+    const sim = o.simulation !== false ? this.complement : null;
+    return {
+      demandeReelle: this.demandAt(p),
+      demandeSimulee: sim ? sim.demande(p, o.projet) : 0,
+      offreReelle: (await this.geo.nearby(p, SUPPLY_RADIUS_M, 50)).length,
+      offreSimulee: sim ? sim.offre(p, SUPPLY_RADIUS_M, o.projet) : 0,
+    };
+  }
+
   /** Multiplicateur brut pour un point : 1 · 1.3 · 1.5 selon demande vs offre. */
-  async surgeFor(p: LatLng): Promise<number> {
-    const demand = this.demandAt(p);
+  async surgeFor(p: LatLng, o: OptionsSimulation = {}): Promise<number> {
+    const sim = o.simulation !== false ? this.complement : null;
+    const demand = this.demandAt(p) + (sim ? sim.demande(p, o.projet) : 0);
     if (demand < 3) return 1; // volume trop faible pour être significatif
-    const supply = (await this.geo.nearby(p, SUPPLY_RADIUS_M, 50)).length;
-    if (demand > Math.max(1, supply) * 2) return 1.5;
-    if (demand > Math.max(1, supply) * 1.3) return 1.3;
-    return 1;
+    const supply = (await this.geo.nearby(p, SUPPLY_RADIUS_M, 50)).length + (sim ? sim.offre(p, SUPPLY_RADIUS_M, o.projet) : 0);
+    return multiplicateur(demand, supply);
   }
 
   /** Zones à forte demande (console : affecter des chauffeurs). */
@@ -129,8 +159,7 @@ export class DemandService {
       const [la, ln] = cell.split(':').map(Number);
       const lat = (la ?? 0) * CELL_DEG, lng = (ln ?? 0) * CELL_DEG;
       const supply = (await this.geo.nearby({ lat, lng }, SUPPLY_RADIUS_M, 50)).length;
-      const surge = demand >= 3 && demand > Math.max(1, supply) * 2 ? 1.5
-        : demand >= 3 && demand > Math.max(1, supply) * 1.3 ? 1.3 : 1;
+      const surge = demand >= 3 ? multiplicateur(demand, supply) : 1;
       out.push({ cell, lat, lng, demand, supply, surge });
     }
     return out.sort((a, b) => b.demand - a.demand).slice(0, limit);

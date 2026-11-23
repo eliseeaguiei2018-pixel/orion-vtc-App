@@ -24,16 +24,25 @@ const VITESSE_KMH = 24;
 const RAYON_CARTE_M = 6000;
 const RAYON_APPROCHE_M = 30_000;
 const MAX_VEHICULES = 25;
+/** Avec le simulateur, la carte du client peut montrer jusqu'à 60 véhicules. */
+const MAX_VEHICULES_SIMULATION = 60;
 const CACHE_MS = 2500;
 
 export const GAMMES_COURSE = ['argent', 'or', 'diamant'] as const;
 export const GAMME_COURSIER = 'moto';
+
+/** Chauffeurs du simulateur du PDG (console) : vus par l'app cliente comme les vrais. */
+export interface SourceSimulee {
+  chauffeursProches(p: LatLng, rayonM: number, projet?: boolean): Array<{ id: string; lat: number; lng: number; gamme: string; distanceMeters: number }>;
+  positionAffichee(c: { id: string; lat: number; lng: number }): LatLng;
+}
 
 export class ChauffeursProches {
   /** Dernière position vue et cap de chaque véhicule (orientation de l'icône). */
   private readonly caps = new Map<string, { lat: number; lng: number; cap: number }>();
   /** Réponses récentes par cellule d'environ 100 m : les clients voisins se partagent le calcul. */
   private readonly cache = new Map<string, { t: number; val: { vehicules: VehiculeProche[]; approche: Record<string, Approche | null> } }>();
+  private simulation: SourceSimulee | null = null;
 
   constructor(
     private readonly geo: GeoIndex,
@@ -41,6 +50,12 @@ export class ChauffeursProches {
     private readonly sel: string,
     private readonly maintenant: () => number = Date.now,
   ) {}
+
+  /** Simulateur du PDG : ses chauffeurs s'ajoutent aux vrais (carte, approche). */
+  brancherSimulation(s: SourceSimulee): void { this.simulation = s; }
+
+  /** Une simulation vient de changer : les réponses en cache sont périmées. */
+  viderCache(): void { this.cache.clear(); }
 
   private anonyme(id: string): string {
     const jour = new Date(this.maintenant()).toISOString().slice(0, 10);
@@ -69,15 +84,21 @@ export class ChauffeursProches {
   }
 
   /** Chauffeur LIBRE le plus proche de cette gamme (rayon du dispatch), ou null. */
-  async approche(p: LatLng, gamme: string, facteurTrafic = 1): Promise<Approche | null> {
+  async approche(p: LatLng, gamme: string, facteurTrafic = 1, o: { simulation?: boolean; projet?: boolean } = {}): Promise<Approche | null> {
+    let metres: number | null = null;
     const voisins = await this.geo.nearby(p, RAYON_APPROCHE_M, 200);
     for (const v of voisins) {
       if (!sertLaGamme(v.meta, gamme)) continue;
       const d = this.drivers.get(v.id);
       if (!d || d.availability !== 'online') continue;
-      return ChauffeursProches.approcheDepuis(v.distanceMeters, facteurTrafic);
+      metres = v.distanceMeters;
+      break;
     }
-    return null;
+    if (o.simulation !== false && this.simulation) {
+      const sim = this.simulation.chauffeursProches(p, RAYON_APPROCHE_M, o.projet).find((c) => c.gamme === gamme);
+      if (sim && (metres === null || sim.distanceMeters < metres)) metres = sim.distanceMeters;
+    }
+    return metres === null ? null : ChauffeursProches.approcheDepuis(metres, facteurTrafic);
   }
 
   /** Véhicules libres autour du point, et approche du plus proche de chaque gamme. */
@@ -100,6 +121,20 @@ export class ChauffeursProches {
       }
       if (v.distanceMeters <= RAYON_CARTE_M && vehicules.length < MAX_VEHICULES) {
         vehicules.push({ id: this.anonyme(v.id), lat: v.lat, lng: v.lng, cap: this.orienter(v.id, v), gamme });
+      }
+    }
+    // Simulateur actif : ses chauffeurs se présentent comme les vrais (identifiant anonyme du
+    // même format, véhicule qui bouge), et leur approche compte quand ils sont plus proches.
+    if (this.simulation) {
+      for (const c of this.simulation.chauffeursProches(p, RAYON_APPROCHE_M)) {
+        const a = ChauffeursProches.approcheDepuis(c.distanceMeters, facteurTrafic);
+        const avant = approche[c.gamme];
+        if (c.gamme in approche && (!avant || a.km < avant.km)) approche[c.gamme] = a;
+        if (c.distanceMeters <= RAYON_CARTE_M && vehicules.length < MAX_VEHICULES_SIMULATION) {
+          const cle = `sim:${c.id}`;
+          const pos = this.simulation.positionAffichee(c);
+          vehicules.push({ id: this.anonyme(cle), lat: pos.lat, lng: pos.lng, cap: this.orienter(cle, pos), gamme: c.gamme });
+        }
       }
     }
     const val = { vehicules, approche };

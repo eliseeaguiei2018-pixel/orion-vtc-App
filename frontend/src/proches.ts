@@ -13,6 +13,10 @@ import type { LatLng } from './types';
  */
 const PERIODE_MS = 4000;
 
+/** Le marché vient de changer (simulateur de la direction) : relève immédiate, sans attendre. */
+const relances = new Set<() => void>();
+export function relancerProches(): void { for (const f of relances) f(); }
+
 export function useVehiculesProches(depart: LatLng | null): VehiculesProches | null {
   const [etat, setEtat] = useState<VehiculesProches | null>(null);
   const derniere = useRef('');
@@ -28,16 +32,19 @@ export function useVehiculesProches(depart: LatLng | null): VehiculesProches | n
         const r = await vehiculesProches(depart);
         if (!actif) return;
         if (r) {
-          const empreinte = JSON.stringify([r.vehicules, r.approche]);
+          // `marche` : repère du serveur qui change avec le marché ; l'app refait alors son devis.
+          const empreinte = JSON.stringify([r.vehicules, r.approche, r.marche ?? 0]);
           if (empreinte !== derniere.current) { derniere.current = empreinte; setEtat(r); }
         }
       }
       minuteur = window.setTimeout(() => void charger(), PERIODE_MS);
     };
     const auRetour = () => { if (!document.hidden) void charger(); };
+    const relance = () => void charger();
     document.addEventListener('visibilitychange', auRetour);
+    relances.add(relance);
     void charger();
-    return () => { actif = false; window.clearTimeout(minuteur); document.removeEventListener('visibilitychange', auRetour); };
+    return () => { actif = false; window.clearTimeout(minuteur); document.removeEventListener('visibilitychange', auRetour); relances.delete(relance); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cle]);
   return etat;

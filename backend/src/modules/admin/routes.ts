@@ -5,6 +5,7 @@ import { exigerHumain } from '../gcp/securite.js';
 import { Readable } from 'node:stream';
 import { lotRoutes } from './lot.js';
 import { misesAJourAdminRoutes } from '../mises-a-jour/admin.js';
+import { simulateurAdminRoutes } from '../simulateur/admin.js';
 import { nearestZone } from '../geo-ci/zones.js';
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -259,6 +260,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
 
     // Mises à jour à chaud des apps : versions publiées, publication (direction).
     misesAJourAdminRoutes(scoped, container, require, audit);
+    // Simulateur du marché (PDG seul) : chauffeurs et clients simulés vus par l'app cliente.
+    simulateurAdminRoutes(scoped, container, require, audit);
 
     // Identité + permissions du compte connecté (le front adapte l'affichage).
     scoped.get('/admin/me', async (req) => {

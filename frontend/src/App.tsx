@@ -46,7 +46,7 @@ import { CarteFondScreen } from './components/CarteFondScreen';
 import { fondCarte, googleSeul, suivreFondCarte } from './carteGoogle';
 import { prechaufferCarte } from './components/CarteGoogle';
 import { GpsCarte, type GpsCarteValeur } from './components/gpsCarte';
-import { useVehiculesProches } from './proches';
+import { relancerProches, useVehiculesProches } from './proches';
 import { gpsNatif, notificationsAutorisees, prevenir, preparerNotifications, suivreGps } from './arrierePlan';
 import type { VehiculesProches } from './api';
 import { useTrajetTarif } from './tarifTrajet';
@@ -398,6 +398,8 @@ export function App() {
           else if (msg.type === 'config.update') apply(msg.data);
           // Nouvelle version de l'app publiée par ORION : téléchargée et installée au bon moment.
           else if (msg.type === 'apps.maj') signalerNouvelleVersion(msg.data);
+          // Marché modifié (simulateur de la direction) : véhicules et prix relus aussitôt.
+          else if (msg.type === 'marche.maj') relancerProches();
           // Barème de location ajusté depuis la console : l'écran de location se
           // rafraîchit sans que le client ait à rouvrir l'application.
           else if (msg.type === 'rental-config.update') notifyRentalTariffChange();
@@ -456,7 +458,7 @@ export function App() {
         .then(({ quote: q, coverage: c }) => { setQuote(q); setCoverage(c); });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen, destination, tier, bodyType, stops, insurance, promo, origin.location, trajetCourse.pret, trajetCourse.trajet, itinCourse.pret, optsRoute?.choix, optsRoute?.distanceMeters, approcheTest?.at]);
+  }, [screen, destination, tier, bodyType, stops, insurance, promo, origin.location, trajetCourse.pret, trajetCourse.trajet, itinCourse.pret, optsRoute?.choix, optsRoute?.distanceMeters, approcheTest?.at, proches?.marche]);
 
   const chooseDestination = (place: Place) => {
     memoriserRecent(place);
@@ -2035,7 +2037,7 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
       .catch(() => { /* hors ligne : l'aperçu local reste affiché */ });
     return () => { annule = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origin.location, destination.location, bodyType, stops, pret, trajet.trajet, approche?.at, optsRoute?.choix, optsRoute?.distanceMeters, cleApproche]);
+  }, [origin.location, destination.location, bodyType, stops, pret, trajet.trajet, approche?.at, optsRoute?.choix, optsRoute?.distanceMeters, cleApproche, proches?.marche]);
   const prices = serveur?.prix ?? apercus;
   // Temps d'approche réel par gamme (serveur ORION) ; sans serveur, l'estimation de la gamme.
   const approcheDe = (id: string) => (proches ? proches.approche[id] ?? null : undefined);

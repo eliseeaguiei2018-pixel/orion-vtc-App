@@ -2,7 +2,7 @@ import { enTeteRecaptcha } from '../securiteGoogle';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { avis, demander, demanderLieu } from './dialogues';
 import { LogoApp } from '../components/Logo';
-import { IconMenu, IconActivity, IconAlarm, IconAlert, IconBank, IconBell, IconBellOff, IconAward, IconBuilding, IconCar, IconCash, IconChart, IconCompass, IconCrown, IconFile, IconGem, IconGrid, IconIdCard, IconInbox, IconKey, IconLeaf, IconLock, IconMail, IconMap, IconMegaphone, IconMessage, IconMonitor, IconMoon, IconScale, IconSearch, IconShield, IconSignal, IconStar, IconSteering, IconSun, IconTag, IconTarget, IconTicket, IconTrend, IconUsers, IconWallet } from '../icons';
+import { IconMenu, IconActivity, IconAlarm, IconAlert, IconBank, IconBell, IconBellOff, IconAward, IconBuilding, IconCar, IconCash, IconChart, IconCompass, IconCrown, IconFile, IconGem, IconGrid, IconIdCard, IconInbox, IconKey, IconLeaf, IconLock, IconMail, IconMap, IconMegaphone, IconMessage, IconMonitor, IconMoon, IconScale, IconSearch, IconShield, IconSignal, IconSliders, IconStar, IconSteering, IconSun, IconTag, IconTarget, IconTicket, IconTrend, IconUsers, IconWallet } from '../icons';
 import { DEMO } from './demo';
 import { suivreBus, type EtatBus } from '../busTest';
 import { empreinteBus, fusionBusConsole } from './busConsole';
@@ -22,6 +22,7 @@ import { EquipagesSection } from './sections/equipages';
 import { CaisseSection } from './sections/caisse';
 import { PosteEquipeSection } from './sections/posteequipe';
 import { TelematiqueSection } from './sections/telematique';
+import { SimulateurSection } from './sections/simulateur';
 import { AnnuaireSection, ChangerMotDePasse } from './sections/annuaire';
 import type { AccountsStats, ActiveSession, Alert, Amortization, Announcement, AssistantSujet, CaisseConsolidation, CaisseEtat, CaisseReferentiel, CrewTableau, DossierEquipage, EquipageRow, PosteEquipe, RoleOption, StaffAccountRow, SuiviFlotte, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, ContactJournal, ContactUrgence, CopilotAnswer, ExecutiveBoard, MonPoste, MouvementPage, SanteVigilance, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, RentalTarifEtat, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
 import { ClientDrawer, DriverDrawer } from './ui';
@@ -220,12 +221,13 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'monPoste' | 'posteEquipe' | 'crew' | 'caisses' | 'telematique' | 'comptes' | 'overview' | 'direction' | 'vigilance' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'primes' | 'clients' | 'support' | 'messagesClients' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles' | 'habilitations';
+type Section = 'monPoste' | 'simulateur' | 'posteEquipe' | 'crew' | 'caisses' | 'telematique' | 'comptes' | 'overview' | 'direction' | 'vigilance' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'primes' | 'clients' | 'support' | 'messagesClients' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles' | 'habilitations';
 const NAV: { id: Section; label: string; perm: string; icon: (p: { size?: number; strokeWidth?: number }) => React.JSX.Element }[] = [
   { id: 'monPoste', label: 'Mon poste', perm: '', icon: IconInbox },
   { id: 'posteEquipe', label: 'Mon équipe', perm: 'teams:read', icon: IconCompass },
   { id: 'overview', label: 'Vue d’ensemble', perm: 'overview:read', icon: IconChart },
   { id: 'direction', label: 'Direction Générale', perm: 'executive:read', icon: IconCrown },
+  { id: 'simulateur', label: 'Simulateur', perm: 'simulateur:use', icon: IconSliders },
   { id: 'vigilance', label: 'Vigilance ORION', perm: 'vigilance:read', icon: IconCompass },
   { id: 'alerts', label: 'Supervision SAMU', perm: 'alerts:read', icon: IconAlarm },
   { id: 'support', label: 'Support & chat', perm: 'support:read', icon: IconMessage },
@@ -261,6 +263,9 @@ const NAV: { id: Section; label: string; perm: string; icon: (p: { size?: number
   { id: 'habilitations', label: 'Habilitations', perm: 'habilitations:read', icon: IconKey },
   { id: 'roles', label: 'Rôles & accès', perm: 'roles:read', icon: IconShield },
 ];
+
+/** Sessions personnelles : absentes du menu de quiconque n'y a pas droit (pas de cadenas). */
+const SESSIONS_PRIVEES = new Set<string>(['simulateur']);
 
 /* ------------------------------- Console ----------------------------- */
 function Console({ onLogout }: { onLogout: () => void }) {
@@ -1648,7 +1653,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
     const mots = q.split(/\s+/);
     const trouve = (t: string) => { const n = sansAccents(t); return mots.every((m) => n.includes(m)); };
     const permis = (id: string) => { const n = NAV.find((x) => x.id === id); return !n || n.perm === '' || can(n.perm); };
-    const visible = (id: string) => permis(id) || me.role !== 'chauffeur';
+    const visible = (id: string) => permis(id) || (me.role !== 'chauffeur' && !SESSIONS_PRIVEES.has(id));
     const sessions = NAV.filter((n) => trouve(n.label) && visible(n.id)).map((n) => ({ titre: n.label, section: n.id, dans: null, permis: permis(n.id), libelle: n.label }));
     const panneaux = PANNEAUX.filter((x) => trouve(x.titre) && visible(x.section)).map((x) => {
       const n = NAV.find((y) => y.id === x.section);
@@ -1718,6 +1723,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
             // Un chauffeur ne voit que son espace : lui montrer trente sessions
             // cadenassées n'apprend rien d'utile et expose l'organisation interne.
             if (!allowed && me.role === 'chauffeur') return null;
+            // Session personnelle du PDG : invisible pour tous les autres comptes.
+            if (!allowed && SESSIONS_PRIVEES.has(n.id)) return null;
             return (
               <button
                 key={n.id}
@@ -1864,6 +1871,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
             onOuvrirChauffeur={ouvrirChauffeur}
           />
         )}
+        {section === 'simulateur' && can('simulateur:use') && <SimulateurSection />}
         {section === 'telematique' && (
           <TelematiqueSection
             suivi={suiviFlotte}
