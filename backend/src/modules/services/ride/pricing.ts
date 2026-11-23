@@ -79,15 +79,16 @@ export function coefAjustement(s: Pick<PricingSettings, 'ajustementPct'>): numbe
 export interface ApprocheTarif { actif: boolean; offerteKm: number; offerteMin: number; parKm: number; parMin: number }
 
 /**
- * GRILLE ORION : nettement moins chère que Yango à Abidjan. La flotte ORION est 100 %
+ * GRILLE ORION : environ 30 % moins chère que Yango à Abidjan. La flotte ORION est 100 %
  * électrique : pas de carburant (environ 15 F d'énergie au km contre 60 F d'essence), donc
  * pas de hausse liée aux prix à la pompe, et pas de commission de 18 à 25 % prélevée sur le
  * chauffeur. Repère (estimations publiques de Yango Standard : 500 F + 250 F/km, minimum
- * 1 000 F) : l'Argent coûte environ 40 % de moins, le Diamant reste sous le Yango Standard.
- * 100 F/km et 15 F/min hors taxes (avant le coefficient de gamme de 0,9).
+ * 1 000 F) : l'Argent coûte environ 30 % de moins ; l'Or (+5 %) et le Diamant (+15 %) suivent
+ * la grille au-dessus de l'Argent. Hors taxes, avant le coefficient de gamme de 0,9. Le tout se
+ * règle depuis la console (Tarification, Mon poste du PDG) : effet immédiat sur toutes les apps.
  */
 export const DEFAULT_PRICING: PricingSettings = {
-  baseFare: 300, perKm: 100, perMinute: 15, minFare: 600, avgSpeedKmh: 24,
+  baseFare: 330, perKm: 125, perMinute: 17, minFare: 680, avgSpeedKmh: 24,
   tvaRate: TVA_RATE, feeRate: APP_FEE_RATE, insuranceRate: INSURANCE_RATE, trafficWeight: 0.6, stopFee: 250,
   multipliers: { argent: FLEET.argent.multiplier, or: FLEET.or.multiplier, diamant: FLEET.diamant.multiplier },
   majorationsPct: { argent: FLEET.argent.majorationPct, or: FLEET.or.majorationPct, diamant: FLEET.diamant.majorationPct },

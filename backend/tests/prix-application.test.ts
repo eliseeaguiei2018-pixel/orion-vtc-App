@@ -250,7 +250,7 @@ test('barème changé en console : l’application reçoit la grille et affiche 
   assert.equal(put.statusCode, 200, put.body);
   const config = (await app.inject({ method: 'GET', url: '/config' })).json() as { prix: { bareme: Record<string, number>; livraison: Record<string, number> } };
   assert.deepEqual(config.prix.bareme, { baseFare: 350, perKm: 120, perMinute: 17, minFare: 700 });
-  assert.equal(config.prix.livraison.perKm, 70);
+  assert.equal(config.prix.livraison.perKm, 88);
   appli.appliquerGrillePrix(config.prix);
   try {
     const origin = LIEUX.cocody!, destination = LIEUX.plateau!;
@@ -267,7 +267,7 @@ test('barème changé en console : l’application reçoit la grille et affiche 
   } finally {
     // Les autres tests de ce fichier comparent au barème par défaut.
     const { DEFAULT_PRICING } = await import('../src/modules/services/ride/pricing.js');
-    appli.appliquerGrillePrix({ bareme: DEFAULT_PRICING, livraison: { baseFare: 220, perKm: 70, perMinute: 6, minFare: 500 } });
+    appli.appliquerGrillePrix({ bareme: DEFAULT_PRICING, livraison: { baseFare: 220, perKm: 88, perMinute: 8, minFare: 500 } });
     await app.close();
   }
 });

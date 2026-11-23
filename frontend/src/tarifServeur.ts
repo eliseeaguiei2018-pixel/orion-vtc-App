@@ -40,8 +40,8 @@ export function distanceVol(a: Pt, b: Pt): number {
 
 /** Barème des courses (DEFAULT_PRICING du serveur). */
 export const BAREME = {
-  // Grille ORION, nettement sous Yango (flotte électrique) : voir DEFAULT_PRICING du serveur.
-  baseFare: 300, perKm: 100, perMinute: 15, minFare: 600, avgSpeedKmh: 24,
+  // Grille ORION, environ 30 % sous Yango (flotte électrique) : voir DEFAULT_PRICING du serveur.
+  baseFare: 330, perKm: 125, perMinute: 17, minFare: 680, avgSpeedKmh: 24,
   tvaRate: 0.05, feeRate: 0.1, insuranceRate: 0.04, trafficWeight: 0.6, stopFee: 250,
   bodySurcharge: { berline: 1, suv: 1.08 } as Record<string, number>,
   /** Majoration de chaque gamme par rapport à l'Argent, en pour cent du prix de la course. */
@@ -109,7 +109,7 @@ export function supplementGamme(gamme: Gamme, montantArgent: number, horsAbidjan
 }
 
 /** Barème des livraisons à moto (DELIVERY_TARIFF du serveur). */
-export const BAREME_LIVRAISON = { baseFare: 220, perKm: 70, perMinute: 6, minFare: 500, avgSpeedKmh: 26 as const };
+export const BAREME_LIVRAISON = { baseFare: 220, perKm: 88, perMinute: 8, minFare: 500, avgSpeedKmh: 26 as const };
 
 /** Zone tarifaire : commune ou secteur résidentiel, avec ses règles de prix. */
 export interface ZoneTarif {

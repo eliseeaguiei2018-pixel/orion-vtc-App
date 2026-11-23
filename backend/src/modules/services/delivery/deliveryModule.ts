@@ -36,9 +36,8 @@ export const DEFAULT_PACKAGE = 'moyen';
  */
 export const DELIVERY_TARIFF = {
   baseFare: 220,
-  // Motos électriques : même baisse au km que les courses (environ −20 %).
-  perKm: 70,
-  perMinute: 6,
+  perKm: 88,
+  perMinute: 8,
   minFare: 500,
   avgSpeedKmh: 26, // la moto se faufile : plus rapide qu'une voiture en ville
   currency: 'XOF',
