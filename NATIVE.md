@@ -210,15 +210,28 @@ mettent à jour depuis le serveur ORION, sans réinstaller d'APK :
 1. La direction publie la nouvelle application web d'une app :
    `ORION_SERVEUR=https://… ORION_JETON_ADMIN=<session direction> frontend/scripts/publier-mise-a-jour.sh <client|chauffeur|console> <version>`
    (le paquet est construit sans la clé Google, signé par le serveur, annoncé en direct).
+   Notes et caractère obligatoire en option : `… <version> 25 "Ce qui change" 1`.
 2. Chaque téléphone vérifie la signature (clé publique dans `frontend/src/miseAJourSignature.ts`,
-   celle de `GET /apps/cle-publique`), puis l'empreinte SHA-256 du paquet, le télécharge et
-   l'installe au bon moment : à l'ouverture de l'app ou après deux minutes sans geste, jamais
-   pendant une course, une offre ou une saisie. Si la nouvelle version ne démarre pas, le
-   téléphone revient seul à la précédente.
+   celle de `GET /apps/cle-publique`), puis l'annonce : à l'ouverture de l'app, jamais pendant
+   une course, une offre ou une saisie, le message « Mise à jour disponible » (8 langues,
+   `frontend/src/AvisMiseAJour.tsx`) propose « Mettre à jour ». Le paquet est téléchargé avec
+   une barre de progression, son empreinte SHA-256 vérifiée, et l'app redémarre dessus. « Plus
+   tard » le repropose à la prochaine ouverture ; une version obligatoire ne peut pas être
+   reportée. Si la nouvelle version ne démarre pas, le téléphone revient seul à la précédente.
 
-Une nouvelle APK reste nécessaire seulement pour un changement natif (permission, module
-Android/iOS) : publier alors le paquet avec un `natifMin` égal au nouveau versionCode, les
-téléphones plus anciens l'ignorent. La clé de signature est créée et gardée par le serveur
+### Nouvelle APK : hébergée par le serveur, plus envoyée à la main
+
+Pour un changement natif (permission, module Android/iOS), la nouvelle APK est publiée sur le
+serveur, qui l'annonce en direct :
+`ORION_SERVEUR=https://… ORION_JETON_ADMIN=… frontend/scripts/publier-apk.sh <app> <fichier.apk> <version> <versionCode> ["notes"] [1]`.
+À l'ouverture, l'app dont le versionCode est plus ancien affiche « Nouvelle version de
+l'application » et « Télécharger la mise à jour » : le navigateur du téléphone télécharge l'APK
+(`GET /apps/<app>/apk/<fichier>`) et Android propose « Mettre à jour », données conservées.
+Android n'accepte que la même clé de signature que l'app en place : garder la clé des APK
+(hors dépôt) et, au besoin, la faire vérifier par le script avec `ORION_CERT_SHA256`. Lien
+court pour une première installation : `<serveur>/telecharger/<client|pro|console>`. Les
+paquets web d'une version qui demande ce nouveau moteur se publient avec un `natifMin` égal au
+nouveau versionCode : les téléphones plus anciens les ignorent et proposent d'abord l'APK. La clé de signature est créée et gardée par le serveur
 sur son disque persistant (`/var/data/paquets/cle-signature.pk8`) ; si ce disque était perdu,
 le serveur en créerait une autre et il faudrait de nouvelles APK portant sa clé publique.
 Projets iOS : lancer `npx cap sync ios` sur un Mac pour y ajouter le module de mise à jour.

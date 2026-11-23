@@ -37,7 +37,31 @@ export interface Manifeste {
   chemin: string;
   /** Signature ECDSA P-256 / SHA-256 (r‖s, base64) du message canonique (`messageASigner`). */
   signature: string;
+  /** L'app impose l'installation (pas de « Plus tard »). Hors signature : n'agit que sur l'affichage. */
+  obligatoire?: boolean;
 }
+
+/**
+ * NOUVELLE APK hébergée par le serveur : quand le moteur natif change (nouvelle permission,
+ * nouveau module Android), l'app installée l'annonce à l'ouverture et la télécharge sur demande.
+ * Android n'installe la mise à jour que si elle est signée par la même clé que l'app en place.
+ */
+export interface VersionNative {
+  app: AppOrion;
+  /** versionCode Android de l'APK : l'app se compare à lui. */
+  versionCode: number;
+  version: string;
+  sha256: string;
+  taille: number;
+  notes: string;
+  obligatoire: boolean;
+  publieLe: string;
+  /** Chemin de l'APK sur ce serveur. */
+  chemin: string;
+}
+
+const NOM_APP: Record<AppOrion, string> = { client: 'ORION', chauffeur: 'ORION-Pro', console: 'ORION-Console' };
+const APK_RE = /^ORION(-Pro|-Console)?-[0-9A-Za-z][0-9A-Za-z.+_-]{0,47}\.apk$/;
 
 export const VERSION_RE = /^[0-9A-Za-z][0-9A-Za-z.+_-]{0,47}$/;
 export const TAILLE_MAX = 60 * 1024 * 1024;
@@ -62,13 +86,14 @@ export function lireCleSignature(valeur: string | undefined): KeyObject | null {
 }
 
 export class ErreurMiseAJour extends Error {
-  constructor(readonly code: 'APP_INCONNUE' | 'VERSION_INVALIDE' | 'PAQUET_INVALIDE' | 'SIGNATURE_INDISPONIBLE' | 'DEJA_PUBLIEE', message: string) {
+  constructor(readonly code: 'APP_INCONNUE' | 'VERSION_INVALIDE' | 'PAQUET_INVALIDE' | 'SIGNATURE_INDISPONIBLE' | 'DEJA_PUBLIEE' | 'VERSION_ANCIENNE', message: string) {
     super(message);
   }
 }
 
 export class MisesAJour {
   private readonly ecouteurs: Array<(m: Manifeste) => void> = [];
+  private readonly ecouteursApk: Array<(v: VersionNative) => void> = [];
   private readonly cle: KeyObject | null;
 
   constructor(
@@ -107,6 +132,67 @@ export class MisesAJour {
   }
 
   onPublication(f: (m: Manifeste) => void): void { this.ecouteurs.push(f); }
+  onPublicationApk(f: (v: VersionNative) => void): void { this.ecouteursApk.push(f); }
+
+  /** Téléchargements par fichier depuis le démarrage du serveur : combien de téléphones ont la version. */
+  private readonly compteurs = new Map<string, number>();
+  compter(app: AppOrion, fichier: string): void {
+    const cle = `${app}/${fichier}`;
+    this.compteurs.set(cle, (this.compteurs.get(cle) ?? 0) + 1);
+  }
+  telechargements(): Record<string, number> { return Object.fromEntries(this.compteurs); }
+
+  /** Dernière APK publiée pour une app, ou null. */
+  versionNative(app: AppOrion): VersionNative | null {
+    const f = join(this.dossier, app, 'apk.json');
+    if (!existsSync(f)) return null;
+    try { return JSON.parse(readFileSync(f, 'utf8')) as VersionNative; } catch { return null; }
+  }
+
+  /** Dernières APK publiées de chaque app (console). */
+  etatApk(): Record<AppOrion, VersionNative | null> {
+    return Object.fromEntries(APPS.map((a) => [a, this.versionNative(a)])) as Record<AppOrion, VersionNative | null>;
+  }
+
+  /** Chemin disque d'une APK publiée, ou null (nom contrôlé : aucune sortie du dossier). */
+  fichierApk(app: AppOrion, nom: string): string | null {
+    if (!APK_RE.test(nom)) return null;
+    const f = join(this.dossier, app, 'apk', nom);
+    return existsSync(f) ? f : null;
+  }
+
+  publierApk(app: string, apk: Buffer, o: { versionCode: number; version: string; notes?: string; obligatoire?: boolean }): VersionNative {
+    if (!estApp(app)) throw new ErreurMiseAJour('APP_INCONNUE', `Application inconnue : ${app}`);
+    if (!VERSION_RE.test(o.version)) throw new ErreurMiseAJour('VERSION_INVALIDE', 'Numéro de version invalide');
+    if (!Number.isInteger(o.versionCode) || o.versionCode < 1 || o.versionCode > 2_100_000_000) throw new ErreurMiseAJour('VERSION_INVALIDE', 'versionCode invalide');
+    if (apk.length < 1024 || apk.length > TAILLE_MAX || apk[0] !== 0x50 || apk[1] !== 0x4b) {
+      throw new ErreurMiseAJour('PAQUET_INVALIDE', 'L’APK doit être un fichier Android de 60 Mo au plus');
+    }
+    if (!apk.includes(Buffer.from('AndroidManifest.xml'))) throw new ErreurMiseAJour('PAQUET_INVALIDE', 'Ce fichier n’est pas une APK Android');
+    const actuelle = this.versionNative(app);
+    if (actuelle && o.versionCode <= actuelle.versionCode) {
+      throw new ErreurMiseAJour('VERSION_ANCIENNE', `versionCode ${o.versionCode} : la version en ligne a déjà le ${actuelle.versionCode} (il doit augmenter à chaque APK)`);
+    }
+    const nom = `${NOM_APP[app]}-${o.version}.apk`;
+    const dossierApk = join(this.dossier, app, 'apk');
+    mkdirSync(dossierApk, { recursive: true });
+    writeFileSync(join(dossierApk, `${nom}.part`), apk);
+    renameSync(join(dossierApk, `${nom}.part`), join(dossierApk, nom));
+    const v: VersionNative = {
+      app, versionCode: o.versionCode, version: o.version,
+      sha256: createHash('sha256').update(apk).digest('hex'), taille: apk.length,
+      notes: (o.notes ?? '').slice(0, 500), obligatoire: o.obligatoire === true,
+      publieLe: this.maintenant().toISOString(), chemin: `/apps/${app}/apk/${nom}`,
+    };
+    writeFileSync(join(this.dossier, app, 'apk.json.part'), JSON.stringify(v, null, 2));
+    renameSync(join(this.dossier, app, 'apk.json.part'), join(this.dossier, app, 'apk.json'));
+    // Garde l'APK précédente : un téléphone peut être en train de la télécharger.
+    const anciennes = readdirSync(dossierApk).filter((f) => f.endsWith('.apk') && f !== nom)
+      .map((f) => ({ f, t: statSync(join(dossierApk, f)).mtimeMs })).sort((a, b) => b.t - a.t);
+    for (const { f } of anciennes.slice(1)) rmSync(join(dossierApk, f), { force: true });
+    for (const f of this.ecouteursApk) { try { f(v); } catch { /* un écouteur en échec ne bloque pas la publication */ } }
+    return v;
+  }
 
   manifeste(app: AppOrion): Manifeste | null {
     const f = join(this.dossier, app, 'manifeste.json');
@@ -126,7 +212,7 @@ export class MisesAJour {
     return existsSync(f) ? f : null;
   }
 
-  publier(app: string, zip: Buffer, o: { version: string; natifMin?: number; notes?: string }): Manifeste {
+  publier(app: string, zip: Buffer, o: { version: string; natifMin?: number; notes?: string; obligatoire?: boolean }): Manifeste {
     if (!estApp(app)) throw new ErreurMiseAJour('APP_INCONNUE', `Application inconnue : ${app}`);
     if (!VERSION_RE.test(o.version)) throw new ErreurMiseAJour('VERSION_INVALIDE', 'Numéro de version invalide');
     if (!this.cle) throw new ErreurMiseAJour('SIGNATURE_INDISPONIBLE', 'Clé de signature des mises à jour absente du serveur (OTA_SIGNING_KEY)');
@@ -143,7 +229,7 @@ export class MisesAJour {
     const base = { app, version: o.version, sha256, natifMin, taille: zip.length };
     const signature = sign('sha256', Buffer.from(messageASigner(base)), { key: this.cle, dsaEncoding: 'ieee-p1363' }).toString('base64');
     const nom = `${o.version}.zip`;
-    const m: Manifeste = { ...base, notes: (o.notes ?? '').slice(0, 500), publieLe: this.maintenant().toISOString(), chemin: `/apps/${app}/paquets/${nom}`, signature };
+    const m: Manifeste = { ...base, notes: (o.notes ?? '').slice(0, 500), publieLe: this.maintenant().toISOString(), chemin: `/apps/${app}/paquets/${nom}`, signature, ...(o.obligatoire ? { obligatoire: true } : {}) };
 
     const dossierApp = join(this.dossier, app);
     mkdirSync(dossierApp, { recursive: true });

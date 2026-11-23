@@ -56,6 +56,7 @@ import { ChoixRoute } from './components/ChoixRoute';
 import { appliquerGrillePrix, BAREME, dansDistrictAbidjan, distanceVol, minutesApproche } from './tarifServeur';
 import { useTheme } from './theme';
 import { demarrerMisesAJour, signalerNouvelleVersion } from './miseAJour';
+import { AvisMiseAJour } from './AvisMiseAJour';
 
 const PAYMENTS = [
   { method: 'orange_money', label: 'Orange Money' },
@@ -281,7 +282,8 @@ export function App() {
   const [rideId, setRideId] = useState<string | null>(null);
   // Mise à jour à chaud : jamais pendant une commande ou une course, seulement depuis l'accueil.
   const libreMaj = useRef(true);
-  libreMaj.current = !rideId && (screen === 'home' || screen === 'splash');
+  // Mise à jour proposée à l'ouverture (accueil, ou écran de bienvenue avant connexion), jamais en commande.
+  libreMaj.current = !rideId && (screen === 'home' || screen === 'splash' || screen === 'onboarding');
   useEffect(() => { demarrerMisesAJour({ app: 'client', libre: () => libreMaj.current }); }, []);
   const [live, setLive] = useState(false);
   /**
@@ -948,6 +950,8 @@ export function App() {
     <div className="app-shell">
       <div ref={cadre} className={`phone${sosLive && !sosOuvert ? ' sos-reduit' : ''}${navVisible ? ' a-nav' : ''}${simple ? ' mode-simple' : ''}`}>
         {toast && <Toast message={toast.message} danger={toast.danger} />}
+        {/* Nouvelle version publiée sur le serveur ORION : proposée à l'ouverture. */}
+        <AvisMiseAJour />
         {sosState && <SosOverlay state={sosState} onRetry={() => void triggerSos()} onClose={() => setSosState(null)} />}
         {sosLive && sosOuvert && (
           <SosLive suivi={sosLive} horsLigne={sosHorsLigne} demo={modeLocal()} onMinimize={() => setSosOuvert(false)} onClose={fermerSos} onSend={(x) => void repondreSos(x)} onEnd={terminerSos} />

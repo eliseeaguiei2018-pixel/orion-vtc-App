@@ -112,3 +112,68 @@ test('sans clé fournie, le serveur crée la sienne sur son disque, la garde, et
   assert.equal(r.json().clePublique, container.misesAJour.clePublique());
   await app.close();
 });
+
+/** APK minimale : en-tête zip et manifeste Android (le serveur ne l'installe pas, il la sert). */
+const apk = (texte: string) => Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from(`AndroidManifest.xml ${texte} `.padEnd(2048, '.'))]);
+
+test('nouvelle APK : publiée par la direction, annoncée aux apps, téléchargée depuis le serveur', async () => {
+  const { app, container } = await buildApp();
+  const annonces: Array<{ type: string; data: { app?: string; apk?: boolean; versionCode?: number } }> = [];
+  container.realtime.subscribeAll((m) => { if (m.type === 'apps.maj') annonces.push(m as never); });
+
+  assert.equal((await app.inject({ method: 'GET', url: '/apps/chauffeur/version-native' })).statusCode, 404);
+  const fichier = apk('pro-27');
+  const pub = await app.inject({
+    method: 'PUT', url: '/admin/mises-a-jour/chauffeur/apk?version=2.1.0&versionCode=27&notes=Livreurs&obligatoire=1',
+    headers: { ...AUTH, 'content-type': 'application/vnd.android.package-archive' }, payload: fichier,
+  });
+  assert.equal(pub.statusCode, 200, pub.body);
+
+  const v = (await app.inject({ method: 'GET', url: '/apps/chauffeur/version-native' })).json();
+  assert.equal(v.versionCode, 27);
+  assert.equal(v.version, '2.1.0');
+  assert.equal(v.obligatoire, true);
+  assert.equal(v.taille, fichier.length);
+  assert.equal(v.sha256, createHash('sha256').update(fichier).digest('hex'));
+  assert.equal(v.chemin, '/apps/chauffeur/apk/ORION-Pro-2.1.0.apk');
+  assert.ok(annonces.some((a) => a.data.app === 'chauffeur' && a.data.apk === true && a.data.versionCode === 27), 'annonce en direct');
+
+  // Téléchargement : le fichier tel quel, proposé à l'enregistrement par le navigateur du téléphone.
+  const dl = await app.inject({ method: 'GET', url: v.chemin });
+  assert.equal(dl.statusCode, 200);
+  assert.equal(dl.headers['content-type'], 'application/vnd.android.package-archive');
+  assert.match(String(dl.headers['content-disposition']), /attachment; filename="ORION-Pro-2.1.0.apk"/);
+  assert.deepEqual(dl.rawPayload, fichier);
+  // Lien court à partager : toujours la dernière APK (« pro » = ORION Pro).
+  const court = await app.inject({ method: 'GET', url: '/telecharger/pro' });
+  assert.equal(court.statusCode, 302);
+  assert.equal(court.headers.location, v.chemin);
+
+  // Le versionCode doit augmenter ; un fichier qui n'est pas une APK est refusé ; noms contrôlés.
+  const meme = await app.inject({ method: 'PUT', url: '/admin/mises-a-jour/chauffeur/apk?version=2.1.1&versionCode=27', headers: { ...AUTH, 'content-type': 'application/vnd.android.package-archive' }, payload: apk('x') });
+  assert.equal(meme.statusCode, 409);
+  const pasApk = await app.inject({ method: 'PUT', url: '/admin/mises-a-jour/chauffeur/apk?version=2.2.0&versionCode=28', headers: { ...AUTH, 'content-type': 'application/vnd.android.package-archive' }, payload: paquet('zip') });
+  assert.equal(pasApk.statusCode, 400);
+  assert.equal((await app.inject({ method: 'GET', url: '/apps/chauffeur/apk/..%2Fapk.json' })).statusCode, 404);
+  assert.equal((await app.inject({ method: 'GET', url: '/telecharger/inconnue' })).statusCode, 404);
+
+  // Réservé à la direction : le support ne publie pas d'APK.
+  const support = (await app.inject({ method: 'POST', url: '/admin/login', payload: { username: 'support.maj', password: 'Maj#2026' } })).json().token as string;
+  const refus = await app.inject({ method: 'PUT', url: '/admin/mises-a-jour/client/apk?version=2.1.0&versionCode=27', headers: { authorization: `Bearer ${support}`, 'content-type': 'application/vnd.android.package-archive' }, payload: apk('c') });
+  assert.equal(refus.statusCode, 403);
+
+  // La console voit l'APK en ligne de chaque app.
+  const etat = (await app.inject({ method: 'GET', url: '/admin/mises-a-jour', headers: AUTH })).json();
+  assert.equal(etat.apk.chauffeur.versionCode, 27);
+  assert.equal(etat.telechargements['chauffeur/ORION-Pro-2.1.0.apk'], 1, 'un téléchargement compté');
+  assert.equal(etat.apk.client, null);
+});
+
+test('mise à jour à chaud « obligatoire » : indiquée dans le manifeste, hors signature', async () => {
+  const { app } = await buildApp();
+  const pub = await app.inject({ method: 'PUT', url: '/admin/mises-a-jour/console?version=2.1.0-ob&natifMin=25&obligatoire=1', headers: { ...AUTH, 'content-type': 'application/zip' }, payload: paquet('ob') });
+  assert.equal(pub.statusCode, 200, pub.body);
+  const m = (await app.inject({ method: 'GET', url: '/apps/console/manifeste' })).json();
+  assert.equal(m.obligatoire, true);
+  assert.equal(messageASigner(m).includes('true'), false);
+});

@@ -7,22 +7,24 @@ import { signatureValide, type AppOrion, type ManifesteMaj } from './miseAJourSi
 export type { AppOrion, ManifesteMaj } from './miseAJourSignature';
 
 /**
- * MISES À JOUR À CHAUD (apps client, chauffeur et console installées en APK).
+ * MISES À JOUR ANNONCÉES (apps client, ORION Pro et console installées en APK).
  *
- * Quand la direction publie une nouvelle version sur le serveur ORION, l'application la
- * télécharge d'elle-même et l'installe AU BON MOMENT, sans passer par une nouvelle APK :
- *  - jamais pendant une course (client) ni pendant une offre ou une course (chauffeur) ;
- *  - au retour dans l'application, ou après deux minutes sans toucher l'écran.
+ * Tout passe par le serveur ORION, plus jamais par un fichier envoyé à la main :
+ *  - une nouvelle VERSION DE L'APPLICATION (écrans, règles, textes) est un paquet web que l'app
+ *    télécharge et installe elle-même, en quelques secondes ;
+ *  - une nouvelle APK (changement du moteur natif : permission, module Android) est hébergée par
+ *    le serveur ; l'app la télécharge par le navigateur du téléphone, Android propose « Mettre à
+ *    jour » et garde les données (même clé de signature que l'app installée).
+ * Dans les deux cas, à l'ouverture de l'app (jamais pendant une course ou une offre), un message
+ * « Mise à jour disponible » propose de la télécharger. « Plus tard » la repropose à la prochaine
+ * ouverture ; une version « obligatoire » ne peut pas être reportée.
  *
  * Sécurité :
- *  - le manifeste de la version est SIGNÉ par le serveur ORION ; l'application vérifie la
- *    signature avec la clé publique ci-dessous avant de télécharger quoi que ce soit ;
+ *  - le manifeste d'un paquet web est SIGNÉ par le serveur ORION ; l'application vérifie la
+ *    signature avec la clé publique intégrée à l'APK avant de télécharger quoi que ce soit ;
  *  - le module natif vérifie ensuite l'empreinte SHA-256 du paquet : un fichier modifié
- *    n'est jamais installé ;
- *  - si la nouvelle version ne démarre pas, le téléphone revient seul à la précédente.
- *
- * Seuls les changements du moteur natif (nouvelle permission, nouveau module Android)
- * demandent encore une APK : le serveur l'indique (natifMin) et l'app ignore la version.
+ *    n'est jamais installé ; si la nouvelle version ne démarre pas, retour à la précédente ;
+ *  - une APK n'est installée par Android que si elle porte la signature de l'app en place.
  */
 declare const __VERSION_WEB__: string;
 /** Version de l'application web en cours (fixée à la construction). */
@@ -42,52 +44,108 @@ export function confirmerDemarrage(): void {
 
 let reglage: { app: AppOrion; libre: () => boolean } | null = null;
 let enCours = false;
-let prete: { id: string; version: string } | null = null;
-/** Ouverture ou retour dans l'app, et dernier geste de l'utilisateur. */
-let ouverteA = Date.now();
-let dernierGeste = 0;
-const INACTIVITE_MS = 120_000;
-const FENETRE_OUVERTURE_MS = 30_000;
+
+/** Ce que l'app annonce à l'utilisateur. */
+export interface AvisMaj {
+  type: 'web' | 'apk';
+  app: AppOrion;
+  version: string;
+  notes: string;
+  /** Taille du téléchargement, en octets. */
+  taille: number;
+  obligatoire: boolean;
+  /** Adresse du paquet ou de l'APK, sur le serveur ORION. */
+  url: string;
+  etat: 'propose' | 'telechargement' | 'installation' | 'erreur' | 'ouvert';
+  /** Téléchargement en cours, en %. */
+  progression: number;
+}
+
+let avis: (AvisMaj & { sha256?: string; paquetId?: string }) | null = null;
+/** « Plus tard » : masqué jusqu'à la prochaine ouverture de l'app. */
+let reporte = false;
+let visible: AvisMaj | null = null;
+const abonnes = new Set<() => void>();
+
+function recalculer(): void {
+  let libre = false;
+  try { libre = reglage?.libre() ?? false; } catch { libre = false; }
+  // Un téléchargement lancé reste visible jusqu'au bout, même si une course arrive.
+  const enMarche = avis?.etat === 'telechargement' || avis?.etat === 'installation';
+  // Une fois affiché, le message reste jusqu'au choix de l'utilisateur (pas de clignotement).
+  const dejaAffiche = visible !== null && avis !== null && visible.version === avis.version && visible.type === avis.type;
+  const suivant = avis && !reporte && (libre || enMarche || dejaAffiche) ? { ...avis } : null;
+  const avant = visible;
+  if (JSON.stringify(avant) === JSON.stringify(suivant)) return;
+  visible = suivant;
+  for (const f of abonnes) f();
+}
+
+function definir(maj: Partial<NonNullable<typeof avis>> | null): void {
+  avis = maj === null ? null : ({ ...(avis ?? {}), ...maj } as NonNullable<typeof avis>);
+  recalculer();
+}
+
+/** Pour l'écran « Mise à jour disponible » (useSyncExternalStore). */
+export const avisMiseAJour = {
+  abonner(f: () => void): () => void { abonnes.add(f); return () => { abonnes.delete(f); }; },
+  lire(): AvisMaj | null { return visible; },
+};
 
 /** Démarre la surveillance des mises à jour (sans effet hors APK). */
 export function demarrerMisesAJour(o: { app: AppOrion; libre: () => boolean }): void {
   if (!actif() || reglage) return;
   reglage = o;
-  const geste = () => { dernierGeste = Date.now(); };
-  window.addEventListener('pointerdown', geste, { passive: true });
-  window.addEventListener('keydown', geste, { passive: true });
-  void App.addListener('resume', () => { ouverteA = Date.now(); dernierGeste = 0; appliquerSiLibre(); void verifierMiseAJour(); });
+  void App.addListener('resume', () => { reporte = false; recalculer(); void verifierMiseAJour(); });
   window.setInterval(() => void verifierMiseAJour(), 20 * 60_000);
-  window.setInterval(appliquerSiLibre, 15_000);
+  // L'app devient libre (fin de course, fin d'offre) : le message apparaît.
+  window.setInterval(recalculer, 5_000);
   void verifierMiseAJour();
 }
 
 /** Avis du serveur en direct : une version vient d'être publiée. */
-export function signalerNouvelleVersion(avis?: { app?: string } | null): void {
-  if (!reglage || (avis?.app && avis.app !== reglage.app)) return;
+export function signalerNouvelleVersion(m?: { app?: string } | null): void {
+  if (!reglage || (m?.app && m.app !== reglage.app)) return;
   void verifierMiseAJour();
 }
 
-/** Interroge le serveur, vérifie et télécharge la nouvelle version s'il y en a une. */
+interface VersionNative { app: string; versionCode: number; version: string; taille: number; notes: string; obligatoire: boolean; chemin: string }
+
+/** Interroge le serveur : nouvelle APK d'abord, sinon nouvelle version de l'application. */
 export async function verifierMiseAJour(): Promise<void> {
-  if (!reglage || enCours) return;
+  if (!reglage || enCours || avis?.etat === 'telechargement' || avis?.etat === 'installation') return;
   enCours = true;
   try {
     const base = serveurActif();
-    const r = await fetch(`${base}/apps/${reglage.app}/manifeste`, { cache: 'no-store' });
-    if (!r.ok) return;
-    const m = (await r.json()) as ManifesteMaj;
-    if (m.app !== reglage.app || m.version === VERSION_WEB || m.version === prete?.version) return;
-    if (!(await signatureValide(m))) return;
+    const app = reglage.app;
     const natif = Number((await App.getInfo()).build) || 0;
+    const absolue = (chemin: string) => new URL(chemin, base || window.location.origin).toString();
+
+    const rn = await fetch(`${base}/apps/${app}/version-native`, { cache: 'no-store' }).catch(() => null);
+    if (rn?.ok) {
+      const v = (await rn.json()) as VersionNative;
+      if (v.app === app && v.versionCode > natif && typeof v.chemin === 'string' && v.chemin.startsWith(`/apps/${app}/apk/`)) {
+        if (avis?.type !== 'apk' || avis.version !== v.version) {
+          definir(null);
+          definir({ type: 'apk', app, version: v.version, notes: v.notes ?? '', taille: v.taille, obligatoire: v.obligatoire === true, url: absolue(v.chemin), etat: 'propose', progression: 0 });
+        }
+        return;
+      }
+    }
+
+    const r = await fetch(`${base}/apps/${app}/manifeste`, { cache: 'no-store' });
+    if (!r.ok) return;
+    const m = (await r.json()) as ManifesteMaj & { obligatoire?: boolean };
+    if (m.app !== app || m.version === VERSION_WEB) { if (avis?.type === 'web') definir(null); return; }
+    if (avis?.type === 'web' && avis.version === m.version) return;
+    if (!(await signatureValide(m))) return;
     if (m.natifMin > natif) return;
     const connus = (await CapacitorUpdater.list()).bundles.filter((b) => b.version === m.version);
-    // Une version qui a déjà échoué sur ce téléphone n'est pas réessayée (pas de boucle).
+    // Une version qui a déjà échoué sur ce téléphone n'est pas reproposée (pas de boucle).
     if (connus.some((b) => b.status === 'error')) return;
     const deja = connus.find((b) => b.status === 'pending' || b.status === 'success');
-    const paquet = deja ?? await CapacitorUpdater.download({ url: new URL(m.chemin, base || window.location.origin).toString(), version: m.version, checksum: m.sha256 });
-    prete = { id: paquet.id, version: m.version };
-    appliquerSiLibre();
+    definir(null);
+    definir({ type: 'web', app, version: m.version, notes: m.notes ?? '', taille: m.taille, obligatoire: m.obligatoire === true, url: absolue(m.chemin), sha256: m.sha256, paquetId: deja?.id, etat: 'propose', progression: 0 });
   } catch {
     /* hors ligne ou serveur sans mise à jour : nouvel essai plus tard */
   } finally {
@@ -95,16 +153,36 @@ export async function verifierMiseAJour(): Promise<void> {
   }
 }
 
-/** Installe la version prête si l'app est libre : juste ouverte, ou laissée sans geste. */
-function appliquerSiLibre(): void {
-  if (!prete || !reglage) return;
-  let libre = false;
-  try { libre = reglage.libre(); } catch { libre = false; }
-  const maintenant = Date.now();
-  const justeOuverte = maintenant - ouverteA < FENETRE_OUVERTURE_MS && dernierGeste < ouverteA;
-  const inactive = maintenant - Math.max(dernierGeste, ouverteA) > INACTIVITE_MS;
-  if (!libre || !(justeOuverte || inactive)) return;
-  const { id } = prete;
-  prete = null;
-  void CapacitorUpdater.set({ id }).catch(() => undefined);
+/** « Mettre à jour » : télécharge et installe (paquet web), ou ouvre le téléchargement de l'APK. */
+export async function installerMiseAJour(): Promise<void> {
+  const a = avis;
+  if (!a || a.etat === 'telechargement' || a.etat === 'installation') return;
+  if (a.type === 'apk') {
+    // Hors du domaine de l'app : Capacitor confie l'adresse au navigateur du téléphone, qui
+    // télécharge l'APK ; Android propose ensuite de l'installer par-dessus l'app actuelle.
+    definir({ etat: 'ouvert' });
+    window.location.assign(a.url);
+    return;
+  }
+  definir({ etat: 'telechargement', progression: 0 });
+  const suivi = await CapacitorUpdater.addListener('download', (e: { percent?: number }) => {
+    if (typeof e?.percent === 'number') definir({ progression: Math.max(0, Math.min(100, Math.round(e.percent))) });
+  }).catch(() => null);
+  try {
+    const id = a.paquetId ?? (await CapacitorUpdater.download({ url: a.url, version: a.version, checksum: a.sha256 })).id;
+    definir({ etat: 'installation', progression: 100, paquetId: id });
+    // Redémarre l'app sur la nouvelle version (retour automatique à l'ancienne si elle échoue).
+    await CapacitorUpdater.set({ id });
+  } catch {
+    definir({ etat: 'erreur' });
+  } finally {
+    void suivi?.remove();
+  }
+}
+
+/** « Plus tard » : reproposée à la prochaine ouverture (impossible si obligatoire). */
+export function reporterMiseAJour(): void {
+  if (!avis || avis.obligatoire) return;
+  reporte = true;
+  recalculer();
 }

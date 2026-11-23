@@ -326,6 +326,9 @@ export function createContainer(): Container {
     // Canal `config` : app client, console, et app chauffeur (son canal relaie aussi celui-ci).
     realtime.publish(CONFIG_ROOM, 'apps.maj', avis);
   });
+  misesAJour.onPublicationApk((v) => {
+    realtime.publish(CONFIG_ROOM, 'apps.maj', { app: v.app, version: v.version, versionCode: v.versionCode, apk: true });
+  });
   // Diffusion temps réel de la config publique : à chaque changement piloté depuis la
   // console (maintenance, services, passerelles), toutes les apps clientes connectées au
   // canal WS `config` reçoivent la nouvelle config et se mettent à jour instantanément.

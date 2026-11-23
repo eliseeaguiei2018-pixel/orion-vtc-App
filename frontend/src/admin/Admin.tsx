@@ -38,6 +38,7 @@ import { EnrolementAppareil, LigneAppareil, estAppEmballee, useEtatAppareil, typ
 import { BoutonInstaller } from '../pwa';
 import { surServeurDeSecours } from '../serveur';
 import { demarrerMisesAJour, signalerNouvelleVersion } from '../miseAJour';
+import { AvisMiseAJour } from '../AvisMiseAJour';
 
 
 
@@ -1681,6 +1682,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
   return (
     <div className={`adm-shell${menuOuvert ? ' menu-ouvert' : ''}`}>
+      <AvisMiseAJour />
       <button type="button" className="adm-voile" aria-label="Fermer le menu" tabIndex={menuOuvert ? 0 : -1} onClick={() => setMenuOuvert(false)} />
       <aside className="adm-side" id="adm-menu">
         <div className="adm-brand">

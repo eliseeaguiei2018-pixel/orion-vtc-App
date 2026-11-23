@@ -21,6 +21,7 @@ import { estEcranVehicule } from './ecran';
 import { Appairage } from './screens/Appairage';
 import { LockScreen } from '../components/Verrou';
 import { isBiometricEnabled } from '../security';
+import { AvisMiseAJour } from '../AvisMiseAJour';
 
 /**
  * APP CHAUFFEUR ORION — troisième page du projet (driver.html), à côté de l'app cliente
@@ -46,6 +47,8 @@ export function DriverApp() {
   return (
     <div className="app-shell">
       <SuggestionEcranVehicule />
+      {/* Nouvelle version publiée sur le serveur ORION : proposée hors course et hors offre. */}
+      <AvisMiseAJour />
       {/* App installée (téléphone, tablette) : plein écran, dans les deux sens de rotation. */}
       <div className={`phone${Capacitor.isNativePlatform() ? ' plein' : ''}`}>
         <Shell app={app} />

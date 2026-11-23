@@ -195,10 +195,14 @@ paths:
   /vehicules/{chemin=**}:
     parameters: [{ name: chemin, in: path, required: true, type: string }]
     get: { operationId: vehicules_sous_get, <<: [*compteur, *reponses] }
-  # Mises à jour à chaud des apps : manifestes signés et paquets.
+  # Mises à jour des apps : manifestes signés, paquets, nouvelles APK.
   /apps/{chemin=**}:
     parameters: [{ name: chemin, in: path, required: true, type: string }]
     get: { operationId: apps_sous_get, <<: [*compteur, *reponses] }
+  # Lien court vers la dernière APK d'une app (première installation).
+  /telecharger/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    get: { operationId: telecharger_sous_get, <<: [*compteur, *reponses] }
 
   # Mariage.
   /wedding/{chemin=**}:
