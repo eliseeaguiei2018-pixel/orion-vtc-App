@@ -29,6 +29,7 @@ interface Appli {
   prixLivraison(d: { origin: Pt; destination: Pt; distanceMeters: number; tailleFacteur: number; at?: Date }): Detail;
   ZONES_TARIF: { id: string; factor: number; lat: number; lng: number; radiusKm: number; pickupFee?: number }[];
   ZONES_DENSITE: readonly (readonly [string, number, number, number])[];
+  appliquerGrillePrix(g: unknown): void;
 }
 // Import par chemin calculé : le fichier vit dans le dossier de l'application, hors du projet serveur.
 const appli = (await import(new URL('../../frontend/src/tarifServeur.ts', import.meta.url).href)) as Appli;
@@ -240,4 +241,33 @@ test('district d’Abidjan et péages : la copie de l’application est celle du
   // Seule la première phrase de l'en-tête (qui nomme l'autre copie) diffère.
   const corps = (chemin: string) => readFileSync(new URL(chemin, import.meta.url), 'utf8').split('\n').slice(4).join('\n');
   assert.equal(corps('../../frontend/src/routesAbidjan.ts'), corps('../src/modules/geo-ci/abidjan.ts'));
+});
+
+test('barème changé en console : l’application reçoit la grille et affiche le même prix que le serveur', async () => {
+  const { app } = await buildApp();
+  const A = { 'x-admin-token': 'orion-admin-dev' };
+  const put = await app.inject({ method: 'PUT', url: '/admin/pricing', headers: A, payload: { baseFare: 350, perKm: 120, perMinute: 17, minFare: 700 } });
+  assert.equal(put.statusCode, 200, put.body);
+  const config = (await app.inject({ method: 'GET', url: '/config' })).json() as { prix: { bareme: Record<string, number>; livraison: Record<string, number> } };
+  assert.deepEqual(config.prix.bareme, { baseFare: 350, perKm: 120, perMinute: 17, minFare: 700 });
+  assert.equal(config.prix.livraison.perKm, 70);
+  appli.appliquerGrillePrix(config.prix);
+  try {
+    const origin = LIEUX.cocody!, destination = LIEUX.plateau!;
+    const { serveur, local } = await memeHeure(async (at) => {
+      const res = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin, destination, category: 'or', clientId: CLIENT } });
+      assert.equal(res.statusCode, 200, res.body);
+      return { serveur: res.json().quote as Detail, local: appli.prixCourse({ origin, destination, distanceMeters: vol([origin, destination]) * 1.3, multiplier: FLEET.or.multiplier, gamme: 'or', at }) };
+    });
+    assert.equal(local.amount, serveur.amount);
+    // Un barème reçu incohérent est ignoré : l'application garde le dernier barème valable.
+    appli.appliquerGrillePrix({ bareme: { perKm: -5, baseFare: Number.NaN } });
+    const apres = appli.prixCourse({ origin, destination, distanceMeters: vol([origin, destination]) * 1.3, multiplier: FLEET.or.multiplier, gamme: 'or' });
+    assert.equal(apres.amount, local.amount);
+  } finally {
+    // Les autres tests de ce fichier comparent au barème par défaut.
+    const { DEFAULT_PRICING } = await import('../src/modules/services/ride/pricing.js');
+    appli.appliquerGrillePrix({ bareme: DEFAULT_PRICING, livraison: { baseFare: 220, perKm: 70, perMinute: 6, minFare: 500 } });
+    await app.close();
+  }
 });

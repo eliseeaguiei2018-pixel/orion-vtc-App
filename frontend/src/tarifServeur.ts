@@ -40,7 +40,8 @@ export function distanceVol(a: Pt, b: Pt): number {
 
 /** Barème des courses (DEFAULT_PRICING du serveur). */
 export const BAREME = {
-  baseFare: 300, perKm: 130, perMinute: 18, minFare: 600, avgSpeedKmh: 24,
+  // Grille ORION, nettement sous Yango (flotte électrique) : voir DEFAULT_PRICING du serveur.
+  baseFare: 300, perKm: 100, perMinute: 15, minFare: 600, avgSpeedKmh: 24,
   tvaRate: 0.05, feeRate: 0.1, insuranceRate: 0.04, trafficWeight: 0.6, stopFee: 250,
   bodySurcharge: { berline: 1, suv: 1.08 } as Record<string, number>,
   /** Majoration de chaque gamme par rapport à l'Argent, en pour cent du prix de la course. */
@@ -48,8 +49,8 @@ export const BAREME = {
   /** Même majoration quand la course sort du district d'Abidjan : 10 % entre les gammes. */
   majorationsPctHorsAbidjan: { argent: 0, or: 10, diamant: 20 } as Record<Gamme, number>,
   /** Mise à disposition à l'heure (Abidjan) : prix TTC d'une heure en Argent, durée permise. */
-  miseADisposition: { tarifHeure: 5000, minHeures: 2, maxHeures: 12 },
-} as const;
+  miseADisposition: { tarifHeure: 5000, minHeures: 2, maxHeures: 12 } as const,
+};
 /** Postes de péage et montants (DEFAULT_PRICING.peages du serveur). */
 export const PEAGES_TARIF: readonly Peage[] = PEAGES;
 
@@ -70,6 +71,18 @@ export interface GrillePrixServeur {
   ajustementPct: number;
   majorationsPct: { or: number; diamant: number };
   majorationsPctHorsAbidjan: { or: number; diamant: number };
+  /** Barème hors taxes en vigueur (courses, puis livraisons à moto). */
+  bareme: BaremeHT;
+  livraison: BaremeHT;
+}
+interface BaremeHT { baseFare: number; perKm: number; perMinute: number; minFare: number }
+/** Reprend un barème reçu du serveur, champ par champ, s'il est plausible (sinon on garde le nôtre). */
+function reprendreBareme(cible: BaremeHT, recu: Partial<BaremeHT> | undefined): void {
+  if (!recu) return;
+  for (const k of ['baseFare', 'perKm', 'perMinute', 'minFare'] as const) {
+    const v = recu[k];
+    if (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100_000) cible[k] = v;
+  }
 }
 let ajustementDirection = 1;
 export function appliquerGrillePrix(g: Partial<GrillePrixServeur> | undefined | null): void {
@@ -77,6 +90,8 @@ export function appliquerGrillePrix(g: Partial<GrillePrixServeur> | undefined | 
   if (typeof g.ajustementPct === 'number' && Number.isFinite(g.ajustementPct)) ajustementDirection = 1 + Math.min(100, Math.max(-50, g.ajustementPct)) / 100;
   if (g.majorationsPct) Object.assign(BAREME.majorationsPct, { or: g.majorationsPct.or, diamant: g.majorationsPct.diamant });
   if (g.majorationsPctHorsAbidjan) Object.assign(BAREME.majorationsPctHorsAbidjan, { or: g.majorationsPctHorsAbidjan.or, diamant: g.majorationsPctHorsAbidjan.diamant });
+  reprendreBareme(BAREME, g.bareme);
+  reprendreBareme(BAREME_LIVRAISON, g.livraison);
 }
 
 export function supplementGamme(gamme: Gamme, montantArgent: number, horsAbidjan = false): number {
@@ -94,7 +109,7 @@ export function supplementGamme(gamme: Gamme, montantArgent: number, horsAbidjan
 }
 
 /** Barème des livraisons à moto (DELIVERY_TARIFF du serveur). */
-export const BAREME_LIVRAISON = { baseFare: 220, perKm: 88, perMinute: 8, minFare: 500, avgSpeedKmh: 26 } as const;
+export const BAREME_LIVRAISON = { baseFare: 220, perKm: 70, perMinute: 6, minFare: 500, avgSpeedKmh: 26 as const };
 
 /** Zone tarifaire : commune ou secteur résidentiel, avec ses règles de prix. */
 export interface ZoneTarif {

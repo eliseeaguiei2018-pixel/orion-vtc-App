@@ -1,4 +1,5 @@
 import type { Container } from '../../container.js';
+import { DELIVERY_TARIFF } from '../services/delivery/deliveryModule.js';
 
 /**
  * CONFIG PUBLIQUE des apps (GET /config, canal temps réel `config`) : services ouverts,
@@ -16,6 +17,9 @@ export function configPublique(container: Pick<Container, 'settings' | 'whatsapp
       ajustementPct: p.ajustementPct ?? 0,
       majorationsPct: { or: p.majorationsPct['or'] ?? 0, diamant: p.majorationsPct['diamant'] ?? 0 },
       majorationsPctHorsAbidjan: { or: p.majorationsPctHorsAbidjan?.['or'] ?? 0, diamant: p.majorationsPctHorsAbidjan?.['diamant'] ?? 0 },
+      // Barème en vigueur (Tarification en console) : les aperçus de prix des apps le suivent.
+      bareme: { baseFare: p.baseFare, perKm: p.perKm, perMinute: p.perMinute, minFare: p.minFare },
+      livraison: { baseFare: DELIVERY_TARIFF.baseFare, perKm: DELIVERY_TARIFF.perKm, perMinute: DELIVERY_TARIFF.perMinute, minFare: DELIVERY_TARIFF.minFare },
     },
   };
 }
