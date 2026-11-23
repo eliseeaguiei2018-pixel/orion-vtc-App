@@ -51,11 +51,13 @@ export const DEFAULT_ZONES: Zone[] = [
   { id: 'abobo', name: 'Abobo', factor: 0.92, lat: 5.4204, lng: -4.0159, radiusKm: 6, active: true },
   { id: 'aeroport', name: 'Aéroport (Port-Bouët)', factor: 1.1, lat: 5.2614, lng: -3.9268, radiusKm: 4, active: true },
   /* Micro-secteurs résidentiels premium (qualité de service garantie). */
-  { id: 'riviera-golf', name: 'Riviera Golf', factor: 1.15, lat: 5.3742, lng: -3.9721, radiusKm: 1.4, active: true, waitMaxMin: 5, driverBonus: 300, minStandard: 'argent', dedicated: true },
+  // Secteurs placés sur les vrais quartiers (Riviera Golf au bord de la lagune, Beverly Hills à
+  // l'est) : ils étaient décalés de 3 à 4 km vers Riviera Bonoumin et Palmeraie, majorés à tort.
+  { id: 'riviera-golf', name: 'Riviera Golf', factor: 1.15, lat: 5.337, lng: -3.974, radiusKm: 1.4, active: true, waitMaxMin: 5, driverBonus: 300, minStandard: 'argent', dedicated: true },
   { id: 'deux-plateaux-vallon', name: 'Deux-Plateaux Vallon', factor: 1.1, lat: 5.3689, lng: -4.0004, radiusKm: 1.3, active: true, waitMaxMin: 5, driverBonus: 200, minStandard: 'argent' },
   { id: 'cite-des-arts', name: 'Cocody Centre — Cité des Arts', factor: 1.08, lat: 5.3488, lng: -3.9962, radiusKm: 1.1, active: true, waitMaxMin: 6, driverBonus: 150 },
   { id: 'cocody-danga', name: 'Cocody Danga', factor: 1.1, lat: 5.3391, lng: -4.0011, radiusKm: 1.0, active: true, waitMaxMin: 5, driverBonus: 200, minStandard: 'argent' },
-  { id: 'riviera-beverly-hills', name: 'Riviera Beverly Hills', factor: 1.18, lat: 5.3808, lng: -3.9611, radiusKm: 1.2, active: true, waitMaxMin: 5, driverBonus: 300, minStandard: 'or', dedicated: true },
+  { id: 'riviera-beverly-hills', name: 'Riviera Beverly Hills', factor: 1.18, lat: 5.351, lng: -3.9546, radiusKm: 1.0, active: true, waitMaxMin: 5, driverBonus: 300, minStandard: 'or', dedicated: true },
   { id: 'marcory-zone4', name: 'Marcory Zone 4', factor: 1.08, lat: 5.2942, lng: -3.9846, radiusKm: 1.6, active: true, waitMaxMin: 6, driverBonus: 150 },
 ];
 

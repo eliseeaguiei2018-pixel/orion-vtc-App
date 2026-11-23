@@ -223,8 +223,8 @@ test('micro-zonage : standard minimal, frais de secteur, cantonnement, attente 1
   // --- Standard minimal : Riviera Beverly Hills exige ≥ or.
   const bronzeBH = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Bronze BH', category: 'argent' } });
   const bronzeId = bronzeBH.json().driver.id as string;
-  await app.inject({ method: 'POST', url: `/drivers/${bronzeId}/online`, payload: { position: { lat: 5.3808, lng: -3.9611 } } });
-  const estBH = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.3808, lng: -3.9611 }, destination: { lat: 5.35, lng: -4.0 }, category: 'argent' } });
+  await app.inject({ method: 'POST', url: `/drivers/${bronzeId}/online`, payload: { position: { lat: 5.351, lng: -3.9546 } } });
+  const estBH = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.351, lng: -3.9546 }, destination: { lat: 5.35, lng: -4.0 }, category: 'argent' } });
   const lockBH = estBH.json().quote.lockId as string;
   const rideBH = await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-bh', lockId: lockBH }, headers: { 'idempotency-key': 'bh-1' } });
   assert.equal(rideBH.json().ride.status, 'no_driver', 'bronze refusé dans un secteur ≥ or');
@@ -233,7 +233,7 @@ test('micro-zonage : standard minimal, frais de secteur, cantonnement, attente 1
   const orBH = await app.inject({ method: 'POST', url: '/drivers', payload: { name: 'Or BH', category: 'or' } });
   const orId = orBH.json().driver.id as string;
   await app.inject({ method: 'POST', url: `/drivers/${orId}/online`, payload: { position: { lat: 5.3809, lng: -3.9612 } } });
-  const estBH2 = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.3808, lng: -3.9611 }, destination: { lat: 5.35, lng: -4.0 }, category: 'or' } });
+  const estBH2 = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: { lat: 5.351, lng: -3.9546 }, destination: { lat: 5.35, lng: -4.0 }, category: 'or' } });
   const rideBH2 = await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-bh2', lockId: estBH2.json().quote.lockId }, headers: { 'idempotency-key': 'bh-2' } });
   assert.equal(rideBH2.json().ride.driverId, orId);
 

@@ -91,16 +91,16 @@ export interface ApprocheTarif { actif: boolean; offerteKm: number; offerteMin: 
  * pas de hausse liée aux prix à la pompe, et pas de commission de 18 à 25 % prélevée sur le
  * chauffeur.
  *
- * Calée sur un RELEVÉ RÉEL de l'application Yango (23/11/2026, trafic dense) : Église
- * Saint-Bernard (Riviera Golf, Cocody) → bord de lagune, environ 5,5 km et 16 min : Yango Éco
- * 1 500 F, Confort 1 800 F, Confort+ 2 100 F. ORION : Argent 900 F (−40 %), l'Or (+5 %) et le
+ * Calée sur un RELEVÉ RÉEL de l'application Yango (23/11/2026, trafic dense) : Pharmacie
+ * Saint-Bernard (Riviera Bonoumin) → bureau de la FAO (Riviera Golf), environ 5 km et 16 min :
+ * Yango Éco 1 500 F, Confort 1 800 F, Confort+ 2 100 F. ORION : Argent ≈ 900 F (−40 %), l'Or (+5 %) et le
  * Diamant (+15 %) suivant la grille au-dessus de l'Argent. Les chiffres publics de Yango
  * (500 F + 250 F/km) surestimaient ses vrais prix d'environ moitié : ne plus s'y fier.
  * Hors taxes, avant le coefficient de gamme de 0,9. Le tout se règle depuis la console
  * (Tarification, Mon poste du PDG) : effet immédiat sur toutes les apps.
  */
 export const DEFAULT_PRICING: PricingSettings = {
-  baseFare: 200, perKm: 60, perMinute: 9, minFare: 480, avgSpeedKmh: 24,
+  baseFare: 250, perKm: 80, perMinute: 12, minFare: 480, avgSpeedKmh: 24,
   tvaRate: TVA_RATE, feeRate: APP_FEE_RATE, insuranceRate: INSURANCE_RATE, trafficWeight: 0.6, stopFee: 250,
   multipliers: { argent: FLEET.argent.multiplier, or: FLEET.or.multiplier, diamant: FLEET.diamant.multiplier },
   majorationsPct: { argent: FLEET.argent.majorationPct, or: FLEET.or.majorationPct, diamant: FLEET.diamant.majorationPct },

@@ -37,8 +37,8 @@ const appli = (await import(new URL('../../frontend/src/tarifServeur.ts', import
 const LIEUX: Record<string, Pt> = {
   plateau: { lat: 5.3237, lng: -4.017 },
   cocody: { lat: 5.3596, lng: -3.9903 },
-  rivieraGolf: { lat: 5.3742, lng: -3.9721 },         // secteur résidentiel : facteur 1,15 et 200 F de prise en charge
-  beverlyHills: { lat: 5.3808, lng: -3.9611 },
+  rivieraGolf: { lat: 5.337, lng: -3.974 },           // secteur résidentiel au bord de la lagune : facteur 1,15
+  beverlyHills: { lat: 5.351, lng: -3.9546 },
   zone4: { lat: 5.2942, lng: -3.9846 },
   yopougon: { lat: 5.3456, lng: -4.0864 },            // facteur 0,92
   abobo: { lat: 5.4204, lng: -4.0159 },
@@ -130,7 +130,7 @@ test('le secteur de départ change le prix comme sur le serveur', () => {
   const prix = (origin: Pt) => appli.prixCourse({ origin, destination: LIEUX.bingerville!, distanceMeters: 10_000, multiplier: 0.9, at }).amount;
   const neutre = prix(LIEUX.bingerville!);                 // hors zone : facteur 1
   assert.ok(prix(LIEUX.yopougon!) < neutre, 'Yopougon (0,92) est moins cher');
-  assert.ok(prix(LIEUX.rivieraGolf!) > neutre, 'Riviera Golf (1,15 et 200 F) est plus cher');
+  assert.ok(prix(LIEUX.rivieraGolf!) > neutre, 'Riviera Golf (1,15) est plus cher');
 });
 
 test('ORION Assurance : même supplément dans l’application et sur le serveur', () => {
