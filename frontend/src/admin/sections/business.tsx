@@ -601,6 +601,8 @@ export function PricingEditor({ pricing, canWrite, onSave, onShadow, onMatrixCsv
         freeWaitMinutes: form.freeWaitMinutes, cancelGraceMinutes: form.cancelGraceMinutes, cancelFee: form.cancelFee,
         cleaningLight: form.cleaningLight, cleaningMajor: form.cleaningMajor,
         longPickupPerKm: form.longPickupPerKm, longPickupThresholdKm: form.longPickupThresholdKm,
+        arretParMin: form.arretParMin,
+        ...(form.trafic ? { trafic: form.trafic } : {}),
       });
       setSaved(true); setTimeout(() => setSaved(false), 2500);
     } finally { setBusy(false); }
@@ -709,6 +711,7 @@ export function PricingEditor({ pricing, canWrite, onSave, onShadow, onMatrixCsv
           <label className="price-field"><span>Nettoyage majeur (F)</span><input type="number" min={0} step={5000} value={form.cleaningMajor ?? 50000} onChange={(e) => setForm((f) => ({ ...f, cleaningMajor: Number(e.target.value) }))} disabled={!canWrite} /></label>
           <label className="price-field"><span>Prise en charge longue (F/km)</span><input type="number" min={0} step={25} value={form.longPickupPerKm ?? 100} onChange={(e) => setForm((f) => ({ ...f, longPickupPerKm: Number(e.target.value) }))} disabled={!canWrite} /></label>
           <label className="price-field"><span>Seuil approche longue (km)</span><input type="number" min={0} step={1} value={form.longPickupThresholdKm ?? 5} onChange={(e) => setForm((f) => ({ ...f, longPickupThresholdKm: Number(e.target.value) }))} disabled={!canWrite} /></label>
+          <label className="price-field"><span>Arrêt en course (F/min)</span><input type="number" min={0} max={1000} step={10} value={form.arretParMin ?? 100} onChange={(e) => setForm((f) => ({ ...f, arretParMin: Number(e.target.value) }))} disabled={!canWrite} /></label>
         </div>
         <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
           Courtoisie d'attente offerte avant facturation, annulation progressive (gratuite dans le délai de grâce),
@@ -716,6 +719,36 @@ export function PricingEditor({ pricing, canWrite, onSave, onShadow, onMatrixCsv
           Enregistrez ci-dessus pour appliquer.
         </p>
       </div>
+
+      {form.trafic && (() => {
+        const tr = form.trafic;
+        const majTrafic = (patch: Partial<NonNullable<Pricing['trafic']>>) => setForm((f) => ({ ...f, trafic: { ...f.trafic!, ...patch } }));
+        const heure = (k: 'pointeMatin' | 'pointeSoir' | 'nuit', i: 0 | 1) => (
+          <input type="time" value={tr[k][i]} disabled={!canWrite} onChange={(e) => { const v = [...tr[k]] as [string, string]; v[i] = e.target.value; majTrafic({ [k]: v }); }} />
+        );
+        return (
+          <div className="adm-card">
+            <div className="adm-card-h"><h3>Trafic et heures de pointe</h3>
+              <label className="adm-muted" style={{ display: 'flex', gap: 6, alignItems: 'center' }}><input type="checkbox" checked={tr.actif} disabled={!canWrite} onChange={(e) => majTrafic({ actif: e.target.checked })} /> Actif</label>
+            </div>
+            <div className="price-grid">
+              <label className="price-field"><span>Trafic dense (+ %)</span><input type="number" min={0} max={50} value={tr.densePct} disabled={!canWrite} onChange={(e) => majTrafic({ densePct: Number(e.target.value) })} /></label>
+              <label className="price-field"><span>Embouteillage (+ %)</span><input type="number" min={0} max={80} value={tr.embouteillagePct} disabled={!canWrite} onChange={(e) => majTrafic({ embouteillagePct: Number(e.target.value) })} /></label>
+              <label className="price-field"><span>Par bouchon traversé (+ %)</span><input type="number" min={0} max={20} value={tr.parBouchonPct} disabled={!canWrite} onChange={(e) => majTrafic({ parBouchonPct: Number(e.target.value) })} /></label>
+              <label className="price-field"><span>Bouchons comptés (max)</span><input type="number" min={0} max={10} value={tr.maxBouchons} disabled={!canWrite} onChange={(e) => majTrafic({ maxBouchons: Number(e.target.value) })} /></label>
+              <label className="price-field"><span>Plafond du trafic (+ %)</span><input type="number" min={0} max={100} value={tr.plafondPct} disabled={!canWrite} onChange={(e) => majTrafic({ plafondPct: Number(e.target.value) })} /></label>
+              <label className="price-field"><span>Pointe du matin</span><span className="row gap-sm">{heure('pointeMatin', 0)}{heure('pointeMatin', 1)}</span></label>
+              <label className="price-field"><span>Pointe du soir</span><span className="row gap-sm">{heure('pointeSoir', 0)}{heure('pointeSoir', 1)}</span></label>
+              <label className="price-field"><span>Nuit (routes fluides)</span><span className="row gap-sm">{heure('nuit', 0)}{heure('nuit', 1)}</span></label>
+            </div>
+            <p className="adm-muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
+              Heure d’Abidjan, du lundi au vendredi ; samedi plus léger, dimanche calme. Le serveur suit l’itinéraire de chaque course :
+              la part du trajet en trafic dense ou embouteillé et chaque point de blocage traversé (ponts du Plateau, Indénié, Adjamé,
+              Riviera 2, Siporex, Abobo Gare…) s’ajoutent au prix, jusqu’au plafond. Enregistrez ci-dessus pour appliquer à toutes les apps.
+            </p>
+          </div>
+        );
+      })()}
 
       <div className="adm-card">
         <div className="adm-card-h"><h3>Shadow pricing (simulateur A/B)</h3><button className="adm-btn xs" onClick={onMatrixCsv}>⬇ Matrice tarifaire (Excel)</button></div>

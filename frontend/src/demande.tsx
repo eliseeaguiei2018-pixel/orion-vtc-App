@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useI18n } from './i18n';
 import { rendu } from './components/Vehicules';
 import type { TensionMarche } from './api';
+import type { DetailTrafic } from './types';
 
 /**
  * OFFRE ET DEMANDE autour du client (écran des gammes) : une pastille en haut à gauche de la
@@ -77,7 +78,20 @@ function position(t: TensionMarche): number {
 }
 
 /** Pastille en haut à gauche de la carte : voiture, jauge et pièce, clients. */
-export function PastilleDemande({ tension }: { tension: TensionMarche | null | undefined }) {
+/** Trafic du trajet en une ligne : période, bouchons traversés, part ajoutée au prix. */
+export function LigneTrafic({ trafic, detaillee = false }: { trafic?: DetailTrafic | null; detaillee?: boolean }) {
+  const { t } = useI18n();
+  if (!trafic || (trafic.pct <= 0 && trafic.periode !== 'pointe')) return null;
+  const n = trafic.bouchons.length;
+  const morceaux = [
+    t(`traf_p_${trafic.periode}`),
+    n > 0 ? (detaillee ? t('traf_bouchons_liste', { n, liste: trafic.bouchons.join(', ') }) : t('traf_bouchons', { n })) : null,
+    trafic.pct > 0 ? t('traf_pct', { pct: String(Math.round(trafic.pct)) }) : null,
+  ].filter(Boolean);
+  return <p className={`traf-ligne${trafic.pct >= 15 ? ' fort' : ''}`} role="status">{morceaux.join(' · ')}{trafic.source === 'mesure' ? ` · ${t('traf_mesure')}` : ''}</p>;
+}
+
+export function PastilleDemande({ tension, trafic }: { tension: TensionMarche | null | undefined; trafic?: DetailTrafic | null }) {
   const { t } = useI18n();
   const [fiche, setFiche] = useState(false);
   const [guide, setGuide] = useState(false);
@@ -92,7 +106,7 @@ export function PastilleDemande({ tension }: { tension: TensionMarche | null | u
         </span>
         <img className="dem-clients" src={rendu('clients')} alt="" draggable={false} />
       </button>
-      {fiche && <FicheDemande tension={tension} onFermer={() => setFiche(false)} onGuide={() => { setFiche(false); setGuide(true); }} />}
+      {fiche && <FicheDemande tension={tension} trafic={trafic} onFermer={() => setFiche(false)} onGuide={() => { setFiche(false); setGuide(true); }} />}
       {guide && <GuideDemande plafondPct={tension.plafondPct} onFermer={() => setGuide(false)} />}
     </>
   );
@@ -116,7 +130,7 @@ function Fenetre({ children, onFermer, label }: { children: React.ReactNode; onF
 }
 
 /** Fiche : le prix du moment expliqué, la jauge « Autour de vous ». */
-export function FicheDemande({ tension, onFermer, onGuide }: { tension: TensionMarche; onFermer: () => void; onGuide: () => void }) {
+export function FicheDemande({ tension, trafic, onFermer, onGuide }: { tension: TensionMarche; trafic?: DetailTrafic | null; onFermer: () => void; onGuide: () => void }) {
   const { t } = useI18n();
   const n = tension.niveau;
   const p = Math.round(position(tension) * 100);
@@ -146,6 +160,12 @@ export function FicheDemande({ tension, onFermer, onGuide }: { tension: TensionM
         </div>
         <div className="dem-jauge-legende"><span>{t('dem_chauffeurs')}</span><span>{t('dem_commandes')}</span></div>
       </div>
+      {trafic && (trafic.pct > 0 || trafic.periode === 'pointe') && (
+        <div className="dem-trafic">
+          <span className="dem-jauge-titre">{t('traf_titre')}</span>
+          <LigneTrafic trafic={trafic} detaillee />
+        </div>
+      )}
       <p className="dem-garanti">{t('dem_garanti')}</p>
       <button className="dem-lien" onClick={onGuide}>{t('dem_comment')}<span aria-hidden="true">›</span></button>
       <button className="btn btn-primary dem-ok" onClick={onFermer}>{t('dem_compris')}</button>

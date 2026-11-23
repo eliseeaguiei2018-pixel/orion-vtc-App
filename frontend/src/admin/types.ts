@@ -177,6 +177,13 @@ export interface Pricing {
   bodySurcharge: Record<string, number>;
   freeWaitMinutes?: number; cancelGraceMinutes?: number; cancelFee?: number;
   cleaningLight?: number; cleaningMajor?: number; longPickupPerKm?: number; longPickupThresholdKm?: number;
+  /** Arrêt en course (prévu ou demandé par le client) : F CFA par minute d'arrêt. */
+  arretParMin?: number;
+  /** Trafic sur l'itinéraire : heures de pointe d'Abidjan, tronçons denses / bouchés, bouchons traversés. */
+  trafic?: {
+    actif: boolean; densePct: number; embouteillagePct: number; parBouchonPct: number; maxBouchons: number; plafondPct: number;
+    pointeMatin: [string, string]; pointeSoir: [string, string]; nuit: [string, string];
+  };
 }
 export interface ShadowPricing { sampled: number; realRevenue: number; simulatedRevenue: number; impactPercent: number }
 export interface Me {

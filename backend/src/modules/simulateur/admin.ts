@@ -5,7 +5,7 @@ import { AppError, badRequest } from '../../core/errors.js';
 import { latLng } from '../../core/validate.js';
 import type { AdminAccount, Permission } from '../admin/roles.js';
 import { SUPPLY_RADIUS_M } from '../rides/demand.js';
-import { trafficInfo } from '../geo-ci/zones.js';
+import { facteurAuPoint } from '../geo-ci/traficItineraire.js';
 import { GAMMES_COURSE } from '../proches/service.js';
 import { DUREE_MAX, DUREE_MIN, ErreurSimulation, GAMMES_SIMULEES, MAX_CHAUFFEURS, MAX_DEMANDE, RAYON_DEMANDE_M, type LieuSimulation } from './service.js';
 
@@ -42,7 +42,7 @@ export function simulateurAdminRoutes(scoped: FastifyInstance, container: Contai
     const ops = container.settings.getOps();
     const manuel = container.settings.zoneForPoint(l)?.surgeManual ?? 1;
     const plafonner = (s: number) => (ops.surgeEnabled ? Math.min(Math.max(s, manuel), ops.surgeCapGreen) : Math.min(manuel, ops.surgeCapGreen));
-    const facteur = trafficInfo(l, l).factor;
+    const facteur = facteurAuPoint(l, new Date(), container.settings.getPricing().trafic);
     const [marche, surgeAvec, surgeSans, approches] = await Promise.all([
       container.demand.marcheEn(l, { simulation: true, projet: true }),
       container.demand.surgeFor(l, { simulation: true, projet: true }),

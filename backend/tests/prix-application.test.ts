@@ -4,7 +4,7 @@ import { buildApp } from '../src/app.js';
 import { haversineMeters } from '../src/core/geo.js';
 import { FLEET } from '../src/modules/fleet/catalog.js';
 import { estimatePrice } from '../src/modules/services/ride/pricing.js';
-import { trafficInfo } from '../src/modules/geo-ci/zones.js';
+import { traficTrajet } from '../src/modules/geo-ci/traficItineraire.js';
 import { PACKAGE_FACTOR } from '../src/modules/services/delivery/deliveryModule.js';
 import { DEFAULT_ZONES } from '../src/modules/settings/service.js';
 import { ALL_ZONES } from '../src/modules/geo-ci/zones.js';
@@ -62,7 +62,9 @@ async function memeHeure<T>(f: (at: Date) => Promise<T>): Promise<T> {
   for (;;) {
     const avant = new Date();
     const r = await f(avant);
-    if (new Date().getHours() === avant.getHours()) return r;
+    // Les périodes de trafic changent à l'heure ou à la demi-heure (6 h 30, 9 h 30, 21 h 30…).
+    const demiHeure = (d: Date) => Math.floor((d.getUTCHours() * 60 + d.getUTCMinutes()) / 30);
+    if (demiHeure(new Date()) === demiHeure(avant)) return r;
   }
 }
 
@@ -139,10 +141,11 @@ test('ORION Assurance : même supplément dans l’application et sur le serveur
   for (const [a, b] of TRAJETS) {
     const origin = LIEUX[a]!, destination = LIEUX[b]!;
     const zone = DEFAULT_ZONES.find((z) => z.lat === origin.lat && z.lng === origin.lng);
-    const trafic = trafficInfo(origin, destination, at);
+    const t = traficTrajet([origin, destination], at);
+    const trafic = { pct: t.pct, periode: t.periode, partDense: Math.round(t.partDense * 100) / 100, partBouchon: Math.round(t.partBouchon * 100) / 100, bouchons: t.bouchons, source: t.source };
     for (const gamme of ['argent', 'or', 'diamant'] as const) {
       const serveur = estimatePrice({ origin, destination, category: gamme, insurance: true }, {
-        trafficFactor: trafic.factor, trafficLevel: trafic.level, zoneFactor: zone?.factor ?? 1, zonePickupFee: zone?.pickupFee ?? 0,
+        trafficFactor: t.facteur, trafficLevel: t.niveau, trafic, zoneFactor: zone?.factor ?? 1, zonePickupFee: zone?.pickupFee ?? 0,
       });
       const local = appli.prixCourse({
         origin, destination, distanceMeters: vol([origin, destination]) * 1.3,

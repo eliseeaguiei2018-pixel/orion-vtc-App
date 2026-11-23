@@ -52,6 +52,8 @@ export interface Quote {
     /* APK de test temps réel (voir tempsReel.ts) : trafic et approche réels. */
     approche?: number; approcheKm?: number; approcheMin?: number; approcheGoogle?: boolean;
     minutesTrafic?: number; minutesFluide?: number; traficReel?: number; traficFacteur?: number; traficNiveau?: 'fluid' | 'dense' | 'jam';
+    /** Trafic sur l'itinéraire : % ajouté, période d'Abidjan, parts dense / bouchée, bouchons traversés. */
+    trafic?: DetailTrafic;
     /** Péages de l'itinéraire choisi (non majorés par la gamme). */
     peage?: number;
     /** La course sort du district d'Abidjan : 10 % entre les gammes. */
@@ -268,3 +270,13 @@ export type Screen =
   | 'choixLieu'
   // Volets et écrans du compte (version 1.5.7).
   | 'services' | 'controle' | 'parrainage' | 'famille' | 'contacts' | 'groupes' | 'business' | 'entreprise' | 'revenus';
+
+/** Trafic sur l'itinéraire d'un devis (serveur ORION, même calcul hors connexion). */
+export interface DetailTrafic {
+  pct: number;
+  periode: 'nuit' | 'calme' | 'journee' | 'midi' | 'pointe' | 'soiree';
+  partDense: number;
+  partBouchon: number;
+  bouchons: string[];
+  source: 'itineraire' | 'mesure';
+}

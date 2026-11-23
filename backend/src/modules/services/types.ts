@@ -24,6 +24,11 @@ export interface EstimateRequest {
   peages?: string[];
   /** Distance de l'itinéraire choisi, calculée par l'application (contrôlée par le serveur). */
   routeMeters?: number;
+  /**
+   * Trafic réel mesuré par l'application sur cet itinéraire (durée avec et sans trafic, en
+   * secondes) : ne peut que relever la part trafic du prix, jamais la baisser.
+   */
+  mesureTrafic?: { avecTraficS: number; sansTraficS: number };
   /** Mise à disposition à l'heure (Abidjan) : le chauffeur reste avec le client `heures` heures. */
   miseADisposition?: { heures: number; debut?: string };
   promoCode?: string;
@@ -67,6 +72,17 @@ export interface QuoteBreakdown {
   approche?: number;
   approcheKm?: number;
   approcheMin?: number;
+  /** Trafic sur l'itinéraire : % ajouté au prix, parts dense / embouteillée, bouchons traversés. */
+  trafic?: DetailTrafic;
+}
+
+export interface DetailTrafic {
+  pct: number;
+  periode: 'nuit' | 'calme' | 'journee' | 'midi' | 'pointe' | 'soiree';
+  partDense: number;
+  partBouchon: number;
+  bouchons: string[];
+  source: 'itineraire' | 'mesure';
 }
 
 export type TrafficLevel = 'fluid' | 'dense' | 'jam';

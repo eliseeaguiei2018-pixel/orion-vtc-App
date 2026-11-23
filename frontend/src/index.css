@@ -2395,3 +2395,9 @@ button.menu-texte { cursor: pointer; }
 .dem-pastille, .dem-jauge, .dem-jauge-legende { direction: ltr; }
 [dir='rtl'] .dem-pastille { left: auto; right: 20px; }
 @media (prefers-reduced-motion: reduce) { .dem-guide-rail, .dem-jauge-piece, .dem-pastille, .dem-fiche { transition: none; animation: none; } }
+
+/* Trafic sur l'itinéraire (heures de pointe, embouteillages) : écran des gammes et fiche de la pastille. */
+.traf-ligne { margin: -2px 0 10px; font-size: 12.5px; line-height: 1.4; color: var(--text-dim); }
+.traf-ligne.fort { color: var(--text); font-weight: 500; }
+.dem-trafic { border: 1px solid var(--stroke); border-radius: 18px; padding: 12px 14px 2px; margin-bottom: 14px; }
+.dem-trafic .traf-ligne { margin: 0 0 10px; font-size: 14px; }

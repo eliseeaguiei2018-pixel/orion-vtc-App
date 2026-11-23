@@ -2994,6 +2994,18 @@ const TEXTES: Record<string, Huit> = {
     '下单前显示的金额就是您支付的金额。街头需求回落后，几分钟内标识会重新变绿。',
     'Сумма, показанная до заказа, — это то, что вы платите. Когда спрос спадает, значок через несколько минут снова становится зелёным.',
   ],
+  // Trafic sur l'itinéraire (heures de pointe d'Abidjan, embouteillages traversés).
+  traf_titre: ['Trafic sur votre trajet', 'Traffic on your route', 'Tráfico en su trayecto', 'Traffico sul tuo percorso', 'Verkehr auf Ihrer Strecke', 'حركة المرور على مسارك', '您路线上的交通', 'Пробки на вашем маршруте'],
+  traf_p_pointe: ['Heure de pointe', 'Rush hour', 'Hora punta', 'Ora di punta', 'Hauptverkehrszeit', 'ساعة الذروة', '高峰时段', 'Час пик'],
+  traf_p_journee: ['Trafic de journée', 'Daytime traffic', 'Tráfico diurno', 'Traffico diurno', 'Tagesverkehr', 'حركة النهار', '日间交通', 'Дневной трафик'],
+  traf_p_midi: ['Trafic de la mi-journée', 'Midday traffic', 'Tráfico del mediodía', 'Traffico di mezzogiorno', 'Mittagsverkehr', 'حركة منتصف النهار', '午间交通', 'Обеденный трафик'],
+  traf_p_soiree: ['Trafic du soir', 'Evening traffic', 'Tráfico de la tarde', 'Traffico serale', 'Abendverkehr', 'حركة المساء', '晚间交通', 'Вечерний трафик'],
+  traf_p_nuit: ['Nuit, routes dégagées', 'Night, clear roads', 'Noche, vías despejadas', 'Notte, strade libere', 'Nacht, freie Straßen', 'ليل، طرق خالية', '夜间，道路畅通', 'Ночь, дороги свободны'],
+  traf_p_calme: ['Trafic calme', 'Light traffic', 'Tráfico tranquilo', 'Traffico scorrevole', 'Ruhiger Verkehr', 'حركة هادئة', '交通平稳', 'Спокойное движение'],
+  traf_bouchons: ['{n} embouteillage(s) sur votre trajet', '{n} traffic jam(s) on your route', '{n} atasco(s) en su trayecto', '{n} ingorgo/i sul percorso', '{n} Stau(s) auf Ihrer Strecke', '{n} ازدحام على مسارك', '您的路线上有 {n} 处拥堵', 'Пробок на маршруте: {n}'],
+  traf_bouchons_liste: ['{n} embouteillage(s) : {liste}', '{n} traffic jam(s): {liste}', '{n} atasco(s): {liste}', '{n} ingorgo/i: {liste}', '{n} Stau(s): {liste}', '{n} ازدحام: {liste}', '{n} 处拥堵：{liste}', 'Пробки ({n}): {liste}'],
+  traf_pct: ['+{pct} % trafic', '+{pct}% traffic', '+{pct} % tráfico', '+{pct}% traffico', '+{pct} % Verkehr', '‎+{pct}٪ حركة المرور', '交通 +{pct}%', '+{pct} % за пробки'],
+  traf_mesure: ['trafic mesuré en direct', 'live traffic', 'tráfico medido en directo', 'traffico misurato in tempo reale', 'Verkehr live gemessen', 'حركة مقاسة مباشرة', '实时路况', 'пробки в реальном времени'],
   mad_trop_tot: [
     'Choisissez un début dans 20 minutes au moins.', 'Choose a start at least 20 minutes from now.', 'Elija un inicio dentro de 20 minutos como mínimo.', 'Scelga un inizio tra almeno 20 minuti.',
     'Wählen Sie einen Beginn in frühestens 20 Minuten.', 'اختر بداية بعد 20 دقيقة على الأقل.', '请选择至少 20 分钟后的开始时间。', 'Выберите начало не раньше чем через 20 минут.',

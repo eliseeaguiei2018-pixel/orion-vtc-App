@@ -19,6 +19,8 @@ const estimateSchema = z.object({
   itineraire: z.enum(['peage', 'normal']).optional(),
   peages: z.array(z.string().max(24)).max(8).optional(),
   routeMeters: z.number().positive().max(2_000_000).optional(),
+  // Trafic réel mesuré par l'app sur l'itinéraire (durées avec / sans trafic, en secondes).
+  mesureTrafic: z.object({ avecTraficS: z.number().min(0).max(86_400), sansTraficS: z.number().min(0).max(86_400) }).optional(),
   // Mise à disposition à l'heure (Abidjan) : le chauffeur reste avec le client.
   miseADisposition: z.object({ heures: z.number().min(0.5).max(24), debut: z.string().max(40).optional() }).optional(),
 });
@@ -45,6 +47,7 @@ export async function pricingRoutes(app: FastifyInstance, container: Container):
       itineraire: body.itineraire,
       peages: body.peages,
       routeMeters: body.routeMeters,
+      mesureTrafic: body.mesureTrafic,
       miseADisposition: body.miseADisposition,
     });
     container.rides.saveQuote(quote);

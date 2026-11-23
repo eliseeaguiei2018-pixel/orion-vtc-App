@@ -37,7 +37,7 @@ import {
 } from './data';
 import { urlApi, contactCourse, lireCodePriseEnCharge, lireCodeRemise, type DetailsLivraison, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, modeLocal, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, reserverMariage, mesMariages, type ReservationMariage, chargerPortefeuille, resumeCotisations, transfererPortefeuille, type Cotisations, type MouvementPortefeuille, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, sosTerminer, type MotifFinSos, subscribePlan, type Announcement, type AppConfig, type CanalCode, type PkgSize, type SafeDriver, type SosSuivi, type StatutDemandeSos, type SupportMessage } from './api';
 import { useI18n } from './i18n';
-import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
+import type { DetailTrafic, Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
 import { ChoixLieu, iconeLieu, type ModeChoix } from './components/ChoixLieu';
 import { LIEUX_POPULAIRES, enregistrerLieu, lieuEnregistre, lieuxRecents, lirePositionGps, memoriserRecent, quartierDe, useDepart, type EtatPosition } from './lieux';
@@ -47,7 +47,7 @@ import { fondCarte, googleSeul, suivreFondCarte } from './carteGoogle';
 import { prechaufferCarte } from './components/CarteGoogle';
 import { GpsCarte, type GpsCarteValeur } from './components/gpsCarte';
 import { relancerProches, useVehiculesProches } from './proches';
-import { PastilleDemande } from './demande';
+import { LigneTrafic, PastilleDemande } from './demande';
 import { gpsNatif, notificationsAutorisees, prevenir, preparerNotifications, suivreGps } from './arrierePlan';
 import type { VehiculesProches } from './api';
 import { useTrajetTarif } from './tarifTrajet';
@@ -453,7 +453,7 @@ export function App() {
   const itinCourse = useItineraires(destination && !dispo ? [origin.location, ...stops.map((s) => s.location), destination.location] : null);
   const routeRetenue = optionRetenue(itinCourse.itineraires, choixRoute);
   const optsRoute: EstimateOpts['itineraire'] = routeRetenue
-    ? { choix: routeRetenue.choix, distanceMeters: routeRetenue.route.distanceMeters, durationSeconds: routeRetenue.route.durationSeconds, peages: routeRetenue.peages.map((p) => p.id) }
+    ? { choix: routeRetenue.choix, distanceMeters: routeRetenue.route.distanceMeters, durationSeconds: routeRetenue.route.durationSeconds, fluideSeconds: routeRetenue.route.fluideSeconds, peages: routeRetenue.peages.map((p) => p.id) }
     : undefined;
   // Nouveau trajet : on repart sur l'itinéraire le plus rapide.
   useEffect(() => { setChoixRoute(null); }, [destination?.id, destination?.location.lat, stops.length]);
@@ -2045,7 +2045,7 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
   // PRIX FIXE : l'aperçu local s'affiche sans attendre, puis le prix du serveur le
   // remplace (zone, majoration, frais de prise en charge). Sans cela, la liste annonçait
   // un montant et l'écran de confirmation un autre.
-  const [serveur, setServeur] = useState<{ prix: Record<string, number>; trafic?: 'fluid' | 'dense' | 'jam' } | null>(null);
+  const [serveur, setServeur] = useState<{ prix: Record<string, number>; trafic?: 'fluid' | 'dense' | 'jam'; detailTrafic?: DetailTrafic } | null>(null);
   // L'approche du chauffeur le plus proche entre dans le prix : le devis est refait quand elle
   // change vraiment (par paliers de 3 min, ou un chauffeur qui apparaît ou disparaît).
   const cleApproche = proches ? TIERS.map((v) => { const a = proches.approche[v.id]; return a ? Math.ceil(a.minutes / 3) : 'x'; }).join(',') : '';
@@ -2059,7 +2059,7 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
     void Promise.all(TIERS.map((v) => estimateWithCoverage(origin.location, destination.location, v, { bodyType, stops: stopLocs, itineraire: optsRoute })))
       .then((devis) => {
         if (annule) return;
-        setServeur({ prix: Object.fromEntries(TIERS.map((v, i) => [v.id, devis[i]!.quote.amount])), trafic: devis[0]?.quote.trafficLevel });
+        setServeur({ prix: Object.fromEntries(TIERS.map((v, i) => [v.id, devis[i]!.quote.amount])), trafic: devis[0]?.quote.trafficLevel, detailTrafic: devis[0]?.quote.breakdown.trafic });
       })
       .catch(() => { /* hors ligne : l'aperçu local reste affiché */ });
     return () => { annule = true; };
@@ -2070,13 +2070,16 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
   const approcheDe = (id: string) => (proches ? proches.approche[id] ?? null : undefined);
   const aSel = approcheDe(tier.id);
   const nbVoisins = proches ? proches.vehicules.filter((v) => v.gamme !== 'moto').length : 0;
-  const traffic = serveur?.trafic ?? previewQuote(origin.location, destination.location, tier, { stops: stopLocs }).trafficLevel;
+  const apercuTrafic = previewQuote(origin.location, destination.location, tier, { stops: stopLocs, itineraire: optsRoute });
+  const traffic = serveur?.trafic ?? apercuTrafic.trafficLevel;
+  // Heures de pointe et embouteillages traversés : le détail du serveur, sinon le calcul de l'app.
+  const detailTrafic = serveur ? serveur.detailTrafic : apercuTrafic.breakdown.trafic;
   return (
     <div className="screen">
       <OrionMap origin={origin.location} destination={destination.location} stops={stopLocs} trace={route?.route.geometrie} peages={route?.peages} />
       <TopBar onBack={onBack} title={destination.name} />
       {/* Offre et demande autour du départ : la pastille suit la majoration du serveur. */}
-      <PastilleDemande tension={proches?.tension} />
+      <PastilleDemande tension={proches?.tension} trafic={detailTrafic} />
       <div style={{ flex: 1 }} />
       <Sheet>
         <div className="row between" style={{ marginBottom: 10 }}>
@@ -2088,6 +2091,7 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
             {aSel ? `${t('est_proche', { m: aSel.minutes })} · ${String(aSel.km).replace('.', ',')} km${nbVoisins > 1 ? ` · ${t('est_voisins', { n: nbVoisins })}` : ''}` : t('est_aucun_detail')}
           </p>
         )}
+        <LigneTrafic trafic={detailTrafic} />
         {TEMPS_REEL && (
           // Version de test (en français) : ce qui entre dans le prix, en direct.
           <p className="test-reel-ligne" role="status">

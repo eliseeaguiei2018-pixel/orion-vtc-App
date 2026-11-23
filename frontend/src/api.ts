@@ -138,9 +138,15 @@ export interface EstimateOpts {
    * Itinéraire choisi (pont à péage ou voie normale) : sa distance par la route sert au prix,
    * et ses péages s'y ajoutent. Voir itinerairesPeage.ts.
    */
-  itineraire?: { choix: 'peage' | 'normal'; distanceMeters: number; durationSeconds: number; peages: string[] };
+  itineraire?: { choix: 'peage' | 'normal'; distanceMeters: number; durationSeconds: number; peages: string[]; fluideSeconds?: number };
   /** Mise à disposition à l'heure (Abidjan) : le chauffeur reste avec le client `heures` heures. */
   miseADisposition?: { heures: number; debut?: string };
+}
+
+/** Durées avec et sans trafic de l'itinéraire choisi, quand Google les a mesurées. */
+function mesureTraficDe(opts: EstimateOpts): { avecTraficS: number; sansTraficS: number } | undefined {
+  const i = opts.itineraire;
+  return i && i.fluideSeconds && i.fluideSeconds > 60 && i.durationSeconds > 0 ? { avecTraficS: Math.round(i.durationSeconds), sansTraficS: Math.round(i.fluideSeconds) } : undefined;
 }
 
 /**
@@ -213,7 +219,7 @@ function localEstimate(origin: LatLng, destination: LatLng, tier: TierOption, op
   const prix = prixCourse({
     origin, destination, stops, distanceMeters,
     multiplier: tier.multiplier, gamme: tier.id, bodyType: opts.bodyType, insurance: opts.insurance, reel,
-    itineraire: opts.itineraire?.choix, peages: opts.itineraire?.peages,
+    itineraire: opts.itineraire?.choix, peages: opts.itineraire?.peages, mesureTrafic: mesureTraficDe(opts),
   });
   return {
     lockId: `local-${Date.now()}`,
@@ -291,6 +297,8 @@ export async function estimateWithCoverage(
       origin, destination, category: tier.id, bodyType: opts.bodyType, stops: opts.stops, insurance: opts.insurance, promoCode: opts.promoCode, clientId: clientId(),
       // Itinéraire choisi : le serveur reprend sa distance (contrôlée) et ses péages.
       ...(opts.itineraire ? { itineraire: opts.itineraire.choix, peages: opts.itineraire.peages, routeMeters: Math.round(opts.itineraire.distanceMeters) } : {}),
+      // Trafic réel mesuré sur l'itinéraire (Google) : le serveur ne s'en sert que pour relever.
+      ...(mesureTraficDe(opts) ? { mesureTrafic: mesureTraficDe(opts) } : {}),
       ...(opts.miseADisposition ? { miseADisposition: opts.miseADisposition } : {}),
     }),
   });

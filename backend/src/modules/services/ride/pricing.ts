@@ -1,4 +1,5 @@
-import type { EstimateRequest, QuoteBreakdown, TrafficLevel } from '../types.js';
+import { REGLES_TRAFIC_DEFAUT, type ReglesTrafic } from '../../geo-ci/traficItineraire.js';
+import type { DetailTrafic, EstimateRequest, QuoteBreakdown, TrafficLevel } from '../types.js';
 import { haversineMeters, type LatLng } from '../../../core/geo.js';
 import { FLEET, TIER_ORDER, isTier, type Tier } from '../../fleet/catalog.js';
 import { PEAGES, dansDistrictAbidjan, sortDAbidjan, type Peage } from '../../geo-ci/abidjan.js';
@@ -57,6 +58,13 @@ export interface PricingSettings {
    * kilomètre et chaque minute d'approche s'ajoutent au prix fixe (hors taxes).
    */
   approche: ApprocheTarif;
+  /**
+   * TRAFIC SUR L'ITINÉRAIRE (heures de pointe et embouteillages d'Abidjan) : part du trajet en
+   * trafic dense et embouteillé, chaque point de blocage traversé, plafonné. Voir traficItineraire.ts.
+   */
+  trafic: ReglesTrafic;
+  /** ARRÊT EN COURSE (prévu au trajet ou demandé de vive voix) : F CFA par minute d'arrêt. */
+  arretParMin: number;
   /**
    * AJUSTEMENT GÉNÉRAL DES PRIX décidé par la direction (Mon poste du PDG), en % : +10 monte
    * toutes les courses de 10 %, −5 les baisse de 5 %. Appliqué au prix TTC de l'Argent, AVANT
@@ -121,6 +129,8 @@ export const DEFAULT_PRICING: PricingSettings = {
   cleaningLight: 10_000, cleaningMajor: 50_000,
   longPickupPerKm: 100, longPickupThresholdKm: 5,
   approche: { actif: true, offerteKm: 5, offerteMin: 15, parKm: 60, parMin: 10, plafond: 200, vitesseKmh: 40 },
+  trafic: { ...REGLES_TRAFIC_DEFAUT },
+  arretParMin: 100,
   ajustementPct: 0,
 };
 
@@ -237,6 +247,11 @@ export interface PricingContext {
   trafficFactor?: number;
   /** Niveau de trafic affiché (fluid/dense/jam). */
   trafficLevel?: TrafficLevel;
+  /**
+   * Trafic calculé sur tout l'itinéraire (heure d'Abidjan, quartiers, points de blocage) : son
+   * pourcentage remplace l'ancien coefficient unique (trafficWeight).
+   */
+  trafic?: DetailTrafic;
   /** Remise relative issue d'un code promo (0..1). */
   discountRate?: number;
   /** Remise FCFA calculée depuis un code promo (prioritaire), en fonction du sous-total. */
@@ -323,8 +338,9 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
   // Chaque arrêt intermédiaire ajoute un forfait d'attente.
   const stopsCost = stops.length * s.stopFee * (s.multipliers[category] ?? 1);
 
-  // Trafic intégré (adouci) dans le prix — PAS de ligne « supplément » séparée.
-  const trafficMult = 1 + (trafficFactor - 1) * s.trafficWeight;
+  // Trafic intégré dans le prix — PAS de ligne « supplément » séparée. Calculé sur tout
+  // l'itinéraire (tronçons denses ou embouteillés, bouchons traversés) quand il est fourni.
+  const trafficMult = ctx.trafic ? 1 + Math.max(0, ctx.trafic.pct) / 100 : 1 + (trafficFactor - 1) * s.trafficWeight;
   // Facteur de zone (commune de départ) intégré au prix fixe — levier ops par quartier.
   const zoneFactor = Math.max(0.1, ctx.zoneFactor ?? 1);
   // Surge encadré (demande > offre) — appliqué AVANT le verrouillage : le devis
@@ -386,6 +402,7 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
       ...(peage > 0 ? { peage } : {}),
       ...(horsAbidjan ? { horsAbidjan: true } : {}),
       ...(ctx.approche ? { approche: Math.round(approche), approcheKm: ctx.approche.km, approcheMin: ctx.approche.minutes } : {}),
+      ...(ctx.trafic ? { trafic: ctx.trafic } : {}),
     },
   };
 }

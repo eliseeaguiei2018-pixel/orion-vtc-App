@@ -2,7 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { parse } from '../../core/validate.js';
-import { trafficInfo, isWithinCotedIvoire } from '../geo-ci/zones.js';
+import { isWithinCotedIvoire } from '../geo-ci/zones.js';
+import { facteurAuPoint } from '../geo-ci/traficItineraire.js';
 import { badRequest } from '../../core/errors.js';
 import { multiplicateur } from '../rides/demand.js';
 
@@ -50,7 +51,7 @@ export async function prochesRoutes(app: FastifyInstance, container: Container):
     const { lat, lng } = parse(schema, req.query);
     const p = { lat, lng };
     if (!isWithinCotedIvoire(p)) throw badRequest('Position hors zone de service (Côte d’Ivoire)', { code: 'OUT_OF_SERVICE_AREA' });
-    const r = await container.proches.autour(p, trafficInfo(p, p).factor);
+    const r = await container.proches.autour(p, facteurAuPoint(p, new Date(), container.settings.getPricing().trafic));
     reply.header('cache-control', 'no-store');
     // `marche` change quand le simulateur du PDG change : l'app refait alors son devis.
     // `tension` : l'équilibre chauffeurs / commandes autour du client (pastille de la carte).

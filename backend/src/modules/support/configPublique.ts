@@ -23,6 +23,8 @@ export function configPublique(container: Pick<Container, 'settings' | 'whatsapp
       livraison: { baseFare: DELIVERY_TARIFF.baseFare, perKm: DELIVERY_TARIFF.perKm, perMinute: DELIVERY_TARIFF.perMinute, minFare: DELIVERY_TARIFF.minFare },
       // Temps d'approche affiché par les apps pendant que le chauffeur arrive : même règle que le serveur.
       approche: { vitesseKmh: p.approche?.vitesseKmh ?? 40, facteurRoute: FACTEUR_ROUTE },
+      // Trafic sur l'itinéraire (pointes d'Abidjan, points de blocage) : prix hors connexion identique.
+      trafic: p.trafic,
     },
   };
 }

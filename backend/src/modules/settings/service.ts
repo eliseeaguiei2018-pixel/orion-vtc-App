@@ -1,3 +1,4 @@
+import { reglesTrafic } from '../geo-ci/traficItineraire.js';
 import { DEFAULT_PRICING, type PricingSettings } from '../services/ride/pricing.js';
 import type { Repository } from '../../core/db/repository.js';
 import { haversineMeters } from '../../core/geo.js';
@@ -86,8 +87,9 @@ export interface PricingRecord extends PricingSettings {
 }
 
 /** Patch partiel (les multiplicateurs peuvent n'être fournis que partiellement). */
-export interface PricingPatch extends Partial<Omit<PricingSettings, 'multipliers' | 'majorationsPct' | 'majorationsPctHorsAbidjan' | 'bodySurcharge' | 'peages' | 'miseADisposition' | 'approche'>> {
+export interface PricingPatch extends Partial<Omit<PricingSettings, 'multipliers' | 'majorationsPct' | 'majorationsPctHorsAbidjan' | 'bodySurcharge' | 'peages' | 'miseADisposition' | 'approche' | 'trafic'>> {
   approche?: Partial<PricingSettings['approche']>;
+  trafic?: Partial<PricingSettings['trafic']>;
   majorationsPctHorsAbidjan?: Partial<Record<string, number>>;
   /** Montant de chaque péage (par identifiant). */
   peages?: Array<{ id: string; montant: number }>;
@@ -284,6 +286,9 @@ export class SettingsService {
     // Approche enregistrée avant la vitesse réglable : la vitesse de référence (40 km/h).
     if (!Number.isFinite(this.pricing.approche.vitesseKmh)) this.pricing.approche = { ...this.pricing.approche, vitesseKmh: DEFAULT_PRICING.approche.vitesseKmh };
     if (!Number.isFinite(this.pricing.ajustementPct)) this.pricing.ajustementPct = 0;
+    // Tarifs enregistrés avant le trafic sur l'itinéraire : règles par défaut (pointes d'Abidjan).
+    this.pricing.trafic = reglesTrafic(this.pricing.trafic);
+    if (!Number.isFinite(this.pricing.arretParMin)) this.pricing.arretParMin = DEFAULT_PRICING.arretParMin;
     // Tarifs enregistrés avec un ancien modèle de gammes : quatre multiplicateurs du temps de
     // la gamme Bronze (on repart alors de la grille de référence), supplément fixe (Or +700 F,
     // Diamant +1 700 F) ou écarts bornés (retirés : les gammes se distinguent maintenant par
@@ -488,6 +493,7 @@ export class SettingsService {
       peages: this.pricing.peages.map((p) => ({ ...p, montant: patch.peages?.find((x) => x.id === p.id)?.montant ?? p.montant })),
       miseADisposition: { ...this.pricing.miseADisposition, ...(patch.miseADisposition ?? {}) },
       approche: { ...(this.pricing.approche ?? DEFAULT_PRICING.approche), ...(patch.approche ?? {}) },
+      trafic: reglesTrafic({ ...this.pricing.trafic, ...(patch.trafic ?? {}) }),
       bodySurcharge: { ...this.pricing.bodySurcharge, ...(patch.bodySurcharge ?? {}) },
     };
     this.repo?.put({ id: PRICING_ID, ...this.pricing });

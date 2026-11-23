@@ -1308,6 +1308,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
           longPickupPerKm: z.number().min(0).max(2000).optional(),
           longPickupThresholdKm: z.number().min(0).max(50).optional(),
           ajustementPct: z.number().min(-50).max(100).optional(),
+          // Arrêt en course : F CFA par minute (arrêt prévu ou demandé par le client).
+          arretParMin: z.number().min(0).max(1000).optional(),
           // Approche du chauffeur comprise dans le prix (offerte jusqu'au seuil).
           approche: z.object({
             actif: z.boolean(), offerteKm: z.number().min(0).max(30), offerteMin: z.number().min(0).max(60),
@@ -1316,6 +1318,17 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
             plafond: z.number().min(0).max(20_000),
             // Vitesse moyenne d'approche (km/h, trafic fluide) : temps annoncé au client.
             vitesseKmh: z.number().min(10).max(90),
+          }).partial().optional(),
+          // Trafic sur l'itinéraire : heures de pointe d'Abidjan, tronçons denses et embouteillés,
+          // points de blocage traversés, plafond.
+          trafic: z.object({
+            actif: z.boolean(),
+            densePct: z.number().min(0).max(50), embouteillagePct: z.number().min(0).max(80),
+            parBouchonPct: z.number().min(0).max(20), maxBouchons: z.number().int().min(0).max(10),
+            plafondPct: z.number().min(0).max(100),
+            pointeMatin: z.tuple([z.string().regex(/^\d{2}:\d{2}$/), z.string().regex(/^\d{2}:\d{2}$/)]),
+            pointeSoir: z.tuple([z.string().regex(/^\d{2}:\d{2}$/), z.string().regex(/^\d{2}:\d{2}$/)]),
+            nuit: z.tuple([z.string().regex(/^\d{2}:\d{2}$/), z.string().regex(/^\d{2}:\d{2}$/)]),
           }).partial().optional(),
         }),
         req.body,

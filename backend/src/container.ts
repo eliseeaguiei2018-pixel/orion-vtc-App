@@ -21,7 +21,7 @@ import { MatchingEngine } from './modules/rides/matching.js';
 import { RideSimulator } from './modules/rides/simulator.js';
 import { CodesPriseEnCharge, type CodeCourse } from './modules/rides/code-prise-en-charge.js';
 import { RideReleaseService } from './modules/rides/release.js';
-import { trafficInfo } from './modules/geo-ci/zones.js';
+import { traficTrajet } from './modules/geo-ci/traficItineraire.js';
 import { creerSecuriteGoogle, type SecuriteGoogle } from './modules/gcp/securite.js';
 import { WalletService } from './modules/wallet/service.js';
 import { SubscriptionService } from './modules/subscriptions/service.js';
@@ -237,18 +237,41 @@ export function createContainer(): Container {
    * réponse, le prix se calcule sur l'estimation 1,3 × vol d'oiseau. En test : pas d'appel réseau.
    */
   type Point = { lat: number; lng: number };
-  const distanceParLaRoute = async (req: { origin: Point; destination: Point; stops?: Point[] }): Promise<number | undefined> => {
-    if (config.NODE_ENV === 'test') return undefined;
+  // Itinéraire par la route calculé par le serveur (distance et tracé), gardé deux minutes : les
+  // devis des trois gammes et leurs rafraîchissements reprennent le même calcul.
+  const tracesRecents = new Map<string, { quand: number; promesse: Promise<{ distanceMeters?: number; geometrie?: Point[] }> }>();
+  const trajetServeur = (req: { origin: Point; destination: Point; stops?: Point[]; itineraire?: 'peage' | 'normal' }): Promise<{ distanceMeters?: number; geometrie?: Point[] }> => {
+    if (config.NODE_ENV === 'test') return Promise.resolve({});
     const points = [req.origin, ...(req.stops ?? []), req.destination];
-    const delai = new Promise<null>((ok) => { setTimeout(() => ok(null), 1800).unref?.(); });
-    const trajet = await Promise.race([routage.itineraire(points).catch(() => null), delai]);
-    return trajet && trajet.provider === 'osrm' ? trajet.distanceMeters : undefined;
+    const cle = `${req.itineraire ?? '-'}|${points.map((p) => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join(';')}`;
+    const deja = tracesRecents.get(cle);
+    if (deja && Date.now() - deja.quand < 120_000) return deja.promesse;
+    const promesse = (async () => {
+      const delai = new Promise<null>((ok) => { setTimeout(() => ok(null), 1800).unref?.(); });
+      const calcul = (req.itineraire ? routage.itineraireSelonChoix(points, req.itineraire) : routage.itineraire(points)).catch(() => null);
+      const trajet = await Promise.race([calcul, delai]);
+      return trajet && trajet.provider === 'osrm' ? { distanceMeters: trajet.distanceMeters, geometrie: trajet.geometrie } : {};
+    })();
+    tracesRecents.set(cle, { quand: Date.now(), promesse });
+    if (tracesRecents.size > 500) for (const k of [...tracesRecents.keys()].slice(0, 100)) tracesRecents.delete(k);
+    return promesse;
+  };
+  const distanceParLaRoute = async (req: { origin: Point; destination: Point; stops?: Point[] }): Promise<number | undefined> => (await trajetServeur(req)).distanceMeters;
+  /**
+   * Trafic sur tout l'itinéraire (heure d'Abidjan, quartiers, points de blocage) ; à défaut de
+   * tracé par la route, la ligne droite entre les points du trajet.
+   */
+  const traficDuTrajet = async (req: { origin: Point; destination: Point; stops?: Point[]; itineraire?: 'peage' | 'normal'; mesureTrafic?: { avecTraficS: number; sansTraficS: number } }) => {
+    const { geometrie } = await trajetServeur(req);
+    const trace = geometrie && geometrie.length >= 2 ? geometrie : [req.origin, ...(req.stops ?? []), req.destination];
+    return traficTrajet(trace, new Date(), settings.getPricing().trafic, req.mesureTrafic);
   };
 
   // Tarification : paramètres pilotables (Admin) + trafic intégré + code promo éventuel.
   const registry = new ServiceRegistry().register(
     new RideServiceModule(async (req) => {
-      const traffic = trafficInfo(req.origin, req.destination);
+      const traf = await traficDuTrajet(req);
+      const traffic = { factor: traf.facteur, level: traf.niveau };
       // Surge : chaque devis compte comme une demande dans sa cellule ;
       // plafonné (incitation verte) — la flotte ORION est électrique.
       // Simulateur du PDG actif : ses chauffeurs et ses clients comptent aussi.
@@ -266,6 +289,7 @@ export function createContainer(): Container {
         approche,
         trafficFactor: traffic.factor,
         trafficLevel: traffic.level,
+        trafic: { pct: traf.pct, periode: traf.periode, partDense: Math.round(traf.partDense * 100) / 100, partBouchon: Math.round(traf.partBouchon * 100) / 100, bouchons: traf.bouchons, source: traf.source },
         settings: settings.getPricing(),
         // Itinéraire choisi par le client (pont à péage ou voie normale) : sa distance, contrôlée
         // par distanceFacturee (jamais sous la ligne droite ni démesurée) ; sinon, le routage du serveur.
@@ -284,7 +308,9 @@ export function createContainer(): Container {
   // surge plafonné, codes promo de la console) sur le barème coursier.
   registry.register(
     new DeliveryServiceModule(async (req) => {
-      const traffic = trafficInfo(req.origin, req.destination);
+      // Livraison à moto : même analyse du trajet (heure, bouchons), avec l'ancien poids du trafic.
+      const traf = await traficDuTrajet(req);
+      const traffic = { factor: traf.facteur, level: traf.niveau };
       if (!req.apercu) demand.record(req.origin, req.clientId);
       const ops = settings.getOps();
       const surgeRaw = ops.surgeEnabled ? await demand.surgeFor(req.origin, { simulation: req.modeSimulation !== 'sans', projet: req.modeSimulation === 'projet' }) : 1;

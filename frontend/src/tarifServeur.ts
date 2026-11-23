@@ -24,6 +24,7 @@
  */
 
 import { PEAGES, dansDistrictAbidjan, sortDAbidjan, type Peage } from './routesAbidjan';
+import { brancherDensite, reglesTrafic, traficTrajet, type ReglesTrafic, type TraficTrajet } from './traficItineraire';
 
 export interface Pt { lat: number; lng: number }
 export type NiveauTrafic = 'fluid' | 'dense' | 'jam';
@@ -76,7 +77,12 @@ export interface GrillePrixServeur {
   livraison: BaremeHT;
   /** Règle du temps d'approche (vitesse moyenne réglée en console, détours de la route). */
   approche: { vitesseKmh: number; facteurRoute: number };
+  /** Trafic sur l'itinéraire (heures de pointe, points de blocage) réglé en console. */
+  trafic?: Partial<ReglesTrafic>;
 }
+
+/** Règles du trafic en vigueur (celles du serveur, reçues avec la grille). */
+let REGLES_TRAFIC: ReglesTrafic = reglesTrafic();
 
 /** Temps d'approche : même règle que le serveur ORION (40 km/h par défaut, détours × 1,35). */
 const APPROCHE = { vitesseKmh: 40, facteurRoute: 1.35 };
@@ -107,6 +113,7 @@ export function appliquerGrillePrix(g: Partial<GrillePrixServeur> | undefined | 
   const a = g.approche;
   if (a && Number.isFinite(a.vitesseKmh) && a.vitesseKmh >= 5 && a.vitesseKmh <= 120) APPROCHE.vitesseKmh = a.vitesseKmh;
   if (a && Number.isFinite(a.facteurRoute) && a.facteurRoute >= 1 && a.facteurRoute <= 2) APPROCHE.facteurRoute = a.facteurRoute;
+  if (g.trafic && typeof g.trafic === 'object') REGLES_TRAFIC = reglesTrafic(g.trafic);
 }
 
 export function supplementGamme(gamme: Gamme, montantArgent: number, horsAbidjan = false): number {
@@ -209,20 +216,15 @@ function densite(p: Pt): number {
   return d;
 }
 
-/** Trafic retenu pour le prix : heure de pointe d'Abidjan et densité des zones du trajet (trafficInfo du serveur). */
-export function traficServeur(origin: Pt, destination: Pt, at: Date = new Date()): { level: NiveauTrafic; factor: number } {
-  const heure = at.getHours();
-  const pointe = (heure >= 6 && heure < 9) || (heure >= 17 && heure < 20);
-  const journee = heure >= 9 && heure < 17;
-  const d = Math.max(densite(origin), densite(destination));
-  let score = 0;
-  if (pointe) score += 2;
-  else if (journee) score += 1;
-  if (d >= 1.3) score += 2;
-  else if (d >= 1.1) score += 1;
-  if (score >= 4) return { level: 'jam', factor: 1.35 };
-  if (score >= 2) return { level: 'dense', factor: 1.15 };
-  return { level: 'fluid', factor: 1.0 };
+brancherDensite(densite);
+
+/**
+ * Trafic retenu pour le prix, comme le serveur : tout le trajet (ici en ligne droite entre ses
+ * points, le serveur suivant la route quand il la connaît), heure d'Abidjan, points de blocage.
+ */
+export function traficServeur(origin: Pt, destination: Pt, at: Date = new Date(), stops: Pt[] = [], mesure?: { avecTraficS: number; sansTraficS: number } | null): { level: NiveauTrafic; factor: number; detail: TraficTrajet } {
+  const detail = traficTrajet([origin, ...stops, destination], at, REGLES_TRAFIC, mesure);
+  return { level: detail.niveau, factor: detail.facteur, detail };
 }
 
 const arrondi50 = (n: number) => Math.round(n / 50) * 50;
@@ -234,6 +236,8 @@ export interface DetailPrix {
   breakdown: {
     base: number; distance: number; time: number; surge: number; traffic: number; discount: number; subtotal: number; tva: number; fee: number; insurance: number;
     approche?: number; approcheKm?: number; approcheMin?: number; approcheGoogle?: boolean; minutesTrafic?: number; minutesFluide?: number; traficReel?: number; traficFacteur?: number; traficNiveau?: 'fluid' | 'dense' | 'jam';
+    /** Trafic sur l'itinéraire (même calcul que le serveur). */
+    trafic?: import('./types').DetailTrafic;
     /** Péages de l'itinéraire choisi (F CFA). */
     peage?: number;
     /** La course sort d'Abidjan : 10 % entre les gammes. */
@@ -292,11 +296,14 @@ export function prixCourse(d: {
   reel?: DonneesTempsReel;
   /** Itinéraire choisi quand un pont à péage est sur le trajet, et péages qu'il franchit. */
   itineraire?: 'peage' | 'normal'; peages?: string[];
+  /** Trafic réel mesuré sur l'itinéraire (durées avec / sans trafic, Google) : ne fait que relever. */
+  mesureTrafic?: { avecTraficS: number; sansTraficS: number } | null;
 }): DetailPrix {
   const s = BAREME;
   const m = d.multiplier;
   const carrosserie = s.bodySurcharge[d.bodyType ?? 'berline'] ?? 1;
-  const trafic = d.reel ? d.reel.trafic : traficServeur(d.origin, d.destination, d.at);
+  const traficTrajetCalcule = d.reel ? null : traficServeur(d.origin, d.destination, d.at, d.stops ?? [], d.mesureTrafic);
+  const trafic = d.reel ? d.reel.trafic : traficTrajetCalcule!;
   const regles = reglesTrajet(d.origin, d.destination);
   const km = d.distanceMeters / 1000;
   // Temps facturé à vitesse libre : les embouteillages ne sont pas facturés à la minute.
@@ -308,7 +315,8 @@ export function prixCourse(d: {
   const distance = km * s.perKm * m * carrosserie;
   const temps = minutes * s.perMinute * m * carrosserie;
   const coutArrets = arrets * s.stopFee * m;
-  const coefTrafic = 1 + (trafic.factor - 1) * s.trafficWeight;
+  // Trafic sur l'itinéraire : son pourcentage (tronçons denses ou bouchés, bouchons traversés).
+  const coefTrafic = traficTrajetCalcule ? 1 + traficTrajetCalcule.detail.pct / 100 : 1 + (trafic.factor - 1) * s.trafficWeight;
   const coutApprocheHt = d.reel?.approche?.cout ?? 0;
   const auCompteur = (base + distance + temps + coutArrets) * coefTrafic * Math.max(0.1, regles.zoneFactor) + regles.pickupFee + coutApprocheHt;
   const brut = (regles.flatAmount && regles.flatAmount > 0 ? regles.flatAmount : auCompteur) + regles.extraFee;
@@ -332,6 +340,7 @@ export function prixCourse(d: {
       insurance: d.insurance ? Math.round(subtotal * s.insuranceRate) : 0,
       ...(peage > 0 ? { peage } : {}),
       ...(horsAbidjan ? { horsAbidjan: true } : {}),
+      ...(traficTrajetCalcule ? { trafic: { pct: traficTrajetCalcule.detail.pct, periode: traficTrajetCalcule.detail.periode, partDense: Math.round(traficTrajetCalcule.detail.partDense * 100) / 100, partBouchon: Math.round(traficTrajetCalcule.detail.partBouchon * 100) / 100, bouchons: traficTrajetCalcule.detail.bouchons, source: traficTrajetCalcule.detail.source } } : {}),
       ...(d.reel ? {
         minutesTrafic: Math.round(d.reel.durationSeconds / 60), minutesFluide: Math.round(d.reel.fluideSeconds / 60), traficReel: Math.round(d.reel.trafic.ratio * 100) / 100, traficFacteur: d.reel.trafic.factor, traficNiveau: d.reel.trafic.level,
         ...(d.reel.approche ? { approche: Math.round(coutApprocheHt), approcheKm: Math.round(d.reel.approche.distanceMeters / 100) / 10, approcheMin: Math.round(d.reel.approche.durationSeconds / 60), approcheGoogle: d.reel.approche.google } : {}),
