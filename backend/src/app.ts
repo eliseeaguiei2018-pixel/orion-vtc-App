@@ -8,6 +8,7 @@ import { config } from './config/index.js';
 import { loggerOptions } from './core/logger.js';
 import { AppError } from './core/errors.js';
 import { cleDeLimite, plafondDeLimite } from './core/limiteur.js';
+import { estLectureGroupee } from './modules/admin/lot.js';
 import { createContainer, type Container } from './container.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { brancherPasserelle } from './modules/gcp/securite.js';
@@ -27,6 +28,7 @@ import { countryRoutes } from './modules/countries/routes.js';
 import { subscriptionRoutes } from './modules/subscriptions/routes.js';
 import { weddingRoutes } from './modules/wedding/routes.js';
 import { rentalRoutes } from './modules/rental/routes.js';
+import { misesAJourRoutes } from './modules/mises-a-jour/routes.js';
 import { insuranceRoutes } from './modules/insurance/routes.js';
 import { assuranceRoutes } from './modules/assurance/routes.js';
 import { messagesRoutes } from './modules/messages/routes.js';
@@ -106,7 +108,8 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
     // Se DÉCONNECTER doit toujours rester possible : un administrateur bloqué par
     // le limiteur garderait sinon une session ouverte, ce qui est exactement
     // l'inverse du but recherché. La route ne fait que révoquer une session.
-    allowList: (req) => req.url.split('?')[0] === '/admin/logout',
+    // Les lectures relayées par /admin/lot sont déjà comptées : la requête groupée l'est.
+    allowList: (req) => req.url.split('?')[0] === '/admin/logout' || estLectureGroupee(req),
   });
 
   // Le serveur ORION n'a rien à faire dans un moteur de recherche : aucune de ses réponses
@@ -163,6 +166,8 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
   await weddingRoutes(app, container);
   // Location Signature : événements/mariages, entreprises & institutions, mise à disposition.
   await rentalRoutes(app, container);
+  // Mises à jour à chaud des apps : manifestes signés et paquets.
+  await misesAJourRoutes(app, container);
   await insuranceRoutes(app, container);
   await assuranceRoutes(app, container);
   await messagesRoutes(app, container);

@@ -42,6 +42,21 @@ const config: CapacitorConfig = {
     PushNotifications: { presentationOptions: ['badge', 'sound', 'alert'] },
     Geolocation: {},
     LocalNotifications: { smallIcon: 'ic_stat_orion', iconColor: '#00e08a' },
+    // MISES À JOUR À CHAUD depuis le serveur ORION (src/miseAJour.ts) : l'app décide elle-même
+    // quand télécharger et installer. Aucun service extérieur : statistiques et canaux coupés.
+    CapacitorUpdater: {
+      autoUpdate: false,
+      updateUrl: '',
+      statsUrl: '',
+      channelUrl: '',
+      appReadyTimeout: 15000,
+      autoDeleteFailed: true,
+      autoDeletePrevious: true,
+      // Nouvelle APK installée : on repart de la version qu'elle contient.
+      resetWhenUpdate: true,
+      shakeMenu: false,
+      allowPreview: false,
+    },
   },
   ios: {
     ...(chauffeur ? { path: 'chauffeur/ios' } : {}),

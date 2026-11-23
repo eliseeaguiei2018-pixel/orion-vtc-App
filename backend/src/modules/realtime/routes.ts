@@ -209,6 +209,8 @@ export function domaineConsole(msg: { type: string; room: string }): string | nu
   }
   if (msg.room === EMERGENCY_ROOM || msg.room.startsWith('sos:')) return 'sos';
   if (msg.room === 'support' || msg.room.startsWith('client:')) return 'support';
+  // Nouvelle version d'une app publiée : la console (APK) vérifie sa propre mise à jour.
+  if (msg.type === 'apps.maj' && msg.room === CONFIG_ROOM) return 'apps';
   return null;
 }
 

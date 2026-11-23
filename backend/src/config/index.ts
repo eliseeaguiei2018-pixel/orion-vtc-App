@@ -237,6 +237,10 @@ const schema = z.object({
 
   REDIS_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
   DB_PATH: z.string().default('./data/orion.db'),
+  // MISES À JOUR À CHAUD des apps : dossier des paquets (par défaut, à côté de la base sur le
+  // disque persistant) et clé privée de signature (PKCS#8 base64, jamais dans le dépôt).
+  PAQUETS_DIR: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  OTA_SIGNING_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
 }).superRefine((c, ctx) => {
   // PRODUCTION : jamais avec un secret public. Les valeurs par défaut sont écrites dans le
   // dépôt ; les garder en production permet à quiconque de fabriquer un jeton de

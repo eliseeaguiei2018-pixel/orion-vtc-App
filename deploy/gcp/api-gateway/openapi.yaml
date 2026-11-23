@@ -195,6 +195,10 @@ paths:
   /vehicules/{chemin=**}:
     parameters: [{ name: chemin, in: path, required: true, type: string }]
     get: { operationId: vehicules_sous_get, <<: [*compteur, *reponses] }
+  # Mises à jour à chaud des apps : manifestes signés et paquets.
+  /apps/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    get: { operationId: apps_sous_get, <<: [*compteur, *reponses] }
 
   # Mariage.
   /wedding/{chemin=**}:

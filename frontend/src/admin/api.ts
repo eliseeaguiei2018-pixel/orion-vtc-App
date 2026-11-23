@@ -150,20 +150,24 @@ export function setAdminErrorSink(fn: (e: AdminError) => void): void { errorSink
 
 /** Construit l'erreur depuis la réponse, en reprenant le message du serveur si présent. */
 export async function toAdminError(r: Response): Promise<AdminError> {
-  let message = '';
-  try {
-    const body = await r.json() as { error?: { message?: string; code?: string } };
-    message = body?.error?.message ?? '';
-    // Appareil révoqué (ou plus enrôlé) en cours de session : retour à l'écran d'accueil,
-    // qui propose l'enrôlement. Rester sur une console qui refuse tout n'aide personne.
-    if (body?.error?.code === 'APPAREIL_NON_ENROLE') { clearSession(); setTimeout(() => window.location.reload(), 1500); }
-  } catch { /* corps non JSON */ }
+  let body: unknown = null;
+  try { body = await r.json(); } catch { /* corps non JSON */ }
+  return erreurDepuis(r.status, body);
+}
+
+/** Erreur d'après un code HTTP et le corps renvoyé (réponse seule ou lecture d'un lot). */
+function erreurDepuis(status: number, corps: unknown): AdminError {
+  const body = corps as { error?: { message?: string; code?: string } } | null;
+  let message = body?.error?.message ?? '';
+  // Appareil révoqué (ou plus enrôlé) en cours de session : retour à l'écran d'accueil,
+  // qui propose l'enrôlement. Rester sur une console qui refuse tout n'aide personne.
+  if (body?.error?.code === 'APPAREIL_NON_ENROLE') { clearSession(); setTimeout(() => window.location.reload(), 1500); }
   if (!message) {
-    message = r.status === 403
+    message = status === 403
       ? 'Action refusée : vous n’avez pas le droit d’effectuer cette opération sans autorisation de la direction. Cette tentative a été signalée à la direction (DG, CFO, DAA).'
-      : `Le serveur a refusé l’opération (erreur ${r.status}). Rien n’a été enregistré.`;
+      : `Le serveur a refusé l’opération (erreur ${status}). Rien n’a été enregistré.`;
   }
-  return new AdminError(r.status, message);
+  return new AdminError(status, message);
 }
 
 /** Signale l'échec (modale de refus / bandeau) et le lève — pour les appels JSON. */
@@ -178,7 +182,57 @@ export async function reportResponse(r: Response): Promise<void> {
   errorSink(await toAdminError(r));
 }
 
-export async function adminGet<T>(p: string): Promise<T> { const r = await fetch(API + p, withCreds({ headers: H() })); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
+async function lectureSeule<T>(p: string): Promise<T> { const r = await fetch(API + p, withCreds({ headers: H() })); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
+
+/**
+ * LECTURES GROUPÉES : les lectures demandées au même moment (une actualisation de la console en
+ * lance des dizaines) partent ensemble dans UNE requête /admin/lot. Depuis Abidjan, chaque
+ * aller-retour vers le serveur coûte 0,2 à 0,5 s : une actualisation passe d'une dizaine de
+ * secondes à un seul aller-retour. Les refus (403) restent signalés un par un, comme avant.
+ * Un serveur plus ancien, sans /admin/lot, est lu page par page.
+ */
+interface Attente { p: string; ok: (v: unknown) => void; ko: (e: unknown) => void }
+let enAttente: Attente[] = [];
+let minuteurLot: ReturnType<typeof setTimeout> | null = null;
+let lotAbsent = false;
+const LOT_MAX = 100;
+
+function envoyerLot(): void {
+  const lot = enAttente;
+  enAttente = [];
+  if (minuteurLot) { clearTimeout(minuteurLot); minuteurLot = null; }
+  if (!lot.length) return;
+  if (lot.length === 1 || lotAbsent) { for (const a of lot) lectureSeule(a.p).then(a.ok, a.ko); return; }
+  void (async () => {
+    const chemins = [...new Set(lot.map((a) => a.p))];
+    let r: Response;
+    try { r = await fetch(API + '/admin/lot', withCreds({ method: 'POST', headers: H(), body: JSON.stringify({ chemins }) })); }
+    catch (e) { for (const a of lot) a.ko(e); return; }
+    if (r.status === 404) { lotAbsent = true; for (const a of lot) lectureSeule(a.p).then(a.ok, a.ko); return; }
+    if (r.status === 401) onUnauthorized();
+    if (!r.ok) { const e = await toAdminError(r); errorSink(e); for (const a of lot) a.ko(e); return; }
+    let lus: Record<string, { s: number; b: unknown }> = {};
+    try { lus = ((await r.json()) as { r: Record<string, { s: number; b: unknown }> }).r ?? {}; } catch { /* réponse illisible */ }
+    for (const a of lot) {
+      const lu = lus[a.p];
+      if (!lu) { a.ko(new AdminError(502, 'Réponse du serveur incomplète.')); continue; }
+      if (lu.s === 401) onUnauthorized();
+      if (lu.s >= 200 && lu.s < 300) { a.ok(lu.b); continue; }
+      const e = erreurDepuis(lu.s, lu.b);
+      errorSink(e);
+      a.ko(e);
+    }
+  })();
+}
+
+export function adminGet<T>(p: string): Promise<T> {
+  if (!LIVE) return lectureSeule<T>(p);
+  return new Promise<T>((ok, ko) => {
+    enAttente.push({ p, ok: ok as (v: unknown) => void, ko });
+    if (enAttente.length >= LOT_MAX) envoyerLot();
+    else minuteurLot ??= setTimeout(envoyerLot, 4);
+  });
+}
 export async function adminPost<T>(p: string, b?: unknown): Promise<T> { const r = await fetch(API + p, withCreds({ method: 'POST', headers: H(), body: JSON.stringify(b ?? {}) })); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
 export async function adminPut<T>(p: string, b: unknown): Promise<T> { const r = await fetch(API + p, withCreds({ method: 'PUT', headers: H(), body: JSON.stringify(b) })); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
 export async function adminDel(p: string): Promise<void> { const r = await fetch(API + p, withCreds({ method: 'DELETE', headers: H() })); if (r.status === 401) onUnauthorized(); if (!r.ok) await fail(r); }

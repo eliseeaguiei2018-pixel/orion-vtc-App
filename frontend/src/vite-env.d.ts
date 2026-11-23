@@ -7,6 +7,8 @@ interface ImportMetaEnv {
   readonly VITE_GOOGLE_MAPS_API_KEY?: string;
   /** '1' : Google Maps est la seule carte de l'app cliente (exige VITE_GOOGLE_MAPS_API_KEY). */
   readonly VITE_MAP_GOOGLE_SEUL?: string;
+  /** '1' : APK officielle, mises à jour à chaud depuis le serveur ORION (miseAJour.ts). */
+  readonly VITE_MISES_A_JOUR?: string;
   /** Fond de carte réel : 'osm' | 'maptiler' | 'google' (sinon carte stylisée). */
   readonly VITE_MAP_PROVIDER?: string;
   /** Gabarit de tuiles générique « {z}/{x}/{y} » (prioritaire sur VITE_MAP_PROVIDER). */

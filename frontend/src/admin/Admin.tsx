@@ -36,6 +36,7 @@ import { lienTel, numeroComposable, ouvrirClavier } from '../telephone';
 import { EnrolementAppareil, LigneAppareil, estAppEmballee, useEtatAppareil, type AppareilPublic, type ClassesFormulaire } from '../appareil';
 import { BoutonInstaller } from '../pwa';
 import { surServeurDeSecours } from '../serveur';
+import { demarrerMisesAJour, signalerNouvelleVersion } from '../miseAJour';
 
 
 
@@ -484,117 +485,143 @@ function Console({ onLogout }: { onLogout: () => void }) {
       const meRes = await adminGet<Me>('/admin/me');
       setMe(meRes); setLive(true);
       const has = (p: string) => meRes.permissions.includes(p);
-      if (has('overview:read')) { setOv(await adminGet<Overview>('/admin/overview')); setStats(await adminGet<Stats>(`/admin/stats?days=${statsDays}`)); }
+      // Toutes les lectures partent EN MÊME TEMPS (et donc dans une seule requête groupée,
+      // voir adminGet) : une actualisation en un aller-retour au lieu d'une soixantaine.
+      const taches: Promise<unknown>[] = [];
+      const t = (f: () => Promise<unknown>) => { taches.push(f()); };
+      const g = adminGet;
+      if (has('overview:read')) {
+        t(async () => setOv(await g<Overview>('/admin/overview')));
+        t(async () => setStats(await g<Stats>(`/admin/stats?days=${statsDays}`)));
+        t(async () => setGreen(await g<GreenReport>('/admin/green')));
+        t(async () => setChurn(await g<ChurnReport>('/admin/churn')));
+      }
+      // Session SAMU : file de triage (niveaux + SLA). Les messages pré-enregistrés
+      // sont renvoyés avec le dossier d'une alerte (SosDrawer).
       if (has('alerts:read')) {
-        // Session SAMU : file de triage (niveaux + SLA). Les messages pré-enregistrés
-        // sont renvoyés avec le dossier d'une alerte (SosDrawer).
-        setAlerts((await adminGet<{ alerts: Alert[] }>('/admin/sos')).alerts);
+        t(async () => setAlerts((await g<{ alerts: Alert[] }>('/admin/sos')).alerts));
+        t(async () => setContacts((await g<{ contacts: ContactUrgence[] }>('/admin/contacts')).contacts));
       }
-      if (has('security:read')) setSecurity((await adminGet<{ attempts: SecurityAttempt[] }>('/admin/security-alerts')).attempts);
-      if (has('alerts:read')) setContacts((await adminGet<{ contacts: ContactUrgence[] }>('/admin/contacts')).contacts);
-      if (has('vigilance:read')) setVigilance(await adminGet<SanteVigilance>('/admin/vigilance'));
+      if (has('security:read')) t(async () => setSecurity((await g<{ attempts: SecurityAttempt[] }>('/admin/security-alerts')).attempts));
+      if (has('vigilance:read')) t(async () => setVigilance(await g<SanteVigilance>('/admin/vigilance')));
       // « Mon poste » n'exige aucun droit particulier : chacun y voit ce qui porte son nom.
-      setMonPoste(await adminGet<MonPoste>('/admin/mon-poste'));
-      if (has('crew:read') || has('crew:self')) {
-        const c = await adminGet<{ equipages: EquipageRow[]; total?: number; tableau: CrewTableau | null }>(`/admin/crew${crewQ ? `?q=${encodeURIComponent(crewQ)}` : ''}`);
+      t(async () => setMonPoste(await g<MonPoste>('/admin/mon-poste')));
+      if (has('crew:read') || has('crew:self')) t(async () => {
+        const c = await g<{ equipages: EquipageRow[]; total?: number; tableau: CrewTableau | null }>(`/admin/crew${crewQ ? `?q=${encodeURIComponent(crewQ)}` : ''}`);
         setEquipages(c.equipages); setEquipagesTotal(c.total ?? c.equipages.length); setCrewTableau(c.tableau);
-      }
-      if (has('caisse:read')) {
-        const c = await adminGet<{ caisses: CaisseEtat[]; maCaisse: CaisseEtat | null; consolidation: CaisseConsolidation | null; referentiel: CaisseReferentiel }>('/admin/caisses');
+      });
+      if (has('caisse:read')) t(async () => {
+        const c = await g<{ caisses: CaisseEtat[]; maCaisse: CaisseEtat | null; consolidation: CaisseConsolidation | null; referentiel: CaisseReferentiel }>('/admin/caisses');
         setCaisses(c.caisses); setMaCaisse(c.maCaisse); setCaisseConso(c.consolidation); setCaisseRef(c.referentiel);
-      }
-      if (has('accounts:read')) {
-        const a = await adminGet<{ accounts: StaffAccountRow[]; stats: AccountsStats; roles: RoleOption[]; delegables: string[] }>('/admin/accounts');
+      });
+      if (has('accounts:read')) t(async () => {
+        const a = await g<{ accounts: StaffAccountRow[]; stats: AccountsStats; roles: RoleOption[]; delegables: string[] }>('/admin/accounts');
         setComptes(a.accounts); setComptesStats(a.stats); setRolesDispo(a.roles); setDelegables(a.delegables);
+      });
+      if (has('rental:read')) {
+        t(async () => setSuiviFlotte(await g<SuiviFlotte>('/admin/rental/flotte/positions')));
+        t(async () => {
+          const loc = await g<{ reservations: RentalRow[]; fleet: PrestigeUnit[]; stats: RentalStats; disponibilites: RentalAvailabilityRow[] }>('/admin/rental');
+          setRentals(loc.reservations); setPrestige(loc.fleet); setRentalStats(loc.stats); setRentalDispos(loc.disponibilites);
+        });
+        t(async () => {
+          const abo = await g<{ plans: SubPlanRow[]; subscriptions: SubscriptionRow[]; invoices: SubInvoiceRow[]; stats: SubStats }>('/admin/subscriptions');
+          setSubPlans(abo.plans); setSubscriptions(abo.subscriptions); setSubInvoices(abo.invoices); setSubStats(abo.stats);
+        });
+        t(async () => setRentalTarifs(await g<RentalTarifEtat>('/admin/rental/tarifs')));
       }
-      if (has('rental:read')) setSuiviFlotte(await adminGet<SuiviFlotte>('/admin/rental/flotte/positions'));
       if (has('executive:read')) {
-        setBoard(await adminGet<ExecutiveBoard>(`/admin/executive?days=${execJours}`));
-        const q = new URLSearchParams({ days: String(execJours), page: String(livrePage) });
-        if (livreFiltre.sens) q.set('sens', livreFiltre.sens);
-        if (livreFiltre.categorie) q.set('categorie', livreFiltre.categorie);
-        setLivre(await adminGet<MouvementPage>(`/admin/executive/livre?${q.toString()}`));
+        t(async () => setBoard(await g<ExecutiveBoard>(`/admin/executive?days=${execJours}`)));
+        t(async () => {
+          const q = new URLSearchParams({ days: String(execJours), page: String(livrePage) });
+          if (livreFiltre.sens) q.set('sens', livreFiltre.sens);
+          if (livreFiltre.categorie) q.set('categorie', livreFiltre.categorie);
+          setLivre(await g<MouvementPage>(`/admin/executive/livre?${q.toString()}`));
+        });
       }
       if (has('drivers:read')) {
-        setFleet((await adminGet<{ fleet: FleetUnit[] }>('/admin/fleet/live')).fleet);
-        const d = await adminGet<{ drivers: DriverRow[] } & PageMeta>(`/admin/drivers?page=${driversPage}&limit=${PAGE_SIZE}`);
-        setDrivers(d.drivers); setDriversMeta({ total: d.total, page: d.page, pages: d.pages });
-        setExpiring((await adminGet<{ drivers: ExpiringDoc[] }>('/admin/drivers/expiring')).drivers);
+        t(async () => setFleet((await g<{ fleet: FleetUnit[] }>('/admin/fleet/live')).fleet));
+        t(async () => {
+          const d = await g<{ drivers: DriverRow[] } & PageMeta>(`/admin/drivers?page=${driversPage}&limit=${PAGE_SIZE}`);
+          setDrivers(d.drivers); setDriversMeta({ total: d.total, page: d.page, pages: d.pages });
+        });
+        t(async () => setExpiring((await g<{ drivers: ExpiringDoc[] }>('/admin/drivers/expiring')).drivers));
+        t(async () => {
+          const q = await g<{ threshold: number; autoWarn: boolean; drivers: QualityRow[]; top?: QualityTop[] }>('/admin/quality');
+          setQuality(q); setQTop(q.top ?? []);
+        });
+        t(async () => setCsat(await g<CsatReport>('/admin/quality/csat')));
       }
       if (has('rides:read')) {
-        const r = await adminGet<{ rides: RideRow[] } & PageMeta>(`/admin/rides?page=${ridesPage}&limit=${PAGE_SIZE}`);
-        setRides(r.rides); setRidesMeta({ total: r.total, page: r.page, pages: r.pages });
+        t(async () => {
+          const r = await g<{ rides: RideRow[] } & PageMeta>(`/admin/rides?page=${ridesPage}&limit=${PAGE_SIZE}`);
+          setRides(r.rides); setRidesMeta({ total: r.total, page: r.page, pages: r.pages });
+        });
+        t(async () => setOps((await g<{ ops: OpsConfig }>('/admin/dispatch')).ops));
+        t(async () => setPredict(await g<{ hour: number; cells: PredictCell[] }>('/admin/predict')));
+        t(async () => setConversion((await g<{ cells: ConversionCell[] }>('/admin/conversion')).cells));
+        t(async () => setFraud(await g<FraudReport>('/admin/fraud')));
+        t(async () => setElasticity((await g<{ cells: ElasticityCell[] }>('/admin/elasticity')).cells));
+        t(async () => setReservations((await g<{ reservations: Reservation[] }>('/admin/reservations')).reservations));
       }
-      if (has('pricing:read')) { setPricing((await adminGet<{ pricing: Pricing }>('/admin/pricing')).pricing); setZones((await adminGet<{ zones: Zone[] }>('/admin/zones')).zones); }
-      if (has('clients:read')) {
-        const c = await adminGet<{ clients: Client[] } & PageMeta>(`/admin/clients?page=${clientsPage}&limit=${PAGE_SIZE}`);
+      if (has('pricing:read')) {
+        t(async () => setPricing((await g<{ pricing: Pricing }>('/admin/pricing')).pricing));
+        t(async () => setZones((await g<{ zones: Zone[] }>('/admin/zones')).zones));
+      }
+      if (has('clients:read')) t(async () => {
+        const c = await g<{ clients: Client[] } & PageMeta>(`/admin/clients?page=${clientsPage}&limit=${PAGE_SIZE}`);
         setClients(c.clients); setClientsMeta({ total: c.total, page: c.page, pages: c.pages });
-      }
-      if (has('promos:read')) setPromos((await adminGet<{ promos: Promo[] }>('/admin/promos')).promos);
-      if (has('services:read')) setServices((await adminGet<{ config: ServicesConfig }>('/admin/services')).config);
+      });
+      if (has('promos:read')) t(async () => setPromos((await g<{ promos: Promo[] }>('/admin/promos')).promos));
+      if (has('services:read')) t(async () => setServices((await g<{ config: ServicesConfig }>('/admin/services')).config));
       if (has('support:read')) {
-        const sp = await adminGet<{ conversations: Conversation[]; stats?: SupportStats }>('/admin/support');
-        setSupport(sp.conversations); if (sp.stats) setSupportStats(sp.stats);
-        setMacros((await adminGet<{ macros: Macro[] }>('/admin/support/macros')).macros);
+        t(async () => {
+          const sp = await g<{ conversations: Conversation[]; stats?: SupportStats }>('/admin/support');
+          setSupport(sp.conversations); if (sp.stats) setSupportStats(sp.stats);
+        });
+        t(async () => setMacros((await g<{ macros: Macro[] }>('/admin/support/macros')).macros));
+        t(async () => setDisputes((await g<{ disputes: Dispute[] }>('/admin/disputes')).disputes));
       }
       if (has('finance:read')) {
-        setFinance(await adminGet<Finance>('/admin/finance'));
-        setCashDebt((await adminGet<{ debtors: CashDebtor[] }>('/admin/finance/cash-debt')).debtors);
-        setGateways((await adminGet<{ gateways: GatewayStatus[] }>('/admin/finance/gateways')).gateways);
-        setExpenses((await adminGet<{ tickets: ExpenseTicket[] }>('/admin/expenses')).tickets);
+        t(async () => setFinance(await g<Finance>('/admin/finance')));
+        t(async () => setCashDebt((await g<{ debtors: CashDebtor[] }>('/admin/finance/cash-debt')).debtors));
+        t(async () => setGateways((await g<{ gateways: GatewayStatus[] }>('/admin/finance/gateways')).gateways));
+        t(async () => setExpenses((await g<{ tickets: ExpenseTicket[] }>('/admin/expenses')).tickets));
+        t(async () => setCorporate((await g<{ accounts: CorporateAccount[] }>('/admin/corporate')).accounts));
       }
       if (has('treasury:read')) {
-        setTransfers((await adminGet<{ transfers: Transfer[] }>('/admin/treasury')).transfers);
-        setLiquidity(await adminGet<Liquidity>('/admin/liquidity'));
-        setAmortization(await adminGet<Amortization>('/admin/treasury/amortization'));
+        t(async () => setTransfers((await g<{ transfers: Transfer[] }>('/admin/treasury')).transfers));
+        t(async () => setLiquidity(await g<Liquidity>('/admin/liquidity')));
+        t(async () => setAmortization(await g<Amortization>('/admin/treasury/amortization')));
       }
       if (has('sessions:read')) {
-        const s = await adminGet<{ sessions: ActiveSession[]; self: string | null }>('/admin/sessions'); setSessions(s.sessions); setSelfSession(s.self);
-        setAppareils(await adminGet<{ appareils: AppareilPublic[]; exige: boolean; configure: boolean }>('/admin/appareils').catch(() => null));
+        t(async () => { const s = await g<{ sessions: ActiveSession[]; self: string | null }>('/admin/sessions'); setSessions(s.sessions); setSelfSession(s.self); });
+        t(async () => setAppareils(await g<{ appareils: AppareilPublic[]; exige: boolean; configure: boolean }>('/admin/appareils').catch(() => null)));
       }
-      if (has('rides:read')) setOps((await adminGet<{ ops: OpsConfig }>('/admin/dispatch')).ops);
-      if (has('overview:read')) setGreen(await adminGet<GreenReport>('/admin/green'));
       if (has('teams:read')) {
-        const mesEquipes = (await adminGet<{ teams: Team[] }>('/admin/teams')).teams;
-        setTeams(mesEquipes);
-        // Poste d'équipe : on ouvre celle qui est sélectionnée, sinon la première.
-        const cible = mesEquipes.some((t) => t.id === equipeSel) ? equipeSel : mesEquipes[0]?.id;
-        if (cible) {
-          if (cible !== equipeSel) setEquipeSel(cible);
-          try { setPosteEquipe((await adminGet<{ poste: PosteEquipe }>(`/admin/teams/${cible}/poste`)).poste); }
-          catch { setPosteEquipe(null); }
-        } else {
-          setPosteEquipe(null);
-        }
-        setStaffKpis((await adminGet<{ staff: StaffKpi[] }>('/admin/staff/productivity')).staff);
-        setShifts((await adminGet<{ shifts: Shift[] }>('/admin/shifts')).shifts);
-        setMaintenance((await adminGet<{ tickets: MaintenanceTicket[] }>('/admin/maintenance')).tickets);
+        t(async () => {
+          const mesEquipes = (await g<{ teams: Team[] }>('/admin/teams')).teams;
+          setTeams(mesEquipes);
+          // Poste d'équipe : on ouvre celle qui est sélectionnée, sinon la première.
+          const cible = mesEquipes.some((e) => e.id === equipeSel) ? equipeSel : mesEquipes[0]?.id;
+          if (cible) {
+            if (cible !== equipeSel) setEquipeSel(cible);
+            try { setPosteEquipe((await g<{ poste: PosteEquipe }>(`/admin/teams/${cible}/poste`)).poste); }
+            catch { setPosteEquipe(null); }
+          } else {
+            setPosteEquipe(null);
+          }
+        });
+        t(async () => setStaffKpis((await g<{ staff: StaffKpi[] }>('/admin/staff/productivity')).staff));
+        t(async () => setShifts((await g<{ shifts: Shift[] }>('/admin/shifts')).shifts));
+        t(async () => setMaintenance((await g<{ tickets: MaintenanceTicket[] }>('/admin/maintenance')).tickets));
       }
-      if (has('rides:read')) {
-        setPredict(await adminGet<{ hour: number; cells: PredictCell[] }>('/admin/predict'));
-        setConversion((await adminGet<{ cells: ConversionCell[] }>('/admin/conversion')).cells);
-        setFraud(await adminGet<FraudReport>('/admin/fraud'));
-        setElasticity((await adminGet<{ cells: ElasticityCell[] }>('/admin/elasticity')).cells);
+      if (has('notify:read')) {
+        t(async () => setTriggers(await g<Triggers>('/admin/notify/triggers')));
+        t(async () => setBroadcasts((await g<{ announcements: Announcement[] }>('/admin/broadcasts')).announcements));
       }
-      if (has('overview:read')) setChurn(await adminGet<ChurnReport>('/admin/churn'));
-      if (has('finance:read')) setCorporate((await adminGet<{ accounts: CorporateAccount[] }>('/admin/corporate')).accounts);
-      if (has('drivers:read')) {
-        const q = await adminGet<{ threshold: number; autoWarn: boolean; drivers: QualityRow[]; top?: QualityTop[] }>('/admin/quality');
-        setQuality(q); setQTop(q.top ?? []);
-        setCsat(await adminGet<CsatReport>('/admin/quality/csat'));
-      }
-      if (has('notify:read')) setTriggers(await adminGet<Triggers>('/admin/notify/triggers'));
-      if (has('rides:read')) setReservations((await adminGet<{ reservations: Reservation[] }>('/admin/reservations')).reservations);
-      if (has('support:read')) setDisputes((await adminGet<{ disputes: Dispute[] }>('/admin/disputes')).disputes);
-      if (has('notify:read')) setBroadcasts((await adminGet<{ announcements: Announcement[] }>('/admin/broadcasts')).announcements);
-      if (has('rental:read')) {
-        const loc = await adminGet<{ reservations: RentalRow[]; fleet: PrestigeUnit[]; stats: RentalStats; disponibilites: RentalAvailabilityRow[] }>('/admin/rental');
-        setRentals(loc.reservations); setPrestige(loc.fleet); setRentalStats(loc.stats); setRentalDispos(loc.disponibilites);
-        const abo = await adminGet<{ plans: SubPlanRow[]; subscriptions: SubscriptionRow[]; invoices: SubInvoiceRow[]; stats: SubStats }>('/admin/subscriptions');
-        setSubPlans(abo.plans); setSubscriptions(abo.subscriptions); setSubInvoices(abo.invoices); setSubStats(abo.stats);
-        setRentalTarifs(await adminGet<RentalTarifEtat>('/admin/rental/tarifs'));
-      }
-      if (has('audit:read')) setAudit((await adminGet<{ entries: AuditEntry[] }>('/admin/audit')).entries);
+      if (has('audit:read')) t(async () => setAudit((await g<{ entries: AuditEntry[] }>('/admin/audit')).entries));
+      await Promise.all(taches);
       setHorsLigne(false);
       setVersionDonnees((v) => v + 1);
     } catch (e) {
@@ -616,6 +643,18 @@ function Console({ onLogout }: { onLogout: () => void }) {
   /** Dernier rafraîchissement déclenché par le temps réel (le tour de 6 s s'en abstient alors). */
   const dernierRafraichissementDirect = useRef(0);
 
+  // Mise à jour à chaud (APK console) : jamais pendant une saisie ou une fenêtre ouverte.
+  useEffect(() => {
+    demarrerMisesAJour({
+      app: 'console',
+      libre: () => {
+        const a = document.activeElement;
+        const saisie = a instanceof HTMLInputElement || a instanceof HTMLTextAreaElement || a instanceof HTMLSelectElement || (a instanceof HTMLElement && a.isContentEditable);
+        return !saisie && !document.querySelector('[role="dialog"], [role="alertdialog"], dialog[open]');
+      },
+    });
+  }, []);
+
   // CONSOLE EN TEMPS RÉEL : le serveur prévient dès qu'une course, un chauffeur, une alerte ou
   // une inscription change (/ws/console) ; la console se met à jour aussitôt (au plus une fois
   // par seconde et demie), sans attendre son tour de six secondes.
@@ -626,11 +665,12 @@ function Console({ onLogout }: { onLogout: () => void }) {
     let relance: number | undefined;
     let attente: number | undefined;
     let dernier = 0;
-    // Au plus un rafraîchissement toutes les 3 s : un PDG voit une nouvelle course ou une
-    // inscription dans la seconde, sans que chaque mouvement de voiture ne relance la console.
+    // Au plus un rafraîchissement toutes les 1,5 s (une actualisation ne coûte plus qu'un
+    // aller-retour, voir adminGet) : un PDG voit une nouvelle course ou une inscription dans
+    // la seconde, sans que chaque mouvement de voiture ne relance la console.
     const planifier = () => {
       if (attente) return;
-      const delai = Math.max(0, 3000 - (Date.now() - dernier));
+      const delai = Math.max(0, 1500 - (Date.now() - dernier));
       attente = window.setTimeout(() => { attente = undefined; dernier = Date.now(); dernierRafraichissementDirect.current = dernier; void dernierRefresh.current(); }, delai);
     };
     const connecter = async () => {
@@ -643,7 +683,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
           const m = JSON.parse(String(ev.data)) as { type: string; data?: { domaines?: string[] } };
           // Les seuls déplacements de véhicules suivent le rythme normal (6 s) : la carte de
           // flotte n'a pas besoin d'une relecture complète de la console à chaque position.
-          if (m.type === 'console.maj' && (m.data?.domaines ?? []).some((d) => d !== 'positions')) planifier();
+          if (m.type === 'console.maj' && (m.data?.domaines ?? []).includes('apps')) signalerNouvelleVersion({ app: 'console' });
+          if (m.type === 'console.maj' && (m.data?.domaines ?? []).some((d) => d !== 'positions' && d !== 'apps')) planifier();
         } catch { /* trame illisible */ }
       };
       ws.onclose = () => { if (!ferme) relance = window.setTimeout(() => void connecter(), 4000); };

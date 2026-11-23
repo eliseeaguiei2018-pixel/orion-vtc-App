@@ -8,6 +8,7 @@ import type {
 } from './types';
 import { tr } from './i18n';
 import { pointA, projeter, useNavigation } from './navigation';
+import { demarrerMisesAJour, signalerNouvelleVersion } from '../miseAJour';
 import { positionUnique, prevenir, preparerNotifications, ramenerAuPremierPlan, suivreGps, suivreGpsNavigateur, type PointGps } from '../arrierePlan';
 
 /** Notification affichée dans l'app (console, système, annonces). */
@@ -44,6 +45,10 @@ export function useDriver() {
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [driverConfig, setDriverConfig] = useState<DriverConfig>(DEMO_DRIVER_CONFIG);
   const [activeRide, setActiveRide] = useState<ActiveRide | null>(null);
+  // Mise à jour à chaud : jamais pendant une offre ou une course.
+  const libreMaj = useRef(true);
+  libreMaj.current = !activeRide;
+  useEffect(() => { demarrerMisesAJour({ app: 'chauffeur', libre: () => libreMaj.current }); }, []);
   const [link, setLink] = useState<LinkState>('connecting');
   const [notices, setNotices] = useState<Notice[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -119,6 +124,10 @@ export function useDriver() {
       }
       case 'config.update':
         setAppConfig(toAppConfig(data as Partial<AppConfig>));
+        break;
+      case 'apps.maj':
+        // Nouvelle version de l'app publiée par ORION : téléchargée et installée au bon moment.
+        signalerNouvelleVersion(data as { app?: string } | undefined);
         break;
       case 'driver-config.update':
         if (data) setDriverConfig(data as unknown as DriverConfig);

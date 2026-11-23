@@ -15,16 +15,23 @@
  */
 const CLE = 'orion.carte.cleGoogle';
 const CHOIX = 'orion.carte.fond';
-const ENV = import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim() || '';
+const lire = (k: string): string => { try { return localStorage.getItem(k) ?? ''; } catch { return ''; } };
+const ecrire = (k: string, v: string | null): void => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* stockage indisponible */ } };
+/**
+ * Clé intégrée à l'APK. Les MISES À JOUR À CHAUD (miseAJour.ts) sont publiées SANS clé, sur un
+ * serveur public : l'application d'origine de l'APK la garde donc sur le téléphone, et les
+ * versions suivantes la reprennent de là.
+ */
+const CLE_INTEGREE = 'orion.carte.cleIntegree';
+const ENV_CONSTRUCTION = import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim() || '';
+if (ENV_CONSTRUCTION) ecrire(CLE_INTEGREE, ENV_CONSTRUCTION);
+const ENV = ENV_CONSTRUCTION || lire(CLE_INTEGREE).trim();
 const SEUL = ENV.length > 0 && import.meta.env.VITE_MAP_GOOGLE_SEUL === '1';
 
 /** Google Maps est-il la seule carte de cette construction ? */
 export const googleSeul = (): boolean => SEUL;
 
 export type FondCarte = 'orion' | 'google';
-
-const lire = (k: string): string => { try { return localStorage.getItem(k) ?? ''; } catch { return ''; } };
-const ecrire = (k: string, v: string | null): void => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* stockage indisponible */ } };
 
 /** Clé saisie par le client, sinon celle de la construction ; chaîne vide s'il n'y en a pas. */
 export const cleGoogle = (): string => (SEUL ? ENV : lire(CLE).trim() || ENV);

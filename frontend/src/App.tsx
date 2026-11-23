@@ -54,6 +54,7 @@ import { alleger, optionRetenue, useItineraires, type ChoixItineraire, type Itin
 import { ChoixRoute } from './components/ChoixRoute';
 import { appliquerGrillePrix, BAREME, dansDistrictAbidjan, distanceVol } from './tarifServeur';
 import { useTheme } from './theme';
+import { demarrerMisesAJour, signalerNouvelleVersion } from './miseAJour';
 
 const PAYMENTS = [
   { method: 'orange_money', label: 'Orange Money' },
@@ -275,6 +276,10 @@ export function App() {
   const [carPos, setCarPos] = useState<LatLng | null>(null);
   const [tripPhase, setTripPhase] = useState<TripPhase>('enroute');
   const [rideId, setRideId] = useState<string | null>(null);
+  // Mise à jour à chaud : jamais pendant une commande ou une course, seulement depuis l'accueil.
+  const libreMaj = useRef(true);
+  libreMaj.current = !rideId && (screen === 'home' || screen === 'splash');
+  useEffect(() => { demarrerMisesAJour({ app: 'client', libre: () => libreMaj.current }); }, []);
   const [live, setLive] = useState(false);
   /**
    * SERVEUR DE TEST PARTAGÉ (voir busTest.ts) : course envoyée à l'app ORION Chauffeur
@@ -391,6 +396,8 @@ export function App() {
           // `connected` porte l'état courant (config) ; `config.update` la nouvelle (data).
           if (msg.type === 'connected') apply(msg.config);
           else if (msg.type === 'config.update') apply(msg.data);
+          // Nouvelle version de l'app publiée par ORION : téléchargée et installée au bon moment.
+          else if (msg.type === 'apps.maj') signalerNouvelleVersion(msg.data);
           // Barème de location ajusté depuis la console : l'écran de location se
           // rafraîchit sans que le client ait à rouvrir l'application.
           else if (msg.type === 'rental-config.update') notifyRentalTariffChange();

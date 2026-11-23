@@ -1,4 +1,7 @@
 import { configPublique } from './modules/support/configPublique.js';
+import { MisesAJour } from './modules/mises-a-jour/service.js';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { TableauDeBord } from './modules/dashboard/service.js';
 import { Geocodeur } from './modules/maps/geocodage.js';
 import { ServiceObjectifs } from './modules/dashboard/objectifs.js';
@@ -87,6 +90,8 @@ export interface Container {
   geo: GeoIndex;
   /** Véhicules libres autour d'un client et temps d'approche par gamme (avant la commande). */
   proches: ChauffeursProches;
+  /** Mises à jour à chaud des apps (paquets signés publiés par la direction). */
+  misesAJour: MisesAJour;
   idempotency: IdempotencyStore;
   registry: ServiceRegistry;
   drivers: DriverStore;
@@ -288,6 +293,18 @@ export function createContainer(): Container {
   );
 
   const realtime = new RealtimeHub();
+  // MISES À JOUR À CHAUD : paquets sur le disque persistant (à côté de la base), sinon dans un
+  // dossier temporaire. Chaque publication est annoncée en direct aux apps et à la console.
+  const misesAJour = new MisesAJour(
+    config.PAQUETS_DIR ?? (config.PERSISTENCE === 'sqlite' ? join(dirname(config.DB_PATH), 'paquets') : join(tmpdir(), `orion-paquets-${process.pid}`)),
+    config.OTA_SIGNING_KEY,
+    { creerCle: true },
+  );
+  misesAJour.onPublication((m) => {
+    const avis = { app: m.app, version: m.version, natifMin: m.natifMin };
+    // Canal `config` : app client, console, et app chauffeur (son canal relaie aussi celui-ci).
+    realtime.publish(CONFIG_ROOM, 'apps.maj', avis);
+  });
   // Diffusion temps réel de la config publique : à chaque changement piloté depuis la
   // console (maintenance, services, passerelles), toutes les apps clientes connectées au
   // canal WS `config` reçoivent la nouvelle config et se mettent à jour instantanément.
@@ -356,6 +373,7 @@ export function createContainer(): Container {
     payments: new PaymentRegistry(config.NODE_ENV !== 'production'),
     safety,
     realtime,
+    misesAJour,
     contacts: new EmergencyContactsService(
       createRepository('contacts_urgence'),
       createRepository<ContactJournalEntry>('contacts_journal'),

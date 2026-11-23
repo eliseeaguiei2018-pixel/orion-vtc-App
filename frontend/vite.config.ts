@@ -20,6 +20,8 @@ const appConsole = process.env.ORION_APP === 'console';
 export default defineConfig(({ command }) => ({
   base: process.env.VITE_BASE ?? (command === 'build' ? './' : '/'),
   plugins: [react()],
+  // Version de l'application web (mises à jour à chaud) : fixée par le script de publication.
+  define: { __VERSION_WEB__: JSON.stringify(process.env.ORION_VERSION_WEB ?? 'dev') },
   // Multi-page : app cliente (index.html) + dashboard admin (admin.html)
   // + app chauffeur (driver.html).
   build: {

@@ -3,6 +3,8 @@ import { gammesServies } from '../drivers/store.js';
 import { mediasSchema } from '../rental/medias.js';
 import { exigerHumain } from '../gcp/securite.js';
 import { Readable } from 'node:stream';
+import { lotRoutes } from './lot.js';
+import { misesAJourAdminRoutes } from '../mises-a-jour/admin.js';
 import { nearestZone } from '../geo-ci/zones.js';
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -229,6 +231,9 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       (req as FastifyRequest & { admin: AdminAccount }).admin = account;
     });
 
+    // Lectures groupées de la console : une requête au lieu d'une soixantaine.
+    lotRoutes(scoped, app);
+
     const require = (req: FastifyRequest, perm: Permission): void => {
       const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
       if (!can(account.role, perm)) {
@@ -251,6 +256,9 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       const { admin: account } = req as FastifyRequest & { admin: AdminAccount };
       container.audit.log({ actor: account.name, role: account.role, action, target, details });
     };
+
+    // Mises à jour à chaud des apps : versions publiées, publication (direction).
+    misesAJourAdminRoutes(scoped, container, require, audit);
 
     // Identité + permissions du compte connecté (le front adapte l'affichage).
     scoped.get('/admin/me', async (req) => {

@@ -1,4 +1,7 @@
 import '../stockageSur';
+import { confirmerDemarrage } from '../miseAJour';
+// Mise à jour à chaud : confirmer tout de suite que cette version démarre (sinon retour à la précédente).
+confirmerDemarrage();
 import '../polices.css';
 import { enregistrerServiceWorker } from '../pwa';
 import { choisirServeur } from '../serveur';
