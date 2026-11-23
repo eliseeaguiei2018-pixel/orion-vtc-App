@@ -1,3 +1,4 @@
+import { montantArrets } from '../rides/courseLive.js';
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -38,7 +39,7 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
     // Montant réellement dû : la part prise en charge par l'abonnement est déduite,
     // sinon le lien profond enverrait le client payer une somme qu'il ne doit pas.
     const prisEnCharge = (ride.subscription?.montantCouvert ?? 0) + (ride.subscription?.remise ?? 0);
-    const amount = Math.max(0, ride.quote.amount - prisEnCharge);
+    const amount = Math.max(0, ride.quote.amount + montantArrets(ride) - prisEnCharge);
     return {
       reference,
       method: body.method,
@@ -95,7 +96,8 @@ export async function paymentRoutes(app: FastifyInstance, container: Container):
     const billableWait = Math.max(0, (ride.waitMinutes ?? 0) - freeWait);
     const waitFee = billableWait * container.settings.getOps().waitFeePerMin;
     // Montant BRUT de la course : c'est lui qui rémunère le chauffeur.
-    const montantBrut = ride.quote.amount + waitFee;
+    // Arrêts en course (prévus ou demandés par le client) : facturés à la minute.
+    const montantBrut = ride.quote.amount + waitFee + montantArrets(ride);
     // ABONNEMENT ORION : la part prise en charge et la remise d'abonné, figées à la
     // commande, sont déduites de ce que le CLIENT paie. Le chauffeur, lui, continue
     // d'être payé sur le brut — l'abonnement est un effort commercial d'ORION, pas

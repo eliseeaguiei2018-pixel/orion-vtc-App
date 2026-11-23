@@ -13,6 +13,7 @@ import { heuresMiseADisposition } from '../services/ride/pricing.js';
 import { rideStateMachine, type RideStatus } from '../services/ride/stateMachine.js';
 import { driverRoom, rideRoom } from '../realtime/hub.js';
 import type { Ride } from './store.js';
+import { fermerArretEnCours, retenirNomsArrets } from './courseLive.js';
 import { publishAssignment } from '../driver-app/offers.js';
 import { chauffeurPourClient } from '../driver-app/poste.js';
 import { categorieDeFlotte } from './matching.js';
@@ -45,6 +46,8 @@ const createSchema = z.object({
   // dont la dette espèces dépasse le plafond console.
   paymentMethod: z.enum(['cash', 'orange_money', 'mtn_momo', 'moov_money', 'wave', 'card']).optional(),
   // Livraison à moto : le destinataire du colis (il donnera le code de remise au livreur).
+  // Noms des arrêts prévus du trajet (dans l'ordre), montrés au chauffeur.
+  nomsArrets: z.array(z.string().trim().max(80)).max(20).optional(),
   livraison: z.object({
     destinataire: z.object({ nom: z.string().trim().min(1).max(60), telephone: z.string().trim().min(6).max(25) }),
     description: z.string().trim().max(140).optional(),
@@ -166,6 +169,7 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
         paymentMethod: body.paymentMethod,
         createdAt: new Date().toISOString(),
       };
+      retenirNomsArrets(created, body.nomsArrets);
       if (quote.serviceType === 'delivery' && body.livraison) {
         const tel = numeroComposable(body.livraison.destinataire.telephone);
         if (!tel) throw badRequest('Numéro du destinataire invalide');
@@ -385,6 +389,7 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     }
 
     rideStateMachine.assertTransition(ride.status, 'completed');
+    fermerArretEnCours(ride, container.settings.getPricing().arretParMin);
     ride.status = 'completed';
     appendEvent(ride, 'completed', { codeRemiseVerifie: r.ok || r.raison === 'deja_verifie' });
     container.rides.persist(ride);
@@ -462,6 +467,8 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     if (body.to === 'completed' && ride.serviceType === 'delivery' && container.codesRemise.requis(ride.id) && (verifyDriverToken(driverTokenOf(req)) || config.DRIVER_AUTH_STRICT)) {
       throw new AppError(409, 'CODE_REMISE_REQUIS', 'Saisissez le code de remise donné par le destinataire.');
     }
+    // Fin de course pendant un arrêt : l'arrêt se ferme, ses minutes comptent jusqu'ici.
+    if (body.to === 'completed') fermerArretEnCours(ride, container.settings.getPricing().arretParMin);
     ride.status = body.to;
     appendEvent(ride, body.to);
     container.rides.persist(ride);

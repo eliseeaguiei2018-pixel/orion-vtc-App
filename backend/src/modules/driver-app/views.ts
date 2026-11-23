@@ -1,3 +1,4 @@
+import { especesAutorisees, montantArrets, resumeArrets } from '../rides/courseLive.js';
 import type { Container } from '../../container.js';
 import { effectiveCommissionRate } from '../wallet/service.js';
 import type { Driver } from '../drivers/store.js';
@@ -42,6 +43,10 @@ export function driverRideView(ride: Ride, container: Container, driverId: strin
     ...(ride.quote.miseADisposition ? { miseADisposition: ride.quote.miseADisposition } : {}),
     ...(ride.quote.breakdown.horsAbidjan ? { horsAbidjan: true } : {}),
     waitMinutes: ride.waitMinutes ?? 0,
+    // Arrêts prévus et demandés : compteur en cours, minutes et montants (visibles des deux côtés).
+    arrets: resumeArrets(ride, container.settings.getPricing().arretParMin),
+    // Espèces de secours autorisées par le chauffeur (le moyen choisi n'a pas fonctionné).
+    especesAutorisees: especesAutorisees(ride),
     paymentMethod: paid?.method ?? ride.paymentMethod ?? null,
     paidAmount: paid?.amount ?? null,
     earnings: {
@@ -71,11 +76,14 @@ interface LedgerLike { rideId?: string; type: string; amount: number }
 export function montantsAEncaisser(container: Container, ride: Ride) {
   const freeWait = container.settings.getPricing().freeWaitMinutes;
   const attente = Math.max(0, (ride.waitMinutes ?? 0) - freeWait) * container.settings.getOps().waitFeePerMin;
-  const brut = ride.quote.amount + attente;
+  // Arrêts en course : chaque minute facturée (tarif de la console), ajoutée au prix fixe.
+  const arrets = montantArrets(ride);
+  const brut = ride.quote.amount + attente + arrets;
   const prisEnCharge = (ride.subscription?.montantCouvert ?? 0) + (ride.subscription?.remise ?? 0);
   return {
     brut,
     attente,
+    arrets,
     prisEnCharge: Math.min(brut, prisEnCharge),
     aEncaisser: Math.max(0, brut - prisEnCharge),
     abonnement: ride.subscription ? { plan: ride.subscription.plan, raison: ride.subscription.raison } : null,

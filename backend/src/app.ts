@@ -35,6 +35,7 @@ import { messagesRoutes } from './modules/messages/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { supportClientRoutes } from './modules/support/routes.js';
 import { clientAccountRoutes } from './modules/clients/routes.js';
+import { courseLiveRoutes } from './modules/rides/courseLive.js';
 import { driverAppRoutes, registerDriverGuard } from './modules/driver-app/routes.js';
 import { prochesRoutes } from './modules/proches/routes.js';
 
@@ -154,6 +155,7 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
   await driverRoutes(app, container);
   await greenTelemetryRoutes(app, container);
   await rideRoutes(app, container);
+  await courseLiveRoutes(app, container);
   await complianceRoutes(app, container);
   await geoCiRoutes(app, container);
   await paymentRoutes(app, container);
