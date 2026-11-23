@@ -41,7 +41,7 @@ export function distanceVol(a: Pt, b: Pt): number {
 /** Barème des courses (DEFAULT_PRICING du serveur). */
 export const BAREME = {
   // Grille ORION, environ 40 % sous Yango (flotte électrique) : voir DEFAULT_PRICING du serveur.
-  baseFare: 200, perKm: 66, perMinute: 10, minFare: 480, avgSpeedKmh: 24,
+  baseFare: 200, perKm: 60, perMinute: 9, minFare: 480, avgSpeedKmh: 24,
   tvaRate: 0.05, feeRate: 0.1, insuranceRate: 0.04, trafficWeight: 0.6, stopFee: 250,
   bodySurcharge: { berline: 1, suv: 1.08 } as Record<string, number>,
   /** Majoration de chaque gamme par rapport à l'Argent, en pour cent du prix de la course. */

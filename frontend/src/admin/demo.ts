@@ -130,7 +130,7 @@ const overview: Overview = {
 };
 
 const pricing = {
-  baseFare: 200, perKm: 66, perMinute: 10, minFare: 480, avgSpeedKmh: 24,
+  baseFare: 200, perKm: 60, perMinute: 9, minFare: 480, avgSpeedKmh: 24,
   tvaRate: 0.05, feeRate: 0.1, insuranceRate: 0.04, trafficWeight: 0.6, stopFee: 250,
   multipliers: { argent: 0.9, or: 0.9, diamant: 0.9 }, majorationsPct: { argent: 0, or: 5, diamant: 15 },
   majorationsPctHorsAbidjan: { argent: 0, or: 10, diamant: 20 },
