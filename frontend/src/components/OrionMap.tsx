@@ -126,7 +126,15 @@ export function OrionMap(props: Props) {
   const gps = useContext(GpsCarte);
   const config = getVectorConfig();
   const { origin, destination, stops, car, vehicle, approche, trace, ponts, suivi, basCouvert, libelleRecentrer, peages } = props;
-  const carte = fond === 'google' && !googleEchec && !(seul && refus)
+  // NAVIGATION GUIDÉE (app chauffeur, en course) : vue GPS comme Yango ou Waze — caméra derrière
+  // le véhicule, carte inclinée et tournée dans le sens de la route, noms de rues lisibles.
+  // La carte Google de l'application ne sait ni s'incliner ni tourner ; la vraie carte (MapLibre,
+  // OpenStreetMap, la même que celle des consignes de guidage) le fait. La vue d'ensemble reste Google.
+  const navigationGps = Boolean(suivi && car && config && !repli);
+  const carte = navigationGps
+    ? <CarteReelle origin={origin} destination={destination} stops={stops} car={car} vehicle={vehicle} approche={approche} config={config!} onEchec={() => setRepli(true)}
+        trace={trace} ponts={ponts} suivi basCouvert={basCouvert} libelleRecentrer={libelleRecentrer} peages={peages} />
+    : fond === 'google' && !googleEchec && !(seul && refus)
     ? <CarteGoogle origin={origin} destination={destination} stops={stops} car={car} vehicle={vehicle} approche={approche} moi={gps?.moi} voisins={gps?.voisins}
         trace={trace} peages={peages} basCouvert={basCouvert} onEchec={() => setGoogleEchec(true)} />
     : seul ? <GoogleIndisponible />

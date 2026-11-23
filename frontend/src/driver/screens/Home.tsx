@@ -6,7 +6,7 @@ import type { ScreenProps } from '../Driver';
 import type { PrimeMois } from '../salarie';
 import type { DemandCell, QueueInfo, RideHistory } from '../types';
 import { BellButton, Banner, PageHeader, Section, Stat, VehiculeChauffeur, type Tab } from '../ui';
-import { fcfa, inOffPeak, meetsStandard, pct, TIER_LABEL, zoneAt } from '../format';
+import { fcfa, gammesLisibles, inOffPeak, meetsStandard, pct, TIER_LABEL, zoneAt } from '../format';
 import { Alerts } from './Alerts';
 import { Capacitor } from '@capacitor/core';
 import { clientRecent, suivreBus } from '../../busTest';
@@ -73,7 +73,7 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
     <div className="dv-page">
       <PageHeader marque
         title={tr('Bonjour {0}', [driver.name.split(' ')[0]])}
-        sub={tr('{0} · Gamme {1}{2}', [driver.matricule, TIER_LABEL[driver.category] ?? driver.category, driver.vip ? tr(' · Top Driver') : ''])}
+        sub={tr('{0} · Gamme {1}{2}', [driver.matricule, gammesLisibles(driver), driver.vip ? tr(' · Top Driver') : ''])}
         right={<>
           <LinkPill app={app} />
           <BellButton count={unread} onClick={openNotices} />

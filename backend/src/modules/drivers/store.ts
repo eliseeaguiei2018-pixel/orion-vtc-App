@@ -12,6 +12,12 @@ export interface Driver {
   kycStatus: KycStatus;
   availability: Availability;
   category: string;
+  /**
+   * GAMMES SERVIES EN PLUS de la gamme du véhicule (décision du PDG / de la direction dans la
+   * console) : un chauffeur Or peut aussi prendre les courses Argent, par exemple. Vide ou
+   * absent : il ne sert que sa propre gamme.
+   */
+  categories?: string[];
   ratingAvg: number;
   ratingCount: number;
   /** Début de la période d'attente courante (équité du dispatch FIFO). */
@@ -117,6 +123,18 @@ export function genMatricule(): string {
  * Ici en mémoire pour tourner sans infra. L'index géo est injecté afin que la présence
  * (online + position) alimente directement le matching.
  */
+/** Toutes les gammes que sert le chauffeur : celle de son véhicule, puis celles ouvertes par la direction. */
+export function gammesServies(d: Pick<Driver, 'category' | 'categories'>): string[] {
+  return [...new Set([d.category, ...(d.categories ?? [])])];
+}
+
+/** Le chauffeur (vu par l'index géo) sert-il cette gamme ? */
+export function sertLaGamme(meta: Record<string, unknown> | undefined, gamme: string): boolean {
+  const liste = meta?.['categories'];
+  if (Array.isArray(liste)) return liste.includes(gamme);
+  return meta?.['category'] === gamme;
+}
+
 export class DriverStore {
   private readonly drivers = new Map<string, Driver>();
   /** Index téléphone (chiffres seuls) → chauffeur : la connexion ne parcourt plus toute la flotte. */
@@ -269,7 +287,7 @@ export class DriverStore {
     this.noterService(d, 'online');
     this.repo.put(d);
     this.changed(d);
-    await this.geo.upsert({ id, lat: pos.lat, lng: pos.lng, meta: { category: d.category } });
+    await this.geo.upsert({ id, lat: pos.lat, lng: pos.lng, meta: { category: d.category, categories: gammesServies(d) } });
   }
 
   async goOffline(id: string): Promise<void> {
@@ -294,7 +312,7 @@ export class DriverStore {
       ajouterService(d, d.enServiceDepuis, vu + 60_000);
       d.enServiceDepuis = Date.now();
     }
-    await this.geo.upsert({ id, lat: pos.lat, lng: pos.lng, meta: { category: d.category } });
+    await this.geo.upsert({ id, lat: pos.lat, lng: pos.lng, meta: { category: d.category, categories: gammesServies(d) } });
   }
 
   setAvailability(id: string, availability: Availability): void {

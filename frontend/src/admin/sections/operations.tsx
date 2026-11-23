@@ -626,7 +626,7 @@ export function DriversSection({ drivers, expiring, canWrite, onAction, onSuspen
             <tbody>
               {drivers.map((d) => (
                 <tr key={d.id} className="adm-row-click" onClick={() => onOpen(d.id)}>
-                  <td><span className="row" style={{ gap: 8, alignItems: 'center' }}><AvatarChauffeur photoUrl={d.photoUrl} name={d.name} />{d.name}{d.vip && <span className="adm-pill av-online">VIP</span>}</span></td><td className="mono">{d.matricule}</td><td className="cap">{d.category}</td>
+                  <td><span className="row" style={{ gap: 8, alignItems: 'center' }}><AvatarChauffeur photoUrl={d.photoUrl} name={d.name} />{d.name}{d.vip && <span className="adm-pill av-online">VIP</span>}</span></td><td className="mono">{d.matricule}</td><td className="cap" title={d.categories && d.categories.length > 1 ? `Gammes servies : ${d.categories.join(', ')}` : undefined}>{d.categories && d.categories.length > 1 ? d.categories.join(' + ') : d.category}</td>
                   <td><span className={`adm-pill kyc-${d.kycStatus}`}>{kycLabel(d.kycStatus)}</span></td>
                   <td>{d.loyaltyTier ? <span className="adm-pill">{LOYALTY_LABEL[d.loyaltyTier] ?? d.loyaltyTier}</span> : <span className="adm-muted">—</span>}{(d.electricRides ?? 0) > 0 && <span className="adm-muted" style={{ fontSize: 11, display: 'block' }}>{d.electricRides} élec.</span>}</td>
                   <td className="r">{fcfa(d.balance)}</td><td className="r">★ {d.rating.toFixed(2)}</td>

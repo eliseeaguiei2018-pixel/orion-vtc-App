@@ -1,3 +1,4 @@
+import { gammesServies } from '../drivers/store.js';
 import { mediasSchema } from '../rental/medias.js';
 import { exigerHumain } from '../gcp/securite.js';
 import { Readable } from 'node:stream';
@@ -2089,6 +2090,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       assertManagerScope(req, id);
       const body = parse(z.object({
         category: z.enum(['argent', 'or', 'diamant', 'moto']).optional(),
+        // Gammes servies en plus de celle du véhicule (le PDG ouvre au chauffeur d'autres gammes).
+        categories: z.array(z.enum(['argent', 'or', 'diamant'])).max(3).optional(),
         vehicleModel: z.string().trim().min(2).max(60).optional(),
         vehiclePlate: z.string().trim().min(3).max(15).optional(),
         vehicleColor: z.string().trim().min(3).max(20).optional(),
@@ -2108,8 +2111,9 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         reply.code(409);
         return { error: 'Chauffeur suspendu : réactivez-le avant de valider son dossier.' };
       }
-      const avant = { category: d.category, vehicleModel: d.vehicleModel, vehiclePlate: d.vehiclePlate, matricule: d.matricule, kycStatus: d.kycStatus };
+      const avant = { category: d.category, categories: d.categories ?? [], vehicleModel: d.vehicleModel, vehiclePlate: d.vehiclePlate, matricule: d.matricule, kycStatus: d.kycStatus };
       if (body.category) d.category = body.category;
+      if (body.categories) d.categories = d.category === 'moto' ? [] : [...new Set(body.categories)].filter((g) => g !== d.category);
       if (body.vehicleModel) d.vehicleModel = body.vehicleModel;
       if (body.vehiclePlate) d.vehiclePlate = body.vehiclePlate.toUpperCase();
       if (body.vehicleColor) d.vehicleColor = body.vehicleColor;
@@ -2118,14 +2122,19 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       if (body.matricule) d.matricule = body.matricule.toUpperCase();
       if (body.valider) { d.kycStatus = 'active'; d.suspensionReason = undefined; }
       container.drivers.persist(id);
-      audit(req, 'driver.attribution', id, { avant, apres: { category: d.category, vehicleModel: d.vehicleModel, vehiclePlate: d.vehiclePlate, matricule: d.matricule, kycStatus: d.kycStatus } });
+      // En ligne : l'index géo prend tout de suite les nouvelles gammes (offres dès maintenant).
+      if (body.categories && d.availability !== 'offline') {
+        const pos = await container.geo.position?.(id);
+        if (pos) await container.geo.upsert({ id, lat: pos.lat, lng: pos.lng, meta: { category: d.category, categories: gammesServies(d) } });
+      }
+      audit(req, 'driver.attribution', id, { avant, apres: { category: d.category, categories: d.categories ?? [], vehicleModel: d.vehicleModel, vehiclePlate: d.vehiclePlate, matricule: d.matricule, kycStatus: d.kycStatus } });
       if (body.valider && avant.kycStatus !== 'active') {
         container.notifications.notify({ driverId: id }, 'Dossier validé',
           `Bienvenue chez ORION. Matricule ${d.matricule}${d.vehiclePlate ? ` · véhicule ${d.vehiclePlate}` : ''}. Vous pouvez vous mettre en ligne.`);
       }
       return {
         driver: {
-          id: d.id, name: d.name, matricule: d.matricule, category: d.category, kycStatus: d.kycStatus,
+          id: d.id, name: d.name, matricule: d.matricule, category: d.category, categories: gammesServies(d), kycStatus: d.kycStatus,
           vehicleModel: d.vehicleModel ?? null, vehiclePlate: d.vehiclePlate ?? null, vehicleColor: d.vehicleColor ?? null,
           engine: d.engine ?? null, batteryKwh: d.batteryKwh ?? null,
         },

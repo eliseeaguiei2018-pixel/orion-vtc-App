@@ -1,3 +1,4 @@
+import { gammesServies } from '../drivers/store.js';
 import type { Container } from '../../container.js';
 import { photoUrl } from '../driver-app/photo-url.js';
 import type { RideStatus } from '../services/ride/stateMachine.js';
@@ -423,6 +424,7 @@ export class AdminService {
       name: d.name,
       matricule: d.matricule,
       category: d.category,
+      categories: gammesServies(d),
       kycStatus: d.kycStatus,
       availability: d.availability,
       rating: d.ratingAvg,
@@ -464,7 +466,7 @@ export class AdminService {
     }));
     const earnings = history.filter((e) => e.type === 'ride_earning').reduce((s, e) => s + e.amount, 0);
     return {
-      id: d.id, name: d.name, matricule: d.matricule, category: d.category,
+      id: d.id, name: d.name, matricule: d.matricule, category: d.category, categories: gammesServies(d),
       kycStatus: d.kycStatus, availability: d.availability, rating: d.ratingAvg, trips: this.coursesTerminees(id), notes: d.ratingCount,
       photoUrl: photoUrl(d), cancellations: d.cancellations ?? 0,
       offres: { recues: d.offersReceived ?? 0, acceptees: d.offersAccepted ?? 0, refusees: d.offersDeclined ?? 0, expirees: d.offersExpired ?? 0 },

@@ -64,3 +64,25 @@ test('GET /vehicules/proches : véhicules libres anonymes + approche par gamme, 
   const hors = await app.inject({ method: 'GET', url: '/vehicules/proches?lat=48.85&lng=2.35' });
   assert.equal(hors.statusCode, 400);
 });
+
+test('multi-gammes : un chauffeur Or ouvert à l’Argent reçoit les deux, la console le règle', async (t) => {
+  const { app, container: c } = await buildApp();
+  t.after(() => app.close());
+  const d = c.drivers.upsert({
+    id: 'drv-multi-1', name: 'Chauffeur Multi', matricule: 'MU-001-CI', category: 'or',
+    kycStatus: 'active', availability: 'offline', ratingAvg: 4.9, ratingCount: 3, phone: '+2250701020398',
+  });
+  await c.drivers.goOnline(d.id, { lat: YOP.lat + 0.008, lng: YOP.lng });
+  const avant = await c.matching.findDriver(YOP, 'argent');
+  assert.ok(!avant || avant.driverId !== d.id, 'chauffeur Or seul : pas de course Argent');
+
+  const r = await app.inject({ method: 'POST', url: `/admin/drivers/${d.id}/attribution`, headers: { 'x-admin-token': 'orion-admin-dev' }, payload: { categories: ['argent', 'or'] } });
+  assert.equal(r.statusCode, 200, r.body);
+  assert.deepEqual(r.json().driver.categories.sort(), ['argent', 'or']);
+  const proche = await c.proches.approche(YOP, 'argent');
+  assert.ok(proche, 'il compte désormais pour l’Argent');
+  const e = await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: YOP, destination: GOLF, category: 'argent' } });
+  assert.ok((e.json() as { quote: { approche?: unknown } }).quote.approche);
+  const apres = await c.matching.findDriver(YOP, 'argent');
+  assert.equal(apres?.driverId, d.id, 'les courses Argent lui sont proposées');
+});

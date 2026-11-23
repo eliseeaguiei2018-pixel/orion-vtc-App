@@ -3,6 +3,7 @@ import { IconVolume } from '../../icons';
 import type { Manoeuvre } from '../../api';
 import { localeCourante, tr } from '../i18n';
 import { angleFleche, distanceLisible, texteManoeuvre, type Guidage } from '../navigation';
+import { parler, taire, voixDisponible } from '../../voix';
 
 const CLE_VOIX = 'orion.driver.voix';
 
@@ -31,26 +32,38 @@ function Picto({ m }: { m: Manoeuvre }) {
   );
 }
 
-/** Guidage vocal : annonce la manœuvre à l'approche (≈ 400 m, 120 m, puis au moment de tourner). */
+/**
+ * Guidage vocal, comme Yango ou Waze : annonce du trajet au départ, puis chaque manœuvre à
+ * l'approche (≈ 400 m, 150 m) et au moment de tourner, et l'arrivée.
+ */
 function useVoix(guidage: Guidage | null, active: boolean, arrivee: string) {
   const annonces = useRef<{ cle: string; paliers: Set<number> }>({ cle: '', paliers: new Set() });
+  const depart = useRef('');
   useEffect(() => {
-    const p = guidage?.prochaine;
-    if (!active || !p || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    if (!active || !guidage || !voixDisponible()) return;
+    const langue = localeCourante().replace('-u-nu-latn', '');
+    // Départ : une annonce par destination (client à rejoindre, puis destination de la course).
+    const cleTrajet = arrivee;
+    if (depart.current !== cleTrajet && guidage.reste > 60) {
+      depart.current = cleTrajet;
+      const minutes = Math.max(1, Math.round(guidage.resteSecondes / 60));
+      void parler(tr('C’est parti : {0}, environ {1} minutes. {2}', [distanceLisible(guidage.reste), minutes, guidage.prochaine ? tr('Dans {0} : {1}', [distanceLisible(guidage.prochaine.distance), texteManoeuvre(guidage.prochaine, arrivee)]) : tr('Suivez l’itinéraire')]), langue);
+      return;
+    }
+    const p = guidage.prochaine;
+    if (!p) return;
     const cle = `${p.type}|${p.position.lat}|${p.position.lng}`;
     if (annonces.current.cle !== cle) annonces.current = { cle, paliers: new Set() };
     const palier = p.distance <= 35 ? 0 : p.distance <= 150 ? 1 : p.distance <= 450 ? 2 : -1;
     if (palier < 0 || annonces.current.paliers.has(palier)) return;
-    annonces.current.paliers.add(palier);
+    // Une annonce rattrapée de trop loin (palier 2 alors qu'on est déjà à 150 m) n'est pas dite.
+    for (let q = palier; q <= 2; q += 1) annonces.current.paliers.add(q);
     const consigne = texteManoeuvre(p, arrivee);
     const phrase = palier === 0 ? consigne : tr('Dans {0} : {1}', [distanceLisible(p.distance), consigne]);
-    try {
-      const u = new SpeechSynthesisUtterance(phrase);
-      u.lang = localeCourante().replace('-u-nu-latn', '');
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(u);
-    } catch { /* synthèse vocale indisponible : le bandeau suffit */ }
+    void parler(phrase, langue);
   }, [guidage, active, arrivee]);
+  // Écran quitté (course terminée, annulée) : la voix se tait.
+  useEffect(() => () => taire(), []);
 }
 
 /**
@@ -58,7 +71,7 @@ function useVoix(guidage: Guidage | null, active: boolean, arrivee: string) {
  * rond-point, pont…), distance, voie à prendre, puis reste du trajet et heure d'arrivée.
  */
 export function BandeauGuidage({ guidage, recalcul, actif, arrivee }: { guidage: Guidage | null; recalcul: boolean; actif: boolean; arrivee: string }) {
-  const vocalPossible = typeof window !== 'undefined' && 'speechSynthesis' in window;
+  const vocalPossible = voixDisponible();
   const [voix, setVoix] = useState(() => { try { return localStorage.getItem(CLE_VOIX) !== 'non'; } catch { return true; } });
   useVoix(guidage, actif && voix && vocalPossible, arrivee);
   if (!actif) return null;
@@ -71,7 +84,7 @@ export function BandeauGuidage({ guidage, recalcul, actif, arrivee }: { guidage:
     const v = !voix;
     setVoix(v);
     try { localStorage.setItem(CLE_VOIX, v ? 'oui' : 'non'); } catch { /* préférence non mémorisée */ }
-    if (!v) try { window.speechSynthesis.cancel(); } catch { /* rien à couper */ }
+    if (!v) taire();
   };
   return (
     <div className="dv-nav" role="status" aria-live="polite">

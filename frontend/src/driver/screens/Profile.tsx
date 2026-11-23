@@ -6,7 +6,7 @@ import { EMERGENCY_NUMBERS } from '../../api';
 import type { ScreenProps } from '../Driver';
 import type { DriverProfile, KycStatus, ProfilePatch } from '../types';
 import { Banner, BellButton, ChoixLangue, PageHeader, Progress, Section, Stat, VehiculeChauffeur } from '../ui';
-import { initials, KYC_LABEL, pct, shortDate, TIER_LABEL } from '../format';
+import { gammesLisibles, initials, KYC_LABEL, pct, shortDate } from '../format';
 import { aTraduire, tr } from '../i18n';
 import { ConnecterEcranVehicule } from './Appairage';
 import { BlocBiometrie } from '../../components/CompteScreens';
@@ -91,7 +91,7 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
       <Section title={tr('Attribué par ORION')}>
         <div className="card dv-attribution">
           <div className="row between"><span className="faint">{tr('Matricule')}</span><strong>{driver.matricule}</strong></div>
-          <div className="row between"><span className="faint">{tr('Gamme')}</span><strong>{vehiculeAttribue ? TIER_LABEL[driver.category] ?? driver.category : tr('En attente')}</strong></div>
+          <div className="row between"><span className="faint">{tr('Gamme')}</span><strong>{vehiculeAttribue ? gammesLisibles(driver) : tr('En attente')}</strong></div>
           <div className="row between"><span className="faint">{tr('Véhicule')}</span><strong>{vehiculeAttribue ? [driver.vehicleModel, driver.vehicleColor].filter(Boolean).join(' · ') : tr('En attente')}</strong></div>
           <div className="row between"><span className="faint">{tr('Immatriculation')}</span><strong>{driver.vehiclePlate || tr('En attente')}</strong></div>
           <div className="faint" style={{ fontSize: 12.5 }}>{tr('Votre véhicule, sa gamme, son assurance et sa recharge sont gérés par ORION. Vous n’avez rien à saisir : connectez-vous et commencez vos courses.')}</div>

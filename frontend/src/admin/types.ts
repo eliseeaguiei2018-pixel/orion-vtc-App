@@ -161,7 +161,7 @@ export interface RideRow {
   origin?: { lat: number; lng: number };
   createdAt: string;
 }
-export interface DriverRow { id: string; name: string; matricule: string; category: string; kycStatus: string; availability: string; rating: number; trips: number; balance: number; vip?: boolean; loyaltyTier?: string | null; electricRides?: number; suspensionReason?: string | null; phone?: string | null; photoUrl?: string | null; cancellations?: number; }
+export interface DriverRow { id: string; name: string; matricule: string; category: string; categories?: string[]; kycStatus: string; availability: string; rating: number; trips: number; balance: number; vip?: boolean; loyaltyTier?: string | null; electricRides?: number; suspensionReason?: string | null; phone?: string | null; photoUrl?: string | null; cancellations?: number; }
 export interface Pricing {
   baseFare: number; perKm: number; perMinute: number; minFare: number; avgSpeedKmh: number;
   tvaRate: number; feeRate: number; insuranceRate: number; trafficWeight: number; stopFee: number;

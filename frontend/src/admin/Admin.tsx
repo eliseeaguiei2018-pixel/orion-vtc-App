@@ -1416,13 +1416,13 @@ function Console({ onLogout }: { onLogout: () => void }) {
     if (LIVE) { try { detail = (await adminGet<{ driver: DriverDetail }>(`/admin/drivers/${id}`)).driver; } catch { /* refus déjà signalé */ } }
     const base = detail ?? (ligne ? { ...ligne, vehicule: null } : null);
     if (!base) return;
-    setAttribution({ valider, fiche: { id, name: base.name, matricule: base.matricule, category: base.category, kycStatus: base.kycStatus, vehicule: detail?.vehicule ?? null } });
+    setAttribution({ valider, fiche: { id, name: base.name, matricule: base.matricule, category: base.category, categories: (base as { categories?: string[] }).categories, kycStatus: base.kycStatus, vehicule: detail?.vehicule ?? null } });
   };
-  const attributionFaite = (r: { category: string; kycStatus: string; matricule: string }) => {
+  const attributionFaite = (r: { category: string; categories?: string[]; kycStatus: string; matricule: string }) => {
     const id = attribution?.fiche.id;
     setAttribution(null);
     if (!id) return;
-    setDrivers((xs) => xs.map((d) => (d.id === id ? { ...d, category: r.category, kycStatus: r.kycStatus, matricule: r.matricule } : d)));
+    setDrivers((xs) => xs.map((d) => (d.id === id ? { ...d, category: r.category, categories: r.categories, kycStatus: r.kycStatus, matricule: r.matricule } : d)));
     if (driverSel?.id === id) void openDriver(id);
     void refresh();
   };

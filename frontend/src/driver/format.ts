@@ -80,3 +80,9 @@ export const initials = (name: string): string => name.split(/\s+/).filter(Boole
 
 /** Nombre de jours avant une date ISO (négatif si dépassée). */
 export const daysUntil = (iso?: string): number | null => (iso ? Math.ceil((Date.parse(iso) - Date.now()) / 86_400_000) : null);
+
+/** Gammes servies par le chauffeur, lisibles : « Or + Argent ». */
+export function gammesLisibles(d: { category: string; categories?: string[] }): string {
+  const toutes = [...new Set([d.category, ...(d.categories ?? [])])];
+  return toutes.map((g) => TIER_LABEL[g] ?? g).join(' + ');
+}

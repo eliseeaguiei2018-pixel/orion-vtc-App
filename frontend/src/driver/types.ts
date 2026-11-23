@@ -15,6 +15,8 @@ export interface DriverProfile {
   kycStatus: KycStatus;
   availability: Availability;
   category: string;
+  /** Gammes ouvertes par la direction en plus de celle du véhicule (courses reçues dans chacune). */
+  categories?: string[];
   ratingAvg: number;
   ratingCount: number;
   warnings?: number;

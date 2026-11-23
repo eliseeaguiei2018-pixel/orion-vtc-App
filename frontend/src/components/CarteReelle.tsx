@@ -65,6 +65,31 @@ function element(classe: string, html = ''): HTMLDivElement {
   return d;
 }
 
+/** Point situé `metres` plus loin sur le tracé restant (le tracé commence au véhicule). */
+function pointDevant(trace: LatLng[], metres: number): LatLng | null {
+  let reste = metres;
+  for (let i = 1; i < trace.length; i += 1) {
+    const a = trace[i - 1]!, b = trace[i]!;
+    const d = Math.hypot((b.lat - a.lat) * 110_540, (b.lng - a.lng) * 111_320 * Math.cos((a.lat * Math.PI) / 180));
+    if (d >= reste && d > 0) { const f = reste / d; return { lat: a.lat + (b.lat - a.lat) * f, lng: a.lng + (b.lng - a.lng) * f }; }
+    reste -= d;
+  }
+  const fin = trace[trace.length - 1]!;
+  return fin.lat === trace[0]!.lat && fin.lng === trace[0]!.lng ? null : fin;
+}
+
+/**
+ * Cap de la route droit devant : direction du tracé lui-même (du prochain sommet vers un point
+ * 30 m plus loin), et non de la voiture vers la route, qui partirait de travers dès que le GPS
+ * place le véhicule un peu à côté de la chaussée.
+ */
+function capDeLaRoute(trace: LatLng[] | null | undefined): number | null {
+  if (!trace || trace.length < 2) return null;
+  const route = trace.length >= 3 ? trace.slice(1) : trace;
+  const devant = pointDevant(route, 30);
+  return devant ? cap(route[0]!, devant) : null;
+}
+
 const cap = (a: LatLng, b: LatLng) => {
   const y = Math.sin((b.lng - a.lng) * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180);
   const x = Math.cos(a.lat * Math.PI / 180) * Math.sin(b.lat * Math.PI / 180)
@@ -137,6 +162,7 @@ export function CarteReelle({ origin, destination, stops = [], car, vehicle = 'c
         // Un geste de l'utilisateur (pas un mouvement programmé) suspend le suivi.
         m.on('dragstart', (e) => { if ((e as { originalEvent?: unknown }).originalEvent) setLibre(true); });
         carte.current = m;
+        if (import.meta.env.DEV) (window as unknown as { __carteML?: unknown }).__carteML = m;
         setPrete(true);
       });
     }).catch(echec);
@@ -253,14 +279,23 @@ export function CarteReelle({ origin, destination, stops = [], car, vehicle = 'c
     void chargerML().then((ml) => {
       const M = marqueurs.current;
       if (!M.vehicule) {
-        M.vehicule = new ml.Marker({ element: element(`carte-vehicule ${vehicle}`, `<span class="halo"></span><i>${vehicle === 'moto' ? repere('scooter-dessus', 24) : repere(nomVoitureDessus(accent), 30)}</i>`), rotationAlignment: 'map' })
+        M.vehicule = new ml.Marker({ element: element(`carte-vehicule ${vehicle}`, `<span class="halo"></span><i>${vehicle === 'moto' ? repere('scooter-dessus', 24) : repere(nomVoitureDessus(accent), 30)}</i>`), rotationAlignment: 'map', pitchAlignment: 'map' })
           .setLngLat([car.lng, car.lat]).addTo(m);
-        derniere.current = { pos: car, angle: 0 };
+        const angle0 = (suitRef.current ? capDeLaRoute(trace) : null) ?? 0;
+        M.vehicule.setRotation(angle0);
+        derniere.current = { pos: car, angle: angle0 };
+        if (suitRef.current) {
+          const h = boite.current?.clientHeight ?? 800;
+          m.jumpTo({ center: [car.lng, car.lat], bearing: angle0, pitch: 58, zoom: 17.2, padding: { top: Math.round(h * 0.5), bottom: 0, left: 0, right: 0 } });
+        }
         return;
       }
       const depart = derniere.current?.pos ?? car;
       const distance = Math.hypot(car.lat - depart.lat, car.lng - depart.lng);
-      const angle = distance > 1e-6 ? cap(depart, car) : derniere.current?.angle ?? 0;
+      // En navigation, le cap vient de la route droit devant (stable, juste dès le départ et à
+      // l'arrêt) ; sinon du déplacement entre deux positions.
+      const capRoute = suitRef.current ? capDeLaRoute(trace) : null;
+      const angle = capRoute ?? (distance > 1e-6 ? cap(depart, car) : derniere.current?.angle ?? 0);
       const t0 = performance.now();
       const etape = (t: number) => {
         const f = Math.min(1, (t - t0) / 650);
@@ -273,7 +308,8 @@ export function CarteReelle({ origin, destination, stops = [], car, vehicle = 'c
       // Navigation : la caméra accompagne le véhicule, la route droit devant (vue inclinée).
       if (suitRef.current) {
         const h = boite.current?.clientHeight ?? 800;
-        m.easeTo({ center: [car.lng, car.lat], bearing: angle, pitch: 50, zoom: 16.4, duration: 650, padding: { top: Math.round(h * 0.42), bottom: 0, left: 0, right: 0 } });
+        // Véhicule aux deux tiers bas de l'écran, la route qui monte devant lui, vue inclinée.
+        m.easeTo({ center: [car.lng, car.lat], bearing: angle, pitch: 58, zoom: 17.2, duration: 900, easing: (x) => x, padding: { top: Math.round(h * 0.5), bottom: 0, left: 0, right: 0 } });
       }
     });
     return () => cancelAnimationFrame(raf);

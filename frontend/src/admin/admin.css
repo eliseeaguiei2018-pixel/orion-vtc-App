@@ -717,3 +717,11 @@ html[data-adm-theme='light'] .adm-alarme .adm-btn.ghost { background: transparen
 .adm-serveur-point { width: 8px; height: 8px; border-radius: 50%; background: var(--a-danger); }
 .adm-serveur-point.on { background: var(--a-green2); }
 .adm-serveur-form { width: 100%; display: grid; gap: 8px; }
+
+/* Gammes servies par le chauffeur (fiche d'attribution) */
+.adm-gammes-servies { border: 1px solid var(--a-line, rgba(127, 127, 127, 0.2)); border-radius: 12px; padding: 10px 14px 4px; margin: 6px 0 12px; }
+.adm-gammes-servies legend { padding: 0 6px; font-size: 13px; font-weight: 600; }
+.adm-gammes-servies .adm-muted { font-size: 12px; margin: 0 0 8px; }
+.adm-gammes-cases { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.adm-gammes-cases .adm-case { margin: 2px 0 8px; }
+.adm-gammes-cases .adm-case.principale { opacity: 0.8; cursor: default; }

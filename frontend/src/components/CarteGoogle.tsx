@@ -1,4 +1,3 @@
-import { TEMPS_REEL } from '../tempsReel';
 import { useEffect, useRef, useState } from 'react';
 import type { LatLng } from '../types';
 import type { VehiculeProche } from '../api';
@@ -186,9 +185,13 @@ function memeCadre(a: Cadre, b: Cadre): boolean {
 const tracer = (points: LatLng[]): Promise<ItineraireRoute | null> => itineraireGoogle(points).then((r) => r ?? itineraire(points));
 
 /** Options communes aux cartes Google de l'application. */
-/** APK de test temps réel : la carte montre la circulation du moment (vert, orange, rouge). */
+/**
+ * CIRCULATION EN DIRECT (comme Google Maps, Yango) : les rues se colorent selon le trafic du
+ * moment — vert fluide, orange ralenti, rouge embouteillé. Le client voit pourquoi son trajet
+ * prend du temps ; le chauffeur voit les bouchons sur sa vue d'ensemble.
+ */
 export function traficEnDirect(g: GoogleMaps, carte: GMap): void {
-  if (TEMPS_REEL && g.TrafficLayer) new g.TrafficLayer().setMap(carte);
+  if (g.TrafficLayer) new g.TrafficLayer().setMap(carte);
 }
 
 export function optionsCarte(g: GoogleMaps, sombre: boolean, centre: LatLng, zoom: number): Record<string, unknown> {

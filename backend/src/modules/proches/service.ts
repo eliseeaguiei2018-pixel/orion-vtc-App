@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { haversineMeters, type GeoIndex, type LatLng } from '../../core/geo.js';
-import type { DriverStore } from '../drivers/store.js';
+import { gammesServies, sertLaGamme, type DriverStore } from '../drivers/store.js';
 
 /**
  * CHAUFFEURS PROCHES — ce que le client voit AVANT de commander (comme Yango, Uber) :
@@ -72,7 +72,7 @@ export class ChauffeursProches {
   async approche(p: LatLng, gamme: string, facteurTrafic = 1): Promise<Approche | null> {
     const voisins = await this.geo.nearby(p, RAYON_APPROCHE_M, 200);
     for (const v of voisins) {
-      if (v.meta?.['category'] !== gamme) continue;
+      if (!sertLaGamme(v.meta, gamme)) continue;
       const d = this.drivers.get(v.id);
       if (!d || d.availability !== 'online') continue;
       return ChauffeursProches.approcheDepuis(v.distanceMeters, facteurTrafic);
@@ -94,7 +94,10 @@ export class ChauffeursProches {
       const d = this.drivers.get(v.id);
       if (!d || d.availability !== 'online') continue;
       const gamme = String(v.meta?.['category'] ?? d.category);
-      if (approche[gamme] === null) approche[gamme] = ChauffeursProches.approcheDepuis(v.distanceMeters, facteurTrafic);
+      // Un chauffeur ouvert à plusieurs gammes compte pour chacune d'elles.
+      for (const g of gammesServies(d)) {
+        if (approche[g] === null) approche[g] = ChauffeursProches.approcheDepuis(v.distanceMeters, facteurTrafic);
+      }
       if (v.distanceMeters <= RAYON_CARTE_M && vehicules.length < MAX_VEHICULES) {
         vehicules.push({ id: this.anonyme(v.id), lat: v.lat, lng: v.lng, cap: this.orienter(v.id, v), gamme });
       }

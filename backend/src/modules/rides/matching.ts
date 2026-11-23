@@ -1,3 +1,4 @@
+import { sertLaGamme } from '../drivers/store.js';
 import type { GeoIndex, LatLng } from '../../core/geo.js';
 import type { DriverStore, Driver } from '../drivers/store.js';
 import { TIER_RANK } from '../fleet/catalog.js';
@@ -115,7 +116,8 @@ export class MatchingEngine {
       // Tous les candidats éligibles du rayon courant (pas seulement le premier).
       const candidates: Candidate[] = [];
       for (const c of nearby) {
-        if (category && c.meta?.['category'] !== category) continue;
+        // Gamme demandée : celle du véhicule ou une gamme ouverte au chauffeur par la direction.
+        if (category && !sertLaGamme(c.meta, category)) continue;
         const driver = this.drivers.get(c.id);
         if (!driver || driver.availability !== 'online') continue;
         if (this.assignmentLocks.has(c.id)) continue; // déjà réservé (lock)

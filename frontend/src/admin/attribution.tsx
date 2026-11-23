@@ -12,6 +12,8 @@ import type { FleetUnit, RideRow } from './types';
  */
 export interface FicheAttribution {
   id: string; name: string; matricule: string; category: string; kycStatus: string;
+  /** Gammes servies (celle du véhicule comprise). */
+  categories?: string[];
   vehicule?: { modele: string | null; plaque: string | null; couleur: string | null; motorisation: string | null; batterieKwh: number | null } | null;
 }
 
@@ -19,10 +21,14 @@ const GAMMES: Array<[string, string]> = [['argent', 'Argent'], ['or', 'Or'], ['d
 
 export function DialogueAttribution({ fiche, valider, onFermer, onFait }: {
   fiche: FicheAttribution; valider: boolean; onFermer: () => void;
-  onFait: (r: { category: string; kycStatus: string; matricule: string }) => void;
+  onFait: (r: { category: string; categories?: string[]; kycStatus: string; matricule: string }) => void;
 }) {
   const v = fiche.vehicule;
   const [categorie, setCategorie] = useState(fiche.category || 'argent');
+  // GAMMES SERVIES : le PDG ouvre au chauffeur d'autres gammes que celle de son véhicule ;
+  // il reçoit alors les courses de chacune (son app l'affiche aussitôt).
+  const [servies, setServies] = useState<string[]>(() => (fiche.categories?.length ? fiche.categories : [fiche.category || 'argent']).filter((g) => g !== 'moto'));
+  const toutesServies = categorie === 'moto' ? [] : [...new Set([categorie, ...servies])];
   const [modele, setModele] = useState(v?.modele ?? '');
   const [plaque, setPlaque] = useState(v?.plaque ?? '');
   const [couleur, setCouleur] = useState(v?.couleur ?? '');
@@ -37,6 +43,7 @@ export function DialogueAttribution({ fiche, valider, onFermer, onFait }: {
     setErreur('');
     if (activer && (!modele.trim() || !plaque.trim())) { setErreur('Indiquez au moins le modèle et la plaque du véhicule attribué.'); return; }
     const corps: Record<string, unknown> = { category: categorie, engine: motorisation, valider: activer && fiche.kycStatus !== 'active' ? true : undefined };
+    if (categorie !== 'moto') corps['categories'] = toutesServies;
     if (modele.trim()) corps['vehicleModel'] = modele.trim();
     if (plaque.trim()) corps['vehiclePlate'] = plaque.trim();
     if (couleur.trim()) corps['vehicleColor'] = couleur.trim();
@@ -45,10 +52,10 @@ export function DialogueAttribution({ fiche, valider, onFermer, onFait }: {
     setEnvoi(true);
     try {
       if (LIVE) {
-        const r = await adminPost<{ driver: { category: string; kycStatus: string; matricule: string } }>(`/admin/drivers/${fiche.id}/attribution`, corps);
+        const r = await adminPost<{ driver: { category: string; categories?: string[]; kycStatus: string; matricule: string } }>(`/admin/drivers/${fiche.id}/attribution`, corps);
         onFait(r.driver);
       } else {
-        onFait({ category: categorie, kycStatus: activer ? 'active' : fiche.kycStatus, matricule: matricule.trim() || fiche.matricule });
+        onFait({ category: categorie, categories: toutesServies, kycStatus: activer ? 'active' : fiche.kycStatus, matricule: matricule.trim() || fiche.matricule });
       }
     } catch (e) {
       setErreur(e instanceof AdminError ? e.message : 'Le serveur n’a pas répondu. Rien n’a été enregistré.');
@@ -93,6 +100,24 @@ export function DialogueAttribution({ fiche, valider, onFermer, onFait }: {
             </label>
           )}
         </div>
+        {categorie !== 'moto' && (
+          <fieldset className="adm-gammes-servies">
+            <legend>Gammes servies</legend>
+            <p className="adm-muted">Le chauffeur reçoit les courses de chaque gamme cochée. La gamme de son véhicule reste toujours servie.</p>
+            <div className="adm-gammes-cases">
+              {GAMMES.filter(([id]) => id !== 'moto').map(([id, l]) => {
+                const principale = id === categorie;
+                return (
+                  <label key={id} className={`adm-case${principale ? ' principale' : ''}`}>
+                    <input type="checkbox" checked={principale || servies.includes(id)} disabled={principale}
+                      onChange={(e) => setServies((s) => (e.target.checked ? [...s, id] : s.filter((x) => x !== id)))} />
+                    <span>{l}{principale ? ' · gamme du véhicule' : ''}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        )}
         {fiche.kycStatus !== 'active' && (
           <label className="adm-case">
             <input type="checkbox" checked={activer} onChange={(e) => setActiver(e.target.checked)} />
