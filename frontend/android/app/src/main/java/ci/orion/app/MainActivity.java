@@ -22,7 +22,8 @@ public class MainActivity extends BridgeActivity {
     // Registre de test partagé entre l'app client et l'app chauffeur (même téléphone).
     registerPlugin(BusTestPlugin.class);
     super.onCreate(savedInstanceState);
-    demanderRafraichissementMax();
+    // Batterie : Android choisit lui-même la fréquence d'écran (forcer 120 Hz en permanence
+    // consommait inutilement).
   }
 
   private void demanderRafraichissementMax() {

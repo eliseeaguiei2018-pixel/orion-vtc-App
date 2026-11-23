@@ -46,6 +46,9 @@ import { CarteFondScreen } from './components/CarteFondScreen';
 import { fondCarte, googleSeul, suivreFondCarte } from './carteGoogle';
 import { prechaufferCarte } from './components/CarteGoogle';
 import { GpsCarte, type GpsCarteValeur } from './components/gpsCarte';
+import { useVehiculesProches } from './proches';
+import { gpsNatif, notificationsAutorisees, prevenir, preparerNotifications, suivreGps } from './arrierePlan';
+import type { VehiculesProches } from './api';
 import { useTrajetTarif } from './tarifTrajet';
 import { alleger, optionRetenue, useItineraires, type ChoixItineraire, type Itineraires, type OptionItineraire } from './itinerairesPeage';
 import { ChoixRoute } from './components/ChoixRoute';
@@ -114,6 +117,8 @@ export function App() {
    */
   const position = useDepart({ maPosition: t('lieu_ma_position') });
   const origin = position.depart.place;
+  // Véhicules libres autour du départ (serveur ORION) tant qu'un écran de commande est ouvert.
+  const proches = useVehiculesProches((['delivery', 'estimate', 'confirm', 'searching'] as Screen[]).includes(screen) ? origin.location : null);
   const departAConfirmer = position.depart.source === 'defaut';
   // La carte Google se prépare pendant que le client regarde l'accueil : à l'ouverture de la
   // recherche elle est déjà là. Relancée quand la position GPS arrive, sans effet si elle existe.
@@ -869,9 +874,40 @@ export function App() {
       }
     } finally { setGpsOccupe(false); }
   };
+  // COURSE EN ARRIÈRE-PLAN : pendant une vraie course (recherche, approche, trajet), l'app
+  // reste vivante si le client la quitte ou éteint l'écran (service de premier plan, notification
+  // « Course ORION en cours ») : le suivi du chauffeur continue et le téléphone sonne aux étapes.
+  const enCourse = isLiveBackend() && (screen === 'searching' || (live && screen === 'tracking'));
+  useEffect(() => {
+    if (!enCourse || !gpsNatif()) return;
+    void preparerNotifications();
+    return suivreGps(
+      { titre: t('bg_titre'), message: t('bg_message'), distanceMin: 25 },
+      (p) => setMaPosition((m) => (m && Math.abs(m.lat - p.lat) < 0.0001 && Math.abs(m.lng - p.lng) < 0.0001 ? m : { lat: p.lat, lng: p.lng })),
+      () => undefined,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enCourse]);
+  // Étapes de la course annoncées par une notification quand l'app n'est pas à l'écran.
+  const phaseAnnoncee = useRef<string>('');
+  useEffect(() => {
+    if (!live || screen !== 'tracking' || !driver) { phaseAnnoncee.current = ''; return; }
+    const cle = `${rideId}:${tripPhase}`;
+    if (phaseAnnoncee.current === cle) return;
+    const premier = phaseAnnoncee.current === '';
+    phaseAnnoncee.current = cle;
+    if (tripPhase === 'enroute' && premier) void prevenir(t('bg_trouve', { name: driver.name }), t('bg_trouve_detail'));
+    else if (tripPhase === 'arrived') void prevenir(t('bg_arrive', { name: driver.name }), t('bg_arrive_detail'));
+    else if (tripPhase === 'completed') void prevenir(t('bg_termine'), t('bg_termine_detail'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live, screen, tripPhase, rideId, driver?.name]);
   const ECRANS_GPS: Screen[] = ['delivery', 'estimate', 'confirm', 'searching', 'tracking'];
   const gps: GpsCarteValeur | null = ECRANS_GPS.includes(screen)
-    ? { moi: maPosition, occupe: gpsOccupe, actualiser: () => void actualiserPosition(), libelle: t('gps_actualiser') } : null;
+    ? {
+      moi: maPosition, occupe: gpsOccupe, actualiser: () => void actualiserPosition(), libelle: t('gps_actualiser'),
+      // Coursiers à moto sur l'écran de livraison, voitures ailleurs.
+      voisins: proches?.vehicules.filter((v) => (screen === 'delivery') === (v.gamme === 'moto')),
+    } : null;
 
   /* Contrôle de sécurité : quatre protections réelles, chacune avec son état et son action. */
   const etapesSecurite: EtapeSecurite[] = [
@@ -951,7 +987,7 @@ export function App() {
         )}
 
         {screen === 'estimate' && destination && (
-          <EstimateScreen origin={origin} destination={destination} tier={tier} onTier={setTier}
+          <EstimateScreen origin={origin} destination={destination} tier={tier} onTier={setTier} proches={proches}
             bodyType={bodyType} onBody={setBodyType} stops={stops}
             itineraires={itinCourse.itineraires} itinPret={itinCourse.pret} route={routeRetenue} optsRoute={optsRoute} onChoixRoute={setChoixRoute}
             onBack={() => setScreen('home')} onNext={() => setScreen('confirm')} />
@@ -1528,7 +1564,14 @@ function PermissionsScreen({ etat, onLocaliser, onDone }: { etat: EtatPosition; 
     if (demande && etat !== 'attente' && etat !== 'inconnue') { const id = window.setTimeout(onDone, 600); return () => window.clearTimeout(id); }
     return undefined;
   }, [demande, etat, onDone]);
-  const autoriser = () => { setDemande(true); onLocaliser(); };
+  // Notifications : « votre chauffeur arrive » même si le client a quitté l'app (app installée).
+  const [notif, setNotif] = useState<boolean | null>(null);
+  useEffect(() => { void notificationsAutorisees().then(setNotif); }, []);
+  const autoriser = () => {
+    setDemande(true);
+    void preparerNotifications().then(() => notificationsAutorisees()).then(setNotif);
+    onLocaliser();
+  };
   const statut = etat === 'ok' ? t('perm_loc_ok') : etat === 'refus' ? t('perm_loc_refus') : etat === 'attente' ? t('lieu_position_attente')
     : etat === 'hors_zone' ? t('lieu_position_hors_zone') : etat === 'indisponible' ? t('lieu_position_indispo') : null;
   return (
@@ -1549,6 +1592,16 @@ function PermissionsScreen({ etat, onLocaliser, onDone }: { etat: EtatPosition; 
             </span>
             {etat === 'ok' ? <IconCheck size={20} color="var(--green)" /> : null}
           </div>
+          {notif !== null && (
+            <div className="opt" style={notif ? { borderColor: 'var(--green)' } : undefined}>
+              <span className="list-ico"><IconBell size={20} /></span>
+              <span className="col grow" style={{ textAlign: 'start' }}>
+                <strong style={{ fontSize: 14.5 }}>{t('perm_notif')}</strong>
+                <span className="faint" style={{ fontSize: 12 }}>{t('perm_notif_d')}</span>
+              </span>
+              {notif ? <IconCheck size={20} color="var(--green)" /> : null}
+            </div>
+          )}
           <div className="opt">
             <span className="list-ico" style={{ color: 'var(--green)' }}><IconCamera size={20} /></span>
             <span className="col grow" style={{ textAlign: 'start' }}>
@@ -1901,8 +1954,10 @@ function TrafficBadge({ level }: { level: 'fluid' | 'dense' | 'jam' }) {
   return <span className="badge" style={{ color, borderColor: `${color}66` }}><IconTraffic size={12} /> {label}</span>;
 }
 
-function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, stops, itineraires, itinPret, route, optsRoute, onChoixRoute, onBack, onNext }: {
+function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, stops, itineraires, itinPret, route, optsRoute, onChoixRoute, onBack, onNext, proches }: {
   origin: Place; destination: Place; tier: TierOption; onTier: (v: TierOption) => void;
+  /** Véhicules libres autour du départ et approche par gamme (serveur ORION) ; null hors ligne. */
+  proches?: VehiculesProches | null;
   bodyType: 'suv' | 'berline'; onBody: (b: 'suv' | 'berline') => void; stops: Place[]; onBack: () => void; onNext: () => void;
   /** Pont à péage ou voie normale : les deux itinéraires, celui retenu, et le choix du client. */
   itineraires: Itineraires | null; itinPret: boolean; route: OptionItineraire | null;
@@ -1924,10 +1979,16 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
   // remplace (zone, majoration, frais de prise en charge). Sans cela, la liste annonçait
   // un montant et l'écran de confirmation un autre.
   const [serveur, setServeur] = useState<{ prix: Record<string, number>; trafic?: 'fluid' | 'dense' | 'jam' } | null>(null);
+  // L'approche du chauffeur le plus proche entre dans le prix : le devis est refait quand elle
+  // change vraiment (par paliers de 3 min, ou un chauffeur qui apparaît ou disparaît).
+  const cleApproche = proches ? TIERS.map((v) => { const a = proches.approche[v.id]; return a ? Math.ceil(a.minutes / 3) : 'x'; }).join(',') : '';
+  const premierDevis = useRef(true);
   useEffect(() => {
     let annule = false;
-    setServeur(null);
-    if (!pret) return;
+    // Un simple recalcul d'approche garde les prix affichés jusqu'au nouveau devis (pas de « … »).
+    if (premierDevis.current) setServeur(null);
+    premierDevis.current = false;
+    if (!pret) { setServeur(null); premierDevis.current = true; return; }
     void Promise.all(TIERS.map((v) => estimateWithCoverage(origin.location, destination.location, v, { bodyType, stops: stopLocs, itineraire: optsRoute })))
       .then((devis) => {
         if (annule) return;
@@ -1936,8 +1997,12 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
       .catch(() => { /* hors ligne : l'aperçu local reste affiché */ });
     return () => { annule = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origin.location, destination.location, bodyType, stops, pret, trajet.trajet, approche?.at, optsRoute?.choix, optsRoute?.distanceMeters]);
+  }, [origin.location, destination.location, bodyType, stops, pret, trajet.trajet, approche?.at, optsRoute?.choix, optsRoute?.distanceMeters, cleApproche]);
   const prices = serveur?.prix ?? apercus;
+  // Temps d'approche réel par gamme (serveur ORION) ; sans serveur, l'estimation de la gamme.
+  const approcheDe = (id: string) => (proches ? proches.approche[id] ?? null : undefined);
+  const aSel = approcheDe(tier.id);
+  const nbVoisins = proches ? proches.vehicules.filter((v) => v.gamme !== 'moto').length : 0;
   const traffic = serveur?.trafic ?? previewQuote(origin.location, destination.location, tier, { stops: stopLocs }).trafficLevel;
   return (
     <div className="screen">
@@ -1947,8 +2012,13 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
       <Sheet>
         <div className="row between" style={{ marginBottom: 10 }}>
           <span className="eyebrow">{t('est_choose')}</span>
-          <span className="row gap-sm"><TrafficBadge level={traffic} /><span className="badge green"><IconClock size={12} /> {TEMPS_REEL && approche ? Math.max(1, Math.round(approche.durationSeconds / 60)) : tier.eta} {t('est_min')}</span></span>
+          <span className="row gap-sm"><TrafficBadge level={traffic} /><span className={`badge ${aSel === null ? '' : 'green'}`}><IconClock size={12} /> {TEMPS_REEL && approche ? `${Math.max(1, Math.round(approche.durationSeconds / 60))} ${t('est_min')}` : aSel === null ? t('est_aucun') : `${aSel ? aSel.minutes : tier.eta} ${t('est_min')}`}</span></span>
         </div>
+        {proches && !TEMPS_REEL && (
+          <p className="faint proches-ligne" role="status" aria-live="polite">
+            {aSel ? `${t('est_proche', { m: aSel.minutes })} · ${String(aSel.km).replace('.', ',')} km${nbVoisins > 1 ? ` · ${t('est_voisins', { n: nbVoisins })}` : ''}` : t('est_aucun_detail')}
+          </p>
+        )}
         {TEMPS_REEL && (
           // Version de test (en français) : ce qui entre dans le prix, en direct.
           <p className="test-reel-ligne" role="status">
@@ -1976,7 +2046,12 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
                 <strong style={{ fontSize: 16 }}>{t(v.key)}</strong>
                 <span className="faint" style={{ fontSize: 12.5 }}>{v.cars[0]}{v.cars.length > 1 ? ` +${v.cars.length - 1}` : ''} · {v.capacity} {t('seats')}</span>
               </span>
-              <span className={`price${pret ? '' : ' attente'}`} aria-busy={!pret}>{pret ? formatXOF(prices[v.id] ?? 0) : '…'}</span>
+              <span className="col" style={{ alignItems: 'flex-end', gap: 2 }}>
+                <span className={`price${pret ? '' : ' attente'}`} aria-busy={!pret}>{pret ? formatXOF(prices[v.id] ?? 0) : '…'}</span>
+                {approcheDe(v.id) !== undefined && (
+                  <span className={`veh-eta${approcheDe(v.id) ? '' : ' aucun'}`}>{approcheDe(v.id) ? `${approcheDe(v.id)!.minutes} ${t('est_min')}` : t('est_aucun')}</span>
+                )}
+              </span>
             </button>
           ))}
         </div>
@@ -2259,6 +2334,13 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
 
         {quote && (
           <>
+            {quote.approche !== undefined && !TEMPS_REEL && (
+              // Avant de valider : en combien de minutes le chauffeur le plus proche arrive.
+              <p className={`proches-confirm${quote.approche ? '' : ' aucun'}`} role="status">
+                <IconClock size={15} />
+                <span>{quote.approche ? `${t('est_proche', { m: quote.approche.minutes })} · ${String(quote.approche.km).replace('.', ',')} km` : t('est_aucun_detail')}</span>
+              </p>
+            )}
             <button className="row between list-btn" style={{ width: '100%' }} onClick={() => setShowWhy((v) => !v)}>
               <span className="row gap-sm"><TrafficBadge level={quote.trafficLevel} /><span className="faint" style={{ fontSize: 12, textDecoration: 'underline' }}>{t('why_price')}</span></span>
               <IconChevron size={16} color="var(--text-faint)" />
@@ -2274,6 +2356,9 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
                 {TEMPS_REEL && (quote.breakdown.approche !== undefined
                   ? <div className="fare-line test-reel"><span>Approche du chauffeur · {String(quote.breakdown.approcheKm).replace('.', ',')} km, {quote.breakdown.approcheMin} min{quote.breakdown.approcheGoogle ? '' : ' (estimée)'} · {REGLES_TEST.approcheOfferteKm} km et {REGLES_TEST.approcheOfferteMin} min offerts</span><span>{formatXOF(quote.breakdown.approche)}</span></div>
                   : <div className="fare-line test-reel"><span>Approche : aucun chauffeur de test en ligne</span><span>—</span></div>)}
+                {!TEMPS_REEL && (quote.breakdown.approche ?? 0) > 0 && (
+                  <div className="fare-line"><span>{t('p_approche', { km: String(quote.breakdown.approcheKm ?? 0).replace('.', ','), m: quote.breakdown.approcheMin ?? 0 })}</span><span>{formatXOF(quote.breakdown.approche ?? 0)}</span></div>
+                )}
                 {quote.breakdown.traffic > 0 && <div className="fare-line"><span>{t('p_traffic')}</span><span>+{formatXOF(quote.breakdown.traffic)}</span></div>}
                 {quote.breakdown.discount > 0 && <div className="fare-line" style={{ color: 'var(--green)' }}><span>{t('promo_line')}</span><span>−{formatXOF(quote.breakdown.discount)}</span></div>}
                 <div className="fare-line"><span>{t('p_subtotal')}</span><span>{formatXOF(quote.breakdown.subtotal)}</span></div>

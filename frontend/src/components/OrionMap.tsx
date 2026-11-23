@@ -127,7 +127,7 @@ export function OrionMap(props: Props) {
   const config = getVectorConfig();
   const { origin, destination, stops, car, vehicle, approche, trace, ponts, suivi, basCouvert, libelleRecentrer, peages } = props;
   const carte = fond === 'google' && !googleEchec && !(seul && refus)
-    ? <CarteGoogle origin={origin} destination={destination} stops={stops} car={car} vehicle={vehicle} approche={approche} moi={gps?.moi}
+    ? <CarteGoogle origin={origin} destination={destination} stops={stops} car={car} vehicle={vehicle} approche={approche} moi={gps?.moi} voisins={gps?.voisins}
         trace={trace} peages={peages} basCouvert={basCouvert} onEchec={() => setGoogleEchec(true)} />
     : seul ? <GoogleIndisponible />
     : config && !repli

@@ -11,6 +11,8 @@ import { Alerts } from './Alerts';
 import { Capacitor } from '@capacitor/core';
 import { clientRecent, suivreBus } from '../../busTest';
 import { tr } from '../i18n';
+import { affichageParDessus, demanderAffichageParDessus, gpsNatif, notificationsAutorisees, ouvrirReglagesPosition, preparerNotifications } from '../../arrierePlan';
+import { IconBell } from '../../icons';
 
 /**
  * ACCUEIL : mise en ligne / hors ligne / pause, position GPS, secteur courant (bonus,
@@ -109,6 +111,14 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
       </div>
 
       <LienAppClient live={app.live} />
+      {(app.gps === 'refus' || app.gps === 'desactive') && (
+        // Sans localisation, le chauffeur n'apparaît pas aux clients et ne reçoit aucune course.
+        <Banner tone="danger" icon={<IconPin size={18} />} title={app.gps === 'refus' ? tr('Localisation refusée') : tr('Localisation désactivée')}>
+          {tr('Sans votre position, les clients ne vous voient pas et vous ne recevez aucune course.')}
+          {gpsNatif() && <> <button type="button" className="dv-link" onClick={ouvrirReglagesPosition}>{tr('Ouvrir les réglages')}</button></>}
+        </Banner>
+      )}
+      <AutorisationsCourses />
       <Alerts app={app} onFixDossier={() => onTab('profile')} />
 
       {/* Raccourcis : les mêmes tuiles que l'accueil de l'app cliente, objets en volume. */}
@@ -123,7 +133,7 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
       <div className="dv-home-map">
         <OrionMap origin={position} car={position} traffic={false} />
         <div className="dv-map-chip">
-          <span className="dv-link"><IconPin size={13} /> {zone ? zone.name : tr('Hors secteur tarifé')} · {app.gps === 'real' ? tr('GPS') : tr('GPS simulé')}</span>
+          <span className="dv-link"><IconPin size={13} /> {zone ? zone.name : tr('Hors secteur tarifé')} · {({ real: tr('GPS'), simulated: tr('GPS simulé'), attente: tr('Recherche du GPS…'), refus: tr('Localisation refusée'), desactive: tr('Localisation désactivée') } as const)[app.gps]}</span>
         </div>
       </div>
 
@@ -259,5 +269,36 @@ function Heatmap({ cells, me }: { cells: DemandCell[]; me: { lat: number; lng: n
         <circle cx={x(me.lng)} cy={y(me.lat)} r="7" fill="var(--green)" stroke="#fff" strokeWidth="2" />
       </svg>
     </div>
+  );
+}
+
+
+/**
+ * NOTIFICATIONS ET AFFICHAGE PAR-DESSUS (app installée) : sans elles, une course qui arrive
+ * pendant que le chauffeur utilise Waze, un appel ou la musique passe inaperçue. Le bandeau
+ * reste tant que l'une manque ; il se revérifie au retour des réglages.
+ */
+function AutorisationsCourses() {
+  const [etat, setEtat] = useState<{ notif: boolean | null; dessus: boolean | null }>({ notif: null, dessus: null });
+  useEffect(() => {
+    const lire = async () => setEtat({ notif: await notificationsAutorisees(), dessus: await affichageParDessus() });
+    void lire();
+    const auRetour = () => { if (!document.hidden) void lire(); };
+    document.addEventListener('visibilitychange', auRetour);
+    return () => document.removeEventListener('visibilitychange', auRetour);
+  }, []);
+  const manque = etat.notif === false || etat.dessus === false;
+  if (!manque) return null;
+  const autoriser = async () => {
+    if (etat.notif === false) await preparerNotifications();
+    const notif = await notificationsAutorisees();
+    if (etat.dessus === false && notif !== false) demanderAffichageParDessus();
+    setEtat((e) => ({ ...e, notif }));
+  };
+  return (
+    <Banner tone="warn" icon={<IconBell size={18} />} title={tr('Notifications et affichage par-dessus')}
+      action={<button type="button" className="dv-pill" onClick={() => void autoriser()}>{tr('Autoriser')}</button>}>
+      {tr('Autorisez-les pour qu’une nouvelle course s’affiche même quand vous utilisez une autre application (GPS, appel, musique).')}
+    </Banner>
   );
 }

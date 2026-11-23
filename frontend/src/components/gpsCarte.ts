@@ -1,5 +1,6 @@
 import { createContext } from 'react';
 import type { LatLng } from '../types';
+import type { VehiculeProche } from '../api';
 
 /**
  * ACTUALISER MA POSITION, sur la carte.
@@ -16,5 +17,7 @@ export interface GpsCarteValeur {
   occupe: boolean;
   actualiser: () => void;
   libelle: string;
+  /** Véhicules libres autour du départ (avant la commande) : la carte les fait rouler. */
+  voisins?: VehiculeProche[];
 }
 export const GpsCarte = createContext<GpsCarteValeur | null>(null);

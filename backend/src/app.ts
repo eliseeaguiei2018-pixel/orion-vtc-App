@@ -34,6 +34,7 @@ import { adminRoutes } from './modules/admin/routes.js';
 import { supportClientRoutes } from './modules/support/routes.js';
 import { clientAccountRoutes } from './modules/clients/routes.js';
 import { driverAppRoutes, registerDriverGuard } from './modules/driver-app/routes.js';
+import { prochesRoutes } from './modules/proches/routes.js';
 
 export interface BuiltApp {
   app: FastifyInstance;
@@ -146,6 +147,7 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
   // Enregistrement des modules HTTP.
   await healthRoutes(app, container);
   await pricingRoutes(app, container);
+  await prochesRoutes(app, container);
   await driverRoutes(app, container);
   await greenTelemetryRoutes(app, container);
   await rideRoutes(app, container);

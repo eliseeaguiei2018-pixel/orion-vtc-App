@@ -346,6 +346,13 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: 0; }
 .veh-ico { border-radius: 14px; display: grid; place-items: center; background: var(--surface-2); flex: none; }
 .veh .veh-ico { width: 50px; height: 50px; }
 .veh .price { font-family: var(--font-display); font-weight: 600; font-size: 18px; }
+/* Temps d'approche du chauffeur libre le plus proche de la gamme (serveur ORION). */
+.veh .veh-eta { font-size: 12px; font-weight: 600; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.veh .veh-eta.aucun { color: var(--text-faint, var(--text-dim)); font-weight: 500; }
+.proches-ligne { font-size: 12.5px; margin: -2px 0 10px; }
+.proches-confirm { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--text); }
+.proches-confirm svg { color: var(--text-dim); flex: none; }
+.proches-confirm.aucun { font-weight: 500; color: var(--text-dim); }
 
 /* ---- Pay chips ---- */
 .chips { display: flex; gap: 10px; overflow-x: auto; padding: 2px; scrollbar-width: none; }
@@ -1471,6 +1478,10 @@ body { letter-spacing: 0; text-rendering: optimizeLegibility; }
 .vehicule { display: block; max-width: none; height: auto; object-fit: contain; user-select: none; -webkit-user-drag: none; }
 .veh-illus .vehicule { max-width: 100%; }
 .carte-vehicule i img { display: block; filter: none; }
+/* Véhicules libres autour du client (avant la commande) : plus petits que « son » chauffeur, sans halo. */
+.carte-voisin { display: grid; place-items: center; width: 40px; height: 40px; pointer-events: none; }
+.carte-voisin i { display: grid; place-items: center; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35)); }
+.carte-voisin i img { display: block; }
 .carte-vehicule i { filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.35)); }
 
 /* ---- Accueil : tuiles de services. L'objet dépasse du carré, le nom est dessous. ---- */

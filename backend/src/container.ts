@@ -74,6 +74,8 @@ import type { RentalReservation } from './modules/rental/service.js';
 import { vueLocationChauffeur } from './modules/driver-app/views.js';
 import { assurerIdentifiantChauffeur } from './modules/driver-app/poste.js';
 import { Mesures } from './core/mesures.js';
+import { ChauffeursProches } from './modules/proches/service.js';
+import { randomBytes } from 'node:crypto';
 
 /**
  * Conteneur d'injection de dépendances. Centralise le câblage et facilite les tests
@@ -82,6 +84,8 @@ import { Mesures } from './core/mesures.js';
  */
 export interface Container {
   geo: GeoIndex;
+  /** Véhicules libres autour d'un client et temps d'approche par gamme (avant la commande). */
+  proches: ChauffeursProches;
   idempotency: IdempotencyStore;
   registry: ServiceRegistry;
   drivers: DriverStore;
@@ -183,6 +187,8 @@ export function createContainer(): Container {
   // Repositories durables (mémoire par défaut, SQLite si PERSISTENCE=sqlite).
   const drivers = new DriverStore(geo, createRepository<Driver>('drivers'));
   const rides = new RideStore(createRepository<Ride>('rides'));
+  // Sel aléatoire du processus : les identifiants anonymes des véhicules changent à chaque redémarrage.
+  const proches = new ChauffeursProches(geo, drivers, randomBytes(16).toString('hex'));
   // Cumuls financiers et bilan vert : gamme et motorisation du conducteur de chaque course.
   rides.brancherConducteurs((id) => { const d = drivers.get(id); return d ? { categorie: d.category, moteur: d.engine } : undefined; });
   const codesPriseEnCharge = new CodesPriseEnCharge(createRepository<CodeCourse>('codes_prise_en_charge'));
@@ -239,7 +245,10 @@ export function createContainer(): Container {
       const surgeManual = settings.zoneForPoint(req.origin)?.surgeManual ?? 1;
       // Règles géographiques du trajet : forfait plat A→B, retour à vide, plancher premium.
       const trip = settings.tripPricing(req.origin, req.destination);
+      // Approche du chauffeur LIBRE le plus proche de la gamme demandée : comprise dans le prix fixe.
+      const approche = req.miseADisposition ? undefined : await proches.approche(req.origin, req.category ?? 'argent', traffic.factor);
       return {
+        approche,
         trafficFactor: traffic.factor,
         trafficLevel: traffic.level,
         settings: settings.getPricing(),
@@ -332,6 +341,7 @@ export function createContainer(): Container {
 
   const container: Container = {
     geo,
+    proches,
     mesures: new Mesures(),
     idempotency: new IdempotencyStore(),
     registry,

@@ -426,7 +426,9 @@ export class AdminService {
       kycStatus: d.kycStatus,
       availability: d.availability,
       rating: d.ratingAvg,
-      trips: d.ratingCount,
+      // Courses réellement menées à leur terme (et non le nombre de notes reçues).
+      trips: this.coursesTerminees(d.id),
+      notes: d.ratingCount,
       balance: this.c.wallet.balance(d.id),
       vehicleModel: d.vehicleModel ?? null,
       insuranceExpiry: d.insuranceExpiry ?? null,
@@ -445,6 +447,13 @@ export class AdminService {
     return { drivers, ...meta };
   }
 
+  /** Courses terminées par le chauffeur (arrivée, payée ou notée). */
+  private coursesTerminees(id: string): number {
+    let n = 0;
+    for (const r of this.c.rides.listByDriver(id)) if (r.status === 'completed' || r.status === 'paid' || r.status === 'rated') n += 1;
+    return n;
+  }
+
   /** Fiche détaillée d'un chauffeur : profil + gains + dernières courses. */
   driverDetail(id: string) {
     const d = this.c.drivers.get(id);
@@ -456,7 +465,7 @@ export class AdminService {
     const earnings = history.filter((e) => e.type === 'ride_earning').reduce((s, e) => s + e.amount, 0);
     return {
       id: d.id, name: d.name, matricule: d.matricule, category: d.category,
-      kycStatus: d.kycStatus, availability: d.availability, rating: d.ratingAvg, trips: d.ratingCount,
+      kycStatus: d.kycStatus, availability: d.availability, rating: d.ratingAvg, trips: this.coursesTerminees(id), notes: d.ratingCount,
       photoUrl: photoUrl(d), cancellations: d.cancellations ?? 0,
       offres: { recues: d.offersReceived ?? 0, acceptees: d.offersAccepted ?? 0, refusees: d.offersDeclined ?? 0, expirees: d.offersExpired ?? 0 },
       // Dossier du chauffeur salarié : ses informations, et ce qu'ORION lui a attribué.

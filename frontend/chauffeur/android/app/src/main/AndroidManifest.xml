@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <application
         android:allowBackup="false"
         android:fullBackupContent="false"
@@ -12,7 +13,6 @@
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
-            android:screenOrientation="portrait"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
@@ -45,17 +45,28 @@
     <permission android:name="ci.orion.permission.BUS_TEST" android:protectionLevel="signature" />
     <uses-permission android:name="ci.orion.permission.BUS_TEST" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!--
+      NOTIFICATIONS ET AFFICHAGE PAR-DESSUS : une course qui arrive fait sonner le téléphone
+      (notification prioritaire, en haut de l'écran) et, si le chauffeur l'autorise, ramène
+      l'app au premier plan par-dessus Waze, un appel ou la musique (PremierPlanPlugin).
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!--
-      Position du chauffeur PENDANT qu'il utilise l'app : offres de course autour de lui,
-      navigation vers le client, tracé de la course, alerte SOS localisée. Pas de
-      localisation en arrière-plan (ACCESS_BACKGROUND_LOCATION) : elle exige une
-      justification spécifique auprès de Google Play ; voir NATIVE.md pour l'ajouter le
-      jour où le suivi écran éteint sera branché.
+      Position du chauffeur EN SERVICE (en ligne ou en course) : offres de course autour de lui,
+      position vue par les clients avant la commande, navigation, tracé de la course, SOS.
+      Elle continue écran éteint ou application quittée grâce à un SERVICE DE PREMIER PLAN de
+      type « location » (notification permanente « ORION Chauffeur · en service »), ajouté par
+      le module @capacitor-community/background-geolocation avec FOREGROUND_SERVICE,
+      FOREGROUND_SERVICE_LOCATION et POST_NOTIFICATIONS. Un service de premier plan démarré app
+      ouverte n'exige pas ACCESS_BACKGROUND_LOCATION : l'app ne la demande pas.
     -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" tools:replace="android:required" />
 
     <!--
       Bouton « Appeler » (passager, chef d'équipe, secours) : un lien tel: ouvre le CLAVIER

@@ -1294,6 +1294,11 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
           cleaningMajor: z.number().min(0).max(500_000).optional(),
           longPickupPerKm: z.number().min(0).max(2000).optional(),
           longPickupThresholdKm: z.number().min(0).max(50).optional(),
+          // Approche du chauffeur comprise dans le prix (offerte jusqu'au seuil).
+          approche: z.object({
+            actif: z.boolean(), offerteKm: z.number().min(0).max(30), offerteMin: z.number().min(0).max(60),
+            parKm: z.number().min(0).max(2000), parMin: z.number().min(0).max(500),
+          }).partial().optional(),
         }),
         req.body,
       );

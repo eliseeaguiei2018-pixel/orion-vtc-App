@@ -59,6 +59,8 @@ export interface Quote {
     /** Mise à disposition : heures facturées. */
     heures?: number;
   };
+  /** Chauffeur libre le plus proche de la gamme (serveur ORION) ; null : aucun en ligne. */
+  approche?: { km: number; minutes: number } | null;
 }
 
 export interface Driver {

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <application
         android:allowBackup="false"
         android:fullBackupContent="false"
@@ -53,6 +54,9 @@
     <permission android:name="ci.orion.permission.BUS_TEST" android:protectionLevel="signature" />
     <uses-permission android:name="ci.orion.permission.BUS_TEST" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Notifications : course trouvée, chauffeur arrivé, course terminée, quand l'app n'est pas à l'écran. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!--
       Point de prise en charge : la position du téléphone, UNIQUEMENT app ouverte (pas de
@@ -61,7 +65,7 @@
     -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" tools:replace="android:required" />
 
     <!--
       Bouton « Appeler » : un lien tel: ouvre le CLAVIER du téléphone avec le numéro déjà

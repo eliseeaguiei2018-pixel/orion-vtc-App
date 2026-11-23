@@ -191,6 +191,11 @@ paths:
     parameters: [{ name: chemin, in: path, required: true, type: string }]
     get: { operationId: training_sous_get, <<: [*compteur, *reponses] }
 
+  # Véhicules libres autour du client et temps d'approche (avant la commande).
+  /vehicules/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    get: { operationId: vehicules_sous_get, <<: [*compteur, *reponses] }
+
   # Mariage.
   /wedding/{chemin=**}:
     parameters: [{ name: chemin, in: path, required: true, type: string }]

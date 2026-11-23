@@ -84,7 +84,8 @@ export interface PricingRecord extends PricingSettings {
 }
 
 /** Patch partiel (les multiplicateurs peuvent n'être fournis que partiellement). */
-export interface PricingPatch extends Partial<Omit<PricingSettings, 'multipliers' | 'majorationsPct' | 'majorationsPctHorsAbidjan' | 'bodySurcharge' | 'peages' | 'miseADisposition'>> {
+export interface PricingPatch extends Partial<Omit<PricingSettings, 'multipliers' | 'majorationsPct' | 'majorationsPctHorsAbidjan' | 'bodySurcharge' | 'peages' | 'miseADisposition' | 'approche'>> {
+  approche?: Partial<PricingSettings['approche']>;
   majorationsPctHorsAbidjan?: Partial<Record<string, number>>;
   /** Montant de chaque péage (par identifiant). */
   peages?: Array<{ id: string; montant: number }>;
@@ -277,6 +278,7 @@ export class SettingsService {
     // Fusion avec les défauts : les enregistrements persistés avant l'ajout d'un
     // champ (frais annexes, forfaits) restent valides.
     this.pricing = saved ? { ...DEFAULT_PRICING, ...stripId(saved) } : { ...DEFAULT_PRICING };
+    if (!this.pricing.approche) this.pricing.approche = { ...DEFAULT_PRICING.approche };
     // Tarifs enregistrés avec un ancien modèle de gammes : quatre multiplicateurs du temps de
     // la gamme Bronze (on repart alors de la grille de référence), supplément fixe (Or +700 F,
     // Diamant +1 700 F) ou écarts bornés (retirés : les gammes se distinguent maintenant par
@@ -480,6 +482,7 @@ export class SettingsService {
       // Péages : seul le montant se règle depuis la console (les postes sont fixés par la carte).
       peages: this.pricing.peages.map((p) => ({ ...p, montant: patch.peages?.find((x) => x.id === p.id)?.montant ?? p.montant })),
       miseADisposition: { ...this.pricing.miseADisposition, ...(patch.miseADisposition ?? {}) },
+      approche: { ...(this.pricing.approche ?? DEFAULT_PRICING.approche), ...(patch.approche ?? {}) },
       bodySurcharge: { ...this.pricing.bodySurcharge, ...(patch.bodySurcharge ?? {}) },
     };
     this.repo?.put({ id: PRICING_ID, ...this.pricing });

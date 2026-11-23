@@ -46,7 +46,8 @@ export function DriverApp() {
   return (
     <div className="app-shell">
       <SuggestionEcranVehicule />
-      <div className="phone">
+      {/* App installée (téléphone, tablette) : plein écran, dans les deux sens de rotation. */}
+      <div className={`phone${Capacitor.isNativePlatform() ? ' plein' : ''}`}>
         <Shell app={app} />
       </div>
     </div>

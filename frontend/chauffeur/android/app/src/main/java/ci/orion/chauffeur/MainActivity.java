@@ -10,7 +10,8 @@ import com.getcapacitor.BridgeActivity;
 /**
  * App Chauffeur ORION (Android).
  *
- * TAUX DE RAFRAÎCHISSEMENT ÉLEVÉ. Beaucoup de téléphones et d'écrans de véhicule montent
+ * TAUX DE RAFRAÎCHISSEMENT (désactivé : batterie). Méthode gardée pour l'écran de véhicule.
+ * Beaucoup de téléphones et d'écrans de véhicule montent
  * à 90, 120 ou 144 Hz, mais Android ne l'accorde pas d'office : on le DEMANDE. Le système
  * reste maître (il redescend pour économiser la batterie), mais la navigation guidée et la
  * carte défilent alors au taux le plus fluide que l'appareil sait tenir — y compris sur
@@ -21,8 +22,12 @@ public class MainActivity extends BridgeActivity {
   public void onCreate(Bundle savedInstanceState) {
     // Registre de test partagé entre l'app client et l'app chauffeur (même téléphone).
     registerPlugin(BusTestPlugin.class);
+    // Course entrante : retour au premier plan par-dessus les autres applications.
+    registerPlugin(PremierPlanPlugin.class);
     super.onCreate(savedInstanceState);
-    demanderRafraichissementMax();
+    // Batterie : on laisse Android choisir la fréquence d'écran (60 Hz au repos, plus en
+    // défilement sur les dalles adaptatives). Forcer 120 Hz en permanence vidait la batterie
+    // pendant les longues heures de service.
   }
 
   private void demanderRafraichissementMax() {

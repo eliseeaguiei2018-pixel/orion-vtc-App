@@ -8,6 +8,7 @@ import type {
 } from './types';
 import { tr } from './i18n';
 import { pointA, projeter, useNavigation } from './navigation';
+import { positionUnique, prevenir, preparerNotifications, ramenerAuPremierPlan, suivreGps, suivreGpsNavigateur, type PointGps } from '../arrierePlan';
 
 /** Notification affichée dans l'app (console, système, annonces). */
 export interface Notice { id: string; title: string; body: string; at: string; kind: 'notification' | 'announcement' | 'system' }
@@ -58,7 +59,8 @@ export function useDriver() {
   const [sosOuvert, setSosOuvert] = useState(true);
   const [sosHorsLigne, setSosHorsLigne] = useState(false);
   const [position, setPosition] = useState<LatLng>(DEFAULT_POS);
-  const [gps, setGps] = useState<'real' | 'simulated'>('simulated');
+  /** real : GPS reçu ; attente : pas encore de point ; refus / desactive : localisation bloquée ; simulated : démo. */
+  const [gps, setGps] = useState<'real' | 'simulated' | 'attente' | 'refus' | 'desactive'>(() => (backend.live ? 'attente' : 'simulated'));
   const [busy, setBusy] = useState(false);
   const activeRef = useRef<ActiveRide | null>(null);
   activeRef.current = activeRide;
@@ -140,6 +142,10 @@ export function useDriver() {
       case 'ride.assigned': {
         // L'offre arrive : on récupère la vue complète (client, secteur, compte à rebours).
         try { navigator.vibrate?.([300, 120, 300]); } catch { /* ignore */ }
+        // App en arrière-plan (autre application, écran éteint) : le téléphone sonne.
+        void prevenir(tr('Nouvelle course ORION'), tr('Ouvrez l’app pour accepter avant la fin du compte à rebours'));
+        // Avec l'autorisation « par-dessus les autres applications », l'offre revient à l'écran.
+        ramenerAuPremierPlan();
         void backend.activeRide().then(setActiveRide).catch(() => undefined);
         break;
       }
@@ -162,6 +168,7 @@ export function useDriver() {
         if (!rideId || !status || !cur || cur.id !== rideId) break;
         if (status === 'cancelled') {
           setActiveRide(null);
+          void prevenir(tr('Course annulée'), tr('Le client a annulé la course'));
           const reason = (data as { reason?: string } | undefined)?.reason;
           showToast(reason === 'console' ? tr('Course annulée par ORION') : tr('Course annulée par le client'), 'danger');
           void refresh();
@@ -275,25 +282,49 @@ export function useDriver() {
     if (link === 'offline') aEteCoupe.current = true;
     else if (link === 'online' && aEteCoupe.current) { aEteCoupe.current = false; void refresh(); }
   }, [link, refresh]);
+  // GPS RÉEL. En service (en ligne ou en course), le suivi passe par le service natif
+  // d'arrière-plan : il continue écran éteint ou application quittée (notification permanente
+  // « ORION Chauffeur »). Hors service, la carte suit le GPS seulement tant que l'app est à
+  // l'écran. Avec le serveur ORION, JAMAIS de position inventée : sans point GPS, le serveur
+  // garde la dernière position réelle et le chauffeur ne peut pas se mettre en ligne.
+  const dernierPoint = useRef<{ t: number; precision: number; envoyeA: number; envoye: LatLng | null } | null>(null);
+  const appliquerPoint = useCallback((p: PointGps, enService: boolean) => {
+    const d = dernierPoint.current;
+    // Un point imprécis (antennes, > 100 m) n'écrase pas un point GPS récent et précis.
+    if (d && p.precision > 100 && d.precision <= 50 && Date.now() - d.t < 15_000) return;
+    const ici = { lat: p.lat, lng: p.lng };
+    const avant = posRef.current;
+    dernierPoint.current = { t: Date.now(), precision: p.precision, envoyeA: d?.envoyeA ?? 0, envoye: d?.envoye ?? null };
+    setGps('real');
+    // Batterie : l'écran n'est redessiné que si le véhicule a vraiment bougé (> 3 m).
+    if (Math.abs(avant.lat - ici.lat) > 0.00003 || Math.abs(avant.lng - ici.lng) > 0.00003) { posRef.current = ici; setPosition(ici); }
+    // En service : la position part aussitôt au serveur (clients, console), au plus toutes les 3 s.
+    if (enService && backend.live && session && Date.now() - (dernierPoint.current.envoyeA) > 3000) {
+      dernierPoint.current.envoyeA = Date.now();
+      dernierPoint.current.envoye = ici;
+      void backend.sendLocation(ici).catch(() => undefined);
+    }
+  }, [backend, session]);
   useEffect(() => {
-    if (!tracking || !('geolocation' in navigator)) return;
-    // Position exacte du chauffeur : puce GPS (haute précision), sans point mis en cache. Un
-    // point imprécis (antennes, > 100 m) n'écrase pas un point GPS récent et précis : le
-    // véhicule ne saute plus d'une rue à l'autre sur la carte.
-    let dernier: { t: number; precision: number } | null = null;
-    const id = navigator.geolocation.watchPosition(
-      (p) => {
-        const precision = Number.isFinite(p.coords.accuracy) ? p.coords.accuracy : 9999;
-        if (dernier && precision > 100 && dernier.precision <= 50 && Date.now() - dernier.t < 15_000) return;
-        dernier = { t: Date.now(), precision };
-        setGps('real');
-        setPosition({ lat: p.coords.latitude, lng: p.coords.longitude });
-      },
-      () => setGps('simulated'),
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 },
-    );
-    return () => navigator.geolocation.clearWatch(id);
-  }, [tracking]);
+    if (!session) return;
+    if (tracking) {
+      return suivreGps(
+        { titre: tr('ORION Chauffeur · en service'), message: tr('Votre position est partagée avec ORION pour recevoir des courses'), distanceMin: 8 },
+        (p) => appliquerPoint(p, true),
+        (e) => setGps(e === 'refus' ? 'refus' : e === 'desactive' ? 'desactive' : backend.live ? 'attente' : 'simulated'),
+      );
+    }
+    // Hors service : GPS du navigateur, seulement app à l'écran.
+    let stop: (() => void) | null = null;
+    const brancher = () => {
+      stop?.(); stop = null;
+      if (document.hidden) return;
+      stop = suivreGpsNavigateur((p) => appliquerPoint(p, false), (e) => setGps(e === 'refus' ? 'refus' : backend.live ? 'attente' : 'simulated'));
+    };
+    brancher();
+    document.addEventListener('visibilitychange', brancher);
+    return () => { document.removeEventListener('visibilitychange', brancher); stop?.(); };
+  }, [tracking, session, backend, appliquerPoint]);
 
   /* ---------- Navigation guidée : vers le client, puis vers la destination ---------- */
   const cibleNavigation = !activeRide ? null
@@ -308,7 +339,7 @@ export function useDriver() {
   // GPS simulé : le véhicule progresse vers le point de prise en charge puis la destination,
   // EN SUIVANT LES ROUTES de l'itinéraire guidé (ponts, échangeurs), sinon en ligne droite.
   useEffect(() => {
-    if (gps !== 'simulated' || !cibleNavigation) return;
+    if (backend.live || gps !== 'simulated' || !cibleNavigation) return;   // démo uniquement
     const target = cibleNavigation;
     const id = window.setInterval(() => {
       setPosition((p) => {
@@ -326,16 +357,21 @@ export function useDriver() {
       });
     }, 1500);
     return () => window.clearInterval(id);
-  }, [gps, cibleNavigation?.lat, cibleNavigation?.lng]);
+  }, [backend, gps, cibleNavigation?.lat, cibleNavigation?.lng]);
 
-  // Heartbeat de position (présence + suivi client en direct) : toutes les 5 s en ligne,
-  // toutes les 3 s en mission, et immédiatement à chaque étape de la course.
+  // Battement de présence : en plus de chaque point GPS, la dernière position RÉELLE repart
+  // toutes les 8 s (à l'arrêt, le GPS se tait) et à chaque étape de la course. Sans point GPS
+  // réel (serveur ORION), rien ne part : le serveur ne reçoit jamais une position inventée.
   const rideStep = activeRide ? `${activeRide.id}:${activeRide.status}` : null;
   useEffect(() => {
     if (!tracking || !session) return;
-    const send = () => { void backend.sendLocation(posRef.current).catch(() => undefined); };
+    const send = () => {
+      if (backend.live && !dernierPoint.current) return;
+      if (dernierPoint.current) { dernierPoint.current.envoyeA = Date.now(); dernierPoint.current.envoye = posRef.current; }
+      void backend.sendLocation(posRef.current).catch(() => undefined);
+    };
     send();
-    const id = window.setInterval(send, rideStep ? 3000 : 5000);
+    const id = window.setInterval(send, 8000);
     return () => window.clearInterval(id);
   }, [tracking, session, backend, rideStep]);
 
@@ -396,7 +432,19 @@ export function useDriver() {
       setFinance(null);
       setActiveRide(null);
     },
-    goOnline: () => run(async () => { await backend.goOnline(posRef.current); await refresh(); }, tr('Vous êtes en ligne')),
+    goOnline: () => run(async () => {
+      // Avec le serveur ORION, on ne se met pas en ligne à une position inventée : on attend un
+      // vrai point GPS (10 s au plus).
+      if (backend.live && !dernierPoint.current) {
+        const p = await positionUnique(10_000);
+        if (!p) throw new Error(tr('Position GPS introuvable : activez la localisation du téléphone, puis réessayez'));
+        posRef.current = p; setPosition(p); setGps('real');
+        dernierPoint.current = { t: Date.now(), precision: 50, envoyeA: 0, envoye: null };
+      }
+      void preparerNotifications();
+      await backend.goOnline(posRef.current);
+      await refresh();
+    }, tr('Vous êtes en ligne')),
     goOffline: () => run(async () => { await backend.goOffline(); await refresh(); }, tr('Vous êtes hors ligne')),
     accept: (rideId: string) => run(async () => { setActiveRide(await backend.acceptOffer(rideId)); },
       activeRide?.serviceType === 'delivery' ? tr('Livraison acceptée, cap sur le colis') : tr('Course acceptée — en route')),

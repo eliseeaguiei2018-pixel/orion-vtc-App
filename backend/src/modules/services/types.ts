@@ -56,6 +56,10 @@ export interface QuoteBreakdown {
   horsAbidjan?: boolean;
   /** Mise à disposition : nombre d'heures facturées. */
   heures?: number;
+  /** Approche du chauffeur le plus proche : coût ajouté (HT, 0 si offerte), distance et minutes. */
+  approche?: number;
+  approcheKm?: number;
+  approcheMin?: number;
 }
 
 export type TrafficLevel = 'fluid' | 'dense' | 'jam';
@@ -77,6 +81,8 @@ export interface Quote {
   itineraire?: { choix: 'peage' | 'normal'; peages: string[] };
   /** Mise à disposition à l'heure : durée et heure de début choisies par le client. */
   miseADisposition?: { heures: number; debut?: string };
+  /** Chauffeur libre le plus proche de la gamme : distance et minutes d'approche ; null si aucun. */
+  approche?: { km: number; minutes: number } | null;
   expiresAt: string;
 }
 

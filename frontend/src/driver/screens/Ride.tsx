@@ -20,6 +20,11 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
   const [sos, setSos] = useState(false);
   const [cancel, setCancel] = useState(false);
   const [suivi, setSuivi] = useState(true);
+  // MODE NAVIGATION (comme les autres apps VTC) : en conduite, la carte occupe l'écran et la
+  // fiche de course se réduit à une barre en bas (client, distance, minutes, bouton d'étape).
+  // Un toucher sur la barre la déplie ; elle se replie d'elle-même à chaque nouvelle étape.
+  const [deplie, setDeplie] = useState(false);
+  useEffect(() => { setDeplie(false); }, [ride.status]);
   const nav = app.navigation;
   const step = STEPS.indexOf(ride.status);
   const toPickup = ride.status === 'accepted' || ride.status === 'driver_en_route';
@@ -40,9 +45,19 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
   const livraison = ride.serviceType === 'delivery';
   // Guidage actif tant qu'il y a un point à rejoindre (client, puis destination).
   const enNavigation = toPickup || ride.status === 'in_progress';
+  const reduite = enNavigation && !deplie;
+  const resteMin = nav.guidage ? Math.max(1, Math.round(nav.guidage.resteSecondes / 60)) : null;
+  const resteDistance = nav.guidage ? nav.guidage.reste : haversine(app.position, target);
+  const boutonEtape = ride.status === 'accepted'
+    ? <button className="btn btn-primary" disabled={app.busy} onClick={() => t('driver_en_route')}>{livraison ? tr('Je pars chercher le colis') : tr('Je pars vers le client')}</button>
+    : ride.status === 'driver_en_route'
+      ? <button className="btn btn-primary" disabled={app.busy} onClick={() => t('arrived')}>{livraison ? tr('Je suis au point de retrait') : tr('Je suis arrivé')}</button>
+      : ride.status === 'in_progress'
+        ? <button className="btn btn-primary" disabled={app.busy} onClick={() => t('completed')}>{livraison ? tr('Colis livré') : tr('Terminer la course')}</button>
+        : null;
 
   return (
-    <div className="dv-ride">
+    <div className={`dv-ride${reduite ? ' navigation' : ''}`}>
       <div className="dv-ride-map">
         {/* Vraie carte de Côte d'Ivoire + navigation guidée : la carte suit le véhicule sur
             l'itinéraire réel (ponts, échangeurs, voies nouvelles), vers le client puis la destination. */}
@@ -61,7 +76,34 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
         <button className="sos" style={{ bottom: 40 }} onClick={() => setSos(true)} aria-label={tr('SOS')}>{tr('SOS')}</button>
       </div>
 
+      {reduite ? (
+        <div className="dv-ride-sheet reduite">
+          <button type="button" className="dv-ride-resume" onClick={() => setDeplie(true)} aria-expanded={false} aria-label={tr('Afficher les détails de la course')}>
+            <span className="dv-ride-grab" />
+            <span className="row between" style={{ width: '100%', gap: 12 }}>
+              <span className="col grow" style={{ minWidth: 0, alignItems: 'flex-start' }}>
+                <strong className="dv-ride-resume-titre">{resteMin !== null ? `${resteMin} min` : '…'} · {km(resteDistance)}</strong>
+                <span className="faint dv-ride-resume-sous">
+                  {(toPickup ? (livraison ? tr('Retrait du colis') : tr('Prise en charge')) : tr('Destination'))} · {ride.client.name ?? (livraison ? tr('Client ORION') : tr('Passager ORION'))}
+                </span>
+              </span>
+              <span className="dv-price" style={{ fontSize: 19 }}>{fcfa(brut)}</span>
+            </span>
+          </button>
+          <div className="dv-ride-resume-actions">
+            {lienTel(ride.client.phone) && (
+              <a className="dv-act compact" href={lienTel(ride.client.phone)!} aria-label={tr('Appeler le passager {0}', [numeroLisible(ride.client.phone)])}><IconPhone size={18} /></a>
+            )}
+            {boutonEtape}
+          </div>
+        </div>
+      ) : (
       <div className="dv-ride-sheet">
+        {enNavigation && (
+          <button type="button" className="dv-ride-replier" onClick={() => setDeplie(false)} aria-expanded aria-label={tr('Réduire pour voir la carte')}>
+            <span className="dv-ride-grab" />
+          </button>
+        )}
         <div className="dv-steps" aria-label={livraison ? tr('Étapes de la livraison') : tr('Étapes de la course')}>
           {STEPS.map((s, i) => <span key={s} className={i <= step ? 'done' : ''} />)}
         </div>
@@ -126,12 +168,11 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
           </div>
         )}
 
-        {ride.status === 'accepted' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('driver_en_route')}>{livraison ? tr('Je pars chercher le colis') : tr('Je pars vers le client')}</button>}
-        {ride.status === 'driver_en_route' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('arrived')}>{livraison ? tr('Je suis au point de retrait') : tr('Je suis arrivé')}</button>}
+        {ride.status !== 'in_progress' && ride.status !== 'arrived' && boutonEtape}
         {ride.status === 'arrived' && !livraison && ride.codeRequis
           ? <SaisieCode app={app} rideId={ride.id} />
           : ride.status === 'arrived' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('in_progress')}>{livraison ? tr('Colis récupéré, je livre') : tr('Client à bord — démarrer')}</button>}
-        {ride.status === 'in_progress' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('completed')}>{livraison ? tr('Colis livré') : tr('Terminer la course')}</button>}
+        {ride.status === 'in_progress' && boutonEtape}
 
         {ride.status === 'completed' && totalDue === 0 && (
           <div className="col" style={{ gap: 10 }}>
@@ -163,6 +204,7 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
           <button className="btn btn-ghost" onClick={() => setCancel(true)} disabled={app.busy}>{livraison ? tr('Annuler la livraison') : tr('Annuler la course')}</button>
         )}
       </div>
+      )}
 
       {sos && (
         <Modal title={tr('Alerte SOS')} onClose={() => setSos(false)}>

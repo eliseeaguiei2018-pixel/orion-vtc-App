@@ -38,7 +38,7 @@ const schema = z.object({
   SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
 
   // Présence chauffeur : TTL de la position dans l'index géo.
-  PRESENCE_TTL_SECONDS: z.coerce.number().int().positive().default(30),
+  PRESENCE_TTL_SECONDS: z.coerce.number().int().positive().default(60),
 
   // En prod : 'redis'. En local/test : 'memory' (aucune infra requise).
   GEO_BACKEND: z.enum(['memory', 'redis']).default('memory'),

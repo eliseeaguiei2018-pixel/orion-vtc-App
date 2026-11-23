@@ -1,6 +1,7 @@
 import { TEMPS_REEL } from '../tempsReel';
 import { useEffect, useRef, useState } from 'react';
 import type { LatLng } from '../types';
+import type { VehiculeProche } from '../api';
 import { useTheme } from '../theme';
 import { itineraire, type ItineraireRoute } from '../api';
 import { itineraireGoogle } from '../itineraireGoogle';
@@ -37,6 +38,8 @@ interface Props {
   /** Péages de l'itinéraire choisi : mis en avant (cercle plein, montant affiché). */
   peages?: { id: string }[];
   basCouvert?: number;
+  /** Véhicules libres autour du client (avant la commande), positions du serveur ORION. */
+  voisins?: VehiculeProche[];
   /** Clé refusée, API injoignable : l'appelant affiche la carte ORION. */
   onEchec: () => void;
 }
@@ -223,7 +226,7 @@ export function GoogleIndisponible() {
   );
 }
 
-export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'car', approche = false, moi, trace, peages, basCouvert = 0.46, onEchec }: Props) {
+export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'car', approche = false, moi, trace, peages, basCouvert = 0.46, voisins, onEchec }: Props) {
   const { resolved, accent } = useTheme();
   const { t, lang } = useI18n();
   const enveloppe = useRef<HTMLDivElement>(null);
@@ -236,6 +239,8 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
   const lignes = useRef<{ bord?: GPolyline; trajet?: GPolyline; approche?: GPolyline }>({});
   const reperes = useRef<{ depart?: Repere; arrivee?: Repere; arrets: Repere[]; vehicule?: Repere; moi?: Repere }>({ arrets: [] });
   const derniere = useRef<{ pos: LatLng; angle: number } | null>(null);
+  /** Véhicules libres affichés (identifiant anonyme du serveur → repère et dernière position). */
+  const flotte = useRef(new Map<string, { repere: Repere; pos: LatLng; angle: number }>());
   const traceExterne = trace !== undefined;
   const echec = useRef(onEchec);
   echec.current = onEchec;
@@ -278,6 +283,8 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
       annule = true;
       const R = reperes.current;
       [R.depart, R.arrivee, R.vehicule, R.moi, ...R.arrets].forEach((x) => x?.retirer());
+      flotte.current.forEach((v) => v.repere.retirer());
+      flotte.current.clear();
       reperes.current = { arrets: [] };
       Object.values(lignes.current).forEach((l) => l?.setMap(null));
       lignes.current = {};
@@ -452,6 +459,52 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prete, car?.lat, car?.lng]);
+
+  // 8. VÉHICULES LIBRES AUTOUR DU CLIENT (comme Yango) : chacun glisse de sa position à la
+  //    suivante en 1,5 s, orienté dans le sens de la marche ; ceux qui partent s'effacent.
+  //    Une seule boucle d'animation pour tous, arrêtée dès qu'ils sont posés (batterie).
+  const cleVoisins = (voisins ?? []).map((v) => `${v.id}:${v.lat.toFixed(5)},${v.lng.toFixed(5)}`).join(';');
+  useEffect(() => {
+    const g = api.current; const m = carte.current;
+    if (!prete || !g || !m) return;
+    const F = flotte.current;
+    const liste = car ? [] : (voisins ?? []);      // pendant la course, seul « son » chauffeur compte
+    const vus = new Set(liste.map((v) => v.id));
+    for (const [id, v] of F) if (!vus.has(id)) { v.repere.retirer(); F.delete(id); }
+    const trajets: Array<{ v: { repere: Repere; pos: LatLng; angle: number }; de: LatLng; vers: LatLng; angle: number }> = [];
+    for (const n of liste) {
+      const vers = { lat: n.lat, lng: n.lng };
+      const ex = F.get(n.id);
+      if (!ex) {
+        const html = n.gamme === 'moto' ? repereVehicule('scooter-dessus', 18) : repereVehicule(nomVoitureDessus(accent), 22);
+        const repere = poserRepere(g, m, element('carte-voisin', `<i>${html}</i>`), vers);
+        repere.placer(vers, n.cap);
+        F.set(n.id, { repere, pos: vers, angle: n.cap });
+        continue;
+      }
+      if (Math.abs(ex.pos.lat - vers.lat) < 1e-7 && Math.abs(ex.pos.lng - vers.lng) < 1e-7) continue;
+      const loin = Math.hypot(vers.lat - ex.pos.lat, vers.lng - ex.pos.lng) > 0.02;   // > 2 km : saut, pas de glissade
+      const angle = cap(ex.pos, vers);
+      if (loin) { ex.repere.placer(vers, angle); ex.pos = vers; ex.angle = angle; continue; }
+      trajets.push({ v: ex, de: ex.pos, vers, angle });
+      ex.pos = vers; ex.angle = angle;
+    }
+    if (!trajets.length) return;
+    const t0 = performance.now();
+    let raf = 0;
+    const etape = (t: number) => {
+      const f = Math.min(1, (t - t0) / 1500);
+      const e = f < 0.5 ? 2 * f * f : 1 - (-2 * f + 2) ** 2 / 2;
+      for (const x of trajets) x.v.repere.placer({ lat: x.de.lat + (x.vers.lat - x.de.lat) * e, lng: x.de.lng + (x.vers.lng - x.de.lng) * e }, x.angle);
+      if (f < 1) raf = requestAnimationFrame(etape);
+    };
+    raf = requestAnimationFrame(etape);
+    return () => {
+      cancelAnimationFrame(raf);
+      for (const x of trajets) x.v.repere.placer(x.vers, x.angle);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prete, cleVoisins, Boolean(car)]);
 
   return (
     <div ref={enveloppe} className="map-wrap carte-reelle carte-google">

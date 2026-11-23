@@ -51,7 +51,15 @@ export interface PricingSettings {
   /** Prime « prise en charge longue » : F CFA par km d'approche à vide au-delà du seuil. */
   longPickupPerKm: number;
   longPickupThresholdKm: number;
+  /**
+   * APPROCHE DU CHAUFFEUR dans le prix (comme Yango) : le trajet du chauffeur libre le plus
+   * proche jusqu'au client est offert jusqu'à `offerteKm` et `offerteMin` ; au-delà, chaque
+   * kilomètre et chaque minute d'approche s'ajoutent au prix fixe (hors taxes).
+   */
+  approche: ApprocheTarif;
 }
+
+export interface ApprocheTarif { actif: boolean; offerteKm: number; offerteMin: number; parKm: number; parMin: number }
 
 export const DEFAULT_PRICING: PricingSettings = {
   baseFare: 300, perKm: 130, perMinute: 18, minFare: 600, avgSpeedKmh: 24,
@@ -65,7 +73,15 @@ export const DEFAULT_PRICING: PricingSettings = {
   freeWaitMinutes: 5, cancelGraceMinutes: 2, cancelFee: 500,
   cleaningLight: 10_000, cleaningMajor: 50_000,
   longPickupPerKm: 100, longPickupThresholdKm: 5,
+  approche: { actif: true, offerteKm: 2, offerteMin: 5, parKm: 100, parMin: 18 },
 };
+
+/** Coût hors taxes de l'approche (0 tant qu'elle reste dans la part offerte). */
+export function coutApproche(a: { km: number; minutes: number } | null | undefined, s: PricingSettings = DEFAULT_PRICING): number {
+  const r = s.approche ?? DEFAULT_PRICING.approche;
+  if (!a || !r.actif) return 0;
+  return Math.max(0, a.km - r.offerteKm) * r.parKm + Math.max(0, a.minutes - r.offerteMin) * r.parMin;
+}
 
 /**
  * Stratégie de tarification (pattern Strategy) : chaque service injecte la sienne.
@@ -189,6 +205,8 @@ export interface PricingContext {
   extraFee?: number;
   /** Prix plancher majoré du secteur premium (remplace minFare s'il est supérieur). */
   premiumFloor?: number;
+  /** Approche du chauffeur libre le plus proche de la gamme (null : aucun en ligne). */
+  approche?: { km: number; minutes: number } | null;
 }
 
 /** Nombre d'heures de mise à disposition, ramené dans les bornes de la console (par demi-heure). */
@@ -268,7 +286,9 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
   const extraFee = Math.max(0, ctx.extraFee ?? 0); // retour à vide (zone périphérique)
   // Forfait plat (hub aéroport / A→B) : remplace le calcul au km/min mais garde
   // le surge/zone et les suppléments intégrés au prix fixe garanti.
-  const metered = (base + distanceCost + timeCost + stopsCost) * trafficMult * zoneFactor * surge + pickupFee;
+  // Approche du chauffeur le plus proche : offerte jusqu'au seuil, puis au km et à la minute.
+  const approche = coutApproche(ctx.approche, s);
+  const metered = (base + distanceCost + timeCost + stopsCost) * trafficMult * zoneFactor * surge + pickupFee + approche;
   const raw = (ctx.flatAmount && ctx.flatAmount > 0 ? ctx.flatAmount * surge : metered) + extraFee;
   // Prix plancher : minFare, ou plancher premium majoré du secteur s'il est plus élevé.
   const floored = Math.max(raw, tariff.minFare, ctx.premiumFloor ?? 0);
@@ -314,6 +334,7 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
       insurance: Math.round(insurance),
       ...(peage > 0 ? { peage } : {}),
       ...(horsAbidjan ? { horsAbidjan: true } : {}),
+      ...(ctx.approche ? { approche: Math.round(approche), approcheKm: ctx.approche.km, approcheMin: ctx.approche.minutes } : {}),
     },
   };
 }
