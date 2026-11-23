@@ -2320,3 +2320,78 @@ button.menu-texte { cursor: pointer; }
 .liv-champs .input:focus { border-color: rgba(var(--accent-rgb), 0.6); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.12); }
 .liv-champs .liv-large { grid-column: 1 / -1; }
 @media (max-width: 360px) { .liv-champs { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- Offre et demande : pastille de la carte, fiche, guide (src/demande.tsx) ---- */
+.dem-pastille {
+  position: absolute; z-index: 29; left: 20px;
+  top: calc(max(18px, env(safe-area-inset-top)) + 54px);
+  display: flex; align-items: center; gap: 4px; height: 44px; padding: 0 8px 0 4px;
+  border-radius: 22px; border: 1px solid var(--stroke); background: var(--bg-0);
+  box-shadow: 0 8px 24px -10px rgba(0, 0, 0, 0.35); color: var(--text); cursor: pointer;
+  animation: rise 0.4s var(--ease-out, ease) both;
+}
+.dem-pastille:active { transform: scale(0.97); }
+.dem-pastille:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.dem-voiture { width: 50px; height: 30px; object-fit: cover; object-position: 30% 55%; }
+.dem-clients { width: 30px; height: 30px; object-fit: contain; }
+.dem-piste { position: relative; width: 52px; margin: 0 10px; height: 6px; border-radius: 3px; background: var(--surface-2); }
+.dem-piste-plein { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--dem-teinte); opacity: 0.85; }
+.dem-piste-piece { position: absolute; top: 50%; transform: translate(-50%, -54%); line-height: 0; }
+.dem-pastille.vert, .dem-taux.vert, .dem-zone.vert { --dem-teinte: #22c37a; }
+.dem-pastille.jaune, .dem-taux.jaune, .dem-zone.jaune { --dem-teinte: #f5c21b; }
+.dem-pastille.orange, .dem-taux.orange, .dem-zone.orange { --dem-teinte: #f47d22; }
+.piece-orion { display: block; overflow: visible; }
+
+.dem-fond {
+  position: absolute; inset: 0; z-index: 80; display: flex; align-items: flex-end;
+  background: rgba(0, 0, 0, 0.42); animation: fade-in 0.2s ease;
+}
+.dem-fiche {
+  width: 100%; max-height: 92%; overflow: hidden auto; background: var(--bg-0); color: var(--text);
+  border-radius: 24px 24px 0 0; border-top: 1px solid var(--stroke);
+  padding: 10px 20px calc(20px + env(safe-area-inset-bottom));
+  animation: rise 0.32s var(--ease-out, ease) both;
+}
+.dem-poignee { display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--stroke-strong); margin: 0 auto 16px; }
+.dem-entete { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.dem-titre { font-family: var(--font-display); font-size: 21px; font-weight: 600; line-height: 1.2; margin: 0; text-wrap: balance; }
+.dem-taux { align-self: flex-start; margin-top: 6px; padding: 2px 8px; border-radius: 8px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text); background: color-mix(in srgb, var(--dem-teinte) 22%, transparent); }
+.dem-texte { color: var(--text-dim); font-size: 15px; line-height: 1.5; margin: 0 0 18px; }
+.dem-jauge-bloc { border: 1px solid var(--stroke); border-radius: 18px; padding: 14px 14px 12px; margin-bottom: 14px; }
+.dem-jauge-titre { display: block; font-size: 13px; color: var(--text-faint); margin-bottom: 8px; }
+.dem-jauge { display: flex; align-items: center; gap: 8px; }
+.dem-jauge-voiture { width: 64px; height: 38px; object-fit: cover; object-position: 30% 55%; flex: none; }
+.dem-jauge-clients { width: 40px; height: 40px; object-fit: contain; flex: none; }
+.dem-jauge-piste { position: relative; flex: 1; margin: 0 14px; height: 8px; border-radius: 4px; background: var(--surface-2); }
+.dem-zone { position: absolute; top: 0; bottom: 0; background: var(--dem-teinte); opacity: 0.8; }
+.dem-zone.vert { left: 0; border-radius: 4px 0 0 4px; }
+.dem-zone.orange { border-radius: 0 4px 4px 0; }
+.dem-jauge-repere { position: absolute; top: -5px; bottom: -5px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--text); opacity: 0.55; }
+.dem-jauge-piece { position: absolute; top: 50%; transform: translate(-50%, -56%); line-height: 0; transition: left 0.6s var(--ease-out, ease); }
+.dem-jauge-legende { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: var(--text-faint); }
+.dem-garanti { font-size: 13px; color: var(--text-faint); line-height: 1.45; margin: 0 0 6px; }
+.dem-lien {
+  display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 12px 0; margin-bottom: 12px;
+  background: none; border: 0; border-bottom: 1px solid var(--stroke); color: var(--text); font-size: 15px; font-weight: 500; cursor: pointer;
+}
+.dem-lien span { font-size: 22px; color: var(--text-faint); line-height: 1; }
+.dem-ok { width: 100%; }
+.dem-guide { overflow: hidden; margin: 0 -20px; touch-action: pan-y; }
+.dem-guide-rail { display: flex; transition: transform 0.38s var(--ease-out, ease); }
+.dem-page { flex: 0 0 100%; padding: 0 20px; box-sizing: border-box; text-align: center; }
+.dem-page .dem-titre { margin-bottom: 8px; }
+.dem-page .dem-texte { min-height: 4.5em; margin-bottom: 8px; }
+.dem-illu { position: relative; height: 150px; display: grid; place-items: center; margin-bottom: 12px; }
+.dem-illu.scene { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.dem-illu-voiture { width: 130px; height: 78px; object-fit: cover; object-position: 30% 55%; }
+.dem-illu-clients { width: 82px; height: 82px; object-fit: contain; }
+.dem-illu-cadenas { width: 120px; height: 120px; object-fit: contain; }
+.dem-illu-piece-coin { position: absolute; left: calc(50% + 26px); bottom: 10px; }
+.dem-points { display: flex; justify-content: center; gap: 4px; margin: 6px 0 16px; }
+.dem-points button { width: 24px; height: 24px; padding: 0; border: 0; background: none; cursor: pointer; display: grid; place-items: center; }
+.dem-points button::after { content: ''; width: 7px; height: 7px; border-radius: 4px; background: var(--stroke-strong); transition: width 0.25s, background 0.25s; }
+.dem-points button.actif::after { width: 20px; background: var(--text); }
+/* La jauge se lit toujours des chauffeurs (gauche) vers les commandes (droite). */
+.dem-pastille, .dem-jauge, .dem-jauge-legende { direction: ltr; }
+[dir='rtl'] .dem-pastille { left: auto; right: 20px; }
+@media (prefers-reduced-motion: reduce) { .dem-guide-rail, .dem-jauge-piece, .dem-pastille, .dem-fiche { transition: none; animation: none; } }

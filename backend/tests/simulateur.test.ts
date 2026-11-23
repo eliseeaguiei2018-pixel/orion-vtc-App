@@ -43,7 +43,7 @@ const prix = async (app: App) => {
 const proches = async (app: App) => {
   const r = await app.inject({ method: 'GET', url: `/vehicules/proches?lat=${LIEU.lat}&lng=${LIEU.lng}` });
   assert.equal(r.statusCode, 200);
-  return r.json() as { vehicules: Array<{ id: string; gamme: string }>; approche: Record<string, { km: number } | null>; marche: number };
+  return r.json() as { vehicules: Array<{ id: string; gamme: string }>; approche: Record<string, { km: number } | null>; marche: number; tension: { niveau: string; majorationPct: number; plafondPct: number; ratio: number } };
 };
 
 test('simulateur : réservé au PDG, refus signalé pour un autre directeur', async (t) => {
@@ -74,6 +74,7 @@ test('simulateur : l’app cliente voit les chauffeurs simulés, le prix suit l�
   const reference = await prix(app);
   assert.equal(reference.breakdown.surge, 1);
   assert.equal((await proches(app)).vehicules.length, 0);
+  assert.equal((await proches(app)).tension.niveau, 'vert', 'pastille verte : prix habituel');
 
   // Peu de chauffeurs (6 Argent à 2 km), beaucoup de clients (8) : préparé, pas encore actif.
   const prep = await app.inject({ method: 'PUT', url: '/admin/simulateur', headers: pdg, payload: { lieu: LIEU, chauffeurs: autour(6, 2000, 'argent', 'a'), demande: 8 } });
@@ -99,6 +100,10 @@ test('simulateur : l’app cliente voit les chauffeurs simulés, le prix suit l�
   assert.ok(!JSON.stringify(vus).includes('"a0"'), 'identifiants anonymes, comme les vrais');
   const rare = await prix(app);
   assert.equal(rare.breakdown.surge, 1.3);
+  const t1 = (await proches(app)).tension;
+  assert.equal(t1.niveau, 'orange', 'beaucoup plus de commandes que de chauffeurs');
+  assert.equal(t1.majorationPct, 30, 'même majoration que le prix, plafonnée');
+  assert.equal(t1.plafondPct, 30);
   assert.ok(rare.amount > reference.amount, `peu de chauffeurs : le prix monte (${reference.amount} → ${rare.amount})`);
 
   // Assez de chauffeurs : 12 Argent à 500 m → la majoration tombe.
@@ -106,6 +111,7 @@ test('simulateur : l’app cliente voit les chauffeurs simulés, le prix suit l�
   assert.equal(plus.statusCode, 200, plus.body);
   const nombreux = await prix(app);
   assert.equal(nombreux.breakdown.surge, 1);
+  assert.equal((await proches(app)).tension.niveau, 'vert', 'assez de chauffeurs : la pastille redevient verte');
   assert.ok(nombreux.amount < rare.amount, `assez de chauffeurs : le prix redescend (${rare.amount} → ${nombreux.amount})`);
   assert.ok((nombreux.approche?.km ?? 99) < 1, 'approche du chauffeur à 500 m');
 

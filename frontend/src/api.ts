@@ -1332,7 +1332,21 @@ export interface VehiculesProches {
   approche: Record<string, ApprocheGamme | null>;
   /** Repère du marché (simulateur de la direction) : quand il change, l'app refait son devis. */
   marche?: number;
+  /** Offre et demande autour du point (serveur ORION, même calcul que la majoration du prix). */
+  tension?: TensionMarche;
   at: string;
+}
+
+/** Pastille de la carte : vert = prix habituel, jaune = un peu relevé, orange = forte demande. */
+export interface TensionMarche {
+  niveau: 'vert' | 'jaune' | 'orange';
+  /** Majoration appliquée au prix, en % (plafonnée par la direction). */
+  majorationPct: number;
+  plafondPct: number;
+  /** Commandes / chauffeurs libres autour du point. */
+  ratio: number;
+  /** Rapport à partir duquel le prix monte. */
+  seuil: number;
 }
 
 /** Véhicules libres autour d'un point et temps d'approche par gamme. Null sans serveur ORION. */

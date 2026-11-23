@@ -47,6 +47,7 @@ import { fondCarte, googleSeul, suivreFondCarte } from './carteGoogle';
 import { prechaufferCarte } from './components/CarteGoogle';
 import { GpsCarte, type GpsCarteValeur } from './components/gpsCarte';
 import { relancerProches, useVehiculesProches } from './proches';
+import { PastilleDemande } from './demande';
 import { gpsNatif, notificationsAutorisees, prevenir, preparerNotifications, suivreGps } from './arrierePlan';
 import type { VehiculesProches } from './api';
 import { useTrajetTarif } from './tarifTrajet';
@@ -2070,6 +2071,8 @@ function EstimateScreen({ origin, destination, tier, onTier, bodyType, onBody, s
     <div className="screen">
       <OrionMap origin={origin.location} destination={destination.location} stops={stopLocs} trace={route?.route.geometrie} peages={route?.peages} />
       <TopBar onBack={onBack} title={destination.name} />
+      {/* Offre et demande autour du départ : la pastille suit la majoration du serveur. */}
+      <PastilleDemande tension={proches?.tension} />
       <div style={{ flex: 1 }} />
       <Sheet>
         <div className="row between" style={{ marginBottom: 10 }}>
