@@ -1,3 +1,4 @@
+import { configPublique } from './configPublique.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Container } from '../../container.js';
@@ -17,7 +18,7 @@ export async function supportClientRoutes(app: FastifyInstance, container: Conta
 
   // Config publique : services activés + ville ouverte (l'app cliente adapte son hub).
   // codeWhatsApp : l'app propose « Recevoir le code via WhatsApp » seulement si le serveur sait l'envoyer.
-  app.get('/config', async () => ({ ...container.settings.getServices(), currency: 'XOF', codeWhatsApp: container.whatsapp !== null }));
+  app.get('/config', async () => configPublique(container));
 
   /**
    * FICHE CLIENT — enregistrée depuis l'app après vérification du numéro.

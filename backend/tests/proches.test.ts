@@ -86,3 +86,32 @@ test('multi-gammes : un chauffeur Or ouvert à l’Argent reçoit les deux, la c
   const apres = await c.matching.findDriver(YOP, 'argent');
   assert.equal(apres?.driverId, d.id, 'les courses Argent lui sont proposées');
 });
+
+test('Mon poste du PDG : hausse ou baisse générale des prix, écarts de gamme gardés, diffusée aux apps', async (t) => {
+  const { app } = await buildApp();
+  t.after(() => app.close());
+  const H = { 'x-admin-token': 'orion-admin-dev' };
+  const avant = (await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: YOP, destination: GOLF, category: 'argent' } })).json().quote.amount as number;
+  const etat0 = (await app.inject({ method: 'GET', url: '/admin/direction/prix', headers: H })).json();
+  assert.equal(etat0.ajustementPct, 0);
+  assert.deepEqual(etat0.majorationsPct, { or: 5, diamant: 15 });
+
+  const r = await app.inject({ method: 'POST', url: '/admin/direction/prix', headers: H, payload: { ajustementPct: 10 } });
+  assert.equal(r.statusCode, 200, r.body);
+  const etat = r.json();
+  assert.equal(etat.ajustementPct, 10);
+  assert.ok(etat.modifie?.le);
+  const ex = etat.exemples[0];
+  assert.ok(ex.prix.argent > ex.sansAjustement.argent);
+  assert.ok(ex.prix.or > ex.prix.argent && ex.prix.diamant > ex.prix.or, 'écarts de gamme gardés');
+
+  const apres = (await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: YOP, destination: GOLF, category: 'argent' } })).json().quote.amount as number;
+  assert.ok(Math.abs(apres - avant * 1.1) <= 50, `devis du serveur +10 % (${avant} → ${apres})`);
+  const cfg = (await app.inject({ method: 'GET', url: '/config' })).json();
+  assert.equal(cfg.prix.ajustementPct, 10, 'les apps reçoivent la grille');
+
+  const baisse = await app.inject({ method: 'POST', url: '/admin/direction/prix', headers: H, payload: { ajustementPct: -5, majorationsPct: { or: 8, diamant: 20 } } });
+  assert.equal(baisse.json().majorationsPct.or, 8);
+  const mauvais = await app.inject({ method: 'POST', url: '/admin/direction/prix', headers: H, payload: { ajustementPct: 0, majorationsPct: { or: 20, diamant: 10 } } });
+  assert.equal(mauvais.statusCode, 400);
+});

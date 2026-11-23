@@ -8,7 +8,7 @@ import {
   RENTAL_MOIS_MAX, RENTAL_OPTION_KEYS, RENTAL_TARIFF, dureesPermises, remiseMensuelle,
 } from './data';
 import { repondreLocal, reserverLocationLocale } from './serveurLocal';
-import { BAREME, BAREME_LIVRAISON, prixCourse, prixLivraison, prixMiseADisposition, traficServeur } from './tarifServeur';
+import { appliquerGrillePrix, BAREME, BAREME_LIVRAISON, prixCourse, prixLivraison, prixMiseADisposition, traficServeur, type GrillePrixServeur } from './tarifServeur';
 import { baseTempsReel, confirmerCodeGoogle, enTeteRecaptcha, enTetesPasserelle, envoyerCodeGoogle, identiteGoogleActive } from './securiteGoogle';
 
 /**
@@ -622,11 +622,14 @@ export interface AppConfig {
   currency: string;
   /** Le serveur sait envoyer le code de connexion par WhatsApp. */
   codeWhatsApp?: boolean;
+  /** Grille de prix de la direction (ajustement général, écarts entre gammes). */
+  prix?: GrillePrixServeur;
 }
 
 export async function fetchAppConfig(): Promise<AppConfig | null> {
   const res = await tryFetch<Partial<AppConfig>>('/config');
   if (!res) return null;
+  appliquerGrillePrix(res.prix);
   return {
     city: res.city ?? 'Abidjan',
     open: res.open ?? true,
@@ -634,6 +637,7 @@ export async function fetchAppConfig(): Promise<AppConfig | null> {
     gateways: res.gateways ?? {},
     currency: res.currency ?? 'XOF',
     codeWhatsApp: res.codeWhatsApp === true,
+    ...(res.prix ? { prix: res.prix } : {}),
   };
 }
 

@@ -44,9 +44,9 @@ export const BAREME = {
   tvaRate: 0.05, feeRate: 0.1, insuranceRate: 0.04, trafficWeight: 0.6, stopFee: 250,
   bodySurcharge: { berline: 1, suv: 1.08 } as Record<string, number>,
   /** Majoration de chaque gamme par rapport à l'Argent, en pour cent du prix de la course. */
-  majorationsPct: { argent: 0, or: 5, diamant: 15 },
+  majorationsPct: { argent: 0, or: 5, diamant: 15 } as Record<Gamme, number>,
   /** Même majoration quand la course sort du district d'Abidjan : 10 % entre les gammes. */
-  majorationsPctHorsAbidjan: { argent: 0, or: 10, diamant: 20 },
+  majorationsPctHorsAbidjan: { argent: 0, or: 10, diamant: 20 } as Record<Gamme, number>,
   /** Mise à disposition à l'heure (Abidjan) : prix TTC d'une heure en Argent, durée permise. */
   miseADisposition: { tarifHeure: 5000, minHeures: 2, maxHeures: 12 },
 } as const;
@@ -61,6 +61,24 @@ const ORDRE_GAMMES: readonly Gamme[] = ['argent', 'or', 'diamant'];
  * du serveur : le pourcentage de la gamme (Or 5 %, Diamant 15 %) arrondi à 50 F, avec au
  * moins 50 F d'écart entre deux gammes ; une course gratuite le reste.
  */
+/**
+ * GRILLE DE LA DIRECTION reçue du serveur (config publique, en direct) : ajustement général des
+ * prix et écarts entre gammes réglés par le PDG dans la console. Les aperçus de l'app suivent
+ * le serveur sans nouvelle version de l'application.
+ */
+export interface GrillePrixServeur {
+  ajustementPct: number;
+  majorationsPct: { or: number; diamant: number };
+  majorationsPctHorsAbidjan: { or: number; diamant: number };
+}
+let ajustementDirection = 1;
+export function appliquerGrillePrix(g: Partial<GrillePrixServeur> | undefined | null): void {
+  if (!g) return;
+  if (typeof g.ajustementPct === 'number' && Number.isFinite(g.ajustementPct)) ajustementDirection = 1 + Math.min(100, Math.max(-50, g.ajustementPct)) / 100;
+  if (g.majorationsPct) Object.assign(BAREME.majorationsPct, { or: g.majorationsPct.or, diamant: g.majorationsPct.diamant });
+  if (g.majorationsPctHorsAbidjan) Object.assign(BAREME.majorationsPctHorsAbidjan, { or: g.majorationsPctHorsAbidjan.or, diamant: g.majorationsPctHorsAbidjan.diamant });
+}
+
 export function supplementGamme(gamme: Gamme, montantArgent: number, horsAbidjan = false): number {
   if (montantArgent <= 0) return 0;
   const grille = horsAbidjan ? BAREME.majorationsPctHorsAbidjan : BAREME.majorationsPct;
@@ -208,7 +226,7 @@ export function prixMiseADisposition(d: { heures: number; gamme?: Gamme; insuran
   const heures = heuresMiseADisposition(d.heures);
   const tauxSansAssurance = 1 + s.tvaRate + s.feeRate;
   const tauxTtc = tauxSansAssurance + (d.insurance ? s.insuranceRate : 0);
-  const montantArgent = arrondi50(((heures * s.miseADisposition.tarifHeure) / tauxSansAssurance) * tauxTtc);
+  const montantArgent = arrondi50(((heures * s.miseADisposition.tarifHeure) / tauxSansAssurance) * tauxTtc * ajustementDirection);
   const amount = montantArgent + supplementGamme(d.gamme ?? 'argent', montantArgent, false);
   const subtotal = amount / tauxTtc;
   return {
@@ -267,7 +285,7 @@ export function prixCourse(d: {
   const plancher = Math.max(brut, s.minFare * m, regles.premiumFloor ?? 0);
 
   const tauxTtc = 1 + s.tvaRate + s.feeRate + (d.insurance ? s.insuranceRate : 0);
-  const montantArgent = arrondi50(plancher * tauxTtc);
+  const montantArgent = arrondi50(plancher * tauxTtc * ajustementDirection);
   // Hors d'Abidjan, l'écart entre gammes passe à 10 % ; les péages de l'itinéraire choisi s'ajoutent tels quels.
   const horsAbidjan = sortDAbidjan([d.origin, ...(d.stops ?? []), d.destination]);
   const peage = d.itineraire === 'normal' ? 0 : PEAGES_TARIF.filter((p) => d.peages?.includes(p.id)).reduce((t, p) => t + p.montant, 0);

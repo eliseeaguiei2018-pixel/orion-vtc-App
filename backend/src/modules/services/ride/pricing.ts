@@ -57,6 +57,23 @@ export interface PricingSettings {
    * kilomètre et chaque minute d'approche s'ajoutent au prix fixe (hors taxes).
    */
   approche: ApprocheTarif;
+  /**
+   * AJUSTEMENT GÉNÉRAL DES PRIX décidé par la direction (Mon poste du PDG), en % : +10 monte
+   * toutes les courses de 10 %, −5 les baisse de 5 %. Appliqué au prix TTC de l'Argent, AVANT
+   * les majorations de gamme : Or et Diamant gardent leur écart de la grille (+5 %, +15 %).
+   * Péages non concernés (reversés tels quels).
+   */
+  ajustementPct: number;
+  /** Qui a réglé l'ajustement, et quand (affiché dans Mon poste). */
+  ajustementModifie?: { le: string; par: string };
+}
+
+export const AJUSTEMENT_MIN = -50;
+export const AJUSTEMENT_MAX = 100;
+/** Coefficient de l'ajustement de la direction (borné, 1 = aucun). */
+export function coefAjustement(s: Pick<PricingSettings, 'ajustementPct'>): number {
+  const p = Number.isFinite(s.ajustementPct) ? s.ajustementPct : 0;
+  return 1 + Math.min(AJUSTEMENT_MAX, Math.max(AJUSTEMENT_MIN, p)) / 100;
 }
 
 export interface ApprocheTarif { actif: boolean; offerteKm: number; offerteMin: number; parKm: number; parMin: number }
@@ -74,6 +91,7 @@ export const DEFAULT_PRICING: PricingSettings = {
   cleaningLight: 10_000, cleaningMajor: 50_000,
   longPickupPerKm: 100, longPickupThresholdKm: 5,
   approche: { actif: true, offerteKm: 2, offerteMin: 5, parKm: 100, parMin: 18 },
+  ajustementPct: 0,
 };
 
 /** Coût hors taxes de l'approche (0 tant qu'elle reste dans la part offerte). */
@@ -233,7 +251,7 @@ function estimateMiseADisposition(req: EstimateRequest, s: PricingSettings, cate
   const tauxSansAssurance = 1 + s.tvaRate + s.feeRate;
   const tauxTtc = tauxSansAssurance + (req.insurance ? s.insuranceRate : 0);
   const horsTaxes = (heures * (s.miseADisposition ?? DEFAULT_PRICING.miseADisposition).tarifHeure) / tauxSansAssurance;
-  const montantArgent = roundFcfa(horsTaxes * tauxTtc);
+  const montantArgent = roundFcfa(horsTaxes * tauxTtc * coefAjustement(s));
   const amount = montantArgent + supplementGamme(category, montantArgent, s, false);
   const subtotal = amount / tauxTtc;
   return {
@@ -301,7 +319,8 @@ export function estimatePrice(req: EstimateRequest, ctx: PricingContext = {}): P
   // course (zone, forfait, trafic, carrosserie, assurance, remise). Le détail (sous-total,
   // TVA, frais, assurance) est recalculé à partir du montant final, pour rester juste.
   const tauxTtc = 1 + s.tvaRate + s.feeRate + (req.insurance ? s.insuranceRate : 0);
-  const montantArgent = roundFcfa((floored - discount) * tauxTtc);
+  // Ajustement général décidé par la direction (Mon poste du PDG), avant la majoration de gamme.
+  const montantArgent = roundFcfa((floored - discount) * tauxTtc * coefAjustement(s));
   // Hors d'Abidjan (départ, arrêt ou arrivée hors du district), l'écart entre gammes passe à 10 %.
   const horsAbidjan = sortDAbidjan([req.origin, ...stops, req.destination]);
   // Péages de l'itinéraire choisi (pont HKB, 4ᵉ pont…) : reversés tels quels, sans majoration.

@@ -1,3 +1,4 @@
+import { configPublique } from './modules/support/configPublique.js';
 import { TableauDeBord } from './modules/dashboard/service.js';
 import { Geocodeur } from './modules/maps/geocodage.js';
 import { ServiceObjectifs } from './modules/dashboard/objectifs.js';
@@ -291,10 +292,14 @@ export function createContainer(): Container {
   // console (maintenance, services, passerelles), toutes les apps clientes connectées au
   // canal WS `config` reçoivent la nouvelle config et se mettent à jour instantanément.
   // Même forme que GET /config (contrat app cliente), WhatsApp compris : lu au moment de la diffusion.
-  settings.onServicesChanged((cfg) => realtime.publish(CONFIG_ROOM, 'config.update', { ...cfg, currency: 'XOF', codeWhatsApp: container.whatsapp !== null }));
+  settings.onServicesChanged(() => realtime.publish(CONFIG_ROOM, 'config.update', configPublique(container)));
   // App CHAUFFEUR synchronisée : réglages flotte (délai d'offre, commissions, dette
   // espèces, heures creuses, zones) rediffusés à chaque changement console…
-  settings.onDriverConfigChanged(() => realtime.publish(DRIVER_CONFIG_ROOM, 'driver-config.update', driverAppConfig(settings)));
+  settings.onDriverConfigChanged(() => {
+    realtime.publish(DRIVER_CONFIG_ROOM, 'driver-config.update', driverAppConfig(settings));
+    // Les prix ont pu changer (Mon poste du PDG, Tarification) : les apps clientes reçoivent la grille.
+    realtime.publish(CONFIG_ROOM, 'config.update', configPublique(container));
+  });
   // …et chaque modification de fiche (KYC, suspension motivée, avertissement, VIP,
   // fidélité, disponibilité) poussée en direct au chauffeur concerné.
   drivers.onChange((d) => realtime.publish(driverRoom(d.id), 'driver.update', { driver: d }));

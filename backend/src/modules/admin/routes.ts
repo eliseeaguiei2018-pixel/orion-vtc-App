@@ -1,3 +1,4 @@
+import { AJUSTEMENT_MAX, AJUSTEMENT_MIN, estimatePrice } from '../services/ride/pricing.js';
 import { gammesServies } from '../drivers/store.js';
 import { mediasSchema } from '../rental/medias.js';
 import { exigerHumain } from '../gcp/securite.js';
@@ -1295,6 +1296,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
           cleaningMajor: z.number().min(0).max(500_000).optional(),
           longPickupPerKm: z.number().min(0).max(2000).optional(),
           longPickupThresholdKm: z.number().min(0).max(50).optional(),
+          ajustementPct: z.number().min(-50).max(100).optional(),
           // Approche du chauffeur comprise dans le prix (offerte jusqu'au seuil).
           approche: z.object({
             actif: z.boolean(), offerteKm: z.number().min(0).max(30), offerteMin: z.number().min(0).max(60),
@@ -3983,6 +3985,69 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         throw forbidden('Un chef d’équipe ne gère que les comptes de ses propres équipes.');
       }
     };
+
+    /* ------------- Prix des courses : réglage de la direction (Mon poste du PDG) ------------- */
+    // Monter ou baisser TOUS les prix des courses d'un pourcentage, et régler l'écart entre les
+    // gammes (grille ORION : Or +5 %, Diamant +15 % ; hors Abidjan +10 %, +20 %). Effet immédiat
+    // sur chaque nouveau devis du serveur ; les apps reçoivent la grille en direct, sans mise à jour.
+    const exigerDirectionPrix = (req: FastifyRequest) => {
+      const { admin } = req as FastifyRequest & { admin: AdminAccount };
+      if (!admin || !['super_admin', 'ceo', 'dg'].includes(admin.role)) throw forbidden('Seule la direction règle les prix des courses.');
+      return admin;
+    };
+    const TRAJETS_TYPES = [
+      { trajet: 'Plateau → Cocody Riviera 2', origin: { lat: 5.3236, lng: -4.0217 }, destination: { lat: 5.3599, lng: -3.9697 } },
+      { trajet: 'Yopougon → Riviera Golf', origin: { lat: 5.3441, lng: -4.0637 }, destination: { lat: 5.3588, lng: -3.964 } },
+      { trajet: 'Marcory → Treichville', origin: { lat: 5.303, lng: -3.987 }, destination: { lat: 5.2967, lng: -4.0094 } },
+    ];
+    const etatPrix = () => {
+      const p = container.settings.getPricing();
+      const prixPour = (ajustementPct: number) => (t: typeof TRAJETS_TYPES[number]) =>
+        Object.fromEntries((['argent', 'or', 'diamant'] as const).map((g) => [g, estimatePrice({ origin: t.origin, destination: t.destination, category: g }, { settings: { ...p, ajustementPct } }).amount]));
+      return {
+        ajustementPct: p.ajustementPct ?? 0,
+        bornes: { min: AJUSTEMENT_MIN, max: AJUSTEMENT_MAX },
+        majorationsPct: { or: p.majorationsPct['or'] ?? 0, diamant: p.majorationsPct['diamant'] ?? 0 },
+        majorationsPctHorsAbidjan: { or: p.majorationsPctHorsAbidjan?.['or'] ?? 0, diamant: p.majorationsPctHorsAbidjan?.['diamant'] ?? 0 },
+        modifie: p.ajustementModifie ?? null,
+        // Prix sur des trajets types (hors trafic, zone et forte demande), avec et sans l'ajustement.
+        exemples: TRAJETS_TYPES.map((t) => ({
+          trajet: t.trajet,
+          km: Math.round(estimatePrice({ origin: t.origin, destination: t.destination, category: 'argent' }, { settings: p }).distanceMeters / 100) / 10,
+          prix: prixPour(p.ajustementPct ?? 0)(t),
+          sansAjustement: prixPour(0)(t),
+        })),
+      };
+    };
+    scoped.get('/admin/direction/prix', async (req) => {
+      exigerDirectionPrix(req);
+      return etatPrix();
+    });
+    scoped.post('/admin/direction/prix', async (req) => {
+      const admin = exigerDirectionPrix(req);
+      const pct = z.number().min(0).max(100);
+      const body = parse(z.object({
+        ajustementPct: z.number().min(AJUSTEMENT_MIN).max(AJUSTEMENT_MAX),
+        majorationsPct: z.object({ or: pct, diamant: pct }).optional(),
+        majorationsPctHorsAbidjan: z.object({ or: pct, diamant: pct }).optional(),
+      }), req.body);
+      // La grille garde son ordre : le Diamant ne coûte jamais moins que l'Or.
+      for (const g of [body.majorationsPct, body.majorationsPctHorsAbidjan]) {
+        if (g && g.diamant < g.or) throw badRequest('Le Diamant doit rester au moins au niveau de l’Or.');
+      }
+      const avant = etatPrix();
+      container.settings.updatePricing({
+        ajustementPct: Math.round(body.ajustementPct * 10) / 10,
+        ...(body.majorationsPct ? { majorationsPct: body.majorationsPct } : {}),
+        ...(body.majorationsPctHorsAbidjan ? { majorationsPctHorsAbidjan: body.majorationsPctHorsAbidjan } : {}),
+        ajustementModifie: { le: new Date().toISOString(), par: admin.name || admin.username || 'Direction' },
+      });
+      audit(req, 'pricing.direction', undefined, {
+        avant: { ajustementPct: avant.ajustementPct, majorationsPct: avant.majorationsPct, majorationsPctHorsAbidjan: avant.majorationsPctHorsAbidjan },
+        apres: body,
+      });
+      return etatPrix();
+    });
 
     /* ---------------------- Accès testeurs (connexion sans SMS) ---------------------- */
     // Réservé à la direction (PDG, DG, super-administrateur) : inviter un numéro lui ouvre

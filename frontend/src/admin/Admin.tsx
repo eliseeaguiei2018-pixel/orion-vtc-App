@@ -2,7 +2,7 @@ import { enTeteRecaptcha } from '../securiteGoogle';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { avis, demander, demanderLieu } from './dialogues';
 import { LogoApp } from '../components/Logo';
-import { IconMenu, IconActivity, IconAlarm, IconAlert, IconBank, IconBell, IconBellOff, IconAward, IconBuilding, IconCar, IconCash, IconChart, IconCompass, IconCrown, IconFile, IconGem, IconGrid, IconIdCard, IconInbox, IconKey, IconLeaf, IconLock, IconMail, IconMap, IconMegaphone, IconMessage, IconMonitor, IconMoon, IconScale, IconShield, IconSignal, IconStar, IconSteering, IconSun, IconTag, IconTarget, IconTicket, IconTrend, IconUsers, IconWallet } from '../icons';
+import { IconMenu, IconActivity, IconAlarm, IconAlert, IconBank, IconBell, IconBellOff, IconAward, IconBuilding, IconCar, IconCash, IconChart, IconCompass, IconCrown, IconFile, IconGem, IconGrid, IconIdCard, IconInbox, IconKey, IconLeaf, IconLock, IconMail, IconMap, IconMegaphone, IconMessage, IconMonitor, IconMoon, IconScale, IconSearch, IconShield, IconSignal, IconStar, IconSteering, IconSun, IconTag, IconTarget, IconTicket, IconTrend, IconUsers, IconWallet } from '../icons';
 import { DEMO } from './demo';
 import { suivreBus, type EtatBus } from '../busTest';
 import { empreinteBus, fusionBusConsole } from './busConsole';
@@ -26,6 +26,8 @@ import { AnnuaireSection, ChangerMotDePasse } from './sections/annuaire';
 import type { AccountsStats, ActiveSession, Alert, Amortization, Announcement, AssistantSujet, CaisseConsolidation, CaisseEtat, CaisseReferentiel, CrewTableau, DossierEquipage, EquipageRow, PosteEquipe, RoleOption, StaffAccountRow, SuiviFlotte, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, ContactJournal, ContactUrgence, CopilotAnswer, ExecutiveBoard, MonPoste, MouvementPage, SanteVigilance, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, RentalTarifEtat, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
 import { ClientDrawer, DriverDrawer } from './ui';
 import { AccesTesteursSection } from './sections/testeurs';
+import { PrixDirection } from './sections/prixDirection';
+import { PANNEAUX } from './panneaux';
 import { DialogueAttribution, DialogueAttribuerCourse, type FicheAttribution } from './attribution';
 import { PrimesSection } from './sections/primes';
 import { consoleNative, enTetesNatifs, garderJetonNatif } from './natif';
@@ -286,6 +288,24 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [section, setSection] = useState<Section>('monPoste');
   // Téléphone et tablette en portrait : le menu est un tiroir, fermé par défaut.
   const [menuOuvert, setMenuOuvert] = useState(false);
+  // RECHERCHE D'UN PANNEAU : taper son nom (« prix », « testeurs », « caisse »…) y conduit
+  // directement, sans faire défiler le menu ni la page. Ctrl+K ou « / » place le curseur.
+  const [cherche, setCherche] = useState('');
+  const [choix, setChoix] = useState(0);
+  const champCherche = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const touche = (e: KeyboardEvent) => {
+      const cible = e.target as HTMLElement | null;
+      const saisie = cible && (cible.tagName === 'INPUT' || cible.tagName === 'TEXTAREA' || cible.tagName === 'SELECT' || cible.isContentEditable);
+      if ((e.key === 'k' && (e.ctrlKey || e.metaKey)) || (e.key === '/' && !saisie)) {
+        e.preventDefault();
+        setMenuOuvert(true);
+        window.setTimeout(() => champCherche.current?.focus(), 30);
+      }
+    };
+    window.addEventListener('keydown', touche);
+    return () => window.removeEventListener('keydown', touche);
+  }, []);
   /*
    * Sur petit écran, un tableau large défile horizontalement dans sa carte. Une zone qui
    * défile doit être atteignable au clavier (WCAG 2.1.1) : elle devient une région nommée
@@ -1578,6 +1598,39 @@ function Console({ onLogout }: { onLogout: () => void }) {
   if (!me || (!ov && me.permissions.includes('overview:read'))) return <div className="adm-loading">Chargement de la console…</div>;
 
   const can = (p: string) => me.permissions.includes(p);
+  // Résultats de la recherche de panneaux : sessions du menu, puis panneaux à l'intérieur.
+  const sansAccents = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  type ResultatPanneau = { titre: string; section: Section; dans: string | null; permis: boolean; libelle: string };
+  const resultatsPanneaux: ResultatPanneau[] | null = (() => {
+    const q = sansAccents(cherche.trim());
+    if (!q) return null;
+    const mots = q.split(/\s+/);
+    const trouve = (t: string) => { const n = sansAccents(t); return mots.every((m) => n.includes(m)); };
+    const permis = (id: string) => { const n = NAV.find((x) => x.id === id); return !n || n.perm === '' || can(n.perm); };
+    const visible = (id: string) => permis(id) || me.role !== 'chauffeur';
+    const sessions = NAV.filter((n) => trouve(n.label) && visible(n.id)).map((n) => ({ titre: n.label, section: n.id, dans: null, permis: permis(n.id), libelle: n.label }));
+    const panneaux = PANNEAUX.filter((x) => trouve(x.titre) && visible(x.section)).map((x) => {
+      const n = NAV.find((y) => y.id === x.section);
+      return { titre: x.titre, section: x.section as Section, dans: n?.label ?? null, permis: permis(x.section), libelle: n?.label ?? x.titre };
+    });
+    return [...sessions, ...panneaux].slice(0, 40);
+  })();
+  const allerAuPanneau = (r: ResultatPanneau) => {
+    setCherche(''); setChoix(0); setMenuOuvert(false);
+    if (!r.permis) { void openLocked(r.section, r.libelle); return; }
+    setSection(r.section);
+    if (!r.dans) return;
+    // Le panneau est dans la session : on y descend et on le signale un instant.
+    const viser = (essai: number) => {
+      const titre = [...document.querySelectorAll<HTMLElement>('.adm-main h3')].find((h) => h.textContent?.replace(/\s+/g, ' ').trim() === r.titre);
+      if (!titre) { if (essai < 12) window.setTimeout(() => viser(essai + 1), 150); return; }
+      const carte = titre.closest<HTMLElement>('.adm-card') ?? titre;
+      carte.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      carte.classList.add('adm-surligne');
+      window.setTimeout(() => carte.classList.remove('adm-surligne'), 1800);
+    };
+    window.setTimeout(() => viser(0), 120);
+  };
   const openAlerts = alerts.filter((a) => a.status !== 'resolved' && a.status !== 'cancelled');
 
   return (
@@ -1588,6 +1641,36 @@ function Console({ onLogout }: { onLogout: () => void }) {
           <LogoApp size={40} className="adm-logo-volume" />
           <div><strong>ORION</strong><span className="adm-sub">Centre de contrôle</span></div>
         </div>
+        <div className="adm-cherche-panneau" role="search">
+          <IconSearch size={15} strokeWidth={1.8} />
+          <input ref={champCherche} type="search" value={cherche} placeholder="Rechercher" aria-label="Rechercher un panneau par son nom"
+            aria-controls="adm-resultats-panneaux" autoComplete="off" spellCheck={false}
+            onChange={(e) => { setCherche(e.target.value); setChoix(0); }}
+            onKeyDown={(e) => {
+              if (!resultatsPanneaux) return;
+              if (e.key === 'ArrowDown') { e.preventDefault(); setChoix((c) => Math.min(resultatsPanneaux.length - 1, c + 1)); }
+              else if (e.key === 'ArrowUp') { e.preventDefault(); setChoix((c) => Math.max(0, c - 1)); }
+              else if (e.key === 'Enter' && resultatsPanneaux[choix]) { e.preventDefault(); allerAuPanneau(resultatsPanneaux[choix]!); }
+              else if (e.key === 'Escape') { setCherche(''); }
+            }} />
+          {!cherche && <kbd aria-hidden="true">Ctrl K</kbd>}
+        </div>
+        {resultatsPanneaux ? (
+          <div className="adm-nav adm-resultats-panneaux" id="adm-resultats-panneaux" role="listbox" aria-label="Panneaux trouvés">
+            {resultatsPanneaux.length === 0 && <p className="adm-muted adm-aucun-panneau">Aucun panneau ne porte ce nom.</p>}
+            {resultatsPanneaux.map((r, i) => (
+              <button key={`${r.section}|${r.titre}`} type="button" role="option" aria-selected={i === choix}
+                className={`adm-navi adm-resultat${i === choix ? ' on' : ''}${r.permis ? '' : ' locked'}`}
+                onMouseEnter={() => setChoix(i)} onClick={() => allerAuPanneau(r)}>
+                <span className="col" style={{ minWidth: 0 }}>
+                  <span className="adm-resultat-titre">{r.titre}</span>
+                  {r.dans && <span className="adm-resultat-dans">dans {r.dans}</span>}
+                </span>
+                {!r.permis && <span className="adm-navi-lock" aria-hidden><IconLock size={14} strokeWidth={1.5} /></span>}
+              </button>
+            ))}
+          </div>
+        ) : (
         <nav className="adm-nav">
           {NAV.map((n) => {
             const allowed = n.perm === '' || can(n.perm);
@@ -1609,6 +1692,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
             );
           })}
         </nav>
+        )}
         <div className="adm-side-foot">
           <div className="adm-role"><span className="adm-role-dot" /> {me.roleLabel}</div>
           <div className="adm-me">{me.name}</div>
@@ -1672,6 +1756,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
           />
         )}
         {section === 'direction' && <ObjectifsFinanciersCarte peutModifier={can('finance:write')} />}
+        {/* Mon poste du PDG : réglage des prix des courses (direction seulement). */}
+        {section === 'monPoste' && me && ['super_admin', 'ceo', 'dg'].includes(me.role) && <PrixDirection />}
         {section === 'monPoste' && (
           <MonPosteSection
             poste={monPoste}

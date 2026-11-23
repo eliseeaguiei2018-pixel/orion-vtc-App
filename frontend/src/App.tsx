@@ -52,7 +52,7 @@ import type { VehiculesProches } from './api';
 import { useTrajetTarif } from './tarifTrajet';
 import { alleger, optionRetenue, useItineraires, type ChoixItineraire, type Itineraires, type OptionItineraire } from './itinerairesPeage';
 import { ChoixRoute } from './components/ChoixRoute';
-import { BAREME, dansDistrictAbidjan, distanceVol } from './tarifServeur';
+import { appliquerGrillePrix, BAREME, dansDistrictAbidjan, distanceVol } from './tarifServeur';
 import { useTheme } from './theme';
 
 const PAYMENTS = [
@@ -374,10 +374,13 @@ export function App() {
     let closed = false;
     const apply = (c: Partial<AppConfig> | undefined) => {
       if (!c) return;
+      // Prix réglés par la direction : les aperçus suivent aussitôt.
+      appliquerGrillePrix(c.prix);
       setAppConfig({
         city: c.city ?? 'Abidjan', open: c.open ?? true,
         services: c.services ?? {}, gateways: c.gateways ?? {}, currency: c.currency ?? 'XOF',
         codeWhatsApp: c.codeWhatsApp === true,
+        ...(c.prix ? { prix: c.prix } : {}),
       });
     };
     const connect = () => {

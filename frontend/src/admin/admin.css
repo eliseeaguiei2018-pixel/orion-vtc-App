@@ -725,3 +725,43 @@ html[data-adm-theme='light'] .adm-alarme .adm-btn.ghost { background: transparen
 .adm-gammes-cases { display: flex; flex-wrap: wrap; gap: 4px 18px; }
 .adm-gammes-cases .adm-case { margin: 2px 0 8px; }
 .adm-gammes-cases .adm-case.principale { opacity: 0.8; cursor: default; }
+
+/* ------------- Prix des courses : réglage de la direction (Mon poste du PDG) ------------- */
+.adm-prix-direction { margin-bottom: 16px; }
+.adm-prix-reglage { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 12px 18px; align-items: center; margin: 4px 0 16px; }
+.adm-prix-valeur { display: flex; flex-direction: column; gap: 2px; }
+.adm-prix-valeur strong { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.adm-prix-valeur strong.hausse { color: var(--a-danger); }
+.adm-prix-valeur strong.baisse { color: var(--a-green2); }
+.adm-prix-boutons { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.adm-prix-curseur { grid-column: 1 / -1; width: 100%; accent-color: var(--a-green2); }
+.adm-prix-saisie { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--a-muted); }
+.adm-prix-saisie .adm-input, .adm-prix-champ .adm-input { width: 84px; text-align: right; }
+.adm-prix-grille { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 24px; margin-bottom: 14px; }
+.adm-prix-grille h4 { margin: 0 0 2px; font-size: 13px; font-weight: 600; }
+.adm-prix-grille .adm-muted { font-size: 12px; margin: 0 0 8px; }
+.adm-prix-champ { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 13px; }
+.adm-prix-champ > span:first-child { width: 64px; }
+.adm-prix-exemples td strong { display: block; font-weight: 600; }
+.adm-prix-avant { display: block; font-size: 11.5px; color: var(--a-muted); text-decoration: line-through; }
+.adm-prix-trace { font-size: 12px; margin: 10px 0 0; }
+.adm-prix-confirmer { margin-top: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--a-stroke); background: var(--a-panel); }
+.adm-prix-confirmer p { margin: 0 0 10px; font-size: 13.5px; }
+.adm-ok { color: var(--a-green2); font-size: 13px; margin: 8px 0 0; }
+.adm-table-wrap { overflow-x: auto; }
+.adm-prix-direction .adm-dialogue-actions { margin-top: 12px; flex-wrap: wrap; }
+@media (max-width: 560px) { .adm-prix-reglage { grid-template-columns: 1fr; } .adm-prix-boutons { justify-content: flex-start; } }
+
+/* ---------------- Recherche d'un panneau (menu de la console) ---------------- */
+.adm-cherche-panneau { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; margin: 2px 0 8px;
+  padding: 8px 10px; border-radius: 10px; border: 1px solid var(--a-stroke); background: var(--a-panel); color: var(--a-muted); }
+.adm-cherche-panneau:focus-within { border-color: var(--a-green2); color: var(--a-text); }
+.adm-cherche-panneau input { flex: 1; min-width: 0; border: none; outline: none; background: none; color: var(--a-text); font: inherit; font-size: 13.5px; }
+.adm-cherche-panneau input::-webkit-search-cancel-button { cursor: pointer; }
+.adm-cherche-panneau kbd { font: 500 10.5px var(--a-mono, ui-monospace, monospace); padding: 2px 6px; border-radius: 6px; border: 1px solid var(--a-stroke); color: var(--a-muted); white-space: nowrap; }
+.adm-resultat { align-items: center; }
+.adm-resultat-titre { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-resultat-dans { display: block; font-size: 11.5px; color: var(--a-muted); }
+.adm-aucun-panneau { font-size: 13px; padding: 8px 10px; margin: 0; }
+/* Panneau atteint par la recherche : signalé un instant. */
+.adm-surligne { outline: 2px solid var(--a-green2); outline-offset: 3px; transition: outline-color 0.6s ease; }
