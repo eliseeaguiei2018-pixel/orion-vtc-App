@@ -29,6 +29,9 @@ export async function misesAJourRoutes(app: FastifyInstance, container: Containe
   app.get('/apps/:app/version-native', async (req, reply) => {
     const { app: nom } = req.params as { app: string };
     if (!estApp(nom)) return reply.code(404).send({ error: { code: 'APP_INCONNUE', message: 'Application inconnue' } });
+    // Seules les apps qui savent annoncer les mises à jour appellent cette adresse : le compteur
+    // dit à la direction combien de téléphones ont déjà ce mécanisme.
+    container.misesAJour.compter(nom, 'version-native');
     const v = container.misesAJour.versionNative(nom);
     reply.header('cache-control', 'no-cache');
     if (!v) return reply.code(404).send({ error: { code: 'AUCUNE_APK', message: 'Aucune APK publiée' } });

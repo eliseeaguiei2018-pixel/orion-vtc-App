@@ -166,6 +166,7 @@ test('nouvelle APK : publiée par la direction, annoncée aux apps, télécharg�
   const etat = (await app.inject({ method: 'GET', url: '/admin/mises-a-jour', headers: AUTH })).json();
   assert.equal(etat.apk.chauffeur.versionCode, 27);
   assert.equal(etat.telechargements['chauffeur/ORION-Pro-2.1.0.apk'], 1, 'un téléchargement compté');
+  assert.equal(etat.telechargements['chauffeur/version-native'], 2, 'apps qui annoncent les mises à jour');
   assert.equal(etat.apk.client, null);
 });
 
