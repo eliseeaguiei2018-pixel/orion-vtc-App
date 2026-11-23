@@ -813,7 +813,7 @@ html[data-adm-theme='light'] .adm-alarme .adm-btn.ghost { background: transparen
 @media (max-width: 640px) { .adm-sim-mesures { grid-template-columns: minmax(0, 1fr); } }
 .adm-sim-mesures div { padding: 10px 12px; border-radius: 10px; background: var(--a-panel2); border: 1px solid var(--a-stroke); }
 .adm-sim-mesures dt { font-size: 12px; color: var(--a-muted); margin-bottom: 4px; }
-.adm-sim-mesures dd { margin: 0; font-size: 15px; }
+.adm-sim-mesures dd { margin: 0; font-size: 15px; font-variant-numeric: tabular-nums; }
 .adm-sim .hausse { color: var(--a-danger); } .adm-sim .baisse { color: var(--a-green2); }
 .adm-sim-approches, .adm-sim-prix { margin-top: 4px; }
 .adm-sim-prix { margin-top: 12px; }

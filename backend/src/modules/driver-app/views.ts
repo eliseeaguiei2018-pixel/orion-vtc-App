@@ -155,6 +155,14 @@ export function activeRideFor(container: Container, driverId: string, offer?: { 
     // Code de prise en charge : le chauffeur sait s'il doit le demander, jamais sa valeur.
     codeRequis: container.codesPriseEnCharge.requis(ride.id),
     codeVerifie: Boolean(container.codesPriseEnCharge.lire(ride.id)?.verifieLe),
+    // Livraison : le colis, le destinataire (nom et téléphone, le temps de la mission) et le
+    // code de remise à demander à la livraison (jamais sa valeur).
+    livraison: ride.serviceType === 'delivery' ? {
+      destinataire: ride.livraison?.destinataire ?? null,
+      description: ride.livraison?.description ?? null,
+      instructions: ride.livraison?.instructions ?? null,
+      codeRemiseRequis: container.codesRemise.requis(ride.id),
+    } : null,
     // Offre à confirmer (compte à rebours console) — null si déjà confirmée / chauffeur démo.
     offer: offer && offer.status === 'pending' ? { expiresAt: offer.expiresAt, timeoutSec: offer.timeoutSec } : null,
   };

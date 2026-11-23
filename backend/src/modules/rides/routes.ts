@@ -44,6 +44,12 @@ const createSchema = z.object({
   // Moyen de paiement annoncé : affiché au chauffeur ; « espèces » exclut les chauffeurs
   // dont la dette espèces dépasse le plafond console.
   paymentMethod: z.enum(['cash', 'orange_money', 'mtn_momo', 'moov_money', 'wave', 'card']).optional(),
+  // Livraison à moto : le destinataire du colis (il donnera le code de remise au livreur).
+  livraison: z.object({
+    destinataire: z.object({ nom: z.string().trim().min(1).max(60), telephone: z.string().trim().min(6).max(25) }),
+    description: z.string().trim().max(140).optional(),
+    instructions: z.string().trim().max(240).optional(),
+  }).optional(),
 });
 
 const transitionSchema = z.object({ to: z.custom<RideStatus>() });
@@ -160,6 +166,15 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
         paymentMethod: body.paymentMethod,
         createdAt: new Date().toISOString(),
       };
+      if (quote.serviceType === 'delivery' && body.livraison) {
+        const tel = numeroComposable(body.livraison.destinataire.telephone);
+        if (!tel) throw badRequest('Numéro du destinataire invalide');
+        created.livraison = {
+          destinataire: { nom: body.livraison.destinataire.nom, telephone: tel },
+          ...(body.livraison.description ? { description: body.livraison.description } : {}),
+          ...(body.livraison.instructions ? { instructions: body.livraison.instructions } : {}),
+        };
+      }
       // ABONNEMENT ORION : c'est ICI, à la commande, que le quota est consommé —
       // jamais à l'estimation (consulter un prix ne doit rien coûter au client).
       // Une course payée par un compte Entreprise n'entame pas le quota personnel.
@@ -210,6 +225,9 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       // CODE DE PRISE EN CHARGE : pour une course de passager (pas pour un colis), un code
       // à 4 chiffres que seul le passager voit ; le chauffeur le saisit pour démarrer.
       if (created.serviceType !== 'delivery') container.codesPriseEnCharge.creer(created.id);
+      // CODE DE REMISE : pour un colis, l'expéditeur le transmet au destinataire, qui le donne
+      // au livreur à la livraison. Sans lui, le colis n'est pas déclaré livré.
+      else container.codesRemise.creer(created.id);
       // Nouvelle commande : le tableau de bord l'affiche aussitôt.
       container.realtime.publish(rideRoom(created.id), 'ride.created', { rideId: created.id, status: created.status });
       // App chauffeur : affectation poussée en direct sur son canal personnel.
@@ -232,10 +250,12 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     const drv = ride.driverId ? container.drivers.get(ride.driverId) : undefined;
     reply.code(201);
     const code = container.codesPriseEnCharge.lire(ride.id);
+    const remise = container.codesRemise.lire(ride.id);
     return {
       ride,
       // Le code ne part QU'À celui qui commande ; il n'est dans aucune autre réponse.
       codePriseEnCharge: code && !code.verifieLe ? code.code : null,
+      codeRemise: remise && !remise.verifieLe ? remise.code : null,
       // Photo, véhicule, VRAIE plaque et couleur : le passager reconnaît son chauffeur.
       driver: drv ? chauffeurPourClient(drv) : null,
       shareUrl: ride.shareToken ? `/share/${ride.shareToken}` : null,
@@ -315,6 +335,64 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     return { code: c.code, verifie: Boolean(c.verifieLe), bloque: Boolean(c.bloqueLe), essais: c.essais };
   });
 
+  /** Code de remise d'un colis, pour l'EXPÉDITEUR connecté seulement (jamais pour le livreur). */
+  app.get('/rides/:id/code-remise', async (req) => {
+    const { id } = req.params as { id: string };
+    const ride = container.rides.get(id);
+    if (!ride) throw notFound('Livraison introuvable');
+    if (verifyDriverToken(driverTokenOf(req))) throw forbidden('Le code est réservé à l’expéditeur et au destinataire');
+    requireClient(req, ride.clientId);
+    const c = container.codesRemise.lire(id);
+    if (!c) throw notFound('Pas de code de remise pour cette commande');
+    return { code: c.code, verifie: Boolean(c.verifieLe), bloque: Boolean(c.bloqueLe), essais: c.essais };
+  });
+
+  /**
+   * REMISE DU COLIS PAR LE LIVREUR : il saisit le code que le destinataire lui donne. Bon code :
+   * la livraison est terminée (colis remis à la bonne personne). Mauvais code : refus, essais
+   * restants ; au cinquième, la saisie est bloquée et l'expéditeur est prévenu.
+   */
+  app.post('/rides/:id/livrer', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = parse(z.object({ code: z.string().regex(/^\d{4}$/, 'Le code compte 4 chiffres') }), req.body);
+    const ride = container.rides.get(id);
+    if (!ride) throw notFound('Livraison introuvable');
+    if (ride.serviceType !== 'delivery') throw conflict('Cette commande n’est pas une livraison');
+    const livreur = verifyDriverToken(driverTokenOf(req));
+    if (!livreur) throw unauthorized('Connexion livreur requise');
+    if (ride.driverId !== livreur) throw forbidden('Cette livraison ne vous est pas attribuée');
+    if (ride.status !== 'in_progress') throw conflict('Récupérez d’abord le colis au point de retrait');
+
+    const r = container.codesRemise.verifier(id, body.code);
+    if (!r.ok && r.raison === 'faux') {
+      container.realtime.publish(rideRoom(id), 'ride.remise', { rideId: id, resultat: 'faux', essaisRestants: r.essaisRestants, bloque: r.bloque });
+      if (r.bloque) {
+        container.messages.envoyerSysteme(ride.clientId, {
+          titre: 'Code de remise bloqué',
+          texte: `Le livreur a saisi un mauvais code de remise ${MAX_ESSAIS} fois. La supervision ORION vous rappelle avant toute remise du colis.`,
+          type: 'consigne',
+        });
+        container.audit.log({ actor: 'Système ORION', role: 'super_admin', action: 'livraison.code_bloque', target: id, details: { driverId: livreur } });
+        reply.code(423);
+        return { error: 'Trop d’erreurs : la saisie est bloquée. Appelez la supervision ORION.', essaisRestants: 0, bloque: true };
+      }
+      reply.code(400);
+      return { error: `Code incorrect. ${r.essaisRestants} essai${r.essaisRestants > 1 ? 's' : ''} restant${r.essaisRestants > 1 ? 's' : ''}.`, essaisRestants: r.essaisRestants, bloque: false };
+    }
+    if (!r.ok && r.raison === 'bloque') {
+      reply.code(423);
+      return { error: 'La saisie est bloquée. Appelez la supervision ORION.', essaisRestants: 0, bloque: true };
+    }
+
+    rideStateMachine.assertTransition(ride.status, 'completed');
+    ride.status = 'completed';
+    appendEvent(ride, 'completed', { codeRemiseVerifie: r.ok || r.raison === 'deja_verifie' });
+    container.rides.persist(ride);
+    container.realtime.publish(rideRoom(ride.id), 'ride.status', { rideId: ride.id, status: ride.status });
+    if (r.ok) container.realtime.publish(rideRoom(id), 'ride.remise', { rideId: id, resultat: 'verifie', par: 'livreur' });
+    return { ride };
+  });
+
   /**
    * DÉMARRAGE DE LA COURSE PAR LE CHAUFFEUR : il saisit le code que le passager lui donne.
    * Bon code : la course démarre et l'identité du passager est confirmée. Mauvais code :
@@ -379,6 +457,10 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     // (route /rides/:id/start). Les outils de supervision gardent la main.
     if (body.to === 'in_progress' && container.codesPriseEnCharge.requis(ride.id) && (verifyDriverToken(driverTokenOf(req)) || config.DRIVER_AUTH_STRICT)) {
       throw new AppError(409, 'CODE_REQUIS', 'Saisissez le code de prise en charge donné par le passager.');
+    }
+    // Un livreur ne déclare pas un colis livré sans le code de remise du destinataire.
+    if (body.to === 'completed' && ride.serviceType === 'delivery' && container.codesRemise.requis(ride.id) && (verifyDriverToken(driverTokenOf(req)) || config.DRIVER_AUTH_STRICT)) {
+      throw new AppError(409, 'CODE_REMISE_REQUIS', 'Saisissez le code de remise donné par le destinataire.');
     }
     ride.status = body.to;
     appendEvent(ride, body.to);

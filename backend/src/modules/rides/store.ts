@@ -9,6 +9,14 @@ export interface TrustedContact {
   phone: string;
 }
 
+export interface DetailsLivraison {
+  destinataire: { nom: string; telephone: string };
+  /** Ce que contient le colis (« documents », « gâteau », « téléphone »…). */
+  description?: string;
+  /** Consignes pour le livreur (étage, portail, appeler en arrivant…). */
+  instructions?: string;
+}
+
 export interface Ride {
   id: string;
   clientId: string;
@@ -48,6 +56,11 @@ export interface Ride {
   corporateId?: string;
   /** Moyen de paiement annoncé par le client à la commande (affiché au chauffeur). */
   paymentMethod?: string;
+  /**
+   * LIVRAISON À MOTO : le colis et la personne qui le reçoit. Le livreur les voit le temps de
+   * la mission (comme le prénom d'un passager) ; le téléphone du destinataire sert à l'appeler.
+   */
+  livraison?: DetailsLivraison;
   /**
    * ABONNEMENT ORION appliqué à la course, figé à la commande.
    *

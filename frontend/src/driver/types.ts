@@ -142,6 +142,15 @@ export interface ActiveRide extends RideView {
   /** Le passager doit donner son code à 4 chiffres pour démarrer (jamais sa valeur). */
   codeRequis?: boolean;
   codeVerifie?: boolean;
+  /** Livraison à moto : le colis, son destinataire, et le code de remise à demander (jamais sa valeur). */
+  livraison?: DetailsLivraison | null;
+}
+
+export interface DetailsLivraison {
+  destinataire: { nom: string; telephone: string } | null;
+  description: string | null;
+  instructions: string | null;
+  codeRemiseRequis: boolean;
 }
 
 export interface Totals { rides: number; gross: number; net: number; commission: number; cashCollected: number }

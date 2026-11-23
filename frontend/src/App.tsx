@@ -35,7 +35,7 @@ import {
   DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { urlApi, contactCourse, lireCodePriseEnCharge, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, modeLocal, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, reserverMariage, mesMariages, type ReservationMariage, chargerPortefeuille, resumeCotisations, transfererPortefeuille, type Cotisations, type MouvementPortefeuille, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, sosTerminer, type MotifFinSos, subscribePlan, type Announcement, type AppConfig, type CanalCode, type PkgSize, type SafeDriver, type SosSuivi, type StatutDemandeSos, type SupportMessage } from './api';
+import { urlApi, contactCourse, lireCodePriseEnCharge, lireCodeRemise, type DetailsLivraison, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, modeLocal, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, reserverMariage, mesMariages, type ReservationMariage, chargerPortefeuille, resumeCotisations, transfererPortefeuille, type Cotisations, type MouvementPortefeuille, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, sosTerminer, type MotifFinSos, subscribePlan, type Announcement, type AppConfig, type CanalCode, type PkgSize, type SafeDriver, type SosSuivi, type StatutDemandeSos, type SupportMessage } from './api';
 import { useI18n } from './i18n';
 import type { Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
@@ -137,6 +137,8 @@ export function App() {
   const [destination, setDestination] = useState<Place | null>(null);
   const [mode, setMode] = useState<'ride' | 'delivery'>('ride');
   const [pkgSize, setPkgSize] = useState<'petit' | 'moyen' | 'grand'>('moyen');
+  // Livraison : destinataire du colis (il recevra le code de remise de l'expéditeur).
+  const [livraison, setLivraison] = useState<DetailsLivraison | null>(null);
   const [tier, setTier] = useState<TierOption>(TIERS[0]!);
   const [bodyType, setBodyType] = useState<'suv' | 'berline'>('berline');
   const [stops, setStops] = useState<Place[]>([]);
@@ -282,7 +284,7 @@ export function App() {
   useEffect(() => { demarrerMisesAJour({ app: 'client', libre: () => libreMaj.current }); }, []);
   const [live, setLive] = useState(false);
   /**
-   * SERVEUR DE TEST PARTAGÉ (voir busTest.ts) : course envoyée à l'app ORION Chauffeur
+   * SERVEUR DE TEST PARTAGÉ (voir busTest.ts) : course envoyée à l'app ORION Pro
    * installée sur le même téléphone (ou ouverte dans un autre onglet de la page partagée).
    */
   const [busId, setBusId] = useState<string | null>(null);
@@ -534,7 +536,7 @@ export function App() {
       reset();
       return;
     }
-    // Sans serveur, avec l'app ORION Chauffeur sur le même téléphone (ou un onglet chauffeur
+    // Sans serveur, avec l'app ORION Pro sur le même téléphone (ou un onglet chauffeur
     // ouvert sur la page partagée) : la course part vers ce chauffeur, pour de vrai.
     if (modeLocal() && arrivee) {
       const bus = await etatBus();
@@ -811,10 +813,11 @@ export function App() {
   };
 
   /** Lance une livraison moto (retrait → dépôt), tarif coursier, suivi moto. */
-  const startDelivery = async (dropoff: Place, size: PkgSize) => {
+  const startDelivery = async (dropoff: Place, size: PkgSize, details?: DetailsLivraison) => {
     setMode('delivery');
     setPkgSize(size);
     setDestination(dropoff);
+    setLivraison(details ?? null);
     setScreen('searching');
 
     // Backend connecté : la livraison est une VRAIE commande (devis coursier verrouillé
@@ -824,7 +827,7 @@ export function App() {
       const q = await estimateDelivery(origin.location, dropoff.location, size, promo || undefined);
       if (q) {
         setQuote(q);
-        const res = await createRide(q.lockId, clientId(), shareRides && trusted ? trusted : undefined, payment);
+        const res = await createRide(q.lockId, clientId(), shareRides && trusted ? trusted : undefined, payment, details);
         if (res?.ride?.driverId) {
           setRideId(res.ride.id);
           setLive(true);
@@ -1001,7 +1004,7 @@ export function App() {
         {screen === 'delivery' && (
           <DeliveryScreen origin={origin} departAConfirmer={departAConfirmer} dropoff={depotLivraison} pkgSize={pkgSize}
             onPickup={() => ouvrirChoix('depart', 'delivery')} onDropoff={() => ouvrirChoix('livraison', 'delivery')}
-            onBack={() => { setDepotLivraison(null); setScreen('home'); }} onConfirm={(d, s) => { setDepotLivraison(null); void startDelivery(d, s); }} />
+            onBack={() => { setDepotLivraison(null); setScreen('home'); }} onConfirm={(d, s, det) => { setDepotLivraison(null); void startDelivery(d, s, det); }} />
         )}
 
         {screen === 'estimate' && destination && (
@@ -1052,7 +1055,7 @@ export function App() {
         {screen === 'tracking' && destination && driver && (
           <TrackingScreen onMessage={messagerie.recevoir} messages={messagerie.actif ? { nonLus: messagerie.nonLus, ouvrir: () => { setRetourMessages('tracking'); setScreen('messages'); } } : undefined} origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase} mode={mode}
             carPos={carPos} setCarPos={setCarPos} setPhase={setTripPhase} live={live} rideId={rideId} stops={stops} codeTest={busId ? busCode : null}
-            passager={passager} commandePar={profil?.name ?? ''}
+            passager={passager} commandePar={profil?.name ?? ''} destinataire={mode === 'delivery' ? livraison?.destinataire ?? null : null}
             pause={controleOuvert || (sosOuvert && modeLocal())}
             onSos={triggerSos} onShare={() => void partagerTrajet()} onArrived={() => setScreen('payment')}
             onCancel={cancelCurrentRide}
@@ -1900,10 +1903,21 @@ function HomeScreen({ announce, closed, deliveryOff, city, depart, onPosition, o
 /* ----------------------------- Livraison ----------------------------- */
 function DeliveryScreen({ origin, departAConfirmer, dropoff, pkgSize, onPickup, onDropoff, onBack, onConfirm }: {
   origin: Place; departAConfirmer: boolean; dropoff: Place | null; pkgSize: PkgSize;
-  onPickup: () => void; onDropoff: () => void; onBack: () => void; onConfirm: (dropoff: Place, size: PkgSize) => void;
+  onPickup: () => void; onDropoff: () => void; onBack: () => void; onConfirm: (dropoff: Place, size: PkgSize, details: DetailsLivraison) => void;
 }) {
   const { t } = useI18n();
   const [size, setSize] = useState<PkgSize>(pkgSize);
+  // Le destinataire : son nom et son téléphone (le livreur l'appelle, il reçoit le code de remise).
+  const [destNom, setDestNom] = useState('');
+  const [destTel, setDestTel] = useState('');
+  const [contenu, setContenu] = useState('');
+  const [consignes, setConsignes] = useState('');
+  const destOk = destNom.trim().length >= 2 && destTel.replace(/\D/g, '').length >= 8;
+  const details = (): DetailsLivraison => ({
+    destinataire: { nom: destNom.trim(), telephone: destTel.trim() },
+    ...(contenu.trim() ? { description: contenu.trim() } : {}),
+    ...(consignes.trim() ? { instructions: consignes.trim() } : {}),
+  });
   const trajet = useTrajetTarif(dropoff ? [origin.location, dropoff.location] : null);
   const quote = useMemo(() => (dropoff && trajet.pret ? previewDelivery(origin.location, dropoff.location, size) : null), [dropoff, size, origin.location, trajet.pret, trajet.trajet]);
   const sizes: PkgSize[] = ['petit', 'moyen', 'grand'];
@@ -1943,6 +1957,13 @@ function DeliveryScreen({ origin, departAConfirmer, dropoff, pkgSize, onPickup, 
                 <button key={s} className={`chip${s === size ? ' active' : ''}`} onClick={() => setSize(s)}>{t(`del_${s}`)}</button>
               ))}
             </div>
+            <span className="eyebrow">{t('liv_dest_titre')}</span>
+            <div className="liv-champs">
+              <input className="input" autoComplete="off" value={destNom} onChange={(e) => setDestNom(e.target.value.slice(0, 60))} placeholder={t('liv_dest_nom')} aria-label={t('liv_dest_nom')} />
+              <input className="input" type="tel" inputMode="tel" autoComplete="off" value={destTel} onChange={(e) => setDestTel(e.target.value.slice(0, 25))} placeholder={t('liv_dest_tel')} aria-label={t('liv_dest_tel')} />
+              <input className="input liv-large" value={contenu} onChange={(e) => setContenu(e.target.value.slice(0, 140))} placeholder={t('liv_desc')} aria-label={t('liv_desc')} />
+              <input className="input liv-large" value={consignes} onChange={(e) => setConsignes(e.target.value.slice(0, 240))} placeholder={t('liv_instr')} aria-label={t('liv_instr')} />
+            </div>
             {quote && (
               <div className="fare-total" style={{ marginBottom: 12 }}>
                 <span className="row gap-sm"><TrafficBadge level={quote.trafficLevel} /><span className="muted">{t('conf_total')}</span></span>
@@ -1952,10 +1973,11 @@ function DeliveryScreen({ origin, departAConfirmer, dropoff, pkgSize, onPickup, 
             {departAConfirmer ? (
               <button className="btn btn-primary" onClick={onPickup}><IconPin size={18} /> {t('lieu_confirmer_depart')}</button>
             ) : (
-              <button className="btn btn-primary" onClick={() => onConfirm(dropoff, size)}>
+              <button className="btn btn-primary" disabled={!destOk} onClick={() => onConfirm(dropoff, size, details())}>
                 <IconBolt size={18} /> {t('del_cta')}
               </button>
             )}
+            {!destOk && !departAConfirmer && <p className="faint" style={{ textAlign: 'center', fontSize: 12, marginTop: 6 }}>{t('liv_dest_requis')}</p>}
             <p className="faint" style={{ textAlign: 'center', fontSize: 12, marginTop: 8 }}>{t('del_note')}</p>
           </>
         )}
@@ -2474,8 +2496,10 @@ function SearchingScreen({ origin, destination, mode = 'ride', test = false, onC
 }
 
 /* ----------------------------- Tracking ------------------------------ */
-function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, codeTest = null, pause = false, passager = null, commandePar = '', onSos, onShare, onArrived, onCancel, onReassigned, onServerCancel, onMessage, messages }: {
+function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, codeTest = null, pause = false, passager = null, commandePar = '', destinataire = null, onSos, onShare, onArrived, onCancel, onReassigned, onServerCancel, onMessage, messages }: {
   origin: Place; destination: Place; driver: Driver; tier: TierOption; phase: TripPhase; mode?: 'ride' | 'delivery';
+  /** Livraison : la personne qui reçoit le colis (le code de remise lui est envoyé par SMS). */
+  destinataire?: { nom: string; telephone: string } | null;
   carPos: LatLng | null; setCarPos: (p: LatLng) => void; setPhase: (p: TripPhase) => void;
   /** Course simulée en attente : le contrôle de sécurité ou le SOS est à l'écran. */
   pause?: boolean;
@@ -2529,6 +2553,13 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
     void lireCodePriseEnCharge(rideId).then((c) => { if (c) { setCode(c.code); if (c.verifie) setCodeEtat('ok'); } });
   }, [del, live, rideId, codeTest]);
   useEffect(() => { if (!live && phase === 'inprogress') setCodeEtat('ok'); }, [live, phase]);
+  // CODE DE REMISE (livraison) : l'expéditeur le transmet au destinataire, qui le donne au livreur.
+  const [codeRemise, setCodeRemise] = useState<string | null>(null);
+  useEffect(() => {
+    if (!del) return;
+    if (!live || !rideId) { setCodeRemise(String(1000 + Math.floor(Math.random() * 9000))); return; }
+    void lireCodeRemise(rideId).then((c) => { if (c && !c.verifie) setCodeRemise(c.code); });
+  }, [del, live, rideId]);
   const driverStart = useMemo<LatLng>(() => ({ lat: origin.location.lat - 0.018, lng: origin.location.lng - 0.012 }), [origin.location]);
 
   useEffect(() => {
@@ -2629,6 +2660,22 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
               {code.split('').map((c, i) => <span key={i}>{c}</span>)}
             </div>
           </div>
+        )}
+        {del && codeRemise && phase !== 'completed' && (
+          <div className="code-prise" role="status" aria-live="polite">
+            <div className="code-prise-texte">
+              <span className="code-prise-titre"><IconShieldCheck size={15} /> {t('liv_code_titre')}</span>
+              <span className="code-prise-aide">{t('liv_code_aide')}</span>
+            </div>
+            <div className="code-prise-chiffres" aria-label={`${t('liv_code_titre')} : ${codeRemise.split('').join(' ')}`}>
+              {codeRemise.split('').map((c, i) => <span key={i}>{c}</span>)}
+            </div>
+          </div>
+        )}
+        {del && codeRemise && destinataire && phase !== 'completed' && (
+          <a className="btn btn-ghost prevenir" href={lienSms([destinataire.telephone], t('liv_sms', { nom: destinataire.nom.split(' ')[0] ?? destinataire.nom, code: codeRemise, livreur: driver.name, de: commandePar || 'ORION' }))}>
+            <IconMessage size={17} /> {t('liv_envoyer_code', { nom: destinataire.nom.split(' ')[0] ?? destinataire.nom })}
+          </a>
         )}
         {!del && passager && (phase === 'enroute' || phase === 'arrived') && (
           <a className="btn btn-ghost prevenir" href={lienSms([passager.telephone], t('fam_sms', { chauffeur: driver.name, vehicule: driver.car, plaque: driver.plate, code: code ?? '—', de: commandePar || 'ORION' }))}>

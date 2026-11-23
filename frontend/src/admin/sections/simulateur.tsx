@@ -322,9 +322,9 @@ export function SimulateurSection() {
           {!m ? <p className="adm-muted">Choisissez un lieu pour mesurer l’effet.</p> : (
             <>
               <dl className="adm-sim-mesures">
-                <div><dt>Chauffeurs libres à {metres(r.rayonOffreM)}</dt><dd className="mono">{m.offreReelle} réel{m.offreReelle > 1 ? 's' : ''} + {m.offreSimulee} simulé{m.offreSimulee > 1 ? 's' : ''}</dd></div>
-                <div><dt>Demandes (10 min)</dt><dd className="mono">{m.demandeReelle} réelle{m.demandeReelle > 1 ? 's' : ''} + {m.demandeSimulee} simulée{m.demandeSimulee > 1 ? 's' : ''}</dd></div>
-                <div><dt>Majoration de forte demande</dt><dd className="mono">{coef(m.surgeSans)} → <strong className={m.surgeAvec > m.surgeSans ? 'hausse' : m.surgeAvec < m.surgeSans ? 'baisse' : ''}>{coef(m.surgeAvec)}</strong></dd></div>
+                <div><dt>Chauffeurs libres à {metres(r.rayonOffreM)}</dt><dd>{m.offreReelle} réel{m.offreReelle > 1 ? 's' : ''} + {m.offreSimulee} simulé{m.offreSimulee > 1 ? 's' : ''}</dd></div>
+                <div><dt>Demandes (10 min)</dt><dd>{m.demandeReelle} réelle{m.demandeReelle > 1 ? 's' : ''} + {m.demandeSimulee} simulée{m.demandeSimulee > 1 ? 's' : ''}</dd></div>
+                <div><dt>Majoration de forte demande</dt><dd>{coef(m.surgeSans)} → <strong className={m.surgeAvec > m.surgeSans ? 'hausse' : m.surgeAvec < m.surgeSans ? 'baisse' : ''}>{coef(m.surgeAvec)}</strong></dd></div>
               </dl>
               <table className="adm-table adm-sim-approches">
                 <thead><tr><th>Approche du plus proche</th><th>Sans simulation</th><th>Avec</th></tr></thead>

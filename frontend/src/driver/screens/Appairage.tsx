@@ -45,7 +45,7 @@ export function Appairage({ app }: { app: DriverApp }) {
         <LogoApp size={72} />
         <h1>{tr('Écran de véhicule ORION')}</h1>
         <p>
-          {tr('Sur votre téléphone, ouvrez l’app ORION Chauffeur, puis « Connecter un écran de véhicule ». Saisissez ici le code à 6 chiffres affiché.')}
+          {tr('Sur votre téléphone, ouvrez l’app ORION Pro, puis « Connecter un écran de véhicule ». Saisissez ici le code à 6 chiffres affiché.')}
         </p>
         <div className="veh-code" onPaste={(e) => { e.preventDefault(); coller(e.clipboardData.getData('text')); }}>
           {chiffres.map((c, i) => (
@@ -114,7 +114,7 @@ export function ConnecterEcranVehicule({ app }: { app: DriverApp }) {
           <div className="dv-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={tr('Connecter un écran de véhicule')}>
             <h2 className="dv-section-title">{tr('Connecter un écran de véhicule')}</h2>
             <p className="faint" style={{ fontSize: 13.5, lineHeight: 1.5 }}>
-              {tr('Sur l’écran de la voiture, ouvrez ORION Chauffeur puis saisissez ce code :')}
+              {tr('Sur l’écran de la voiture, ouvrez ORION Pro puis saisissez ce code :')}
             </p>
             {erreur && <div className="dv-banner danger">{erreur}</div>}
             {code && <div className="veh-code-affiche">{code.replace(/(\d{3})(\d{3})/, '$1 $2')}</div>}

@@ -10,19 +10,21 @@ import { IconBolt, IconChevron, IconLeaf, IconPhone, IconShield } from '../../ic
 import { tr } from '../i18n';
 
 /**
- * Connexion / inscription par téléphone + code SMS.
+ * ORION PRO — connexion / inscription par téléphone + code SMS, pour les chauffeurs VTC ET les
+ * livreurs moto (une seule application, comme Yango Pro).
  *
- * Les chauffeurs ORION sont des salariés d'ORION et roulent sur les véhicules d'ORION. Un
- * nouveau chauffeur ne donne que SES informations (nom, puis date de naissance et permis
- * dans son profil) : il ne choisit ni gamme ni type de course, et ne saisit rien sur le
- * véhicule. ORION lui attribue son matricule, son véhicule et sa gamme depuis la console.
+ * Chauffeurs et livreurs sont salariés d'ORION et roulent sur ses véhicules électriques. Un
+ * nouveau compte choisit seulement son MÉTIER (chauffeur VTC ou livreur moto) et donne son nom ;
+ * ORION lui attribue ensuite son matricule, son véhicule (voiture ou moto) et sa gamme.
  */
+type Metier = 'chauffeur' | 'livreur';
 export function Login({ app }: { app: DriverApp }) {
   const [step, setStep] = useState<'phone' | 'code'>('phone');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [registered, setRegistered] = useState(true);
+  const [metier, setMetier] = useState<Metier>('chauffeur');
   const [devCode, setDevCode] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   const [actif, setActif] = useState(true);
@@ -47,8 +49,9 @@ export function Login({ app }: { app: DriverApp }) {
 
   const verify = async () => {
     setBusy(true);
-    // Aucune gamme envoyée : ORION l'attribue avec le véhicule (console).
-    await app.actions.verifyOtp(phone, code, registered ? undefined : name.trim(), undefined);
+    // Chauffeur : aucune gamme envoyée, ORION l'attribue avec le véhicule (console).
+    // Livreur : sa catégorie est la moto, il reçoit les livraisons de colis.
+    await app.actions.verifyOtp(phone, code, registered ? undefined : name.trim(), registered || metier === 'chauffeur' ? undefined : 'moto');
     setBusy(false);
   };
 
@@ -65,9 +68,9 @@ export function Login({ app }: { app: DriverApp }) {
           <LogoApp size={56} />
           <div className="dv-auth-veh" aria-hidden="true"><VehiculeChauffeur category="argent" largeur={120} /></div>
         </div>
-        <div className="eyebrow">{tr('ORION Chauffeur · {0}', [app.appConfig?.city ?? 'Abidjan'])}</div>
-        <h1 className="h-title" style={{ fontSize: 26, margin: '4px 0 6px' }}>{tr('Votre poste de chauffeur ORION.')}</h1>
-        <p className="h-sub" style={{ marginBottom: 12 }}>{tr('Connectez-vous avec votre numéro. Votre véhicule, votre gamme et votre matricule sont attribués par ORION.')}</p>
+        <div className="eyebrow">{tr('ORION Pro · {0}', [app.appConfig?.city ?? 'Abidjan'])}</div>
+        <h1 className="h-title" style={{ fontSize: 26, margin: '4px 0 6px' }}>{tr('Votre poste ORION Pro.')}</h1>
+        <p className="h-sub" style={{ marginBottom: 12 }}>{tr('Chauffeurs VTC et livreurs moto : connectez-vous avec votre numéro. Votre véhicule et votre matricule sont attribués par ORION.')}</p>
         <div className="row gap-sm" style={{ marginBottom: 14, flexWrap: 'wrap' }}>
           <span className="badge green"><IconLeaf size={13} /> {tr('Mobilité verte')}</span>
           <span className="badge"><IconShield size={13} /> {tr('Sécurité chauffeur')}</span>
@@ -108,7 +111,21 @@ export function Login({ app }: { app: DriverApp }) {
           {devCode && <p className="otp-dev">{tr('Code de test (hors production) :')} <strong>{devCode}</strong></p>}
           {!registered && (
             <>
-              <Banner tone="success" title={tr('Nouveau chauffeur ORION')}>{tr('Créez votre compte avec vos informations. ORION vous attribue ensuite votre matricule, votre véhicule et votre gamme.')}</Banner>
+              <div className="dv-label">{tr('Votre métier chez ORION')}</div>
+              <div className="dv-metier" role="radiogroup" aria-label={tr('Votre métier chez ORION')}>
+                {([['chauffeur', 'argent', tr('Chauffeur VTC'), tr('Courses de passagers')], ['livreur', 'moto', tr('Livreur moto'), tr('Livraisons de colis')]] as const).map(([id, cat, titre, sous]) => (
+                  <button key={id} type="button" role="radio" aria-checked={metier === id} className={`dv-metier-choix${metier === id ? ' on' : ''}`} onClick={() => setMetier(id)}>
+                    <VehiculeChauffeur category={cat} largeur={86} />
+                    <strong>{titre}</strong>
+                    <span>{sous}</span>
+                  </button>
+                ))}
+              </div>
+              <Banner tone="success" title={metier === 'livreur' ? tr('Nouveau livreur ORION') : tr('Nouveau chauffeur ORION')}>
+                {metier === 'livreur'
+                  ? tr('Créez votre compte avec vos informations. ORION vous attribue ensuite votre matricule et votre moto électrique.')
+                  : tr('Créez votre compte avec vos informations. ORION vous attribue ensuite votre matricule, votre véhicule et votre gamme.')}
+              </Banner>
               <div className="field">
                 <input autoComplete="name" aria-label={tr('Nom complet')} placeholder={tr('Nom complet (ex. Konan Yao)')} value={name} onChange={(e) => setName(e.target.value)} />
               </div>

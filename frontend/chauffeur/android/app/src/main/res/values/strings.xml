@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">ORION Chauffeur</string>
-    <string name="title_activity_main">ORION Chauffeur</string>
+    <string name="app_name">ORION Pro</string>
+    <string name="title_activity_main">ORION Pro</string>
     <string name="package_name">ci.orion.chauffeur</string>
     <string name="custom_url_scheme">ci.orion.chauffeur</string>
     <!-- Notification permanente du service d'arrière-plan (GPS en service / en course). -->

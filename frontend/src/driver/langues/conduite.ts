@@ -3,7 +3,7 @@ import type { Ligne } from './index';
 /** Connexion, accueil, offre de course et mission en cours. */
 export const CONDUITE: Ligne[] = [
   // Connexion
-  ['ORION Chauffeur · {0}', 'ORION Driver · {0}', 'ORION Conductor · {0}', 'ORION Autista · {0}', 'ORION للسائقين · {0}', 'ORION 司机端 · {0}', 'ORION Fahrer · {0}', 'ORION Водитель · {0}'],
+  ['ORION Pro · {0}', 'ORION Pro · {0}', 'ORION Pro · {0}', 'ORION Pro · {0}', 'ORION Pro · {0}', 'ORION Pro · {0}', 'ORION Pro · {0}', 'ORION Pro · {0}'],
   ['Roulez vert, gagnez plus.', 'Drive green, earn more.', 'Conduzca verde, gane más.', 'Guida green, guadagna di più.', 'قُد بشكل أخضر، واربح أكثر.', '绿色出行，多赚一点。', 'Grün fahren, mehr verdienen.', 'Ездите экологично — зарабатывайте больше.'],
   ['Commission réduite sur l’électrique, offres claires, paiement rapide sur mobile money.', 'Lower commission on electric, clear offers, fast mobile money payouts.', 'Comisión reducida en eléctrico, ofertas claras, pago rápido por mobile money.', 'Commissione ridotta sull’elettrico, offerte chiare, pagamento rapido via mobile money.', 'عمولة مخفّضة على السيارات الكهربائية، عروض واضحة، ودفع سريع عبر المحفظة الإلكترونية.', '电动车佣金更低，订单清晰，移动支付快速到账。', 'Geringere Provision für E-Autos, klare Angebote, schnelle Auszahlung per Mobile Money.', 'Сниженная комиссия для электромобилей, понятные заказы, быстрые выплаты через mobile money.'],
   ['Mobilité verte', 'Green mobility', 'Movilidad verde', 'Mobilità green', 'تنقّل أخضر', '绿色出行', 'Grüne Mobilität', 'Зелёная мобильность'],

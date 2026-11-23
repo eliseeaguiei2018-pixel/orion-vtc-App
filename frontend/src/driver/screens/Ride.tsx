@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { OrionMap } from '../../components/OrionMap';
-import { IconCar, IconClock, IconPeage, IconPhone, IconPin, IconSablier, IconWallet } from '../../icons';
+import { IconCar, IconClock, IconPackage, IconPeage, IconPhone, IconPin, IconSablier, IconWallet } from '../../icons';
 import type { DriverApp } from '../useDriver';
 import type { ActiveRide, MotifAnnulationChauffeur, RideStatus, RideView } from '../types';
 import { Banner, Modal } from '../ui';
@@ -43,6 +43,8 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
   const t = (to: RideStatus) => void app.actions.transition(ride.id, to);
   // Livraison à moto : mêmes étapes, mots du coursier (colis à retirer puis à livrer).
   const livraison = ride.serviceType === 'delivery';
+  // Le colis ne se déclare livré qu'avec le code de remise que le destinataire donne au livreur.
+  const remiseRequise = livraison && Boolean(ride.livraison?.codeRemiseRequis);
   // Guidage actif tant qu'il y a un point à rejoindre (client, puis destination).
   const enNavigation = toPickup || ride.status === 'in_progress';
   const reduite = enNavigation && !deplie;
@@ -53,7 +55,9 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
     : ride.status === 'driver_en_route'
       ? <button className="btn btn-primary" disabled={app.busy} onClick={() => t('arrived')}>{livraison ? tr('Je suis au point de retrait') : tr('Je suis arrivé')}</button>
       : ride.status === 'in_progress'
-        ? <button className="btn btn-primary" disabled={app.busy} onClick={() => t('completed')}>{livraison ? tr('Colis livré') : tr('Terminer la course')}</button>
+        ? (remiseRequise
+          ? <button className="btn btn-primary" disabled={app.busy} onClick={() => setDeplie(true)}>{tr('Remettre le colis')}</button>
+          : <button className="btn btn-primary" disabled={app.busy} onClick={() => t('completed')}>{livraison ? tr('Colis livré') : tr('Terminer la course')}</button>)
         : null;
 
   return (
@@ -92,7 +96,7 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
           </button>
           <div className="dv-ride-resume-actions">
             {lienTel(ride.client.phone) && (
-              <a className="dv-act compact" href={lienTel(ride.client.phone)!} aria-label={tr('Appeler le passager {0}', [numeroLisible(ride.client.phone)])}><IconPhone size={18} /></a>
+              <a className="dv-act compact" href={lienTel(ride.client.phone)!} aria-label={livraison ? tr('Appeler l’expéditeur {0}', [numeroLisible(ride.client.phone)]) : tr('Appeler le passager {0}', [numeroLisible(ride.client.phone)])}><IconPhone size={18} /></a>
             )}
             {boutonEtape}
           </div>
@@ -139,6 +143,10 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
             {ride.itineraire?.choix === 'normal' && <span className="dv-pill"><IconCar size={13} /> {tr('Itinéraire du client : voie normale (sans péage)')}</span>}
           </div>
         )}
+        {livraison && <CarteColis ride={ride} />}
+        {livraison && ride.status === 'arrived' && (
+          <p className="faint dv-colis-conseil">{tr('Vérifiez que le colis est bien fermé et correspond à la description avant de partir.')}</p>
+        )}
         {abonnement && (
           <Banner tone="success" icon={<IconWallet size={18} />} title={totalDue === 0 ? tr('Course incluse dans l’abonnement du client') : tr('Abonnement du client : {0} pris en charge', [fcfa(prisEnCharge)])}>
             {tr('{0} · le client paie {1}. Vous êtes rémunéré sur le prix complet ({2}).', [abonnement.plan, fcfa(totalDue), fcfa(brut)])}
@@ -151,7 +159,7 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
           {/* Un toucher ouvre le clavier du téléphone avec le numéro du passager composé
               (indicatif +225 ajouté au besoin) ; le chauffeur n'a plus qu'à appuyer. */}
           {lienTel(ride.client.phone)
-            ? <a className="dv-act" href={lienTel(ride.client.phone)!} data-testid="appeler-passager" aria-label={tr('Appeler le passager {0}', [numeroLisible(ride.client.phone)])}><IconPhone size={18} />{tr('Appeler')}</a>
+            ? <a className="dv-act" href={lienTel(ride.client.phone)!} data-testid="appeler-passager" aria-label={livraison ? tr('Appeler l’expéditeur {0}', [numeroLisible(ride.client.phone)]) : tr('Appeler le passager {0}', [numeroLisible(ride.client.phone)])}><IconPhone size={18} />{livraison ? tr('Expéditeur') : tr('Appeler')}</a>
             : <span className="dv-act" style={{ opacity: 0.5 }}><IconPhone size={18} />{tr('Numéro masqué')}</span>}
         </div>
 
@@ -172,7 +180,7 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
         {ride.status === 'arrived' && !livraison && ride.codeRequis
           ? <SaisieCode app={app} rideId={ride.id} />
           : ride.status === 'arrived' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('in_progress')}>{livraison ? tr('Colis récupéré, je livre') : tr('Client à bord — démarrer')}</button>}
-        {ride.status === 'in_progress' && boutonEtape}
+        {ride.status === 'in_progress' && (remiseRequise ? <SaisieRemise app={app} rideId={ride.id} /> : boutonEtape)}
 
         {ride.status === 'completed' && totalDue === 0 && (
           <div className="col" style={{ gap: 10 }}>
@@ -293,6 +301,66 @@ function AnnulationModal({ app, ride, livraison, onClose, onSos }: {
         <button className="btn btn-ghost" onClick={onClose}>{livraison ? tr('Continuer la livraison') : tr('Continuer la course')}</button>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * LE COLIS : ce qu'il contient, sa taille, les consignes de l'expéditeur, et la personne qui le
+ * reçoit (nom, appel direct), visibles le temps de la livraison.
+ */
+function CarteColis({ ride }: { ride: ActiveRide }) {
+  const liv = ride.livraison ?? null;
+  const dest = liv?.destinataire ?? null;
+  const appel = dest ? lienTel(dest.telephone) : null;
+  return (
+    <div className="card dv-colis">
+      <div className="dv-colis-tete">
+        <span className="dv-colis-ico" aria-hidden="true"><IconPackage size={18} /></span>
+        <span className="col grow" style={{ minWidth: 0 }}>
+          <strong>{liv?.description ?? tr('Colis')}</strong>
+          <span className="faint">{tr('Taille : {0}', [TAILLE_COLIS[ride.category] ?? ride.category])} · {methodLabel(ride.paymentMethod)}</span>
+        </span>
+      </div>
+      {liv?.instructions && <p className="dv-colis-consigne">{liv.instructions}</p>}
+      {dest && (
+        <div className="dv-colis-dest">
+          <span className="col grow" style={{ minWidth: 0 }}>
+            <span className="faint">{tr('Destinataire')}</span>
+            <strong>{dest.nom}</strong>
+          </span>
+          {appel && <a className="dv-act compact" href={appel} aria-label={tr('Appeler le destinataire {0}', [numeroLisible(dest.telephone)])}><IconPhone size={18} /></a>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * CODE DE REMISE : l'expéditeur l'a transmis au destinataire, qui le donne au livreur. Bon code :
+ * le colis est remis à la bonne personne et la livraison se termine. Cinq erreurs bloquent.
+ */
+function SaisieRemise({ app, rideId }: { app: DriverApp; rideId: string }) {
+  const [code, setCode] = useState('');
+  const [erreur, setErreur] = useState<string | null>(null);
+  const valider = async () => {
+    setErreur(null);
+    const e = await app.actions.livrer(rideId, code);
+    if (e) { setErreur(e); setCode(''); }
+  };
+  return (
+    <div className="dv-code">
+      <label className="dv-code-titre" htmlFor="dv-remise-champ">{tr('Code de remise')}</label>
+      <p className="dv-code-aide">{tr('Demandez au destinataire le code à 4 chiffres que l’expéditeur lui a transmis.')}</p>
+      <div className="dv-code-saisie">
+        <input id="dv-remise-champ" className="dv-code-champ" inputMode="numeric" autoComplete="one-time-code" maxLength={4}
+          value={code} placeholder="••••" aria-invalid={erreur ? true : undefined}
+          onChange={(e) => { setCode(e.target.value.replace(/\D/g, '').slice(0, 4)); setErreur(null); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && code.length === 4) void valider(); }} />
+      </div>
+      {erreur && <p className="dv-code-erreur" role="alert">{erreur}</p>}
+      <button className="btn btn-primary" disabled={app.busy || code.length !== 4} onClick={() => void valider()}>{tr('Vérifier le code et remettre le colis')}</button>
+      <p className="faint" style={{ fontSize: 12, textAlign: 'center', margin: 0 }}>{tr('Le destinataire n’a pas le code ? Appelez l’expéditeur : il le lit dans son application ORION.')}</p>
+    </div>
   );
 }
 

@@ -11,7 +11,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 /**
  * Deux applications natives à partir du même code :
  * - ORION (clients) : par défaut, projets android/ et ios/ ;
- * - ORION Chauffeur : ORION_APP=chauffeur, projets chauffeur/android et chauffeur/ios,
+ * - ORION Pro (chauffeurs et livreurs) : ORION_APP=chauffeur, projets chauffeur/android et chauffeur/ios,
  *   app web dist-chauffeur (driver.html devient la page d'accueil). Voir
  *   scripts/construire-app-chauffeur.mjs et NATIVE.md.
  */
@@ -34,7 +34,7 @@ const appConsole = process.env.ORION_APP === 'console';
 
 const config: CapacitorConfig = {
   appId: test?.appId ?? (appConsole ? 'ci.orion.console' : chauffeur ? 'ci.orion.chauffeur' : 'ci.orion.app'),
-  appName: test?.appName ?? (appConsole ? 'ORION Console' : chauffeur ? 'ORION Chauffeur' : 'ORION'),
+  appName: test?.appName ?? (appConsole ? 'ORION Console' : chauffeur ? 'ORION Pro' : 'ORION'),
   webDir: test?.webDir ?? (appConsole ? 'dist-console' : chauffeur ? 'dist-chauffeur' : 'dist'),
   backgroundColor: '#0c0d0f',
   plugins: {

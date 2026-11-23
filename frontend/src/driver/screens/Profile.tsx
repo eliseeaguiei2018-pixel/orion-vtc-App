@@ -162,7 +162,7 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
         <div className="dv-pref-titre">{tr('Langue de l’application')}</div>
         <ChoixLangue />
         <div className="faint" style={{ fontSize: 12 }}>
-          {tr('ORION Chauffeur · version {0}', [VERSION_APP])} · {driver.appLinkedAt ? tr('App liée depuis le {0} · ', [shortDate(driver.appLinkedAt)]) : ''}{app.live ? tr('Serveur ORION') : tr('Mode démo')}
+          {tr('ORION Pro · version {0}', [VERSION_APP])} · {driver.appLinkedAt ? tr('App liée depuis le {0} · ', [shortDate(driver.appLinkedAt)]) : ''}{app.live ? tr('Serveur ORION') : tr('Mode démo')}
         </div>
         <LienServeur />
         <button className="btn btn-ghost" onClick={() => void app.actions.logout()} disabled={driver.availability === 'on_trip'}>{tr('Se déconnecter')}</button>
@@ -170,7 +170,7 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
 
       <Section title={tr('Écran de véhicule')}>
         <div className="card" style={{ padding: 14, display: 'grid', gap: 10, fontSize: 13.5 }}>
-          <div className="faint">{tr('Ouvrez l’app ORION Chauffeur sur l’écran large de votre voiture (Android Automotive, écran du constructeur, tablette de bord) sans ressaisir vos identifiants.')}</div>
+          <div className="faint">{tr('Ouvrez l’app ORION Pro sur l’écran large de votre voiture (Android Automotive, écran du constructeur, tablette de bord) sans ressaisir vos identifiants.')}</div>
           <ConnecterEcranVehicule app={app} />
         </div>
       </Section>

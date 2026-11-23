@@ -15,7 +15,7 @@ export const COMMUN: Ligne[] = [
   ['Fermer', 'Close', 'Cerrar', 'Chiudi', 'إغلاق', '关闭', 'Schließen', 'Закрыть'],
   ['Langue', 'Language', 'Idioma', 'Lingua', 'اللغة', '语言', 'Sprache', 'Язык'],
   ['Langue de l’application', 'App language', 'Idioma de la aplicación', 'Lingua dell’app', 'لغة التطبيق', '应用语言', 'App-Sprache', 'Язык приложения'],
-  ['ORION Chauffeur', 'ORION Driver', 'ORION Conductor', 'ORION Autista', 'ORION للسائقين', 'ORION 司机端', 'ORION Fahrer', 'ORION Водитель'],
+  ['ORION Pro', 'ORION Pro', 'ORION Pro', 'ORION Pro', 'ORION Pro', 'ORION Pro', 'ORION Pro', 'ORION Pro'],
   ['Connexion au serveur impossible', 'Cannot reach the server', 'No se puede conectar al servidor', 'Impossibile connettersi al server', 'تعذّر الاتصال بالخادم', '无法连接服务器', 'Keine Verbindung zum Server', 'Не удаётся подключиться к серверу'],
   ['Vérifiez votre réseau puis réessayez.', 'Check your network and try again.', 'Compruebe su red e inténtelo de nuevo.', 'Controlla la rete e riprova.', 'تحقّق من الشبكة ثم أعد المحاولة.', '请检查网络后重试。', 'Prüfen Sie Ihr Netz und versuchen Sie es erneut.', 'Проверьте сеть и попробуйте снова.'],
   ['Réessayer', 'Try again', 'Reintentar', 'Riprova', 'إعادة المحاولة', '重试', 'Erneut versuchen', 'Повторить'],
@@ -129,7 +129,7 @@ export const COMMUN: Ligne[] = [
   ['Relié à l’app client ORION', 'Linked to the ORION client app', 'Vinculado a la app cliente ORION', 'Collegato all’app cliente ORION', 'مرتبط بتطبيق عميل ORION', '已连接 ORION 乘客端', 'Mit der ORION-Kunden-App verbunden', 'Связано с клиентским приложением ORION'],
   ['Les courses commandées dans l’app client de ce téléphone arrivent ici. Passez en ligne pour les recevoir.', 'Rides ordered in the client app on this phone arrive here. Go online to receive them.', 'Los viajes pedidos en la app cliente de este teléfono llegan aquí. Conéctese para recibirlos.', 'Le corse ordinate nell’app cliente di questo telefono arrivano qui. Vai online per riceverle.', 'تصل هنا الرحلات المطلوبة في تطبيق العميل على هذا الهاتف. اتصل بالإنترنت لاستلامها.', '本机乘客端下的订单会出现在这里。上线即可接单。', 'Fahrten, die in der Kunden-App dieses Telefons bestellt werden, kommen hier an. Gehen Sie online, um sie zu erhalten.', 'Поездки, заказанные в клиентском приложении на этом телефоне, приходят сюда. Выйдите на линию, чтобы получать их.'],
   ['Empreinte digitale / Face ID', 'Fingerprint / Face ID', 'Huella dactilar / Face ID', 'Impronta digitale / Face ID', 'بصمة الإصبع / Face ID', '指纹 / 面容 ID', 'Fingerabdruck / Face ID', 'Отпечаток пальца / Face ID'],
-  ['ORION Chauffeur · version {0}', 'ORION Driver · version {0}', 'ORION Conductor · versión {0}', 'ORION Autista · versione {0}', 'ORION سائق · الإصدار {0}', 'ORION 司机端 · 版本 {0}', 'ORION Fahrer · Version {0}', 'ORION Водитель · версия {0}'],
+  ['ORION Pro · version {0}', 'ORION Pro · version {0}', 'ORION Pro · versión {0}', 'ORION Pro · versione {0}', 'ORION Pro · الإصدار {0}', 'ORION Pro · 版本 {0}', 'ORION Pro · Version {0}', 'ORION Pro · версия {0}'],
   ['Système', 'System', 'Sistema', 'Sistema', 'النظام', '跟随系统', 'System', 'Системная'],
   /* Chauffeurs salariés : ORION attribue le véhicule, la gamme et le matricule. */
   ['Votre poste de chauffeur ORION.', 'Your ORION driver post.', 'Su puesto de chófer ORION.', 'Il suo posto di autista ORION.', 'وظيفتك كسائق في ORION.', '您的 ORION 司机岗位。', 'Ihr Fahrerposten bei ORION.', 'Ваше рабочее место водителя ORION.'],

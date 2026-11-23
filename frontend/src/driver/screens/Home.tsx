@@ -59,6 +59,8 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
     return () => window.clearInterval(id);
   }, [app.backend]);
 
+  // Livreur moto (même application Orion Pro) : livraisons de colis au lieu de courses.
+  const livreur = driver.category === 'moto';
   const disabledReason = closed ? tr('ORION est fermé (maintenance)')
     : driver.kycStatus === 'suspended' ? tr('Compte suspendu')
       : !validated ? tr('Dossier en attente de validation') : null;
@@ -73,7 +75,7 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
     <div className="dv-page">
       <PageHeader marque
         title={tr('Bonjour {0}', [driver.name.split(' ')[0]])}
-        sub={tr('{0} · Gamme {1}{2}', [driver.matricule, gammesLisibles(driver), driver.vip ? tr(' · Top Driver') : ''])}
+        sub={livreur ? tr('{0} · Livreur moto', [driver.matricule]) : tr('{0} · Gamme {1}{2}', [driver.matricule, gammesLisibles(driver), driver.vip ? tr(' · Top Driver') : ''])}
         right={<>
           <LinkPill app={app} />
           <BellButton count={unread} onClick={openNotices} />
@@ -83,7 +85,7 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
         </>}
       >
         <div className="dv-hero-kpis">
-          <div className="dv-hero-kpi"><strong>{history?.today.rides ?? 0}</strong><span>{tr('Courses du jour')}</span></div>
+          <div className="dv-hero-kpi"><strong>{history?.today.rides ?? 0}</strong><span>{livreur ? tr('Livraisons du jour') : tr('Courses du jour')}</span></div>
           <div className="dv-hero-kpi"><strong>★ {driver.ratingCount ? driver.ratingAvg.toFixed(2) : '—'}</strong><span>{tr('{0} avis', [driver.ratingCount])}</span></div>
           <div className="dv-hero-kpi"><strong>{acceptance === null ? '—' : pct(acceptance)}</strong><span>{tr('Acceptation')}</span></div>
         </div>
@@ -98,11 +100,13 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
         </div>
         <div className="dv-go-row">
           <span className="grow">
-            <span className="dv-go-titre">{onTrip ? tr('En course') : online ? tr('En ligne') : paused ? tr('En pause') : tr('Hors ligne')}</span>
+            <span className="dv-go-titre">{onTrip ? (livreur ? tr('En livraison') : tr('En course')) : online ? tr('En ligne') : paused ? tr('En pause') : tr('Hors ligne')}</span>
             <span className="dv-go-detail">
               {onTrip ? tr('Mission en cours')
-                : online ? (queue?.inQueue && queue.position ? tr('Recherche de courses · {0}ᵉ sur {1} en file', [queue.position, queue.total]) : tr('Recherche de courses autour de vous…'))
-                  : disabledReason ?? (paused ? tr('Touchez pour reprendre les courses') : tr('Touchez pour recevoir des courses'))}
+                : online ? (livreur ? tr('Recherche de livraisons autour de vous…') : queue?.inQueue && queue.position ? tr('Recherche de courses · {0}ᵉ sur {1} en file', [queue.position, queue.total]) : tr('Recherche de courses autour de vous…'))
+                  : disabledReason ?? (livreur
+                    ? (paused ? tr('Touchez pour reprendre les livraisons') : tr('Touchez pour recevoir des livraisons'))
+                    : (paused ? tr('Touchez pour reprendre les courses') : tr('Touchez pour recevoir des courses')))}
             </span>
           </span>
           <button className={`dv-switch${online ? ' on' : paused ? ' paused' : ''}`} role="switch" aria-checked={online} aria-label={tr('En ligne')}
@@ -120,6 +124,7 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
       )}
       <AutorisationsCourses />
       <Alerts app={app} onFixDossier={() => onTab('profile')} />
+      {livreur && <KitLivreur />}
 
       {/* Raccourcis : les mêmes tuiles que l'accueil de l'app cliente, objets en volume. */}
       <div className="tuiles cinq">
@@ -300,5 +305,21 @@ function AutorisationsCourses() {
       action={<button type="button" className="dv-pill" onClick={() => void autoriser()}>{tr('Autoriser')}</button>}>
       {tr('Autorisez-les pour qu’une nouvelle course s’affiche même quand vous utilisez une autre application (GPS, appel, musique).')}
     </Banner>
+  );
+}
+
+
+/**
+ * AVANT DE PARTIR (livreurs) : les trois vérifications d'un livreur moto, comme dans les apps de
+ * livraison de référence. Le colis voyage fermé, le livreur roule casqué, la batterie tient la tournée.
+ */
+function KitLivreur() {
+  const lignes = [tr('Sac de livraison propre et fermé'), tr('Casque attaché, gilet visible'), tr('Batterie au-dessus de 30 %')];
+  return (
+    <div className="card dv-kit">
+      <div className="dv-kit-titre">{tr('Avant de partir')}</div>
+      <ul>{lignes.map((l) => <li key={l}><span aria-hidden="true" />{l}</li>)}</ul>
+      <div className="faint" style={{ fontSize: 12 }}>{tr('À la livraison, demandez toujours le code de remise au destinataire.')}</div>
+    </div>
   );
 }

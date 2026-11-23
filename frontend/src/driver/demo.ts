@@ -651,6 +651,11 @@ export function createDemoBackend(): DriverBackend {
       await this.transition(rideId, 'in_progress');
       versBus(r, { codeVerifie: true });
     },
+    async livrer(rideId, code) {
+      if (!/^\d{4}$/.test(code)) throw new ApiError(400, 'Le code compte 4 chiffres');
+      // Démo : le destinataire fictif donne toujours un code valide.
+      await this.transition(rideId, 'completed');
+    },
     async transition(rideId, to) {
       const r = ride(rideId);
       const allowed: Record<string, RideStatus[]> = {
@@ -873,7 +878,7 @@ export function createDemoBackend(): DriverBackend {
       return { score, total: QCM.length, passed, trained: drv().trained ?? false };
     },
     announcements: async (): Promise<Announcement[]> => [
-      { id: 'demo-1', title: 'Bienvenue sur ORION Chauffeur', body: 'Mode démo : les offres et la console sont simulées. Code de connexion : 123456.', at: now() },
+      { id: 'demo-1', title: 'Bienvenue sur ORION Pro', body: 'Mode démo : les offres et la console sont simulées. Code de connexion : 123456.', at: now() },
     ],
     demand: async (): Promise<DemandCell[]> => PLACES.slice(0, 6).map((p, i) => ({
       cell: `demo-${i}`, lat: p.lat, lng: p.lng, demand: 2 + ((i * 3) % 7), supply: 1 + (i % 3), surge: i % 3 === 0 ? 1.3 : 1,

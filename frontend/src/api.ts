@@ -672,6 +672,8 @@ export interface RideCreateResult {
   driver: SafeDriver | null;
   /** Code de prise en charge à donner au chauffeur (course de passager uniquement). */
   code: string | null;
+  /** Code de remise du colis, à transmettre au destinataire (livraison uniquement). */
+  codeRemise?: string | null;
 }
 
 export interface TrustedContact {
@@ -718,16 +720,36 @@ export function clientId(): string {
  * `paymentMethod` (optionnel) : moyen annoncé, affiché au chauffeur ; « espèces » exclut
  * les chauffeurs au-delà du plafond de dette espèces fixé en console.
  */
-export async function createRide(lockId: string, cid: string, trustedContact?: TrustedContact, paymentMethod?: string): Promise<RideCreateResult | null> {
-  const res = await tryFetch<{ ride: RideCreated; driver: SafeDriver | null; codePriseEnCharge?: string | null }>('/rides', {
+/** Livraison à moto : la personne qui reçoit le colis, et ce que le livreur doit savoir. */
+export interface DetailsLivraison {
+  destinataire: { nom: string; telephone: string };
+  description?: string;
+  instructions?: string;
+}
+
+export async function createRide(lockId: string, cid: string, trustedContact?: TrustedContact, paymentMethod?: string, livraison?: DetailsLivraison): Promise<RideCreateResult | null> {
+  const res = await tryFetch<{ ride: RideCreated; driver: SafeDriver | null; codePriseEnCharge?: string | null; codeRemise?: string | null }>('/rides', {
     method: 'POST',
     headers: { 'idempotency-key': `${cid}-${lockId}` },
-    body: JSON.stringify({ clientId: cid, lockId, trustedContact, paymentMethod }),
+    body: JSON.stringify({ clientId: cid, lockId, trustedContact, paymentMethod, ...(livraison ? { livraison } : {}) }),
   });
   if (res?.ride?.id && res.codePriseEnCharge) {
     try { localStorage.setItem(`orion.code.${res.ride.id}`, res.codePriseEnCharge); } catch { /* stockage indisponible */ }
   }
-  return res ? { ride: res.ride, driver: res.driver ?? null, code: res.codePriseEnCharge ?? null } : null;
+  if (res?.ride?.id && res.codeRemise) {
+    try { localStorage.setItem(`orion.remise.${res.ride.id}`, res.codeRemise); } catch { /* stockage indisponible */ }
+  }
+  return res ? { ride: res.ride, driver: res.driver ?? null, code: res.codePriseEnCharge ?? null, codeRemise: res.codeRemise ?? null } : null;
+}
+
+/** Code de remise d'un colis (expéditeur connecté), sinon celui mémorisé à la commande. */
+export async function lireCodeRemise(rideId: string): Promise<{ code: string; verifie: boolean } | null> {
+  const r = await tryFetch<{ code: string; verifie: boolean }>(`/rides/${rideId}/code-remise`);
+  if (r) return r;
+  try {
+    const local = localStorage.getItem(`orion.remise.${rideId}`);
+    return local ? { code: local, verifie: false } : null;
+  } catch { return null; }
 }
 
 /**

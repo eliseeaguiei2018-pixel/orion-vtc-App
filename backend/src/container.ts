@@ -121,6 +121,8 @@ export interface Container {
   simulator: RideSimulator;
   /** Code à 4 chiffres que le passager donne au chauffeur pour démarrer la course. */
   codesPriseEnCharge: CodesPriseEnCharge;
+  /** Code de REMISE d'un colis : le destinataire le donne au livreur, qui le saisit pour livrer. */
+  codesRemise: CodesPriseEnCharge;
   wallet: WalletService;
   clientWallet: WalletService;
   insurance: InsuranceService;
@@ -201,6 +203,7 @@ export function createContainer(): Container {
   // Cumuls financiers et bilan vert : gamme et motorisation du conducteur de chaque course.
   rides.brancherConducteurs((id) => { const d = drivers.get(id); return d ? { categorie: d.category, moteur: d.engine } : undefined; });
   const codesPriseEnCharge = new CodesPriseEnCharge(createRepository<CodeCourse>('codes_prise_en_charge'));
+  const codesRemise = new CodesPriseEnCharge(createRepository<CodeCourse>('codes_remise'));
   // Dispatch : la règle d'attribution (console) est relue à chaque course.
   const matching = new MatchingEngine(geo, drivers, undefined, (origin) => {
     const z = settings.zoneForPoint(origin);
@@ -411,6 +414,7 @@ export function createContainer(): Container {
       return sim;
     })(),
     codesPriseEnCharge,
+    codesRemise,
     wallet: new WalletService(createRepository<LedgerEntry>('wallet_ledger')),
     clientWallet,
     insurance: new InsuranceService(createRepository<InsuranceContribution>('insurance'), clientWallet),

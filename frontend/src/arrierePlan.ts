@@ -8,7 +8,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
  * Sur téléphone, Android endort une application dès qu'on la quitte : plus de GPS, plus de
  * connexion au serveur. Le chauffeur disparaissait de la carte des clients, le client ne voyait
  * plus son chauffeur approcher. Comme Yango ou Uber, ORION garde alors un SERVICE DE PREMIER
- * PLAN, signalé par une notification permanente (« ORION Chauffeur · en service ») :
+ * PLAN, signalé par une notification permanente (« ORION Pro · en service ») :
  *  - le GPS continue, écran éteint ou autre application ouverte ;
  *  - l'application reste vivante, sa connexion au serveur aussi ;
  *  - une course qui arrive pendant ce temps fait sonner le téléphone (notification locale).

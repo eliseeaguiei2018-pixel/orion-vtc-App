@@ -2311,3 +2311,12 @@ button.menu-texte { cursor: pointer; }
 .gm-peage span { display: none; margin-top: 4px; padding: 2px 7px; border-radius: 999px; background: #1d1f23; color: #fff; font: 600 11px/1.3 var(--font-body); white-space: nowrap; }
 .gm-peage.nomme span { display: block; }
 .gm-peage.actif span { background: #d98a00; }
+
+/* Livraison : destinataire du colis et consignes pour le livreur. */
+.liv-champs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0 12px; }
+.liv-champs .input { width: 100%; min-width: 0; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--stroke); background: var(--surface-2);
+  color: var(--text); font: inherit; font-size: 16px; outline: none; }
+.liv-champs .input::placeholder { color: var(--text-faint); }
+.liv-champs .input:focus { border-color: rgba(var(--accent-rgb), 0.6); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.12); }
+.liv-champs .liv-large { grid-column: 1 / -1; }
+@media (max-width: 360px) { .liv-champs { grid-template-columns: minmax(0, 1fr); } }

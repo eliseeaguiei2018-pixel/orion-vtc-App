@@ -59,6 +59,8 @@ export interface DriverBackend {
   transition(rideId: string, to: RideStatus): Promise<void>;
   /** Démarre la course avec le code à 4 chiffres donné par le passager. */
   start(rideId: string, code: string): Promise<void>;
+  /** Remet le colis avec le code à 4 chiffres donné par le destinataire (livraison terminée). */
+  livrer(rideId: string, code: string): Promise<void>;
   wait(rideId: string, minutes: number): Promise<WaitResult>;
   collectCash(rideId: string): Promise<void>;
   /** SOS : renvoie l'identifiant de l'alerte, pour en suivre la prise en charge. */
@@ -270,6 +272,7 @@ function createLiveBackend(): DriverBackend {
     async declineOffer(rideId, reason) { await post(`/drivers/${id()}/offers/${rideId}/decline`, { reason }); },
     async transition(rideId, to) { await post(`/rides/${rideId}/transition`, { to }); },
     async start(rideId, code) { await post(`/rides/${rideId}/start`, { code }); },
+    async livrer(rideId, code) { await post(`/rides/${rideId}/livrer`, { code }); },
     wait: (rideId, minutes) => post(`/rides/${rideId}/wait`, { minutes }),
     async collectCash(rideId) {
       await call(`/rides/${rideId}/pay`, {

@@ -2307,6 +2307,43 @@ const TEXTES: Record<string, Huit> = {
     "短信通知{nom}",
     "Сообщить {nom} по SMS",
   ],
+  liv_dest_titre: [
+    "Destinataire du colis", "Parcel recipient", "Destinatario del paquete", "Destinatario del pacco", "Empfänger des Pakets", "مستلم الطرد", "包裹收件人", "Получатель посылки",
+  ],
+  liv_dest_nom: [
+    "Nom du destinataire", "Recipient’s name", "Nombre del destinatario", "Nome del destinatario", "Name des Empfängers", "اسم المستلم", "收件人姓名", "Имя получателя",
+  ],
+  liv_dest_tel: [
+    "Téléphone du destinataire", "Recipient’s phone", "Teléfono del destinatario", "Telefono del destinatario", "Telefon des Empfängers", "هاتف المستلم", "收件人电话", "Телефон получателя",
+  ],
+  liv_desc: [
+    "Contenu du colis (ex. documents, gâteau)", "Parcel contents (e.g. documents, cake)", "Contenido del paquete (p. ej. documentos, pastel)", "Contenuto del pacco (es. documenti, torta)", "Inhalt des Pakets (z. B. Dokumente, Kuchen)", "محتوى الطرد (مثل وثائق، كعكة)", "包裹内容（如文件、蛋糕）", "Содержимое посылки (например, документы, торт)",
+  ],
+  liv_instr: [
+    "Consignes pour le livreur (étage, portail…)", "Notes for the courier (floor, gate…)", "Indicaciones para el repartidor (piso, portón…)", "Indicazioni per il corriere (piano, cancello…)", "Hinweise für den Kurier (Etage, Tor…)", "تعليمات للساعي (الطابق، البوابة…)", "给配送员的说明（楼层、大门…）", "Указания курьеру (этаж, ворота…)",
+  ],
+  liv_dest_requis: [
+    "Indiquez le nom et le téléphone du destinataire.", "Enter the recipient’s name and phone number.", "Indique el nombre y el teléfono del destinatario.", "Indica nome e telefono del destinatario.", "Geben Sie Name und Telefonnummer des Empfängers an.", "أدخل اسم المستلم ورقم هاتفه.", "请填写收件人姓名和电话。", "Укажите имя и телефон получателя.",
+  ],
+  liv_code_titre: [
+    "Code de remise", "Handover code", "Código de entrega", "Codice di consegna", "Übergabecode", "رمز التسليم", "交付码", "Код передачи",
+  ],
+  liv_code_aide: [
+    "Transmettez ce code au destinataire : il le donne au livreur pour recevoir le colis.", "Send this code to the recipient: they give it to the courier to receive the parcel.", "Envíe este código al destinatario: se lo da al repartidor para recibir el paquete.", "Invia questo codice al destinatario: lo dà al corriere per ricevere il pacco.", "Geben Sie diesen Code an den Empfänger weiter: Er nennt ihn dem Kurier, um das Paket zu erhalten.", "أرسل هذا الرمز إلى المستلم: يعطيه للساعي لاستلام الطرد.", "请把此代码发给收件人：他向配送员出示后即可收件。", "Передайте этот код получателю: он назовёт его курьеру, чтобы получить посылку.",
+  ],
+  liv_envoyer_code: [
+    "Envoyer le code à {nom} par SMS", "Send the code to {nom} by SMS", "Enviar el código a {nom} por SMS", "Invia il codice a {nom} via SMS", "Code per SMS an {nom} senden", "إرسال الرمز إلى {nom} عبر رسالة قصيرة", "通过短信把代码发给 {nom}", "Отправить код {nom} по SMS",
+  ],
+  liv_sms: [
+    "ORION : bonjour {nom}, un colis vous est livré par {livreur} (moto ORION), envoyé par {de}. Donnez le code {code} au livreur pour le recevoir.",
+    "ORION: hello {nom}, a parcel is on its way with {livreur} (ORION motorbike), sent by {de}. Give the courier the code {code} to receive it.",
+    "ORION: hola {nom}, {livreur} (moto ORION) le lleva un paquete enviado por {de}. Dé el código {code} al repartidor para recibirlo.",
+    "ORION: ciao {nom}, {livreur} (moto ORION) ti sta consegnando un pacco inviato da {de}. Dai il codice {code} al corriere per riceverlo.",
+    "ORION: Hallo {nom}, {livreur} (ORION-Motorrad) bringt Ihnen ein Paket von {de}. Nennen Sie dem Kurier den Code {code}, um es zu erhalten.",
+    "ORION: مرحبًا {nom}، يوصل إليك {livreur} (دراجة ORION) طردًا أرسله {de}. أعطِ الساعي الرمز {code} لاستلامه.",
+    "ORION：{nom} 您好，{livreur}（ORION 摩托）正在为您配送 {de} 寄出的包裹。请向配送员出示代码 {code} 以签收。",
+    "ORION: здравствуйте, {nom}! {livreur} (мото ORION) везёт вам посылку от {de}. Назовите курьеру код {code}, чтобы получить её.",
+  ],
   fam_sms: [
     "ORION : votre chauffeur {chauffeur} arrive ({vehicule}, {plaque}). Donnez-lui le code {code} en montant. Course commandée par {de}.",
     "ORION: your driver {chauffeur} is on the way ({vehicule}, {plaque}). Give them the code {code} when you get in. Ride booked by {de}.",
@@ -2737,16 +2774,16 @@ const TEXTES: Record<string, Huit> = {
     "{n}/{t}",
     "{n} из {t}",
   ],
-  /* ---- Serveur de test partagé : course envoyée à l’app ORION Chauffeur du même téléphone ---- */
+  /* ---- Serveur de test partagé : course envoyée à l’app ORION Pro du même téléphone ---- */
   bus_envoyee: [
-    "Course envoyée à l’app ORION Chauffeur de ce téléphone. Ouvrez-la pour l’accepter.",
-    "Ride sent to the ORION Driver app on this phone. Open it to accept.",
-    "Viaje enviado a la app ORION Conductor de este teléfono. Ábrala para aceptarlo.",
-    "Corsa inviata all’app ORION Autista di questo telefono. Aprila per accettarla.",
-    "Fahrt an die ORION-Fahrer-App auf diesem Telefon gesendet. Öffnen Sie sie, um anzunehmen.",
-    "أُرسلت الرحلة إلى تطبيق ORION للسائق على هذا الهاتف. افتحه لقبولها.",
-    "行程已发送到本机的 ORION 司机应用，请打开它接单。",
-    "Поездка отправлена в приложение ORION Водитель на этом телефоне. Откройте его, чтобы принять.",
+    "Course envoyée à l’app ORION Pro de ce téléphone. Ouvrez-la pour l’accepter.",
+    "Ride sent to the ORION Pro app on this phone. Open it to accept.",
+    "Viaje enviado a la app ORION Pro de este teléfono. Ábrala para aceptarlo.",
+    "Corsa inviata all’app ORION Pro di questo telefono. Aprila per accettarla.",
+    "Fahrt an die ORION-Pro-App auf diesem Telefon gesendet. Öffnen Sie sie, um anzunehmen.",
+    "أُرسلت الرحلة إلى تطبيق ORION Pro على هذا الهاتف. افتحه لقبولها.",
+    "行程已发送到本机的 ORION Pro 应用，请打开它接单。",
+    "Поездка отправлена в приложение ORION Pro на этом телефоне. Откройте его, чтобы принять.",
   ],
   bus_acceptee: [
     "{nom} a accepté votre course",
@@ -2759,14 +2796,14 @@ const TEXTES: Record<string, Huit> = {
     "{nom} принял(а) вашу поездку",
   ],
   bus_aucun_en_ligne: [
-    "Aucun chauffeur ORION en ligne sur ce téléphone : ouvrez ORION Chauffeur et passez en ligne.",
-    "No ORION driver online on this phone: open ORION Driver and go online.",
-    "Ningún conductor ORION en línea en este teléfono: abra ORION Conductor y conéctese.",
-    "Nessun autista ORION online su questo telefono: apri ORION Autista e mettiti online.",
-    "Kein ORION-Fahrer auf diesem Telefon online: Öffnen Sie ORION Fahrer und gehen Sie online.",
-    "لا يوجد سائق ORION متصل على هذا الهاتف: افتح تطبيق السائق واتصل.",
-    "本机没有在线的 ORION 司机：请打开 ORION 司机并上线。",
-    "На этом телефоне нет водителя ORION в сети: откройте ORION Водитель и выйдите на линию.",
+    "Aucun chauffeur ORION en ligne sur ce téléphone : ouvrez ORION Pro et passez en ligne.",
+    "No ORION driver online on this phone: open ORION Pro and go online.",
+    "Ningún conductor ORION en línea en este teléfono: abra ORION Pro y conéctese.",
+    "Nessun autista ORION online su questo telefono: apri ORION Pro e mettiti online.",
+    "Kein ORION-Fahrer auf diesem Telefon online: Öffnen Sie ORION Pro und gehen Sie online.",
+    "لا يوجد سائق ORION متصل على هذا الهاتف: افتح تطبيق ORION Pro واتصل.",
+    "本机没有在线的 ORION 司机：请打开 ORION Pro 并上线。",
+    "На этом телефоне нет водителя ORION в сети: откройте ORION Pro и выйдите на линию.",
   ],
   bus_refusee: [
     "Le chauffeur a refusé la course.",

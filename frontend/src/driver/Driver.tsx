@@ -106,7 +106,7 @@ function Shell({ app, vehicule = false }: { app: DriverApp; vehicule?: boolean }
   const [noticesOpen, setNoticesOpen] = useState(false);
   const [seen, setSeen] = useState(0);
 
-  // App native Android (ORION Chauffeur) : le bouton retour ferme les notifications, revient
+  // App native Android (ORION Pro) : le bouton retour ferme les notifications, revient
   // à l'accueil, puis met l'app en arrière-plan — jamais de sortie en pleine course.
   const etatRetour = useRef({ tab, noticesOpen });
   etatRetour.current = { tab, noticesOpen };
@@ -125,7 +125,7 @@ function Shell({ app, vehicule = false }: { app: DriverApp; vehicule?: boolean }
     return (
       <div className="dv-login" style={{ justifyContent: 'center', alignItems: 'center' }}>
         <LogoApp size={84} />
-        <div className="eyebrow" style={{ marginTop: 14 }}>{tr('ORION Chauffeur')}</div>
+        <div className="eyebrow" style={{ marginTop: 14 }}>{tr('ORION Pro')}</div>
       </div>
     );
   }

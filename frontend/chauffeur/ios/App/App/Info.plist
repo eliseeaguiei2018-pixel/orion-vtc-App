@@ -20,7 +20,7 @@
 		<string>ru</string>
 	</array>
 	<key>CFBundleDisplayName</key>
-        <string>ORION Chauffeur</string>
+        <string>ORION Pro</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

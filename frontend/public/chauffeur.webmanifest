@@ -1,7 +1,7 @@
 {
-  "name": "ORION Chauffeur",
-  "short_name": "Chauffeur",
-  "description": "L’application des chauffeurs et coursiers ORION : courses, navigation, gains.",
+  "name": "ORION Pro",
+  "short_name": "ORION Pro",
+  "description": "ORION Pro, l’application des chauffeurs VTC et des livreurs moto ORION : courses, livraisons, navigation, gains.",
   "lang": "fr",
   "dir": "ltr",
   "id": "./driver.html",

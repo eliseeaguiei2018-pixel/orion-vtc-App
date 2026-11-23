@@ -293,7 +293,7 @@ export function useDriver() {
   }, [link, refresh]);
   // GPS RÉEL. En service (en ligne ou en course), le suivi passe par le service natif
   // d'arrière-plan : il continue écran éteint ou application quittée (notification permanente
-  // « ORION Chauffeur »). Hors service, la carte suit le GPS seulement tant que l'app est à
+  // « ORION Pro »). Hors service, la carte suit le GPS seulement tant que l'app est à
   // l'écran. Avec le serveur ORION, JAMAIS de position inventée : sans point GPS, le serveur
   // garde la dernière position réelle et le chauffeur ne peut pas se mettre en ligne.
   const dernierPoint = useRef<{ t: number; precision: number; envoyeA: number; envoye: LatLng | null } | null>(null);
@@ -318,7 +318,7 @@ export function useDriver() {
     if (!session) return;
     if (tracking) {
       return suivreGps(
-        { titre: tr('ORION Chauffeur · en service'), message: tr('Votre position est partagée avec ORION pour recevoir des courses'), distanceMin: 8 },
+        { titre: tr('ORION Pro · en service'), message: tr('Votre position est partagée avec ORION pour recevoir des courses'), distanceMin: 8 },
         (p) => appliquerPoint(p, true),
         (e) => setGps(e === 'refus' ? 'refus' : e === 'desactive' ? 'desactive' : backend.live ? 'attente' : 'simulated'),
       );
@@ -471,6 +471,21 @@ export function useDriver() {
         const cur = activeRef.current;
         if (cur && cur.id === rideId) setActiveRide({ ...cur, status: 'in_progress', codeRequis: false, codeVerifie: true });
         showToast(tr('Code vérifié : identité du passager confirmée'), 'success');
+        return null;
+      } catch (e) {
+        return errMsg(e);
+      } finally {
+        setBusy(false);
+      }
+    },
+    /** Code de remise du destinataire : renvoie le message d'erreur (mauvais code…) ou null. */
+    async livrer(rideId: string, code: string): Promise<string | null> {
+      setBusy(true);
+      try {
+        await backend.livrer(rideId, code);
+        const cur = activeRef.current;
+        if (cur && cur.id === rideId) setActiveRide({ ...cur, status: 'completed', livraison: cur.livraison ? { ...cur.livraison, codeRemiseRequis: false } : cur.livraison });
+        showToast(tr('Colis remis au destinataire'), 'success');
         return null;
       } catch (e) {
         return errMsg(e);

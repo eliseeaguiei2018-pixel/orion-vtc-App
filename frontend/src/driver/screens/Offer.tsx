@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { IconCar, IconClock, IconPeage, IconPin, IconSablier, IconWallet } from '../../icons';
+import { IconCar, IconClock, IconPackage, IconPeage, IconPin, IconSablier, IconWallet } from '../../icons';
 import type { DriverApp } from '../useDriver';
 import type { ActiveRide } from '../types';
 import type { PrimeMois } from '../salarie';
@@ -89,7 +89,7 @@ export function OfferSheet({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
             <div className="dv-price">{fcfa(ride.amount)}</div>
             <div className="muted" style={{ fontSize: 13 }}>
               {ride.paymentMethod === 'cash' ? tr('Prix payé par le client, à encaisser pour ORION') : tr('Prix payé par le client à ORION')}
-              {prime?.prochain ? ` · ${tr('{0} course(s) avant le palier de {1}', [prime.prochain.reste, fcfa(prime.prochain.montant)])}` : ''}
+              {prime?.prochain ? ` · ${livraison ? tr('{0} livraison(s) avant le palier de {1}', [prime.prochain.reste, fcfa(prime.prochain.montant)]) : tr('{0} course(s) avant le palier de {1}', [prime.prochain.reste, fcfa(prime.prochain.montant)])}` : ''}
             </div>
           </div>
           <div className="dv-ring" aria-label={tr('{0} secondes restantes', [Math.ceil(left)])}>
@@ -115,11 +115,13 @@ export function OfferSheet({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
           )}
           {ride.itineraire?.choix === 'peage' && <span className="dv-pill gold"><IconPeage size={13} /> {tr('Pont à péage · {0} inclus', [fcfa(peage)])}</span>}
           {ride.itineraire?.choix === 'normal' && <span className="dv-pill"><IconCar size={13} /> {tr('Voie normale (sans péage)')}</span>}
+          {livraison && ride.livraison?.description && <span className="dv-pill"><IconPackage size={13} /> {ride.livraison.description}</span>}
         </div>
 
         <div className="dv-route card" style={{ padding: '12px 14px 12px 36px' }}>
           <div><strong>{livraison ? tr('Retrait') : tr('Départ')}</strong> <span className="muted">· {fromName}</span></div>
           <div><strong>{livraison ? tr('Livraison') : tr('Arrivée')}</strong> <span className="muted">· {toName}</span></div>
+          {livraison && ride.livraison?.destinataire && <div className="faint" style={{ fontSize: 12.5 }}>{tr('Pour {0}', [ride.livraison.destinataire.nom])}</div>}
         </div>
         <div className="faint" style={{ fontSize: 12.5 }}>
           {tr('{0} : {1}{2} · Prix fixe garanti, embouteillages inclus.', [livraison ? tr('Expéditeur') : tr('Client'), ride.client.name ?? (livraison ? tr('Client ORION') : tr('Passager ORION')), ride.client.rides > 0 ? tr(ride.client.rides > 1 ? ' · {0} courses ORION' : ' · {0} course ORION', [ride.client.rides]) : ''])}
