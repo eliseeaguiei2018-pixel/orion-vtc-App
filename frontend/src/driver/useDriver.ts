@@ -9,6 +9,7 @@ import type {
 import { tr } from './i18n';
 import { pointA, projeter, useNavigation } from './navigation';
 import { demarrerMisesAJour, signalerNouvelleVersion } from '../miseAJour';
+import { relayerEvenementCourse } from '../CourseLiveUI';
 import { positionUnique, prevenir, preparerNotifications, ramenerAuPremierPlan, suivreGps, suivreGpsNavigateur, type PointGps } from '../arrierePlan';
 
 /** Notification affichée dans l'app (console, système, annonces). */
@@ -112,6 +113,8 @@ export function useDriver() {
   /* ---------- Temps réel : application des événements console / serveur ---------- */
   const onEvent = useCallback((e: DriverEvent) => {
     const data = e.data as Record<string, unknown> | undefined;
+    // Course en direct (chat, appel par internet, arrêts, espèces) : relayée à son écran.
+    relayerEvenementCourse({ type: e.type, data });
     switch (e.type) {
       case 'connected': {
         // Canal public : porte `config`. Canal chauffeur : état complet (resynchro).

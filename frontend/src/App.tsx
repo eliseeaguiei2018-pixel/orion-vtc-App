@@ -48,6 +48,10 @@ import { prechaufferCarte } from './components/CarteGoogle';
 import { GpsCarte, type GpsCarteValeur } from './components/gpsCarte';
 import { relancerProches, useVehiculesProches } from './proches';
 import { LigneTrafic, PastilleDemande } from './demande';
+import { BoutonsCourse, EcranAppel, FenetreChat, PanneauArrets, ReponsesArrivee, relayerEvenementCourse, tx, useCourseLive } from './CourseLiveUI';
+
+/** Jeton de session du client (chat, appels, arrêts) : lu à chaque appel. */
+const jetonClient = (): string | null => { try { return localStorage.getItem('orion.clientSession'); } catch { return null; } };
 import { gpsNatif, notificationsAutorisees, prevenir, preparerNotifications, suivreGps } from './arrierePlan';
 import type { VehiculesProches } from './api';
 import { useTrajetTarif } from './tarifTrajet';
@@ -521,7 +525,7 @@ export function App() {
     setScreen('searching');
     if (shareRides && trusted) showToast(t('toast_shared', { name: trusted.name }));
     if (isLiveBackend() && devis) {
-      const res = await createRide(devis.lockId, clientId(), shareRides && trusted ? trusted : undefined, payment);
+      const res = await createRide(devis.lockId, clientId(), shareRides && trusted ? trusted : undefined, payment, undefined, stops.map((x) => x.name));
       if (res?.ride?.driverId) {
         setRideId(res.ride.id);
         setLive(true);
@@ -2534,6 +2538,8 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
   messages?: { nonLus: number; ouvrir: () => void };
 }) {
   const { t } = useI18n();
+  // Course en direct avec le chauffeur : chat, appel par internet, arrêts facturés, réponses à l'arrivée.
+  const direct = useCourseLive({ rideId, moi: 'client', jeton: jetonClient, actif: live && Boolean(rideId) && phase !== 'completed', nomAutre: driver.name });
   const del = mode === 'delivery';
   // BOUTON « APPELER » : le numéro du chauffeur vient du serveur (aux seuls participants,
   // pendant la course). Le bouton est un vrai lien tel: : un toucher ouvre le clavier du
@@ -2583,6 +2589,7 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
     ws.onmessage = (ev) => {
       try {
         const m = JSON.parse(ev.data as string) as { type: string; data: { position?: LatLng; status?: string; driver?: SafeDriver | null }; positionChauffeur?: LatLng };
+        relayerEvenementCourse(m);
         // À la connexion, le serveur donne la dernière position connue du chauffeur.
         if (m.type === 'connected' && m.positionChauffeur) setCarPos(m.positionChauffeur);
         if (m.type === 'driver.location' && m.data.position) setCarPos(m.data.position);
@@ -2701,6 +2708,10 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
         {!del && codeEtat === 'bloque' && (
           <div className="code-prise-bloque" role="alert">{t('code_bloque')}</div>
         )}
+        {/* Chauffeur arrivé : deux réponses toutes prêtes (il est prévenu dans son chat). */}
+        {phase === 'arrived' && !del && <ReponsesArrivee live={direct} />}
+        {/* Arrêts en course : compteur de l'arrêt en cours et récapitulatif (100 F la minute). */}
+        <PanneauArrets live={direct} role="client" enCourse={phase === 'inprogress'} />
         {/* Fiche chauffeur : photo, nom & prénom, note, matricule ORION */}
         <div className="card" style={{ padding: 14, marginBottom: 12 }}>
           <div className="row">
@@ -2730,6 +2741,10 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
           </div>
         </div>
 
+        {/* Chat et appel par internet avec le chauffeur (sans unités). */}
+        <BoutonsCourse live={direct} />
+        <FenetreChat live={direct} moi="client" nomAutre={driver.name} rapides={phase === 'arrived'} />
+        <EcranAppel live={direct} moi="client" nomAutre={driver.name} />
         <div className="row gap-sm">
           <button className="btn btn-ghost" onClick={onShare}><IconShare size={18} /> {t('track_share')}</button>
           {/* Un vrai lien « tel: » : c'est ce que le téléphone transmet le plus sûrement à son
@@ -3167,12 +3182,16 @@ function SupportChatScreen({ onBack }: { onBack: () => void }) {
 }
 
 /* ------------------------------ Paiement ----------------------------- */
-function PaymentScreen({ quote, coverage, payment, driver, rideId, onPaid, destination }: {
+function PaymentScreen({ quote, coverage, payment: paymentChoisi, driver, rideId, onPaid, destination }: {
   quote: Quote | null; coverage: SubCoverage | null; payment: string; driver: Driver; rideId: string | null; onPaid: () => void;
   /** Le client paie là où il vient d'arriver : la carte s'y centre (et non sur le Plateau). */
   destination: Place;
 }) {
   const { t } = useI18n();
+  // Espèces de secours (autorisées par le chauffeur) et arrêts facturés pendant la course.
+  const direct = useCourseLive({ rideId, moi: 'client', jeton: jetonClient, actif: isLiveBackend() && Boolean(rideId), nomAutre: driver.name });
+  const payment = direct.especes.autorise ? 'cash' : paymentChoisi;
+  const supplementArrets = direct.arrets?.montant ?? 0;
   const provider = PAYMENTS.find((p) => p.method === payment)?.label ?? payment;
   const mobile = ['orange_money', 'wave', 'mtn_momo', 'moov_money'].includes(payment);
   const [phase, setPhase] = useState<'idle' | 'redirect' | 'success'>('idle');
@@ -3209,6 +3228,7 @@ function PaymentScreen({ quote, coverage, payment, driver, rideId, onPaid, desti
       ws.onmessage = (ev) => {
         try {
           const m = JSON.parse(ev.data as string) as { type: string; data?: { status?: string } };
+          relayerEvenementCourse(m);
           if (m.type === 'ride.status' && m.data?.status === 'paid') payee();
         } catch { /* message illisible : ignoré */ }
       };
@@ -3219,7 +3239,11 @@ function PaymentScreen({ quote, coverage, payment, driver, rideId, onPaid, desti
 
   const pay = () => {
     setErreur(null);
-    if (!mobile) { void finalize(); return; }
+    if (!mobile) {
+      // Espèces autorisées par le chauffeur : le client confirme d'abord, puis le paiement part.
+      if (direct.especes.autorise && !direct.especes.clientConfirme) { void direct.confirmerEspeces().then(() => finalize()); return; }
+      void finalize(); return;
+    }
     setPhase('redirect');
   };
   /**
@@ -3261,12 +3285,14 @@ function PaymentScreen({ quote, coverage, payment, driver, rideId, onPaid, desti
         {phase !== 'success' ? (
           <>
             <div className="row between" style={{ marginBottom: 14 }}>
-              <span className="col"><span className="faint" style={{ fontSize: 12 }}>{t('conf_total')}</span><span className="amt" style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 28 }}>{formatXOF(Math.max(0, (quote?.amount ?? 0) - (coverage?.montantCouvert ?? 0) - (coverage?.remise ?? 0)))}</span></span>
+              <span className="col"><span className="faint" style={{ fontSize: 12 }}>{t('conf_total')}</span><span className="amt" style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 28 }}>{formatXOF(Math.max(0, (quote?.amount ?? 0) + supplementArrets - (coverage?.montantCouvert ?? 0) - (coverage?.remise ?? 0)))}</span></span>
               <PhotoChauffeur driver={driver} style={{ width: 48, height: 48, fontSize: 18 }} />
             </div>
             <div className="chip active" style={{ width: '100%', justifyContent: 'flex-start', marginBottom: 14 }}><IconWallet size={16} /> {provider}</div>
+            {supplementArrets > 0 && <p className="faint" style={{ fontSize: 13, margin: '0 0 10px' }}>{tx('ajoutes', { f: formatXOF(supplementArrets) })}</p>}
+            {direct.especes.autorise && paymentChoisi !== 'cash' && <p className="cl-info" style={{ marginBottom: 12 }} role="status">{tx('autoriseClient')}</p>}
             {especes && <p className="faint" style={{ fontSize: 13, margin: '0 0 12px' }}>{t('pay_cash_info')}</p>}
-            <button className="btn btn-primary" onClick={pay}><IconWallet size={18} /> {t(especes ? 'pay_cash_done' : 'pay_now')} · {formatXOF(quote?.amount ?? 0)}</button>
+            <button className="btn btn-primary" onClick={pay}><IconWallet size={18} /> {t(especes ? 'pay_cash_done' : 'pay_now')} · {formatXOF((quote?.amount ?? 0) + supplementArrets)}</button>
             {erreur && <p className="pay-erreur" role="alert">{erreur}</p>}
             {mobile && <p className="faint" style={{ fontSize: 12, textAlign: 'center', marginTop: 8 }}>{t('pay_redirect', { p: provider })}</p>}
           </>

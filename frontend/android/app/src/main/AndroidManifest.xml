@@ -101,6 +101,9 @@
     <uses-feature android:name="android.hardware.biometrics.face" android:required="false" />
 
     <!-- Photo de profil : prise de vue avec la caméra frontale. -->
+    <!-- Appels ORION par internet (chauffeur ↔ client, sans unités) : micro et réglage du son. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- L'app s'installe aussi sur un appareil sans caméra (la galerie reste possible). -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />

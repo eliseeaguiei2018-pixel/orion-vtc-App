@@ -137,6 +137,9 @@ export interface ActiveRide extends RideView {
   events: { type: string; at: string }[];
   /** Prénom et photo du passager, le temps de la mission (politique de confidentialité). */
   client: { id: string; name: string | null; phone: string | null; rides: number; photo?: string | null };
+  /** Arrêts prévus et demandés (compteur, minutes, montants) ; espèces autorisées par le chauffeur. */
+  arrets?: { montant: number };
+  especesAutorisees?: boolean;
   pickupZone: { id: string; name: string; driverBonus: number } | null;
   offer: Offer | null;
   /** Le passager doit donner son code à 4 chiffres pour démarrer (jamais sa valeur). */

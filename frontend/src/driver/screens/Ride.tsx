@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { OrionMap } from '../../components/OrionMap';
-import { IconCar, IconClock, IconPackage, IconPeage, IconPhone, IconPin, IconSablier, IconWallet } from '../../icons';
+import { IconCar, IconClock, IconMessage, IconPackage, IconPeage, IconPhone, IconPin, IconSablier, IconWallet } from '../../icons';
 import type { DriverApp } from '../useDriver';
 import type { ActiveRide, MotifAnnulationChauffeur, RideStatus, RideView } from '../types';
 import { Banner, Modal } from '../ui';
@@ -8,6 +8,9 @@ import { BandeauGuidage } from './Guidage';
 import { fcfa, haversine, km, methodLabel, navLinks, statutLabel, TAILLE_COLIS } from '../format';
 import { lienTel, numeroLisible } from '../../telephone';
 import { aTraduire, tr } from '../i18n';
+import { BoutonEspeces, BoutonsCourse, EcranAppel, FenetreChat, PanneauArrets, useCourseLive } from '../../CourseLiveUI';
+import { isLiveBackend } from '../../api';
+import { loadSession } from '../session';
 
 const STEPS: RideStatus[] = ['driver_en_route', 'arrived', 'in_progress', 'completed'];
 
@@ -16,7 +19,16 @@ const STEPS: RideStatus[] = ['driver_en_route', 'arrived', 'in_progress', 'compl
  * attente facturée, appel du client, SOS, annulation et encaissement.
  * Chaque étape passe par la machine à états du serveur (refus des transitions illégales).
  */
+/** Jeton du chauffeur (chat, appel, arrêts, espèces) : lu à chaque appel. */
+const jetonChauffeur = (): string | null => loadSession()?.token ?? null;
+
 export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) {
+  // Course en direct avec le client : chat, appel par internet, arrêts facturés, espèces de secours.
+  const direct = useCourseLive({
+    rideId: ride.id, moi: 'chauffeur', jeton: jetonChauffeur,
+    actif: isLiveBackend() && ['accepted', 'driver_en_route', 'arrived', 'in_progress', 'completed'].includes(ride.status),
+    nomAutre: ride.client.name ?? tr('Passager'),
+  });
   const [sos, setSos] = useState(false);
   const [cancel, setCancel] = useState(false);
   const [suivi, setSuivi] = useState(true);
@@ -32,7 +44,8 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
   const links = navLinks(target);
   const { wait } = app.driverConfig;
   const billable = Math.max(0, ride.waitMinutes - wait.freeMinutes);
-  const brut = ride.amount + billable * wait.feePerMin;
+  // Arrêts en course (prévus ou demandés) : chaque minute facturée, ajoutée au prix fixe.
+  const brut = ride.amount + billable * wait.feePerMin + (direct.arrets?.montant ?? ride.arrets?.montant ?? 0);
   // Abonnement ORION : ce que le client paie VRAIMENT (le chauffeur est payé sur le brut).
   const prisEnCharge = Math.min(brut, ride.encaissement?.prisEnCharge ?? 0);
   const totalDue = Math.max(0, brut - prisEnCharge);
@@ -82,6 +95,8 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
 
       {reduite ? (
         <div className="dv-ride-sheet reduite">
+          {/* Arrêt en cours : le compteur et « Reprendre la course » restent sous la main. */}
+          {direct.arrets?.enCours && <PanneauArrets live={direct} role="chauffeur" enCourse position={app.position} />}
           <button type="button" className="dv-ride-resume" onClick={() => setDeplie(true)} aria-expanded={false} aria-label={tr('Afficher les détails de la course')}>
             <span className="dv-ride-grab" />
             <span className="row between" style={{ width: '100%', gap: 12 }}>
@@ -95,6 +110,14 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
             </span>
           </button>
           <div className="dv-ride-resume-actions">
+            {direct.actif && (
+              <button type="button" className="dv-act compact dv-act-chat" onClick={direct.ouvrirChat} aria-label={tr('Chat')}>
+                <IconMessage size={18} />{direct.nonLus > 0 && <span className="cl-pastille">{direct.nonLus}</span>}
+              </button>
+            )}
+            {ride.status === 'in_progress' && direct.actif && !direct.arrets?.enCours && (
+              <button type="button" className="dv-act compact" onClick={() => setDeplie(true)} aria-label={tr('Arrêts')}><IconSablier size={18} /></button>
+            )}
             {lienTel(ride.client.phone) && (
               <a className="dv-act compact" href={lienTel(ride.client.phone)!} aria-label={livraison ? tr('Appeler l’expéditeur {0}', [numeroLisible(ride.client.phone)]) : tr('Appeler le passager {0}', [numeroLisible(ride.client.phone)])}><IconPhone size={18} /></a>
             )}
@@ -163,7 +186,11 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
             : <span className="dv-act" style={{ opacity: 0.5 }}><IconPhone size={18} />{tr('Numéro masqué')}</span>}
         </div>
 
-        {(ride.status === 'arrived' || ride.status === 'in_progress') && (
+        {/* Chat et appel par internet avec le client (sans unités). */}
+        <BoutonsCourse live={direct} />
+        {/* Arrêts : « Je suis à l'arrêt » (arrêt prévu), « Arrêt demandé par le client », reprise. */}
+        <PanneauArrets live={direct} role="chauffeur" enCourse={ride.status === 'in_progress'} position={app.position} />
+        {ride.status === 'arrived' && (
           <div className="card" style={{ padding: 12 }}>
             <div className="row between">
               <span className="row" style={{ gap: 8 }}><IconClock size={16} /><strong>{tr('Attente : {0} min', [ride.waitMinutes])}</strong></span>
@@ -197,8 +224,10 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
                 {tr('Le client règle {0} depuis son app. Vous serez notifié dès réception.', [fcfa(totalDue)])}
               </Banner>
             )}
+            {/* Le moyen choisi ne passe pas : le chauffeur autorise les espèces côté client. */}
+            {electronic && cashAllowed && <BoutonEspeces live={direct} />}
             {cashAllowed ? (
-              <button className={`btn ${electronic ? 'btn-ghost' : 'btn-primary'}`} disabled={app.busy} onClick={() => void app.actions.collectCash(ride.id)}>
+              <button className={`btn ${electronic && !direct.especes.autorise ? 'btn-ghost' : 'btn-primary'}`} disabled={app.busy} onClick={() => void app.actions.collectCash(ride.id)}>
                 {electronic ? tr('Le client paie finalement en espèces') : tr('J’ai encaissé {0} en espèces', [fcfa(totalDue)])}
               </button>
             ) : (
@@ -214,6 +243,9 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
       </div>
       )}
 
+      {/* Discussion et appel : par-dessus l'écran, même carte réduite (appel entrant). */}
+      <FenetreChat live={direct} moi="chauffeur" nomAutre={ride.client.name ?? tr('Passager')} />
+      <EcranAppel live={direct} moi="chauffeur" nomAutre={ride.client.name ?? tr('Passager')} />
       {sos && (
         <Modal title={tr('Alerte SOS')} onClose={() => setSos(false)}>
           <p className="muted" style={{ marginBottom: 12 }}>{tr('Votre position et la course partent à la supervision ORION. Vous suivrez en direct qui prend votre alerte et quels secours sont appelés.')}</p>

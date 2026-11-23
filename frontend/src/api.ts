@@ -735,11 +735,11 @@ export interface DetailsLivraison {
   instructions?: string;
 }
 
-export async function createRide(lockId: string, cid: string, trustedContact?: TrustedContact, paymentMethod?: string, livraison?: DetailsLivraison): Promise<RideCreateResult | null> {
+export async function createRide(lockId: string, cid: string, trustedContact?: TrustedContact, paymentMethod?: string, livraison?: DetailsLivraison, nomsArrets?: string[]): Promise<RideCreateResult | null> {
   const res = await tryFetch<{ ride: RideCreated; driver: SafeDriver | null; codePriseEnCharge?: string | null; codeRemise?: string | null }>('/rides', {
     method: 'POST',
     headers: { 'idempotency-key': `${cid}-${lockId}` },
-    body: JSON.stringify({ clientId: cid, lockId, trustedContact, paymentMethod, ...(livraison ? { livraison } : {}) }),
+    body: JSON.stringify({ clientId: cid, lockId, trustedContact, paymentMethod, ...(livraison ? { livraison } : {}), ...(nomsArrets?.length ? { nomsArrets } : {}) }),
   });
   if (res?.ride?.id && res.codePriseEnCharge) {
     try { localStorage.setItem(`orion.code.${res.ride.id}`, res.codePriseEnCharge); } catch { /* stockage indisponible */ }

@@ -69,6 +69,8 @@
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
 	<!-- Textes affichés par iOS au moment de demander l'accès (exigés par l'App Store). -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>ORION utilise le micro pour vos appels par internet avec votre client, sans unités.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>ORION Chauffeur utilise l’appareil photo pour votre photo de profil : vos passagers vous reconnaissent à la prise en charge, et la supervision peut vous identifier si vous déclenchez une alerte SOS.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

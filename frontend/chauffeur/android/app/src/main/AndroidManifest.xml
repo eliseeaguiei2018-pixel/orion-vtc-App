@@ -96,6 +96,9 @@
         <provider android:authorities="ci.orion.app.bustest" />
     </queries>
     <!-- Photo du chauffeur (reconnaissance à la prise en charge) : caméra frontale. -->
+    <!-- Appels ORION par internet (chauffeur ↔ client, sans unités) : micro et réglage du son. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Empreinte digitale / visage : verrouillage de l'app (Profil › Préférences).
       USE_FINGERPRINT : Android 9 et antérieurs. -->

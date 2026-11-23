@@ -742,3 +742,8 @@ html[data-ecran] .tuile-fond .vehicule { animation: objet-arrive 0.7s var(--ease
 .dv-kit ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13.5px; }
 .dv-kit li { display: flex; align-items: center; gap: 8px; }
 .dv-kit li span { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+
+/* Course en direct dans la barre de navigation : chat (messages non lus) et arrêts. */
+.dv-act-chat { position: relative; }
+.dv-act-chat .cl-pastille { top: -4px; right: -4px; }
+.dv-ride-sheet.reduite .cl-arrets { margin: 0 0 8px; }
