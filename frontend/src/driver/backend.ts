@@ -1,3 +1,4 @@
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { baseTempsReel, enTeteRecaptcha, enTetesPasserelle } from '../securiteGoogle';
 import { configSocketUrl, etatServeur, fetchAppConfig, isLiveBackend, sosRepondre, sosSocketUrl, sosSuivi, type AppConfig, type SosSuivi } from '../api';
 import type { ActiviteMois, PrimeMois } from './salarie';
@@ -239,7 +240,21 @@ function createLiveBackend(): DriverBackend {
 
     async goOnline(position) { await post(`/drivers/${id()}/online`, { position }); },
     async goOffline() { await post(`/drivers/${id()}/offline`); },
-    async sendLocation(position) { await post(`/drivers/${id()}/location`, { position }); },
+    async sendLocation(position) {
+      // App installée : envoi par le réseau NATIF. Android freine les requêtes de la WebView
+      // après 5 min en arrière-plan ; la position du chauffeur, elle, doit partir sans délai
+      // (clients qui le voient approcher, dispatch, console).
+      if (Capacitor.isNativePlatform() && current) {
+        const r = await CapacitorHttp.post({
+          url: `${API}/drivers/${id()}/location`,
+          headers: { ...enTetesPasserelle(), 'content-type': 'application/json', authorization: `Bearer ${current.token}` },
+          data: { position }, connectTimeout: 8000, readTimeout: 8000,
+        });
+        if (r.status >= 400) throw new ApiError(r.status, `Erreur ${r.status}`);
+        return;
+      }
+      await post(`/drivers/${id()}/location`, { position });
+    },
     async queue() {
       try { return await call<QueueInfo>(`/drivers/${id()}/queue`); } catch { return null; }
     },
