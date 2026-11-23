@@ -35,11 +35,11 @@ export const DEFAULT_PACKAGE = 'moyen';
  * 70 % du prix d'une course Argent, le plancher protégeant les très courtes distances.
  */
 export const DELIVERY_TARIFF = {
-  baseFare: 220,
-  // Motos électriques : même baisse au km que les courses (environ −20 %).
-  perKm: 70,
-  perMinute: 6,
-  minFare: 500,
+  baseFare: 145,
+  // Motos électriques : même baisse que les courses (grille calée sur les vrais prix Yango).
+  perKm: 46,
+  perMinute: 4,
+  minFare: 400,
   avgSpeedKmh: 26, // la moto se faufile : plus rapide qu'une voiture en ville
   currency: 'XOF',
 } as const;

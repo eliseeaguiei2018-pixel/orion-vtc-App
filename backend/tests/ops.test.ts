@@ -237,10 +237,16 @@ test('micro-zonage : standard minimal, frais de secteur, cantonnement, attente 1
   const rideBH2 = await app.inject({ method: 'POST', url: '/rides', payload: { clientId: 'client-bh2', lockId: estBH2.json().quote.lockId }, headers: { 'idempotency-key': 'bh-2' } });
   assert.equal(rideBH2.json().ride.driverId, orId);
 
-  // --- Frais de prise en charge du secteur intégrés au prix fixe (Beverly Hills : +250 F).
-  const zones = container.settings.getZones();
-  const bh = zones.find((z) => z.id === 'riviera-beverly-hills');
-  assert.equal(bh?.pickupFee, 250);
+  // --- Frais de prise en charge du secteur : aucun par défaut (prix calés 40 % sous Yango,
+  // qui n'en fait pas payer), mais la console peut en fixer un, intégré au prix fixe.
+  const bh = container.settings.getZones().find((z) => z.id === 'riviera-beverly-hills')!;
+  assert.equal(bh.pickupFee ?? 0, 0);
+  const pointBH = { lat: bh.lat, lng: bh.lng };
+  const sansFrais = (await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: pointBH, destination: { lat: 5.35, lng: -4.0 }, category: 'or' } })).json().quote.amount as number;
+  const maj = await app.inject({ method: 'PUT', url: '/admin/zones', headers: AUTH, payload: { ...bh, pickupFee: 250 } });
+  assert.equal(maj.statusCode, 200, maj.body);
+  const avecFrais = (await app.inject({ method: 'POST', url: '/pricing/estimate', payload: { origin: pointBH, destination: { lat: 5.35, lng: -4.0 }, category: 'or' } })).json().quote.amount as number;
+  assert.ok(avecFrais > sansFrais, `${avecFrais} > ${sansFrais}`);
 
   // --- Cantonnement : chauffeur épinglé à Beverly Hills → jamais matché ailleurs.
   await app.inject({ method: 'POST', url: `/admin/drivers/${bronzeId}/zone`, headers: AUTH, payload: { zoneId: 'riviera-beverly-hills' } });

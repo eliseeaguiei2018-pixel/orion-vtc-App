@@ -41,7 +41,7 @@ export function distanceVol(a: Pt, b: Pt): number {
 /** Barème des courses (DEFAULT_PRICING du serveur). */
 export const BAREME = {
   // Grille ORION, environ 40 % sous Yango (flotte électrique) : voir DEFAULT_PRICING du serveur.
-  baseFare: 300, perKm: 100, perMinute: 15, minFare: 600, avgSpeedKmh: 24,
+  baseFare: 200, perKm: 66, perMinute: 10, minFare: 480, avgSpeedKmh: 24,
   tvaRate: 0.05, feeRate: 0.1, insuranceRate: 0.04, trafficWeight: 0.6, stopFee: 250,
   bodySurcharge: { berline: 1, suv: 1.08 } as Record<string, number>,
   /** Majoration de chaque gamme par rapport à l'Argent, en pour cent du prix de la course. */
@@ -109,7 +109,7 @@ export function supplementGamme(gamme: Gamme, montantArgent: number, horsAbidjan
 }
 
 /** Barème des livraisons à moto (DELIVERY_TARIFF du serveur). */
-export const BAREME_LIVRAISON = { baseFare: 220, perKm: 70, perMinute: 6, minFare: 500, avgSpeedKmh: 26 as const };
+export const BAREME_LIVRAISON = { baseFare: 145, perKm: 46, perMinute: 4, minFare: 400, avgSpeedKmh: 26 as const };
 
 /** Zone tarifaire : commune ou secteur résidentiel, avec ses règles de prix. */
 export interface ZoneTarif {
@@ -134,12 +134,12 @@ export const ZONES_TARIF: ZoneTarif[] = [
   { id: 'yopougon', name: 'Yopougon', factor: 0.92, lat: 5.3456, lng: -4.0864, radiusKm: 6 },
   { id: 'abobo', name: 'Abobo', factor: 0.92, lat: 5.4204, lng: -4.0159, radiusKm: 6 },
   { id: 'aeroport', name: 'Aéroport (Port-Bouët)', factor: 1.1, lat: 5.2614, lng: -3.9268, radiusKm: 4 },
-  { id: 'riviera-golf', name: 'Riviera Golf', factor: 1.15, lat: 5.3742, lng: -3.9721, radiusKm: 1.4, pickupFee: 200 },
-  { id: 'deux-plateaux-vallon', name: 'Deux-Plateaux Vallon', factor: 1.1, lat: 5.3689, lng: -4.0004, radiusKm: 1.3, pickupFee: 150 },
-  { id: 'cite-des-arts', name: 'Cocody Centre — Cité des Arts', factor: 1.08, lat: 5.3488, lng: -3.9962, radiusKm: 1.1, pickupFee: 100 },
-  { id: 'cocody-danga', name: 'Cocody Danga', factor: 1.1, lat: 5.3391, lng: -4.0011, radiusKm: 1.0, pickupFee: 150 },
-  { id: 'riviera-beverly-hills', name: 'Riviera Beverly Hills', factor: 1.18, lat: 5.3808, lng: -3.9611, radiusKm: 1.2, pickupFee: 250 },
-  { id: 'marcory-zone4', name: 'Marcory Zone 4', factor: 1.08, lat: 5.2942, lng: -3.9846, radiusKm: 1.6, pickupFee: 100 },
+  { id: 'riviera-golf', name: 'Riviera Golf', factor: 1.15, lat: 5.3742, lng: -3.9721, radiusKm: 1.4 },
+  { id: 'deux-plateaux-vallon', name: 'Deux-Plateaux Vallon', factor: 1.1, lat: 5.3689, lng: -4.0004, radiusKm: 1.3 },
+  { id: 'cite-des-arts', name: 'Cocody Centre — Cité des Arts', factor: 1.08, lat: 5.3488, lng: -3.9962, radiusKm: 1.1 },
+  { id: 'cocody-danga', name: 'Cocody Danga', factor: 1.1, lat: 5.3391, lng: -4.0011, radiusKm: 1.0 },
+  { id: 'riviera-beverly-hills', name: 'Riviera Beverly Hills', factor: 1.18, lat: 5.3808, lng: -3.9611, radiusKm: 1.2 },
+  { id: 'marcory-zone4', name: 'Marcory Zone 4', factor: 1.08, lat: 5.2942, lng: -3.9846, radiusKm: 1.6 },
 ];
 
 /** Densité des communes, pôles et villes (ALL_ZONES du serveur) : `[id, lat, lng, densité]`. */
