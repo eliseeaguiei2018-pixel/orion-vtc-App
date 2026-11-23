@@ -1,6 +1,6 @@
-# ORION Chauffeur — hôte HarmonyOS (ArkTS / ArkWeb)
+# ORION Pro — hôte HarmonyOS (ArkTS / ArkWeb)
 
-Projet HarmonyOS minimal qui héberge l'application web ORION Chauffeur dans le moteur
+Projet HarmonyOS minimal qui héberge l'application web ORION Pro dans le moteur
 **ArkWeb** (composant `Web`). Même application que sur Android, iPhone et le navigateur :
 rien n'est réécrit, et une correction publiée sur ORION arrive au prochain démarrage.
 

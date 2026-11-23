@@ -216,7 +216,7 @@ passager d'annuler lui-même reste interdit (signalé à la console comme détou
 | La photo d'un chauffeur s'affichait pour quiconque connaissait son identifiant interne. | **Adresse signée et expirante** (HMAC, 24 h) remise uniquement aux personnes concernées : passager de la course, lien de partage, console, dossier SOS, le chauffeur lui-même. Sans signature : session du chauffeur ou accès personnel `drivers:read`, sinon refus. |
 | La console n'affichait ni la photo du chauffeur ni son compteur d'annulations. | Photo (avatar) et **annulations** visibles dans Opérations (liste et fiche), Équipages, Supervision et Poste équipe. |
 | App en français seulement. | **8 langues** (français, anglais, espagnol, italien, arabe de droite à gauche, chinois, allemand, russe), même choix que l'app cliente (`orion.lang`). Les messages envoyés à la console restent en français. Contrôle `npm run check:langues` en CI. |
-| Installation depuis le navigateur uniquement. | **Apps natives « ORION Chauffeur »** Android et iOS (`ci.orion.chauffeur`), voir [`NATIVE.md`](../NATIVE.md) §1 bis ; APK compilé à chaque modification. |
+| Installation depuis le navigateur uniquement. | **Apps natives « ORION Pro »** Android et iOS (`ci.orion.chauffeur`), voir [`NATIVE.md`](../NATIVE.md) §1 bis ; APK compilé à chaque modification. |
 | Graphisme en retrait de l'app cliente. | Refonte au même niveau : en-têtes en dégradé, véhicule de la gamme sur scène lumineuse, interrupteur En ligne, tuiles de raccourcis, portrait, solde lumineux, barre d'onglets flottante, clair / sombre, vert / orange / bleu. |
 
 ### 10.2 Vraie carte et navigation guidée

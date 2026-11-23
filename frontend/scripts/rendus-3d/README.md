@@ -10,7 +10,7 @@ teintes de la marque — vert, blanc, violet.
 | `rendre.py` | La liste des rendus : voitures par gamme et par teinte, scooter, vues de dessus pour la carte, les neuf objets de l'accueil et les 32 icônes des listes (packs, urgences, paramètres, lieux) |
 | `publier.py` | Mise à la taille de l'application et conversion en WebP transparent |
 | `icone_app.py` | L'icône de l'application : la feuille du logo en relief sur une dalle verte laquée, vue d'aplomb |
-| `icone_app.py` + `ORION_ICONE=chauffeur` ou `console` | La même icône pour ORION Chauffeur (volant en relief) et ORION Console (cadran de supervision), en bas à gauche dans la zone sûre |
+| `icone_app.py` + `ORION_ICONE=chauffeur` ou `console` | La même icône pour ORION Pro (volant en relief) et ORION Console (cadran de supervision), en bas à gauche dans la zone sûre |
 | `icone_android.py` | Décline cette icône pour Android (icône adaptative, anciennes icônes ronde et carrée) et pour le logo affiché dans l'application |
 
 ```bash

@@ -63,7 +63,7 @@ téléchargeables dans l'onglet *Actions* du dépôt (rubrique *Artifacts*).
 
 Publication sur les stores : voir [`store/README.md`](store/README.md).
 
-## 1 bis. ORION Chauffeur : l'app native des chauffeurs
+## 1 bis. ORION Pro : l'app native des chauffeurs
 
 Les chauffeurs ont **leur propre application**, distincte de l'app cliente sur les stores
 (fiche, icône et identifiant à part), construite à partir de la même app web (`driver.html`).
@@ -72,7 +72,7 @@ Les chauffeurs ont **leur propre application**, distincte de l'app cliente sur l
 |---|---|---|
 | Projet | `frontend/chauffeur/android` | `frontend/chauffeur/ios/App` |
 | Identifiant | `ci.orion.chauffeur` | `ci.orion.chauffeur` |
-| Nom affiché | ORION Chauffeur | ORION Chauffeur |
+| Nom affiché | ORION Pro | ORION Pro |
 | Version | 1.0.0 (code 1) | 1.0.0 (build 1) |
 | Orientation | portrait | portrait, iPhone uniquement |
 | Autorisations | Internet, **position (pendant l'utilisation)**, caméra (facultative) | **position pendant l'utilisation**, caméra, photothèque (phrases en français) |
@@ -104,7 +104,7 @@ Déjà câblé :
   d'équipe (pas de permission `CALL_PHONE`), ouverture de Google Maps et Waze.
 - **Icônes et écran de démarrage** dédiés (feuille ORION et volant), sources dans
   `frontend/chauffeur/assets/`.
-- **CI** : l'APK *ORION Chauffeur* est compilé à chaque modification du front (artefact
+- **CI** : l'APK *ORION Pro* est compilé à chaque modification du front (artefact
   `orion-chauffeur-android-apk`) ; l'app iOS pour simulateur est compilée sur demande
   (`[demo-mobile]` ou lancement manuel, artefact `orion-chauffeur-ios-simulateur`).
 
