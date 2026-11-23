@@ -17,9 +17,9 @@ export interface VehiculeProche { id: string; lat: number; lng: number; cap: num
 export interface Approche { km: number; minutes: number }
 
 /** Distance par la route ≈ 1,35 × vol d'oiseau en ville (Abidjan). */
-const FACTEUR_ROUTE = 1.35;
-/** Vitesse d'approche en ville, circulation fluide (km/h). */
-const VITESSE_KMH = 24;
+export const FACTEUR_ROUTE = 1.35;
+/** Vitesse d'approche par défaut, circulation fluide (km/h) ; réglable en console (approche.vitesseKmh). */
+export const VITESSE_APPROCHE_KMH = 40;
 /** Rayon des véhicules montrés sur la carte, et rayon de recherche d'approche (= dispatch). */
 const RAYON_CARTE_M = 6000;
 const RAYON_APPROCHE_M = 30_000;
@@ -77,11 +77,16 @@ export class ChauffeursProches {
   }
 
   /** Temps d'approche estimé depuis une distance à vol d'oiseau (facteur de trafic ≥ 1). */
-  static approcheDepuis(metres: number, facteurTrafic = 1): Approche {
+  static approcheDepuis(metres: number, facteurTrafic = 1, vitesseKmh = VITESSE_APPROCHE_KMH): Approche {
     const km = (metres / 1000) * FACTEUR_ROUTE;
-    const minutes = Math.max(1, Math.round((km / (VITESSE_KMH / Math.max(1, facteurTrafic))) * 60));
+    const vitesse = Number.isFinite(vitesseKmh) && vitesseKmh > 0 ? vitesseKmh : VITESSE_APPROCHE_KMH;
+    const minutes = Math.max(1, Math.round((km / (vitesse / Math.max(1, facteurTrafic))) * 60));
     return { km: Math.round(km * 10) / 10, minutes };
   }
+
+  /** Vitesse d'approche réglée en console (lue à chaque calcul). */
+  private vitesse: () => number = () => VITESSE_APPROCHE_KMH;
+  reglerVitesse(f: () => number): void { this.vitesse = f; }
 
   /** Chauffeur LIBRE le plus proche de cette gamme (rayon du dispatch), ou null. */
   async approche(p: LatLng, gamme: string, facteurTrafic = 1, o: { simulation?: boolean; projet?: boolean } = {}): Promise<Approche | null> {
@@ -98,7 +103,7 @@ export class ChauffeursProches {
       const sim = this.simulation.chauffeursProches(p, RAYON_APPROCHE_M, o.projet).find((c) => c.gamme === gamme);
       if (sim && (metres === null || sim.distanceMeters < metres)) metres = sim.distanceMeters;
     }
-    return metres === null ? null : ChauffeursProches.approcheDepuis(metres, facteurTrafic);
+    return metres === null ? null : ChauffeursProches.approcheDepuis(metres, facteurTrafic, this.vitesse());
   }
 
   /** Véhicules libres autour du point, et approche du plus proche de chaque gamme. */
@@ -109,6 +114,7 @@ export class ChauffeursProches {
     if (enCache && t - enCache.t < CACHE_MS) return enCache.val;
 
     const voisins = await this.geo.nearby(p, RAYON_APPROCHE_M, 300);
+    const vitesse = this.vitesse();
     const vehicules: VehiculeProche[] = [];
     const approche: Record<string, Approche | null> = Object.fromEntries([...GAMMES_COURSE, GAMME_COURSIER].map((g) => [g, null]));
     for (const v of voisins) {
@@ -117,7 +123,7 @@ export class ChauffeursProches {
       const gamme = String(v.meta?.['category'] ?? d.category);
       // Un chauffeur ouvert à plusieurs gammes compte pour chacune d'elles.
       for (const g of gammesServies(d)) {
-        if (approche[g] === null) approche[g] = ChauffeursProches.approcheDepuis(v.distanceMeters, facteurTrafic);
+        if (approche[g] === null) approche[g] = ChauffeursProches.approcheDepuis(v.distanceMeters, facteurTrafic, vitesse);
       }
       if (v.distanceMeters <= RAYON_CARTE_M && vehicules.length < MAX_VEHICULES) {
         vehicules.push({ id: this.anonyme(v.id), lat: v.lat, lng: v.lng, cap: this.orienter(v.id, v), gamme });
@@ -127,7 +133,7 @@ export class ChauffeursProches {
     // même format, véhicule qui bouge), et leur approche compte quand ils sont plus proches.
     if (this.simulation) {
       for (const c of this.simulation.chauffeursProches(p, RAYON_APPROCHE_M)) {
-        const a = ChauffeursProches.approcheDepuis(c.distanceMeters, facteurTrafic);
+        const a = ChauffeursProches.approcheDepuis(c.distanceMeters, facteurTrafic, vitesse);
         const avant = approche[c.gamme];
         if (c.gamme in approche && (!avant || a.km < avant.km)) approche[c.gamme] = a;
         if (c.distanceMeters <= RAYON_CARTE_M && vehicules.length < MAX_VEHICULES_SIMULATION) {

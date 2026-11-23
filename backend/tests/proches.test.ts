@@ -33,11 +33,25 @@ test('approche : offerte jusqu’à 5 km et 15 min, puis au km et à la minute, 
   assert.equal(coupe.amount, sans.amount);
 });
 
-test('temps d’approche : distance par la route et vitesse de ville', () => {
+test('temps d’approche : distance par la route, 40 km/h en trafic fluide, réglable en console', async () => {
   const a = ChauffeursProches.approcheDepuis(3000);
   assert.equal(a.km, 4.1);
-  assert.equal(a.minutes, 10);
+  assert.equal(a.minutes, 6, '4,05 km à 40 km/h');
+  assert.equal(ChauffeursProches.approcheDepuis(3000, 1.35).minutes, 8, 'bouchon : environ 30 km/h');
   assert.equal(ChauffeursProches.approcheDepuis(50).minutes, 1);
+  assert.equal(ChauffeursProches.approcheDepuis(3000, 1, 24).minutes, 10, 'vitesse réglée à 24 km/h');
+  // La vitesse se règle en console et part aux apps ; le prix du trajet garde la sienne.
+  const { app, container: c } = await buildApp();
+  try {
+    assert.equal(c.settings.getPricing().approche.vitesseKmh, 40);
+    const r = await app.inject({ method: 'PUT', url: '/admin/pricing', headers: { 'x-admin-token': 'orion-admin-dev' }, payload: { approche: { vitesseKmh: 30 } } });
+    assert.equal(r.statusCode, 200, r.body);
+    assert.equal(c.settings.getPricing().approche.vitesseKmh, 30);
+    assert.equal(c.settings.getPricing().avgSpeedKmh, 24, 'vitesse du trajet (prix) inchangée');
+    const cfg = (await app.inject({ method: 'GET', url: '/config' })).json() as { prix: { approche: { vitesseKmh: number } } };
+    assert.equal(cfg.prix.approche.vitesseKmh, 30);
+    assert.equal((await app.inject({ method: 'PUT', url: '/admin/pricing', headers: { 'x-admin-token': 'orion-admin-dev' }, payload: { approche: { vitesseKmh: 300 } } })).statusCode, 400);
+  } finally { await app.close(); }
 });
 
 test('GET /vehicules/proches : véhicules libres anonymes + approche par gamme, repris dans le devis', async (t) => {

@@ -1,3 +1,4 @@
+import { FACTEUR_ROUTE } from '../proches/service.js';
 import type { Container } from '../../container.js';
 import { DELIVERY_TARIFF } from '../services/delivery/deliveryModule.js';
 
@@ -20,6 +21,8 @@ export function configPublique(container: Pick<Container, 'settings' | 'whatsapp
       // Barème en vigueur (Tarification en console) : les aperçus de prix des apps le suivent.
       bareme: { baseFare: p.baseFare, perKm: p.perKm, perMinute: p.perMinute, minFare: p.minFare },
       livraison: { baseFare: DELIVERY_TARIFF.baseFare, perKm: DELIVERY_TARIFF.perKm, perMinute: DELIVERY_TARIFF.perMinute, minFare: DELIVERY_TARIFF.minFare },
+      // Temps d'approche affiché par les apps pendant que le chauffeur arrive : même règle que le serveur.
+      approche: { vitesseKmh: p.approche?.vitesseKmh ?? 40, facteurRoute: FACTEUR_ROUTE },
     },
   };
 }

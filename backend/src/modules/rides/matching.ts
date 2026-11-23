@@ -39,12 +39,20 @@ export interface DispatchContext {
   weightIdle?: number;
   /** Priorisation écologique absolue : l'électrique passe d'abord à ETA comparable. */
   greenPriority?: boolean;
+  /** Vitesse d'approche (km/h) réglée en console : temps d'approche annoncé et filtre ETA. */
+  vitesseApprocheKmh?: number;
 }
 
 /* Rang des gammes (standard minimal de secteur) : TIER_RANK du catalogue de la flotte. */
 
-/** Vitesse d'approche urbaine présumée pour l'ETA chauffeur (km/h). */
-const APPROACH_SPEED_KMH = 28;
+/**
+ * Temps d'approche d'un chauffeur : même règle que l'app cliente (véhicules proches) — distance
+ * par la route (vol d'oiseau × 1,35) à la vitesse d'approche réglée en console (40 km/h par défaut).
+ */
+const FACTEUR_ROUTE = 1.35;
+const VITESSE_APPROCHE_DEFAUT = 40;
+const approcheSecondes = (metres: number, vitesseKmh = VITESSE_APPROCHE_DEFAUT) =>
+  ((metres / 1000) * FACTEUR_ROUTE / (vitesseKmh > 0 ? vitesseKmh : VITESSE_APPROCHE_DEFAUT)) * 3600;
 
 interface Candidate { id: string; distanceMeters: number; driver: Driver }
 
@@ -134,7 +142,7 @@ export class MatchingEngine {
         }
         // Filtre ETA : au-delà du seuil (console), le client attendrait trop.
         if (ctx?.maxEtaMinutes !== undefined) {
-          const etaMin = (c.distanceMeters / 1000 / APPROACH_SPEED_KMH) * 60;
+          const etaMin = approcheSecondes(c.distanceMeters, ctx.vitesseApprocheKmh) / 60;
           if (etaMin > ctx.maxEtaMinutes) continue;
         }
         candidates.push({ id: c.id, distanceMeters: c.distanceMeters, driver });
@@ -146,7 +154,7 @@ export class MatchingEngine {
       return {
         driverId: chosen.id,
         distanceMeters: Math.round(chosen.distanceMeters),
-        etaSeconds: Math.round((chosen.distanceMeters / 1000 / APPROACH_SPEED_KMH) * 3600),
+        etaSeconds: Math.round(approcheSecondes(chosen.distanceMeters, ctx?.vitesseApprocheKmh)),
       };
     }
     return null;
@@ -163,7 +171,7 @@ export class MatchingEngine {
     const wr = ctx?.weightRating ?? 0;
     const wi = ctx?.weightIdle ?? 0;
     const score = (c: Candidate): number => {
-      const etaMin = (c.distanceMeters / 1000 / APPROACH_SPEED_KMH) * 60;
+      const etaMin = approcheSecondes(c.distanceMeters, ctx?.vitesseApprocheKmh) / 60;
       const idleMin = c.driver.idleSince ? Math.max(0, (Date.now() - Date.parse(c.driver.idleSince)) / 60_000) : 0;
       let s = etaMin;
       s -= wr * (c.driver.ratingAvg - 4.5) * 2;                 // privilégie un 4.9 face à un 4.2

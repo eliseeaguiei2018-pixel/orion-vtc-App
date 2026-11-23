@@ -83,7 +83,16 @@ export function coefAjustement(s: Pick<PricingSettings, 'ajustementPct'>): numbe
  * l'avantage de prix d'ORION. Au-delà, c'est ORION qui compense le chauffeur (prime d'approche
  * longue, longPickupPerKm), pas le client.
  */
-export interface ApprocheTarif { actif: boolean; offerteKm: number; offerteMin: number; parKm: number; parMin: number; plafond: number }
+export interface ApprocheTarif {
+  actif: boolean; offerteKm: number; offerteMin: number; parKm: number; parMin: number; plafond: number;
+  /**
+   * Vitesse moyenne du chauffeur qui vient chercher le client (km/h, circulation fluide), sur la
+   * distance par la route (vol d'oiseau × 1,35). Le trafic du moment la réduit (÷1,15 dense,
+   * ÷1,35 bouchon). Sert au temps d'approche annoncé, au choix du chauffeur et au suivi.
+   * Le prix du TRAJET garde sa propre vitesse (avgSpeedKmh) : changer celle-ci ne baisse pas les courses.
+   */
+  vitesseKmh: number;
+}
 
 /**
  * GRILLE ORION : environ 40 % moins chère que Yango à Abidjan. La flotte ORION est 100 %
@@ -111,7 +120,7 @@ export const DEFAULT_PRICING: PricingSettings = {
   freeWaitMinutes: 5, cancelGraceMinutes: 2, cancelFee: 500,
   cleaningLight: 10_000, cleaningMajor: 50_000,
   longPickupPerKm: 100, longPickupThresholdKm: 5,
-  approche: { actif: true, offerteKm: 5, offerteMin: 15, parKm: 60, parMin: 10, plafond: 200 },
+  approche: { actif: true, offerteKm: 5, offerteMin: 15, parKm: 60, parMin: 10, plafond: 200, vitesseKmh: 40 },
   ajustementPct: 0,
 };
 

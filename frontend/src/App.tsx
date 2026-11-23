@@ -52,7 +52,7 @@ import type { VehiculesProches } from './api';
 import { useTrajetTarif } from './tarifTrajet';
 import { alleger, optionRetenue, useItineraires, type ChoixItineraire, type Itineraires, type OptionItineraire } from './itinerairesPeage';
 import { ChoixRoute } from './components/ChoixRoute';
-import { appliquerGrillePrix, BAREME, dansDistrictAbidjan, distanceVol } from './tarifServeur';
+import { appliquerGrillePrix, BAREME, dansDistrictAbidjan, distanceVol, minutesApproche } from './tarifServeur';
 import { useTheme } from './theme';
 import { demarrerMisesAJour, signalerNouvelleVersion } from './miseAJour';
 
@@ -1055,7 +1055,7 @@ export function App() {
         {screen === 'tracking' && destination && driver && (
           <TrackingScreen onMessage={messagerie.recevoir} messages={messagerie.actif ? { nonLus: messagerie.nonLus, ouvrir: () => { setRetourMessages('tracking'); setScreen('messages'); } } : undefined} origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase} mode={mode}
             carPos={carPos} setCarPos={setCarPos} setPhase={setTripPhase} live={live} rideId={rideId} stops={stops} codeTest={busId ? busCode : null}
-            passager={passager} commandePar={profil?.name ?? ''} destinataire={mode === 'delivery' ? livraison?.destinataire ?? null : null}
+            passager={passager} commandePar={profil?.name ?? ''} destinataire={mode === 'delivery' ? livraison?.destinataire ?? null : null} trafic={quote?.trafficLevel}
             pause={controleOuvert || (sosOuvert && modeLocal())}
             onSos={triggerSos} onShare={() => void partagerTrajet()} onArrived={() => setScreen('payment')}
             onCancel={cancelCurrentRide}
@@ -2496,10 +2496,12 @@ function SearchingScreen({ origin, destination, mode = 'ride', test = false, onC
 }
 
 /* ----------------------------- Tracking ------------------------------ */
-function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, codeTest = null, pause = false, passager = null, commandePar = '', destinataire = null, onSos, onShare, onArrived, onCancel, onReassigned, onServerCancel, onMessage, messages }: {
+function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, codeTest = null, pause = false, passager = null, commandePar = '', destinataire = null, trafic, onSos, onShare, onArrived, onCancel, onReassigned, onServerCancel, onMessage, messages }: {
   origin: Place; destination: Place; driver: Driver; tier: TierOption; phase: TripPhase; mode?: 'ride' | 'delivery';
   /** Livraison : la personne qui reçoit le colis (le code de remise lui est envoyé par SMS). */
   destinataire?: { nom: string; telephone: string } | null;
+  /** Trafic du devis (fluide, dense, bouchon) : il allonge le temps d'approche affiché. */
+  trafic?: string;
   carPos: LatLng | null; setCarPos: (p: LatLng) => void; setPhase: (p: TripPhase) => void;
   /** Course simulée en attente : le contrôle de sécurité ou le SOS est à l'écran. */
   pause?: boolean;
@@ -2629,10 +2631,10 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
   }, [phase, live]);
 
   // Temps d'approche RÉEL : d'après la position du chauffeur (course reliée au serveur ou test
-  // temps réel), à vitesse urbaine (25 km/h, détours compris : distance × 1,3). Un chauffeur à
-  // 11 km n'« arrive » pas « dans 3 min ». Sans position connue : l'estimation de la gamme.
+  // temps réel), avec la même règle que le serveur ORION (vitesse réglée en console, 40 km/h par
+  // défaut, détours de la route et trafic du moment). Sans position connue : l'estimation de la gamme.
   const approcheMin = (live || (TEMPS_REEL && codeTest)) && carPos
-    ? Math.max(1, Math.round((distanceVol(carPos, origin.location) * 1.3) / 1000 / 25 * 60))
+    ? minutesApproche(distanceVol(carPos, origin.location), trafic)
     : tier.eta;
   const banner = phase === 'enroute' ? `${driver.name} ${t('track_arrives')} · ${approcheMin} ${t('est_min')}`
     : phase === 'arrived' ? (del ? t('del_picked') : t('track_arrived'))

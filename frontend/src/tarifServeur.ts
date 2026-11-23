@@ -74,6 +74,18 @@ export interface GrillePrixServeur {
   /** Barème hors taxes en vigueur (courses, puis livraisons à moto). */
   bareme: BaremeHT;
   livraison: BaremeHT;
+  /** Règle du temps d'approche (vitesse moyenne réglée en console, détours de la route). */
+  approche: { vitesseKmh: number; facteurRoute: number };
+}
+
+/** Temps d'approche : même règle que le serveur ORION (40 km/h par défaut, détours × 1,35). */
+const APPROCHE = { vitesseKmh: 40, facteurRoute: 1.35 };
+const FACTEUR_TRAFIC: Record<string, number> = { fluid: 1, dense: 1.15, jam: 1.35 };
+/** Minutes d'approche d'un chauffeur à `metres` (vol d'oiseau) du client, trafic compris. */
+export function minutesApproche(metres: number, trafic?: string): number {
+  const km = (metres / 1000) * APPROCHE.facteurRoute;
+  const vitesse = APPROCHE.vitesseKmh / (FACTEUR_TRAFIC[trafic ?? 'fluid'] ?? 1);
+  return Math.max(1, Math.round((km / vitesse) * 60));
 }
 interface BaremeHT { baseFare: number; perKm: number; perMinute: number; minFare: number }
 /** Reprend un barème reçu du serveur, champ par champ, s'il est plausible (sinon on garde le nôtre). */
@@ -92,6 +104,9 @@ export function appliquerGrillePrix(g: Partial<GrillePrixServeur> | undefined | 
   if (g.majorationsPctHorsAbidjan) Object.assign(BAREME.majorationsPctHorsAbidjan, { or: g.majorationsPctHorsAbidjan.or, diamant: g.majorationsPctHorsAbidjan.diamant });
   reprendreBareme(BAREME, g.bareme);
   reprendreBareme(BAREME_LIVRAISON, g.livraison);
+  const a = g.approche;
+  if (a && Number.isFinite(a.vitesseKmh) && a.vitesseKmh >= 5 && a.vitesseKmh <= 120) APPROCHE.vitesseKmh = a.vitesseKmh;
+  if (a && Number.isFinite(a.facteurRoute) && a.facteurRoute >= 1 && a.facteurRoute <= 2) APPROCHE.facteurRoute = a.facteurRoute;
 }
 
 export function supplementGamme(gamme: Gamme, montantArgent: number, horsAbidjan = false): number {

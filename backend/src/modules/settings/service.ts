@@ -281,6 +281,8 @@ export class SettingsService {
     // champ (frais annexes, forfaits) restent valides.
     this.pricing = saved ? { ...DEFAULT_PRICING, ...stripId(saved) } : { ...DEFAULT_PRICING };
     if (!this.pricing.approche) this.pricing.approche = { ...DEFAULT_PRICING.approche };
+    // Approche enregistrée avant la vitesse réglable : la vitesse de référence (40 km/h).
+    if (!Number.isFinite(this.pricing.approche.vitesseKmh)) this.pricing.approche = { ...this.pricing.approche, vitesseKmh: DEFAULT_PRICING.approche.vitesseKmh };
     if (!Number.isFinite(this.pricing.ajustementPct)) this.pricing.ajustementPct = 0;
     // Tarifs enregistrés avec un ancien modèle de gammes : quatre multiplicateurs du temps de
     // la gamme Bronze (on repart alors de la grille de référence), supplément fixe (Or +700 F,

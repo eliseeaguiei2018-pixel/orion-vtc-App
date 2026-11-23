@@ -22,7 +22,22 @@ export function normalizePhone(raw: string): string | null {
 }
 
 /* ------------------------------ Codes SMS (OTP) ------------------------------ */
-interface PendingOtp { code: string; expiresAt: number; attempts: number; sentAt: number }
+/**
+ * Code en attente. Seule son EMPREINTE est gardée (HMAC du numéro et du code) : la base peut
+ * la conserver sans jamais contenir un code en clair. Les codes survivent ainsi à un
+ * redémarrage du serveur (déploiement) : un chauffeur qui saisit son code juste après
+ * n'obtient plus « Code expiré ».
+ */
+interface PendingOtp { empreinte: string; expiresAt: number; attempts: number; sentAt: number }
+export interface OtpEnregistre extends PendingOtp { id: string }
+/** Dépôt minimal (même forme que les dépôts du serveur), pour garder les codes en base. */
+interface DepotOtp { get(id: string): OtpEnregistre | undefined; put(o: OtpEnregistre): void; delete(id: string): void; all(): OtpEnregistre[] }
+
+const empreinteCode = (phone: string, code: string): string =>
+  createHmac('sha256', config.DRIVER_JWT_SECRET).update(`otp|${phone}|${code.replace(/\s/g, '')}`).digest('hex');
+const memeEmpreinte = (a: string, b: string): boolean => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
+/** Essais d'un code d'invitation de la console : 5 erreurs bloquent un quart d'heure. */
+const FENETRE_INVITATION_MS = 15 * 60_000;
 
 const MAX_ATTEMPTS = 5;
 const RESEND_COOLDOWN_MS = 30_000;
@@ -33,6 +48,26 @@ const HEURE_MS = 3_600_000;
 export class OtpStore {
   private readonly pending = new Map<string, PendingOtp>();
   private readonly envois = new Map<string, number[]>();
+  private readonly essaisInvitation = new Map<string, { n: number; depuis: number }>();
+
+  constructor(private readonly depot?: DepotOtp) {
+    const maintenant = Date.now();
+    for (const e of depot?.all() ?? []) {
+      if (e.expiresAt > maintenant && typeof e.empreinte === 'string') {
+        this.pending.set(e.id, { empreinte: e.empreinte, expiresAt: e.expiresAt, attempts: e.attempts, sentAt: e.sentAt });
+      } else depot?.delete(e.id);
+    }
+  }
+
+  private garder(phone: string, p: PendingOtp): void {
+    this.pending.set(phone, p);
+    this.depot?.put({ id: phone, ...p });
+  }
+
+  private oublier(phone: string): void {
+    this.pending.delete(phone);
+    this.depot?.delete(phone);
+  }
 
   /**
    * Génère un code à 6 chiffres. Refuse (avec le délai d'attente) si un code vient d'être
@@ -52,13 +87,13 @@ export class OtpStore {
     this.envois.set(phone, recents);
     const code = codeImpose ?? String(randomInt(0, 1_000_000)).padStart(6, '0');
     const expiresAt = now + config.DRIVER_OTP_TTL_SECONDS * 1000;
-    this.pending.set(phone, { code, expiresAt, attempts: 0, sentAt: now });
+    this.garder(phone, { empreinte: empreinteCode(phone, code), expiresAt, attempts: 0, sentAt: now });
     return { code, expiresAt: new Date(expiresAt).toISOString() };
   }
 
   /** Annule le dernier code (SMS non parti) : le client peut en redemander un aussitôt. */
   revoke(phone: string): void {
-    this.pending.delete(phone);
+    this.oublier(phone);
     const recents = this.envois.get(phone);
     if (recents?.length) recents.pop();
   }
@@ -68,21 +103,40 @@ export class OtpStore {
     const p = this.pending.get(phone);
     if (!p) return 'expired';
     if (p.expiresAt < Date.now()) {
-      this.pending.delete(phone);
+      this.oublier(phone);
       return 'expired';
     }
-    const a = Buffer.from(p.code);
-    const b = Buffer.from(code.replace(/\s/g, ''));
-    if (a.length === b.length && timingSafeEqual(a, b)) {
-      this.pending.delete(phone);
+    if (memeEmpreinte(p.empreinte, empreinteCode(phone, code))) {
+      this.oublier(phone);
       return 'ok';
     }
     p.attempts += 1;
     if (p.attempts >= MAX_ATTEMPTS) {
-      this.pending.delete(phone);
+      this.oublier(phone);
       return 'locked';
     }
+    this.garder(phone, p);
     return 'invalid';
+  }
+
+  /**
+   * CODE D'ACCÈS DONNÉ PAR LA CONSOLE (testeur invité par la direction) : il reste valable toute
+   * sa durée (7 jours par défaut), même si le code envoyé a expiré ou si le serveur a redémarré
+   * entre la demande et la saisie. Cinq erreurs bloquent ce recours un quart d'heure.
+   */
+  verifyInvitation(phone: string, code: string, invitation: string | undefined): boolean {
+    if (!invitation) return false;
+    const maintenant = Date.now();
+    const e = this.essaisInvitation.get(phone);
+    const enCours = e && maintenant - e.depuis < FENETRE_INVITATION_MS ? e : null;
+    if (enCours && enCours.n >= MAX_ATTEMPTS) return false;
+    if (memeEmpreinte(empreinteCode(phone, invitation), empreinteCode(phone, code))) {
+      this.essaisInvitation.delete(phone);
+      this.oublier(phone);
+      return true;
+    }
+    this.essaisInvitation.set(phone, enCours ? { n: enCours.n + 1, depuis: enCours.depuis } : { n: 1, depuis: maintenant });
+    return false;
   }
 }
 

@@ -1,3 +1,4 @@
+import { createRepository } from '../../core/db/repository.js';
 import { randomBytes } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -5,7 +6,7 @@ import type { Container } from '../../container.js';
 import { config } from '../../config/index.js';
 import { parse } from '../../core/validate.js';
 import { AppError, badRequest, forbidden, notFound, unauthorized } from '../../core/errors.js';
-import { OtpStore, normalizePhone } from '../driver-app/auth.js';
+import { OtpStore, normalizePhone, type OtpEnregistre } from '../driver-app/auth.js';
 import { emettreCode } from '../sms/codes.js';
 import { nearestZone } from '../geo-ci/zones.js';
 import { vueUsager } from '../safety/service.js';
@@ -49,7 +50,8 @@ const LIBELLE_STATUT: Record<string, string> = {
 
 export async function clientAccountRoutes(app: FastifyInstance, container: Container): Promise<void> {
   // Codes propres aux clients : un code chauffeur n'ouvre jamais un compte client.
-  const otps = new OtpStore();
+  // Codes en attente gardés en base (empreintes) : un redémarrage du serveur ne les perd plus.
+  const otps = new OtpStore(createRepository<OtpEnregistre>('otp_clients'));
 
   /* ------------------------------ Inscription / connexion ------------------------------ */
 
@@ -89,7 +91,10 @@ export async function clientAccountRoutes(app: FastifyInstance, container: Conta
     const existant = container.clients.findByVerifiedPhone(phone);
     // Inscription sans nom : refus AVANT de consommer le code.
     if (!existant && !body.name) throw badRequest('Indiquez votre nom pour créer votre compte');
-    const r = otps.verify(phone, body.code);
+    let r = otps.verify(phone, body.code);
+    // Code donné par la console (testeur invité) : accepté toute sa durée de validité.
+    const revueTel = config.CLIENT_REVIEW_PHONE && normalizePhone(config.CLIENT_REVIEW_PHONE) === phone;
+    if (r !== 'ok' && !revueTel && otps.verifyInvitation(phone, body.code, container.testeurs.codePour(phone))) r = 'ok';
     if (r === 'expired') throw unauthorized('Code expiré — demandez un nouveau code');
     if (r === 'locked') throw unauthorized('Trop d’essais — demandez un nouveau code');
     if (r === 'invalid') throw unauthorized('Code incorrect');

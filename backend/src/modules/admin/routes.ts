@@ -1314,6 +1314,8 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
             parKm: z.number().min(0).max(2000), parMin: z.number().min(0).max(500),
             // Montant maximal (F hors taxes) que l'approche peut ajouter au prix d'une course.
             plafond: z.number().min(0).max(20_000),
+            // Vitesse moyenne d'approche (km/h, trafic fluide) : temps annoncé au client.
+            vitesseKmh: z.number().min(10).max(90),
           }).partial().optional(),
         }),
         req.body,

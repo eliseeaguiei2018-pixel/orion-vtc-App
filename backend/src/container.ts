@@ -219,6 +219,7 @@ export function createContainer(): Container {
       weightRating: ops.weightRating,
       weightIdle: ops.weightIdle,
       greenPriority: ops.greenPriority,
+      vitesseApprocheKmh: settings.getPricing().approche?.vitesseKmh,
     };
   });
 
@@ -305,6 +306,8 @@ export function createContainer(): Container {
   // ses chauffeurs et ses clients dans l'offre et la demande du surge. Jamais dans le dispatch.
   const simulateur = new Simulateur(createRepository<Simulation>('simulateur'));
   proches.brancherSimulation(simulateur);
+  // Vitesse d'approche réglée en console (Tarification → approche) : temps annoncé aux clients.
+  proches.reglerVitesse(() => settings.getPricing().approche?.vitesseKmh ?? 40);
   demand.brancherSimulation(simulateur);
   simulateur.onChange((s) => {
     proches.viderCache();

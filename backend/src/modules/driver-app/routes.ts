@@ -1,3 +1,4 @@
+import { createRepository } from '../../core/db/repository.js';
 import { exigerHumain } from '../gcp/securite.js';
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
@@ -20,7 +21,7 @@ import { activiteDuMois, primeDuMois } from './activite.js';
 import { assurerIdentifiantChauffeur, posteChauffeurRoutes } from './poste.js';
 import { photoUrl } from './photo-url.js';
 import {
-  OtpStore, driverTokenOf, issueDriverToken, normalizePhone, requireDriver, verifyDriverToken,
+  OtpStore, type OtpEnregistre, driverTokenOf, issueDriverToken, normalizePhone, requireDriver, verifyDriverToken,
 } from './auth.js';
 import { AppairageVehicules, AppairageRefuse } from './appairage.js';
 
@@ -33,7 +34,8 @@ function appendEvent(ride: Ride, type: string, payload?: Record<string, unknown>
 const maskPhone = (p: string) => p.replace(/\d(?=\d{2})/g, '•');
 
 export async function driverAppRoutes(app: FastifyInstance, container: Container): Promise<void> {
-  const otps = new OtpStore();
+  // Codes en attente gardés en base (empreintes) : un redémarrage du serveur ne les perd plus.
+  const otps = new OtpStore(createRepository<OtpEnregistre>('otp_chauffeurs'));
   const appairages = new AppairageVehicules();
   const offers = offersOf(container);
   const activeOf = (driverId: string) => {
@@ -88,7 +90,9 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
     if (!container.drivers.findByPhone(phone) && !body.name) {
       throw badRequest('Indiquez votre nom complet pour créer votre compte chauffeur');
     }
-    const result = otps.verify(phone, body.code);
+    let result = otps.verify(phone, body.code);
+    // Code donné par la console (testeur) : accepté toute sa durée de validité.
+    if (result !== 'ok' && otps.verifyInvitation(phone, body.code, container.testeurs.codePour(phone))) result = 'ok';
     if (result === 'expired') throw unauthorized('Code expiré — demandez un nouveau code');
     if (result === 'locked') throw unauthorized('Trop d’essais — demandez un nouveau code');
     if (result === 'invalid') throw unauthorized('Code incorrect');
