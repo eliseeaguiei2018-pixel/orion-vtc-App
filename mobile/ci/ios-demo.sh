@@ -59,6 +59,25 @@ jalon "Ouverture et inscription"
 maestro test "$RACINE/mobile/maestro/ios/02-ouvrir-et-inscrire.yaml"
 STATUT=$?
 jalon "Fin du scénario (code $STATUT)"
+# Échec : ce que montre l'écran à cet instant, lisible directement dans le journal de la CI.
+if [ "$STATUT" -ne 0 ]; then
+  echo "== Diagnostic : textes visibles à l'écran"
+  maestro hierarchy 2> /dev/null | python3 -c '
+import json, sys
+try: arbre = json.load(sys.stdin)
+except Exception: sys.exit("(hiérarchie illisible)")
+vus = []
+def parcourir(n):
+    a = n.get("attributes", {})
+    for k in ("text", "accessibilityText", "hintText", "resource-id"):
+        v = (a.get(k) or "").strip()
+        if v and v not in vus: vus.append(v)
+    for e in n.get("children", []): parcourir(e)
+parcourir(arbre)
+print("\n".join(vus[:120]) or "(écran vide)")
+' || true
+  xcrun simctl io "$UDID" screenshot "$SORTIE/echec.png" > /dev/null 2>&1 || true
+fi
 sleep 5
 
 kill -INT "$FILM" 2> /dev/null || true
@@ -67,5 +86,11 @@ wait "$FILM" 2> /dev/null || true
 xcrun simctl spawn "$UDID" log show --last 20m --style compact \
   --predicate 'process == "App"' > "$SORTIE/journal-app.txt" 2>&1 || true
 cp -r "$HOME/.maestro/tests" "$SORTIE/maestro-debug" 2> /dev/null || true
+if [ "$STATUT" -ne 0 ]; then
+  echo "== Diagnostic : journal de l'app (erreurs, messages de Capacitor)"
+  grep -aE "⚡️|rror|xception|rash|Terminating|WebContent|WKWebView|CapacitorUpdater|Updater" "$SORTIE/journal-app.txt" | tail -n 80 || true
+  echo "== Diagnostic : dernières lignes du journal"
+  tail -n 40 "$SORTIE/journal-app.txt" || true
+fi
 ls -la "$SORTIE"
 exit $STATUT
