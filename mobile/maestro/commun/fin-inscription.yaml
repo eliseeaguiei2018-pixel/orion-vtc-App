@@ -36,9 +36,11 @@ appId: ci.orion.app
     timeout: 30000
 - waitForAnimationToEnd
 - takeScreenshot: 07-accueil
-- tapOn: "Paramètres"
+# Le profil et les paramètres sont dans l'onglet « Compte » de la barre du bas.
+- tapOn: "Compte"
+# Le nom du client est dans le bouton « Modifier mon profil » (selon le système, l'un ou l'autre est lu).
 - extendedWaitUntil:
-    visible: "Aya Kouassi"
+    visible: ".*Aya Kouassi.*|Modifier mon profil"
     timeout: 20000
 - waitForAnimationToEnd
 - takeScreenshot: 08-parametres
