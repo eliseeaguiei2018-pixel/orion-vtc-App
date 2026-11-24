@@ -31,6 +31,8 @@ export interface EstimateRequest {
   mesureTrafic?: { avecTraficS: number; sansTraficS: number };
   /** Mise à disposition à l'heure (Abidjan) : le chauffeur reste avec le client `heures` heures. */
   miseADisposition?: { heures: number; debut?: string };
+  /** Livraison : délai choisi (moins cher quand on n'est pas pressé) et options payantes. */
+  livraison?: OptionsLivraison;
   promoCode?: string;
   /** Identifiant du demandeur : sert à ne compter qu'une fois la même personne
    *  dans le calcul du surge (un client qui compare les gammes = UNE demande). */
@@ -42,6 +44,17 @@ export interface EstimateRequest {
   apercu?: boolean;
   /** 'sans' : sans le simulateur ; 'projet' : avec le scénario du simulateur, même coupé. */
   modeSimulation?: 'sans' | 'projet';
+}
+
+/** Livraison : délai de remise (express, sous 1 h, sous 2 h) et options choisies par le client. */
+export interface OptionsLivraison {
+  delai?: 'express' | 'heure' | 'deux_heures';
+  /** Le coursier monte jusqu'à la porte (sinon : rendez-vous à l'entrée). */
+  portePorte?: boolean;
+  /** Sac isotherme (plats, gâteaux, médicaments) — formule moto. */
+  isotherme?: boolean;
+  /** Colis fragile : manipulé avec soin (gratuit, signalé au coursier). */
+  fragile?: boolean;
 }
 
 /** Détail transparent du prix (le client sait pourquoi sa course coûte ce montant). */
@@ -74,6 +87,9 @@ export interface QuoteBreakdown {
   approcheMin?: number;
   /** Trafic sur l'itinéraire : % ajouté au prix, parts dense / embouteillée, bouchons traversés. */
   trafic?: DetailTrafic;
+  /** Livraison : remise du délai (sous 1 h / sous 2 h) et options payantes, en F CFA HT. */
+  remiseDelai?: number;
+  options?: number;
 }
 
 export interface DetailTrafic {
@@ -104,6 +120,8 @@ export interface Quote {
   itineraire?: { choix: 'peage' | 'normal'; peages: string[] };
   /** Mise à disposition à l'heure : durée et heure de début choisies par le client. */
   miseADisposition?: { heures: number; debut?: string };
+  /** Livraison : formule (moto ou voiture), délai et options payés avec ce devis. */
+  livraison?: OptionsLivraison & { formule: 'moto' | 'voiture' };
   /** Chauffeur libre le plus proche de la gamme : distance et minutes d'approche ; null si aucun. */
   approche?: { km: number; minutes: number } | null;
   expiresAt: string;

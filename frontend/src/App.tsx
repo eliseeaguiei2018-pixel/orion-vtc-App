@@ -35,7 +35,7 @@ import {
   DEFAULT_ORIGIN, DRIVERS, SUB_PLANS, TIERS, WEDDING_DURATION_FACTOR,
   WEDDING_FEES, formatXOF, tierById,
 } from './data';
-import { urlApi, contactCourse, lireCodePriseEnCharge, lireCodeRemise, type DetailsLivraison, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, modeLocal, listAnnouncements, listSupport, openSupport, estimateDelivery, notifyRentalTariffChange, reserverMariage, mesMariages, type ReservationMariage, chargerPortefeuille, resumeCotisations, transfererPortefeuille, type Cotisations, type MouvementPortefeuille, paySubscriptionInvoice, previewDelivery, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, sosTerminer, type MotifFinSos, subscribePlan, type Announcement, type AppConfig, type CanalCode, type PkgSize, type SafeDriver, type SosSuivi, type StatutDemandeSos, type SupportMessage } from './api';
+import { urlApi, contactCourse, lireCodePriseEnCharge, lireCodeRemise, type DetailsLivraison, AGENT_GENERIQUE, EMERGENCY_NUMBERS, chargerProfil, demanderCode, profilEnCache, seDeconnecter, sessionClient, supprimerCompte, verifierCode, type FraisAnnulation, type ProfilClient, cancelRide, cancelSubscription, clientId, configSocketUrl, createRide, estimateWithCoverage, fetchAppConfig, itineraire, statutAssurance, fetchSubPlans, fetchSubscription, isLiveBackend, modeLocal, listAnnouncements, listSupport, openSupport, estimateDelivery, previewLivraison, type FormuleLivraison, notifyRentalTariffChange, reserverMariage, mesMariages, type ReservationMariage, chargerPortefeuille, resumeCotisations, transfererPortefeuille, type Cotisations, type MouvementPortefeuille, paySubscriptionInvoice, previewQuote, rateRide, rideSocketUrl, sos, sosRepondre, sosSocketUrl, sosSuivi, sosTerminer, type MotifFinSos, subscribePlan, type Announcement, type AppConfig, type CanalCode, type SafeDriver, type SosSuivi, type StatutDemandeSos, type SupportMessage } from './api';
 import { useI18n } from './i18n';
 import type { DetailTrafic, Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
@@ -60,6 +60,7 @@ import { alleger, optionRetenue, useItineraires, type ChoixItineraire, type Itin
 import { ChoixRoute } from './components/ChoixRoute';
 import { appliquerGrillePrix, BAREME, dansDistrictAbidjan, distanceVol, minutesApproche } from './tarifServeur';
 import { useTheme } from './theme';
+import { EnvoiColis, type CommandeColis } from './livraison/EnvoiColis';
 import { demarrerMisesAJour, signalerNouvelleVersion } from './miseAJour';
 import { AvisMiseAJour } from './AvisMiseAJour';
 
@@ -143,7 +144,8 @@ export function App() {
   const [depotLivraison, setDepotLivraison] = useState<Place | null>(null);
   const [destination, setDestination] = useState<Place | null>(null);
   const [mode, setMode] = useState<'ride' | 'delivery'>('ride');
-  const [pkgSize, setPkgSize] = useState<'petit' | 'moyen' | 'grand'>('moyen');
+  /** Formule de la livraison en cours : moto (petits colis) ou voiture (volumineux). */
+  const [formuleLiv, setFormuleLiv] = useState<FormuleLivraison>('moto');
   // Livraison : destinataire du colis (il recevra le code de remise de l'expéditeur).
   const [livraison, setLivraison] = useState<DetailsLivraison | null>(null);
   const [tier, setTier] = useState<TierOption>(TIERS[0]!);
@@ -841,49 +843,54 @@ export function App() {
     setScreen('onboarding');
   };
 
-  /** Coursier moto (livraison) — démo. */
-  const pickCourier = (): Driver => {
+  /** Coursier (livraison) — démo : à moto, ou en voiture pour les colis volumineux. */
+  const pickCourier = (formule: FormuleLivraison = 'moto'): Driver => {
     const base = DRIVERS[Math.floor(Math.random() * DRIVERS.length)] ?? DRIVERS[0]!;
-    return { ...base, car: 'Moto ORION · 100% électrique', plate: `CI-${(base.matricule.match(/\d+/)?.[0] ?? '0000')} M` };
+    return formule === 'voiture' ? base : { ...base, car: 'Moto ORION · 100% électrique', plate: `CI-${(base.matricule.match(/\d+/)?.[0] ?? '0000')} M` };
   };
 
-  /** Lance une livraison moto (retrait → dépôt), tarif coursier, suivi moto. */
-  const startDelivery = async (dropoff: Place, size: PkgSize, details?: DetailsLivraison) => {
+  /**
+   * Lance une livraison (retrait → remise) depuis le parcours « Envoyer un colis » : formule,
+   * délai, options, expéditeur et destinataire (éventuellement des tiers).
+   */
+  const startDelivery = async (c: CommandeColis) => {
+    const { dropoff, formule, options, details } = c;
     setMode('delivery');
-    setPkgSize(size);
+    setFormuleLiv(formule);
     setDestination(dropoff);
-    setLivraison(details ?? null);
+    setLivraison(details);
     setScreen('searching');
 
-    // Backend connecté : la livraison est une VRAIE commande (devis coursier verrouillé
-    // puis création de la course), visible dans la console. Elle n'était jusqu'ici que
-    // simulée, même en production : aucun colis n'était réellement enregistré.
+    // Backend connecté : une VRAIE commande. Le devis du récapitulatif (verrouillé) est repris
+    // tel quel ; s'il a expiré entre-temps, un nouveau devis est demandé une fois.
     if (isLiveBackend()) {
-      const q = await estimateDelivery(origin.location, dropoff.location, size, promo || undefined);
-      if (q) {
-        setQuote(q);
-        const res = await createRide(q.lockId, clientId(), shareRides && trusted ? trusted : undefined, payment, details);
-        if (res?.ride?.driverId) {
-          setRideId(res.ride.id);
-          setLive(true);
-          setDriver(res.driver ? driverFromSafe(res.driver, true) : pickCourier());
-          setCarPos(null);
-          setTripPhase('enroute');
-          setScreen('tracking');
-          return;
-        }
-        if (res?.ride?.id) void cancelRide(res.ride.id);
+      let q = c.devis ?? await estimateDelivery(origin.location, dropoff.location, formule, promo || undefined, options);
+      let res = q ? await createRide(q.lockId, clientId(), shareRides && trusted ? trusted : undefined, payment, details) : null;
+      if (!res?.ride?.id && c.devis) {
+        q = await estimateDelivery(origin.location, dropoff.location, formule, promo || undefined, options);
+        res = q ? await createRide(q.lockId, clientId(), shareRides && trusted ? trusted : undefined, payment, details) : null;
       }
+      if (q) setQuote(q);
+      if (res?.ride?.driverId) {
+        setRideId(res.ride.id);
+        setLive(true);
+        setDriver(res.driver ? driverFromSafe(res.driver, true) : pickCourier(formule));
+        setCarPos(null);
+        setTripPhase('enroute');
+        setScreen('tracking');
+        return;
+      }
+      if (res?.ride?.id) void cancelRide(res.ride.id);
       showToast(q ? t('toast_no_driver') : t('toast_ride_failed'), true);
       reset();
       return;
     }
 
     // Mode démo (pas de backend) : coursier simulé.
-    setQuote(previewDelivery(origin.location, dropoff.location, size));
+    setQuote(previewLivraison(origin.location, dropoff.location, formule, options));
     setLive(false);
     setRideId(null);
-    window.setTimeout(() => { setDriver(pickCourier()); setTripPhase('enroute'); setScreen('tracking'); }, 2200);
+    window.setTimeout(() => { setDriver(pickCourier(formule)); setTripPhase('enroute'); setScreen('tracking'); }, 2200);
   };
 
   const reset = () => {
@@ -1042,9 +1049,12 @@ export function App() {
         )}
 
         {screen === 'delivery' && (
-          <DeliveryScreen origin={origin} departAConfirmer={departAConfirmer} dropoff={depotLivraison} pkgSize={pkgSize}
+          <EnvoiColis origin={origin} departAConfirmer={departAConfirmer} dropoff={depotLivraison}
+            profil={profil?.name && profil.phone ? { nom: profil.name, telephone: profil.phone } : null}
+            approche={{ moto: proches?.approche.moto?.minutes, voiture: proches?.approche.argent?.minutes }}
+            payment={payment} payments={enabledPayments} onPayment={setPayment}
             onPickup={() => ouvrirChoix('depart', 'delivery')} onDropoff={() => ouvrirChoix('livraison', 'delivery')}
-            onBack={() => { setDepotLivraison(null); setScreen('home'); }} onConfirm={(d, s, det) => { setDepotLivraison(null); void startDelivery(d, s, det); }} />
+            onBack={() => { setDepotLivraison(null); setScreen('home'); }} onCommander={(c) => { setDepotLivraison(null); void startDelivery(c); }} />
         )}
 
         {screen === 'estimate' && destination && (
@@ -1089,12 +1099,12 @@ export function App() {
         )}
 
         {screen === 'searching' && destination && (
-          <SearchingScreen origin={origin} destination={destination} mode={mode} test={busId !== null} onCancel={busId ? annulerCourseBus : reset} />
+          <SearchingScreen origin={origin} destination={destination} mode={mode} enVoiture={formuleLiv === 'voiture'} test={busId !== null} onCancel={busId ? annulerCourseBus : reset} />
         )}
 
         {suiviMonte && destination && driver && (
           <div className="suivi-course" hidden={screen !== 'tracking'}>
-          <TrackingScreen onMessage={messagerie.recevoir} messages={messagerie.actif ? { nonLus: messagerie.nonLus, ouvrir: () => { setRetourMessages('tracking'); setScreen('messages'); } } : undefined} origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase} mode={mode}
+          <TrackingScreen onMessage={messagerie.recevoir} messages={messagerie.actif ? { nonLus: messagerie.nonLus, ouvrir: () => { setRetourMessages('tracking'); setScreen('messages'); } } : undefined} origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase} mode={mode} enVoiture={formuleLiv === 'voiture'}
             carPos={carPos} setCarPos={setCarPos} setPhase={setTripPhase} live={live} rideId={rideId} stops={stops} codeTest={busId ? busCode : null}
             onAjouterArret={() => ouvrirChoix('arret', 'tracking')} arretPropose={arretPropose}
             onArretTraite={(p) => { if (p) { setStops((s) => [...s, p]); showToast(tx('arretAjouteOk')); } setArretPropose(null); }}
@@ -1963,92 +1973,6 @@ function HomeScreen({ announce, closed, deliveryOff, city, depart, onPosition, o
   );
 }
 
-/* ----------------------------- Livraison ----------------------------- */
-function DeliveryScreen({ origin, departAConfirmer, dropoff, pkgSize, onPickup, onDropoff, onBack, onConfirm }: {
-  origin: Place; departAConfirmer: boolean; dropoff: Place | null; pkgSize: PkgSize;
-  onPickup: () => void; onDropoff: () => void; onBack: () => void; onConfirm: (dropoff: Place, size: PkgSize, details: DetailsLivraison) => void;
-}) {
-  const { t } = useI18n();
-  const [size, setSize] = useState<PkgSize>(pkgSize);
-  // Le destinataire : son nom et son téléphone (le livreur l'appelle, il reçoit le code de remise).
-  const [destNom, setDestNom] = useState('');
-  const [destTel, setDestTel] = useState('');
-  const [contenu, setContenu] = useState('');
-  const [consignes, setConsignes] = useState('');
-  const destOk = destNom.trim().length >= 2 && destTel.replace(/\D/g, '').length >= 8;
-  const details = (): DetailsLivraison => ({
-    destinataire: { nom: destNom.trim(), telephone: destTel.trim() },
-    ...(contenu.trim() ? { description: contenu.trim() } : {}),
-    ...(consignes.trim() ? { instructions: consignes.trim() } : {}),
-  });
-  const trajet = useTrajetTarif(dropoff ? [origin.location, dropoff.location] : null);
-  const quote = useMemo(() => (dropoff && trajet.pret ? previewDelivery(origin.location, dropoff.location, size) : null), [dropoff, size, origin.location, trajet.pret, trajet.trajet]);
-  const sizes: PkgSize[] = ['petit', 'moyen', 'grand'];
-
-  return (
-    <div className="screen">
-      <OrionMap origin={origin.location} destination={dropoff?.location ?? null} vehicle="moto" />
-      <TopBar onBack={onBack} title={t('del_title')} />
-      <div style={{ flex: 1 }} />
-      <Sheet>
-        <div className="del-head">
-          <span className="svc-illus small"><Scooter largeur={92} /></span>
-          <div className="col grow" style={{ textAlign: 'start' }}>
-            <strong style={{ fontSize: 17 }}>{t('del_title')}</strong>
-            <span className="faint" style={{ fontSize: 12.5 }}>{t('svc_delivery_d')}</span>
-          </div>
-        </div>
-
-        {/* Retrait : le client le voit et peut le changer */}
-        <LigneDepart origin={origin} aConfirmer={departAConfirmer} libelle={t('del_pickup')} onChange={onPickup} />
-
-        {/* Dépôt */}
-        <button className="list-row list-btn" style={{ width: '100%', padding: '8px 0' }} onClick={onDropoff}>
-          <span className="list-ico"><Objet nom="destination" taille={34} /></span>
-          <span className="col grow" style={{ textAlign: 'start', minWidth: 0 }}>
-            <strong style={{ fontSize: 14 }}>{dropoff ? dropoff.name : t('del_dropoff')}</strong>
-            <span className="faint" style={{ fontSize: 12 }}>{dropoff ? dropoff.area : t('lieu_recherche')}</span>
-          </span>
-          {dropoff && <span className="faint" style={{ fontSize: 12, textDecoration: 'underline' }}>{t('del_change')}</span>}
-        </button>
-
-        {dropoff && (
-          <>
-            <span className="eyebrow" style={{ marginTop: 8 }}>{t('del_size')}</span>
-            <div className="chips" style={{ margin: '10px 0 12px' }}>
-              {sizes.map((s) => (
-                <button key={s} className={`chip${s === size ? ' active' : ''}`} onClick={() => setSize(s)}>{t(`del_${s}`)}</button>
-              ))}
-            </div>
-            <span className="eyebrow">{t('liv_dest_titre')}</span>
-            <div className="liv-champs">
-              <input className="input" autoComplete="off" value={destNom} onChange={(e) => setDestNom(e.target.value.slice(0, 60))} placeholder={t('liv_dest_nom')} aria-label={t('liv_dest_nom')} />
-              <input className="input" type="tel" inputMode="tel" autoComplete="off" value={destTel} onChange={(e) => setDestTel(e.target.value.slice(0, 25))} placeholder={t('liv_dest_tel')} aria-label={t('liv_dest_tel')} />
-              <input className="input liv-large" value={contenu} onChange={(e) => setContenu(e.target.value.slice(0, 140))} placeholder={t('liv_desc')} aria-label={t('liv_desc')} />
-              <input className="input liv-large" value={consignes} onChange={(e) => setConsignes(e.target.value.slice(0, 240))} placeholder={t('liv_instr')} aria-label={t('liv_instr')} />
-            </div>
-            {quote && (
-              <div className="fare-total" style={{ marginBottom: 12 }}>
-                <span className="row gap-sm"><TrafficBadge level={quote.trafficLevel} /><span className="muted">{t('conf_total')}</span></span>
-                <span className="amt">{formatXOF(quote.amount)}</span>
-              </div>
-            )}
-            {departAConfirmer ? (
-              <button className="btn btn-primary" onClick={onPickup}><IconPin size={18} /> {t('lieu_confirmer_depart')}</button>
-            ) : (
-              <button className="btn btn-primary" disabled={!destOk} onClick={() => onConfirm(dropoff, size, details())}>
-                <IconBolt size={18} /> {t('del_cta')}
-              </button>
-            )}
-            {!destOk && !departAConfirmer && <p className="faint" style={{ textAlign: 'center', fontSize: 12, marginTop: 6 }}>{t('liv_dest_requis')}</p>}
-            <p className="faint" style={{ textAlign: 'center', fontSize: 12, marginTop: 8 }}>{t('del_note')}</p>
-          </>
-        )}
-      </Sheet>
-    </div>
-  );
-}
-
 /**
  * Le point de prise en charge, tel que le client le voit : d'où vient-il (GPS, choisi,
  * ou par défaut À CONFIRMER), et un bouton pour le changer.
@@ -2545,12 +2469,12 @@ function ConfirmScreen({ origin, departAConfirmer, onDepart, destination, tier, 
 }
 
 /* ----------------------------- Searching ----------------------------- */
-function SearchingScreen({ origin, destination, mode = 'ride', test = false, onCancel }: { origin: Place; destination: Place; mode?: 'ride' | 'delivery'; test?: boolean; onCancel: () => void }) {
+function SearchingScreen({ origin, destination, mode = 'ride', enVoiture = false, test = false, onCancel }: { origin: Place; destination: Place; mode?: 'ride' | 'delivery'; enVoiture?: boolean; test?: boolean; onCancel: () => void }) {
   const { t } = useI18n();
   const del = mode === 'delivery';
   return (
     <div className="screen">
-      <OrionMap origin={origin.location} destination={destination.location} vehicle={del ? 'moto' : 'car'} />
+      <OrionMap origin={origin.location} destination={destination.location} vehicle={del && !enVoiture ? 'moto' : 'car'} />
       <TopBar />
       <div style={{ flex: 1 }} />
       <Sheet>
@@ -2565,12 +2489,14 @@ function SearchingScreen({ origin, destination, mode = 'ride', test = false, onC
 }
 
 /* ----------------------------- Tracking ------------------------------ */
-function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, codeTest = null, pause = false, passager = null, commandePar = '', destinataire = null, trafic, onSos, onShare, onArrived, onCancel, onReassigned, onServerCancel, onMessage, messages, onAjouterArret, arretPropose = null, onArretTraite, visible = true, onReduire, onAttention, onEtat }: {
+function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', enVoiture = false, carPos, setCarPos, setPhase, live, rideId, stops, codeTest = null, pause = false, passager = null, commandePar = '', destinataire = null, trafic, onSos, onShare, onArrived, onCancel, onReassigned, onServerCancel, onMessage, messages, onAjouterArret, arretPropose = null, onArretTraite, visible = true, onReduire, onAttention, onEtat }: {
   /** L'écran est à l'avant (sinon la course tourne en arrière-plan, écran caché). */
   visible?: boolean; onReduire?: () => void; onAttention?: () => void; onEtat?: (e: { nonLus: number }) => void;
   /** Arrêt ajouté après la commande : ouvrir le choix du lieu, lieu choisi, fin (ajouté ou non). */
   onAjouterArret?: () => void; arretPropose?: Place | null; onArretTraite?: (p: Place | null) => void;
   origin: Place; destination: Place; driver: Driver; tier: TierOption; phase: TripPhase; mode?: 'ride' | 'delivery';
+  /** Livraison en voiture (colis volumineux) : une voiture sur la carte, pas une moto. */
+  enVoiture?: boolean;
   /** Livraison : la personne qui reçoit le colis (le code de remise lui est envoyé par SMS). */
   destinataire?: { nom: string; telephone: string } | null;
   /** Trafic du devis (fluide, dense, bouchon) : il allonge le temps d'approche affiché. */
@@ -2723,7 +2649,7 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
 
   return (
     <div className="screen">
-      <OrionMap origin={origin.location} destination={destination.location} stops={stops.map((s) => s.location)} car={carPos} vehicle={del ? 'moto' : 'car'} approche={phase === 'enroute'} />
+      <OrionMap origin={origin.location} destination={destination.location} stops={stops.map((s) => s.location)} car={carPos} vehicle={del && !enVoiture ? 'moto' : 'car'} approche={phase === 'enroute'} />
       <TopBar onBack={onReduire} title={t('track_title')} right={messages ? <BoutonMessages nonLus={messages.nonLus} onClick={messages.ouvrir} /> : undefined} />
       <button className="sos" onClick={onSos} aria-label="SOS">SOS</button>
       <div style={{ flex: 1 }} />

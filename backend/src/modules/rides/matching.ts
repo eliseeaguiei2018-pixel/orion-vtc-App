@@ -13,7 +13,9 @@ export const CATEGORIE_COURSIER = 'moto';
  * réelle finissait « sans chauffeur ». Une course cherche la gamme demandée.
  */
 export function categorieDeFlotte(serviceType: string | undefined, category: string | undefined): string | undefined {
-  return serviceType === 'delivery' ? CATEGORIE_COURSIER : category;
+  // Livraison en voiture (colis volumineux) : servie par les chauffeurs Argent ; sinon, coursiers à moto.
+  if (serviceType === 'delivery') return category === 'voiture' ? 'argent' : CATEGORIE_COURSIER;
+  return category;
 }
 
 export interface MatchResult {

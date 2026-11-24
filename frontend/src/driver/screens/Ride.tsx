@@ -5,7 +5,7 @@ import type { DriverApp } from '../useDriver';
 import type { ActiveRide, MotifAnnulationChauffeur, RideStatus, RideView } from '../types';
 import { Banner, Modal } from '../ui';
 import { BandeauGuidage } from './Guidage';
-import { fcfa, haversine, km, methodLabel, navLinks, statutLabel, TAILLE_COLIS } from '../format';
+import { fcfa, haversine, km, methodLabel, navLinks, nomDelaiLivraison as nomDelai, nomFormuleLivraison as nomFormule, statutLabel, TAILLE_COLIS } from '../format';
 import { lienTel, numeroLisible } from '../../telephone';
 import { aTraduire, localeCourante, tr } from '../i18n';
 import { AvisNouvelArret, BoutonEspeces, BoutonsCourse, EcranAppel, FenetreChat, PanneauArrets, useCourseLive } from '../../CourseLiveUI';
@@ -169,6 +169,15 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
   const t = (to: RideStatus) => void app.actions.transition(ride.id, to);
   // Livraison à moto : mêmes étapes, mots du coursier (colis à retirer puis à livrer).
   const livraison = ride.serviceType === 'delivery';
+  // Livraison : au retrait on appelle l'expéditeur (un tiers, ou le client qui a commandé),
+  // pendant la livraison le destinataire.
+  const enRetrait = livraison && (toPickup || ride.status === 'arrived');
+  const contact = !livraison ? { nom: ride.client.name, tel: ride.client.phone }
+    : enRetrait ? { nom: ride.livraison?.expediteur?.nom ?? ride.client.name, tel: ride.livraison?.expediteur?.telephone ?? ride.client.phone }
+      : { nom: ride.livraison?.destinataire?.nom ?? ride.client.name, tel: ride.livraison?.destinataire?.telephone ?? ride.client.phone };
+  const appelLabel = (n: string | null | undefined) => !livraison ? tr('Appeler le passager {0}', [numeroLisible(n)])
+    : enRetrait ? tr('Appeler l’expéditeur {0}', [numeroLisible(n)]) : tr('Appeler le destinataire {0}', [numeroLisible(n)]);
+  const vehiculeCarte = livraison ? (ride.livraison?.formule === 'voiture' ? 'car' : 'moto') : 'car';
   // Le colis ne se déclare livré qu'avec le code de remise que le destinataire donne au livreur.
   const remiseRequise = livraison && Boolean(ride.livraison?.codeRemiseRequis);
   // Guidage actif tant qu'il y a un point à rejoindre (client, puis destination).
@@ -202,9 +211,9 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
         {/* Vraie carte de Côte d'Ivoire + navigation guidée : la carte suit le véhicule sur
             l'itinéraire réel (ponts, échangeurs, voies nouvelles), vers le client puis la destination. */}
         {enNavigation
-          ? <OrionMap origin={ride.origin} destination={toPickup ? null : ride.destination} stops={toPickup ? undefined : restants} car={app.position} vehicle={livraison ? 'moto' : 'car'} traffic
+          ? <OrionMap origin={ride.origin} destination={toPickup ? null : ride.destination} stops={toPickup ? undefined : restants} car={app.position} vehicle={vehiculeCarte} traffic
               trace={nav.guidage?.restant ?? null} ponts={nav.guidage?.ponts} suivi={suivi} basCouvert={0} libelleRecentrer={tr('Recentrer')} />
-          : <OrionMap origin={ride.origin} destination={ride.destination} stops={restants} car={app.position} vehicle={livraison ? 'moto' : 'car'} traffic basCouvert={0} />}
+          : <OrionMap origin={ride.origin} destination={ride.destination} stops={restants} car={app.position} vehicle={vehiculeCarte} traffic basCouvert={0} />}
         <BandeauGuidage guidage={nav.guidage} recalcul={nav.recalcul} actif={enNavigation}
           arrivee={toPickup ? (livraison ? tr('Arrivée au point de retrait du colis') : tr('Arrivée au point de prise en charge'))
             : prochainArret ? tr('Arrivée à l’arrêt : {0}', [prochainArret.nom])
@@ -232,7 +241,7 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
               <span className="col grow" style={{ minWidth: 0, alignItems: 'flex-start' }}>
                 <strong className="dv-ride-resume-titre">{resteMin !== null ? `${resteMin} min` : '…'} · {km(resteDistance)}</strong>
                 <span className="faint dv-ride-resume-sous">
-                  {(toPickup ? (livraison ? tr('Retrait du colis') : tr('Prise en charge')) : prochainArret ? tr('Arrêt : {0}', [prochainArret.nom]) : tr('Destination'))} · {ride.client.name ?? (livraison ? tr('Client ORION') : tr('Passager ORION'))}
+                  {(toPickup ? (livraison ? tr('Retrait du colis') : tr('Prise en charge')) : prochainArret ? tr('Arrêt : {0}', [prochainArret.nom]) : tr('Destination'))} · {contact.nom ?? (livraison ? tr('Client ORION') : tr('Passager ORION'))}
                 </span>
               </span>
               <span className="dv-price" style={{ fontSize: 19 }}>{fcfa(brut)}</span>
@@ -247,8 +256,8 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
             {ride.status === 'in_progress' && direct.actif && !direct.arrets?.enCours && (
               <button type="button" className="dv-act compact" onClick={() => setDeplie(true)} aria-label={tr('Arrêts')}><IconSablier size={18} /></button>
             )}
-            {lienTel(ride.client.phone) && (
-              <a className="dv-act compact" href={lienTel(ride.client.phone)!} aria-label={livraison ? tr('Appeler l’expéditeur {0}', [numeroLisible(ride.client.phone)]) : tr('Appeler le passager {0}', [numeroLisible(ride.client.phone)])}><IconPhone size={18} /></a>
+            {lienTel(contact.tel) && (
+              <a className="dv-act compact" href={lienTel(contact.tel)!} aria-label={appelLabel(contact.tel)}><IconPhone size={18} /></a>
             )}
             {boutonEtape}
           </div>
@@ -276,9 +285,9 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
           {!livraison && <PhotoPassager photo={ride.client.photo ?? null} prenom={ride.client.name} />}
           <div className="grow">
             <div className="eyebrow">{livraison
-              ? (toPickup ? tr('Retrait du colis') : ride.status === 'arrived' ? tr('Colis à récupérer · {0}', [TAILLE_COLIS[ride.category] ?? ride.category]) : tr('Livraison du colis'))
+              ? (toPickup ? tr('Retrait du colis') : ride.status === 'arrived' ? tr('Colis à récupérer · {0}', [ride.livraison?.formule ? nomFormule(ride.livraison.formule) : TAILLE_COLIS[ride.category] ?? ride.category]) : tr('Livraison du colis'))
               : (toPickup ? tr('Prise en charge') : ride.status === 'arrived' ? tr('Client attendu') : tr('Destination'))}</div>
-            <div className="h-title" style={{ fontSize: 19 }}>{ride.client.name ?? (livraison ? tr('Client ORION') : tr('Passager ORION'))}</div>
+            <div className="h-title" style={{ fontSize: 19 }}>{contact.nom ?? (livraison ? tr('Client ORION') : tr('Passager ORION'))}</div>
             <div className="faint" style={{ fontSize: 12.5 }}>
               {km(haversine(app.position, target))} · {methodLabel(ride.paymentMethod)}
               {(toPickup ? ride.lieux?.depart : ride.lieux?.arrivee) ?? ride.pickupZone?.name ? ` · ${(toPickup ? ride.lieux?.depart : ride.lieux?.arrivee) ?? ride.pickupZone?.name}` : ''}
@@ -298,7 +307,7 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
           </div>
         )}
         {(toPickup || ride.status === 'arrived') && isLiveBackend() && <PointDeRencontre rideId={ride.id} />}
-        {livraison && <CarteColis ride={ride} />}
+        {livraison && <CarteColis ride={ride} enRetrait={enRetrait} />}
         {livraison && ride.status === 'arrived' && (
           <p className="faint dv-colis-conseil">{tr('Vérifiez que le colis est bien fermé et correspond à la description avant de partir.')}</p>
         )}
@@ -313,8 +322,8 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
           <a className="dv-act" href={links.waze} target="_blank" rel="noreferrer"><IconPin size={18} />{tr('Waze')}</a>
           {/* Un toucher ouvre le clavier du téléphone avec le numéro du passager composé
               (indicatif +225 ajouté au besoin) ; le chauffeur n'a plus qu'à appuyer. */}
-          {lienTel(ride.client.phone)
-            ? <a className="dv-act" href={lienTel(ride.client.phone)!} data-testid="appeler-passager" aria-label={livraison ? tr('Appeler l’expéditeur {0}', [numeroLisible(ride.client.phone)]) : tr('Appeler le passager {0}', [numeroLisible(ride.client.phone)])}><IconPhone size={18} />{livraison ? tr('Expéditeur') : tr('Appeler')}</a>
+          {lienTel(contact.tel)
+            ? <a className="dv-act" href={lienTel(contact.tel)!} data-testid="appeler-passager" aria-label={appelLabel(contact.tel)}><IconPhone size={18} />{!livraison ? tr('Appeler') : enRetrait ? tr('Expéditeur') : tr('Destinataire')}</a>
             : <span className="dv-act" style={{ opacity: 0.5 }}><IconPhone size={18} />{tr('Numéro masqué')}</span>}
         </div>
 
@@ -468,33 +477,62 @@ function AnnulationModal({ app, ride, livraison, onClose, onSos }: {
   );
 }
 
+/** Immeuble · étage · porte · repère, sur une ligne ; vide si le client n'a rien précisé. */
+function adresseLisible(a?: { batiment?: string; etage?: string; porte?: string; repere?: string } | null): string {
+  if (!a) return '';
+  return [a.batiment, a.etage && tr('Étage {0}', [a.etage]), a.porte && tr('Porte {0}', [a.porte]), a.repere].filter(Boolean).join(' · ');
+}
+
 /**
- * LE COLIS : ce qu'il contient, sa taille, les consignes de l'expéditeur, et la personne qui le
- * reçoit (nom, appel direct), visibles le temps de la livraison.
+ * LE COLIS : formule, délai, options, consignes, puis les deux personnes de la livraison :
+ * l'EXPÉDITEUR à appeler au retrait (un tiers quand le client commande pour quelqu'un) et le
+ * DESTINATAIRE à la remise, chacun avec son adresse précise et un appel direct. L'étape en
+ * cours est mise en avant.
  */
-function CarteColis({ ride }: { ride: ActiveRide }) {
+function CarteColis({ ride, enRetrait }: { ride: ActiveRide; enRetrait: boolean }) {
   const liv = ride.livraison ?? null;
+  const exp = liv?.expediteur ?? (ride.client.name || ride.client.phone ? { nom: ride.client.name ?? tr('Client ORION'), telephone: ride.client.phone ?? '' } : null);
   const dest = liv?.destinataire ?? null;
-  const appel = dest ? lienTel(dest.telephone) : null;
+  const pourAutrui = Boolean(liv?.expediteur);
+  const avant = liv?.livrerAvant ? new Date(liv.livrerAvant) : null;
+  const heure = avant && !Number.isNaN(avant.getTime()) ? avant.toLocaleTimeString(localeCourante(), { hour: '2-digit', minute: '2-digit' }) : null;
+  const partie = (role: 'exp' | 'dest', p: { nom: string; telephone: string } | null, adresse: string, actif: boolean) => {
+    if (!p) return null;
+    const appel = lienTel(p.telephone);
+    return (
+      <div className={`dv-colis-partie${actif ? ' actif' : ''}`}>
+        <span className={`dv-colis-pastille ${role}`} aria-hidden="true">{role === 'exp' ? <IconPackage size={15} /> : <IconPin size={15} />}</span>
+        <span className="col grow" style={{ minWidth: 0 }}>
+          <span className="faint">{role === 'exp' ? tr('Expéditeur') : tr('Destinataire')}{role === 'exp' && pourAutrui && ride.client.name ? ` · ${tr('Commandé par {0}', [ride.client.name])}` : ''}</span>
+          <strong>{p.nom}</strong>
+          {adresse && <span className="dv-colis-adresse">{adresse}</span>}
+          {p.telephone && <span className="faint dv-colis-tel">{numeroLisible(p.telephone)}</span>}
+        </span>
+        {appel && <a className="dv-act compact" href={appel} aria-label={role === 'exp' ? tr('Appeler l’expéditeur {0}', [numeroLisible(p.telephone)]) : tr('Appeler le destinataire {0}', [numeroLisible(p.telephone)])}><IconPhone size={18} /></a>}
+      </div>
+    );
+  };
   return (
     <div className="card dv-colis">
       <div className="dv-colis-tete">
         <span className="dv-colis-ico" aria-hidden="true"><IconPackage size={18} /></span>
         <span className="col grow" style={{ minWidth: 0 }}>
           <strong>{liv?.description ?? tr('Colis')}</strong>
-          <span className="faint">{tr('Taille : {0}', [TAILLE_COLIS[ride.category] ?? ride.category])} · {methodLabel(ride.paymentMethod)}</span>
+          <span className="faint">{liv?.formule ? nomFormule(liv.formule) : tr('Taille : {0}', [TAILLE_COLIS[ride.category] ?? ride.category])} · {methodLabel(ride.paymentMethod)}</span>
         </span>
       </div>
+      <div className="dv-colis-pilules">
+        {liv?.delai && <span className={`dv-pill${liv.delai === 'express' ? ' gold' : ''}`}><IconClock size={13} /> {nomDelai(liv.delai)}{heure ? ` · ${tr('À livrer avant {0}', [heure])}` : ''}</span>}
+        {liv && <span className="dv-pill">{liv.portePorte ? tr('Porte-à-porte') : tr('À l’entrée')}</span>}
+        {liv?.isotherme && <span className="dv-pill">{tr('Sac isotherme')}</span>}
+        {liv?.fragile && <span className="dv-pill gold">{tr('Fragile')}</span>}
+      </div>
       {liv?.instructions && <p className="dv-colis-consigne">{liv.instructions}</p>}
-      {dest && (
-        <div className="dv-colis-dest">
-          <span className="col grow" style={{ minWidth: 0 }}>
-            <span className="faint">{tr('Destinataire')}</span>
-            <strong>{dest.nom}</strong>
-          </span>
-          {appel && <a className="dv-act compact" href={appel} aria-label={tr('Appeler le destinataire {0}', [numeroLisible(dest.telephone)])}><IconPhone size={18} /></a>}
-        </div>
-      )}
+      <div className="dv-colis-parties">
+        {partie('exp', exp, adresseLisible(liv?.retrait), enRetrait)}
+        {partie('dest', dest, adresseLisible(liv?.depot), !enRetrait)}
+      </div>
+      {!enRetrait && liv && <p className="faint dv-colis-conseil">{liv.portePorte ? tr('Montez jusqu’à la porte du destinataire.') : tr('Le destinataire vous rejoint à l’entrée.')}</p>}
     </div>
   );
 }

@@ -750,8 +750,17 @@ html[data-ecran] .tuile-fond .vehicule { animation: objet-arrive 0.7s var(--ease
 .dv-colis-tete .faint { font-size: 12.5px; }
 .dv-colis-ico { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; background: var(--surface-2); flex-shrink: 0; }
 .dv-colis-consigne { margin: 0; padding: 8px 10px; border-radius: 12px; background: var(--surface-2); font-size: 13px; overflow-wrap: anywhere; }
-.dv-colis-dest { display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 1px solid var(--stroke); }
-.dv-colis-dest .faint { font-size: 12px; }
+.dv-colis-pilules { display: flex; flex-wrap: wrap; gap: 6px; }
+.dv-colis-pilules:empty { display: none; }
+.dv-colis-parties { display: flex; flex-direction: column; gap: 2px; padding-top: 6px; border-top: 1px solid var(--stroke); }
+.dv-colis-partie { display: flex; align-items: center; gap: 10px; padding: 8px; margin: 0 -8px; border-radius: 12px; opacity: 0.62; }
+.dv-colis-partie.actif { opacity: 1; background: var(--surface-2); }
+.dv-colis-partie .faint { font-size: 12px; }
+.dv-colis-partie strong { font-size: 15px; overflow-wrap: anywhere; }
+.dv-colis-adresse { font-size: 13px; overflow-wrap: anywhere; }
+.dv-colis-tel { font-variant-numeric: tabular-nums; }
+.dv-colis-pastille { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; background: var(--surface-2); color: var(--text); }
+.dv-colis-partie.actif .dv-colis-pastille { background: var(--accent-fill, var(--green)); color: var(--btn-on, #fff); }
 .dv-colis-conseil { font-size: 12.5px; margin: 4px 0 0; }
 .dv-kit { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .dv-kit-titre { font-weight: 600; font-size: 15px; }

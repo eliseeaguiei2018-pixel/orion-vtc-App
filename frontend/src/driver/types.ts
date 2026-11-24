@@ -149,10 +149,22 @@ export interface ActiveRide extends RideView {
   livraison?: DetailsLivraison | null;
 }
 
+export interface AdresseDetaillee { batiment?: string; etage?: string; porte?: string; repere?: string }
 export interface DetailsLivraison {
   destinataire: { nom: string; telephone: string } | null;
+  /** Celui qui remet le colis au retrait ; absent : c'est le client qui a commandé. */
+  expediteur?: { nom: string; telephone: string } | null;
+  retrait?: AdresseDetaillee | null;
+  depot?: AdresseDetaillee | null;
   description: string | null;
   instructions: string | null;
+  formule?: 'moto' | 'voiture';
+  delai?: 'express' | 'heure' | 'deux_heures';
+  portePorte?: boolean;
+  isotherme?: boolean;
+  fragile?: boolean;
+  /** Heure limite de remise (ISO), selon le délai choisi par le client. */
+  livrerAvant?: string | null;
   codeRemiseRequis: boolean;
 }
 

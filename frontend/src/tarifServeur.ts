@@ -242,6 +242,9 @@ export interface DetailPrix {
     peage?: number;
     /** La course sort d'Abidjan : 10 % entre les gammes. */
     horsAbidjan?: boolean;
+    /** Livraison : remise du délai (sous 1 h / sous 2 h) et options payantes (HT). */
+    remiseDelai?: number;
+    options?: number;
     /** Mise à disposition : heures facturées. */
     heures?: number;
   };
@@ -350,26 +353,40 @@ export function prixCourse(d: {
 }
 
 /** Prix d'une livraison à moto, comme le module de livraison du serveur. `tailleFacteur` : 1, 1,12 ou 1,25. */
-export function prixLivraison(d: { origin: Pt; destination: Pt; distanceMeters: number; tailleFacteur: number; at?: Date }): DetailPrix {
+export function prixLivraison(d: {
+  origin: Pt; destination: Pt; distanceMeters: number; tailleFacteur: number; at?: Date;
+  /** Formule voiture : vitesse et plancher propres ; délai souple : facteur de remise ; options HT. */
+  vitesseKmh?: number; plancher?: number; facteurDelai?: number; options?: number;
+  /** Majoration de la demande (offre et demande), relue sur un devis du serveur ; 1 par défaut. */
+  surge?: number;
+}): DetailPrix {
   const b = BAREME_LIVRAISON;
   const f = d.tailleFacteur;
   const trafic = traficServeur(d.origin, d.destination, d.at);
   const zone = zoneTarif(d.origin);
   const km = d.distanceMeters / 1000;
-  const minutes = (km / b.avgSpeedKmh) * 60;
+  const minutes = (km / (d.vitesseKmh ?? b.avgSpeedKmh)) * 60;
   const base = b.baseFare * f;
   const distance = km * b.perKm * f;
   const temps = minutes * b.perMinute * f;
   const coefTrafic = 1 + (trafic.factor - 1) * BAREME.trafficWeight;
-  const subtotal = Math.max((base + distance + temps) * coefTrafic * Math.max(0.1, zone?.factor ?? 1), b.minFare);
+  const majoration = Math.max(1, d.surge ?? 1);
+  // Réglage des prix de la direction (hausse ou baisse) : comme le serveur, trajet, plancher et options.
+  const plancher = Math.max((base + distance + temps) * coefTrafic * Math.max(0.1, zone?.factor ?? 1) * majoration, d.plancher ?? b.minFare) * ajustementDirection;
+  const options = (d.options ?? 0) * ajustementDirection;
+  // Même ordre que le serveur : remise du délai sur le trajet, puis options, puis taxes.
+  const remiseDelai = plancher * (1 - (d.facteurDelai ?? 1));
+  const subtotal = plancher - remiseDelai + options;
   const tva = subtotal * BAREME.tvaRate;
   const fee = subtotal * BAREME.feeRate;
   return {
     amount: arrondi50(subtotal + tva + fee), trafficLevel: trafic.level, trafficFactor: trafic.factor,
     zone: zone?.name, zoneFactor: zone?.factor ?? 1, pickupFee: 0,
     breakdown: {
-      base: Math.round(base), distance: Math.round(distance), time: Math.round(temps), surge: 1,
+      base: Math.round(base), distance: Math.round(distance), time: Math.round(temps), surge: majoration,
       traffic: 0, discount: 0, subtotal: Math.round(subtotal), tva: Math.round(tva), fee: Math.round(fee), insurance: 0,
+      ...(remiseDelai > 0 ? { remiseDelai: Math.round(remiseDelai) } : {}),
+      ...(options > 0 ? { options: Math.round(options) } : {}),
     },
   };
 }

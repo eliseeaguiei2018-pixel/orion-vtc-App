@@ -60,6 +60,8 @@ export interface Quote {
     horsAbidjan?: boolean;
     /** Mise à disposition : heures facturées. */
     heures?: number;
+    /** Livraison : remise accordée pour un délai plus long, suppléments des options. */
+    remiseDelai?: number; options?: number;
   };
   /** Chauffeur libre le plus proche de la gamme (serveur ORION) ; null : aucun en ligne. */
   approche?: { km: number; minutes: number } | null;

@@ -1,4 +1,5 @@
 import { AJUSTEMENT_MAX, AJUSTEMENT_MIN, estimatePrice } from '../services/ride/pricing.js';
+import { DeliveryServiceModule } from '../services/delivery/deliveryModule.js';
 import { gammesServies } from '../drivers/store.js';
 import { mediasSchema } from '../rental/medias.js';
 import { exigerHumain } from '../gcp/securite.js';
@@ -4038,11 +4039,23 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       { trajet: 'Yopougon → Riviera Golf', origin: { lat: 5.3441, lng: -4.0637 }, destination: { lat: 5.3588, lng: -3.964 } },
       { trajet: 'Marcory → Treichville', origin: { lat: 5.303, lng: -3.987 }, destination: { lat: 5.2967, lng: -4.0094 } },
     ];
-    const etatPrix = () => {
+    const etatPrix = async () => {
       const p = container.settings.getPricing();
       const prixPour = (ajustementPct: number) => (t: typeof TRAJETS_TYPES[number]) =>
         Object.fromEntries((['argent', 'or', 'diamant'] as const).map((g) => [g, estimatePrice({ origin: t.origin, destination: t.destination, category: g }, { settings: { ...p, ajustementPct } }).amount]));
+      // Le même réglage vaut pour les livraisons : moto express et voiture, livrées dès que possible.
+      const livraisonPour = async (ajustementPct: number, t: typeof TRAJETS_TYPES[number]) => {
+        const module = new DeliveryServiceModule(async () => ({ settings: { ...p, ajustementPct } }));
+        const prix = async (formule: 'moto' | 'voiture') => (await module.estimate({ origin: t.origin, destination: t.destination, category: formule })).amount;
+        return { moto: await prix('moto'), voiture: await prix('voiture') };
+      };
+      const livraisons = await Promise.all(TRAJETS_TYPES.map(async (t) => ({
+        trajet: t.trajet,
+        prix: await livraisonPour(p.ajustementPct ?? 0, t),
+        sansAjustement: await livraisonPour(0, t),
+      })));
       return {
+        livraisons,
         ajustementPct: p.ajustementPct ?? 0,
         bornes: { min: AJUSTEMENT_MIN, max: AJUSTEMENT_MAX },
         majorationsPct: { or: p.majorationsPct['or'] ?? 0, diamant: p.majorationsPct['diamant'] ?? 0 },
@@ -4059,7 +4072,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     };
     scoped.get('/admin/direction/prix', async (req) => {
       exigerDirectionPrix(req);
-      return etatPrix();
+      return await etatPrix();
     });
     scoped.post('/admin/direction/prix', async (req) => {
       const admin = exigerDirectionPrix(req);
@@ -4073,7 +4086,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       for (const g of [body.majorationsPct, body.majorationsPctHorsAbidjan]) {
         if (g && g.diamant < g.or) throw badRequest('Le Diamant doit rester au moins au niveau de l’Or.');
       }
-      const avant = etatPrix();
+      const avant = await etatPrix();
       container.settings.updatePricing({
         ajustementPct: Math.round(body.ajustementPct * 10) / 10,
         ...(body.majorationsPct ? { majorationsPct: body.majorationsPct } : {}),
@@ -4084,7 +4097,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         avant: { ajustementPct: avant.ajustementPct, majorationsPct: avant.majorationsPct, majorationsPctHorsAbidjan: avant.majorationsPctHorsAbidjan },
         apres: body,
       });
-      return etatPrix();
+      return await etatPrix();
     });
 
     /* ---------------------- Accès testeurs (connexion sans SMS) ---------------------- */

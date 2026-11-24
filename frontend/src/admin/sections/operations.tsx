@@ -7,7 +7,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { AdminError, adminGetBlob, adminPost, fcfa } from '../api';
 import { avis } from '../dialogues';
-import type { Client, ContactHandler, CsatReport, Dispute, DriverRow, ExpiringDoc, OpsConfig, PageMeta, QualityRow, QualityTop, Reservation, RideForensic, RideRow, SimResult, Recalage } from '../types';
+import type { Client, ContactHandler, CsatReport, Dispute, DriverRow, ExpiringDoc, OpsConfig, PageMeta, QualityRow, QualityTop, Reservation, RideForensic, RideRow, SimResult, Recalage, AdresseLivraison, LivraisonConsole } from '../types';
 import { AvatarChauffeur, ContactRapide, Drawer, Kpi, Pager, kycLabel, rideStatusLabel, trafficLabel } from '../ui';
 
 export const REASSIGNABLE = new Set(['searching', 'no_driver', 'accepted', 'driver_en_route', 'arrived']);
@@ -538,10 +538,11 @@ export function ForensicDrawer({ f, onClose }: { f: RideForensic; onClose: () =>
         <circle cx={sx(pts[0]!.lng)} cy={sy(pts[0]!.lat)} r="5" className="adm-trace-a" />
         <circle cx={sx(pts[pts.length - 1]!.lng)} cy={sy(pts[pts.length - 1]!.lat)} r="5" className="adm-trace-b" />
       </svg>
+      {ride.serviceType === 'delivery' && ride.livraison && <BlocLivraison l={ride.livraison} />}
       <h4 className="adm-drawer-sec">Tarification appliquée</h4>
       <table className="adm-table sm">
         <tbody>
-          {Object.entries({ base: 'Base', distance: 'Distance', time: 'Temps', discount: 'Remise', subtotal: 'Sous-total', tva: 'TVA', fee: 'Frais ORION', insurance: 'Assurance' })
+          {Object.entries({ base: 'Base', distance: 'Distance', time: 'Temps', remiseDelai: 'Remise délai souple', options: 'Options de livraison', discount: 'Remise', subtotal: 'Sous-total', tva: 'TVA', fee: 'Frais ORION', insurance: 'Assurance' })
             .filter(([k]) => bd[k] !== undefined && bd[k] !== 0)
             .map(([k, label]) => (
               <tr key={k}><td>{label}</td><td className="r">{fcfa(bd[k]!)}</td></tr>
@@ -556,6 +557,32 @@ export function ForensicDrawer({ f, onClose }: { f: RideForensic; onClose: () =>
         ))}
       </ul>
     </Drawer>
+  );
+}
+
+/** Livraison : ce que le client a commandé, et pour qui (expéditeur et destinataire tiers). */
+function BlocLivraison({ l }: { l: LivraisonConsole }) {
+  const adresse = (a?: AdresseLivraison | null) => (a ? [a.batiment, a.etage && `étage ${a.etage}`, a.porte && `porte ${a.porte}`, a.repere].filter(Boolean).join(' · ') : '');
+  const delai = l.delai === 'heure' ? 'Sous 1 heure' : l.delai === 'deux_heures' ? 'Sous 2 heures' : 'Dès que possible';
+  const options = [l.portePorte ? 'Porte-à-porte' : 'À l’entrée', l.isotherme && 'Sac isotherme', l.fragile && 'Fragile'].filter(Boolean).join(' · ');
+  const personne = (p?: { nom: string; telephone: string } | null, a?: AdresseLivraison | null, sms?: boolean) => (
+    <>{p ? `${p.nom} · ${p.telephone}` : 'Le client (commanditaire)'}{adresse(a) ? <><br /><span className="adm-muted">{adresse(a)}</span></> : null}{sms ? <><br /><span className="adm-muted">Prévenu par SMS</span></> : null}</>
+  );
+  return (
+    <>
+      <h4 className="adm-drawer-sec">Livraison</h4>
+      <table className="adm-table sm">
+        <tbody>
+          <tr><td>Formule</td><td className="r">{l.formule === 'voiture' ? 'Voiture · colis volumineux' : 'Moto express'}</td></tr>
+          <tr><td>Délai</td><td className="r">{delai}{l.livrerAvant ? ` · avant ${new Date(l.livrerAvant).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : ''}</td></tr>
+          <tr><td>Remise et options</td><td className="r">{options}</td></tr>
+          {l.description && <tr><td>Contenu</td><td className="r">{l.description}</td></tr>}
+          {l.instructions && <tr><td>Consignes</td><td className="r">{l.instructions}</td></tr>}
+          <tr><td>Expéditeur</td><td className="r">{personne(l.expediteur, l.retrait, l.smsExpediteur)}</td></tr>
+          <tr><td>Destinataire</td><td className="r">{personne(l.destinataire, l.depot, l.smsDestinataire)}</td></tr>
+        </tbody>
+      </table>
+    </>
   );
 }
 

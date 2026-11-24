@@ -23,6 +23,13 @@ const estimateSchema = z.object({
   mesureTrafic: z.object({ avecTraficS: z.number().min(0).max(86_400), sansTraficS: z.number().min(0).max(86_400) }).optional(),
   // Mise à disposition à l'heure (Abidjan) : le chauffeur reste avec le client.
   miseADisposition: z.object({ heures: z.number().min(0.5).max(24), debut: z.string().max(40).optional() }).optional(),
+  // Livraison : délai de remise et options (porte-à-porte, sac isotherme, fragile).
+  livraison: z.object({
+    delai: z.enum(['express', 'heure', 'deux_heures']).optional(),
+    portePorte: z.boolean().optional(),
+    isotherme: z.boolean().optional(),
+    fragile: z.boolean().optional(),
+  }).optional(),
 });
 
 /**
@@ -49,6 +56,7 @@ export async function pricingRoutes(app: FastifyInstance, container: Container):
       routeMeters: body.routeMeters,
       mesureTrafic: body.mesureTrafic,
       miseADisposition: body.miseADisposition,
+      livraison: body.serviceType === 'delivery' ? body.livraison : undefined,
     });
     container.rides.saveQuote(quote);
     // ABONNEMENT ORION — APERÇU SEULEMENT : on montre ce que le forfait couvrirait

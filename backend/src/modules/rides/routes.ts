@@ -35,6 +35,19 @@ export function numeroComposable(brut: string | null | undefined): string | null
   return /^\+?\d{6,15}$/.test(n) ? n : null;
 }
 
+/** Précisions d'une adresse de livraison (bâtiment, étage, porte, point de repère). */
+const adresseDetaillee = z.object({
+  batiment: z.string().trim().max(40).optional(),
+  etage: z.string().trim().max(12).optional(),
+  porte: z.string().trim().max(12).optional(),
+  repere: z.string().trim().max(120).optional(),
+});
+const propre = (a?: { batiment?: string; etage?: string; porte?: string; repere?: string }) => {
+  if (!a) return undefined;
+  const r = Object.fromEntries(Object.entries(a).filter(([, v]) => typeof v === 'string' && v.trim()));
+  return Object.keys(r).length ? r : undefined;
+};
+
 const createSchema = z.object({
   clientId: z.string().min(1),
   lockId: z.string().min(1), // devis verrouillé issu de /pricing/estimate
@@ -50,12 +63,22 @@ const createSchema = z.object({
   nomsArrets: z.array(z.string().trim().max(80)).max(20).optional(),
   livraison: z.object({
     destinataire: z.object({ nom: z.string().trim().min(1).max(60), telephone: z.string().trim().min(6).max(25) }),
+    // Commander pour d'autres : l'expéditeur (absent : le client lui-même).
+    expediteur: z.object({ nom: z.string().trim().min(1).max(60), telephone: z.string().trim().min(6).max(25) }).optional(),
+    retrait: adresseDetaillee.optional(),
+    depot: adresseDetaillee.optional(),
     description: z.string().trim().max(140).optional(),
     instructions: z.string().trim().max(240).optional(),
+    // SMS d'ORION : code de remise au destinataire, arrivée du coursier à l'expéditeur.
+    prevenirDestinataire: z.boolean().optional(),
+    prevenirExpediteur: z.boolean().optional(),
   }).optional(),
 });
 
 const transitionSchema = z.object({ to: z.custom<RideStatus>() });
+
+/** Heure (Abidjan) au format 07:43, pour les SMS. */
+const heureAbidjan = (iso: string) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Abidjan' });
 
 /** Analyse sémantique légère des commentaires : mots-clés → tags automatiques. */
 const COMMENT_TAGS: Record<string, string> = {
@@ -171,12 +194,31 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       };
       retenirNomsArrets(created, body.nomsArrets);
       if (quote.serviceType === 'delivery' && body.livraison) {
-        const tel = numeroComposable(body.livraison.destinataire.telephone);
+        const l = body.livraison;
+        const tel = numeroComposable(l.destinataire.telephone);
         if (!tel) throw badRequest('Numéro du destinataire invalide');
+        const telExp = l.expediteur ? numeroComposable(l.expediteur.telephone) : null;
+        if (l.expediteur && !telExp) throw badRequest('Numéro de l’expéditeur invalide');
+        // Formule, délai et options : ceux du devis payé (jamais ceux de la requête).
+        const opts = quote.livraison;
+        const delaiMin = opts?.delai === 'deux_heures' ? 120 : opts?.delai === 'heure' ? 60 : 0;
+        // Heure limite : délai choisi + trajet + 20 min pour l'approche et le retrait.
+        const livrerAvant = new Date(Date.now() + (delaiMin * 60 + quote.etaSeconds + 20 * 60) * 1000).toISOString();
+        const retrait = propre(l.retrait), depot = propre(l.depot);
         created.livraison = {
-          destinataire: { nom: body.livraison.destinataire.nom, telephone: tel },
-          ...(body.livraison.description ? { description: body.livraison.description } : {}),
-          ...(body.livraison.instructions ? { instructions: body.livraison.instructions } : {}),
+          destinataire: { nom: l.destinataire.nom, telephone: tel },
+          ...(l.expediteur && telExp ? { expediteur: { nom: l.expediteur.nom, telephone: telExp } } : {}),
+          ...(retrait ? { retrait } : {}),
+          ...(depot ? { depot } : {}),
+          ...(l.description ? { description: l.description } : {}),
+          ...(l.instructions ? { instructions: l.instructions } : {}),
+          ...(opts ? {
+            formule: opts.formule, delai: opts.delai ?? 'express',
+            ...(opts.portePorte ? { portePorte: true } : {}), ...(opts.isotherme ? { isotherme: true } : {}), ...(opts.fragile ? { fragile: true } : {}),
+          } : {}),
+          livrerAvant,
+          ...(l.prevenirDestinataire ? { smsDestinataire: true } : {}),
+          ...(l.prevenirExpediteur && l.expediteur ? { smsExpediteur: true } : {}),
         };
       }
       // ABONNEMENT ORION : c'est ICI, à la commande, que le quota est consommé —
@@ -231,7 +273,10 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
       if (created.serviceType !== 'delivery') container.codesPriseEnCharge.creer(created.id);
       // CODE DE REMISE : pour un colis, l'expéditeur le transmet au destinataire, qui le donne
       // au livreur à la livraison. Sans lui, le colis n'est pas déclaré livré.
-      else container.codesRemise.creer(created.id);
+      else {
+        const codeRemise = container.codesRemise.creer(created.id);
+        prevenirParSms(container, created, codeRemise);
+      }
       // Nouvelle commande : le tableau de bord l'affiche aussitôt.
       container.realtime.publish(rideRoom(created.id), 'ride.created', { rideId: created.id, status: created.status });
       // App chauffeur : affectation poussée en direct sur son canal personnel.
@@ -741,4 +786,33 @@ export async function rideRoutes(app: FastifyInstance, container: Container): Pr
     exigerTitulaire(req, clientId, (c) => Boolean(container.clients.get(c)?.phoneVerifiedAt));
     return { reservations: container.reservations.listByClient(clientId) };
   });
+}
+
+/**
+ * COMMANDER POUR D'AUTRES : ORION prévient par SMS, si le client l'a demandé, le destinataire
+ * (le code de remise à donner au coursier, l'heure limite) et l'expéditeur (un coursier vient
+ * chercher le colis). Sans fournisseur SMS réel, rien n'est envoyé : l'app propose alors de
+ * transmettre le code depuis le téléphone du client.
+ */
+function prevenirParSms(container: Container, ride: Ride, codeRemise: string): void {
+  const l = ride.livraison;
+  if (!l || !container.sms.reel) return;
+  const client = container.clients.get(ride.clientId);
+  const de = l.expediteur?.nom ?? client?.name ?? 'un client ORION';
+  const avant = l.livrerAvant ? ` avant ${heureAbidjan(l.livrerAvant)}` : '';
+  const envoyer = (numero: string, texte: string, quoi: string) => {
+    void container.sms.envoyer(numero, texte)
+      .then(() => { appendEvent(ride, 'sms_livraison', { a: quoi }); container.rides.persist(ride); })
+      .catch(() => { appendEvent(ride, 'sms_livraison_echec', { a: quoi }); container.rides.persist(ride); });
+  };
+  if (l.smsDestinataire) {
+    envoyer(l.destinataire.telephone,
+      `ORION : ${l.destinataire.nom}, un colis de ${de} vous sera livré${avant}. Code de remise à donner au coursier : ${codeRemise}. Ne le communiquez qu'à la remise du colis.`,
+      'destinataire');
+  }
+  if (l.smsExpediteur && l.expediteur) {
+    envoyer(l.expediteur.telephone,
+      `ORION : ${l.expediteur.nom}, un coursier ORION vient chercher un colis chez vous pour ${l.destinataire.nom}. Il vous appellera en arrivant.`,
+      'expediteur');
+  }
 }

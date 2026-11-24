@@ -3,7 +3,7 @@ import { config } from '../../../config/index.js';
 import { badRequest } from '../../../core/errors.js';
 import type { LatLng } from '../../../core/geo.js';
 import type { EstimateRequest, Quote, ServiceModule } from '../types.js';
-import { DEFAULT_PRICING, distanceFacturee, type PricingContext } from '../ride/pricing.js';
+import { coefAjustement, DEFAULT_PRICING, distanceFacturee, type PricingContext } from '../ride/pricing.js';
 import { isWithinCotedIvoire } from '../../geo-ci/zones.js';
 
 /**
@@ -21,9 +21,33 @@ import { isWithinCotedIvoire } from '../../geo-ci/zones.js';
  * de service 10 % — le montant affiché est le montant payé (prix fixe garanti).
  */
 
-/** Tailles de colis acceptées et leur facteur de prix. */
+/** Tailles de colis acceptées et leur facteur de prix (anciennes versions de l'app : moto). */
 export const PACKAGE_FACTOR: Record<string, number> = { petit: 1, moyen: 1.12, grand: 1.25 };
 export const DEFAULT_PACKAGE = 'moyen';
+
+/**
+ * FORMULES DE LIVRAISON (version 2.6) : la moto pour les petits colis, la voiture (coffre)
+ * pour les colis volumineux. La voiture est servie par les chauffeurs de la gamme Argent ;
+ * elle coûte à peu près une course Argent (la moto, environ 70 % d'une course).
+ */
+export const FORMULES_LIVRAISON = {
+  moto: { facteur: 1, poidsMaxKg: 10, dimensionsCm: [40, 40, 40], vitesseKmh: 26, flotte: 'moto' },
+  voiture: { facteur: 1.45, poidsMaxKg: 30, dimensionsCm: [80, 60, 50], vitesseKmh: 22, flotte: 'argent' },
+} as const;
+export type FormuleLivraison = keyof typeof FORMULES_LIVRAISON;
+export const estFormule = (c: string | undefined): c is FormuleLivraison => c === 'moto' || c === 'voiture';
+
+/**
+ * DÉLAI DE REMISE : qui n'est pas pressé paie moins. « Express » part tout de suite ; « sous 1 h »
+ * et « sous 2 h » laissent au coursier une fenêtre plus large (il peut grouper ses livraisons).
+ */
+export const DELAIS_LIVRAISON = {
+  express: { facteur: 1, minutes: 0 },
+  heure: { facteur: 0.9, minutes: 60 },
+  deux_heures: { facteur: 0.75, minutes: 120 },
+} as const;
+/** Options payantes (F CFA, hors taxes) : porte-à-porte et sac isotherme (moto). */
+export const SUPPLEMENTS_LIVRAISON = { portePorte: 150, isotherme: 100 } as const;
 
 /**
  * Barème coursier (F CFA) — distinct de celui des voitures et DÉLIBÉRÉMENT moins cher.
@@ -65,9 +89,16 @@ export class DeliveryServiceModule implements ServiceModule {
 
     const ctx = await this.contextProvider(req);
     const s = ctx.settings ?? DEFAULT_PRICING;
-    // La taille du colis voyage dans `category` (petit | moyen | grand).
-    const size = req.category && PACKAGE_FACTOR[req.category] ? req.category : DEFAULT_PACKAGE;
-    const sizeFactor = PACKAGE_FACTOR[size]!;
+    // `category` : la formule (moto | voiture), ou la taille du colis des anciennes versions
+    // de l'app (petit | moyen | grand, toutes à moto).
+    const formule: FormuleLivraison = estFormule(req.category) ? req.category : 'moto';
+    const size = estFormule(req.category) ? req.category : req.category && PACKAGE_FACTOR[req.category] ? req.category : DEFAULT_PACKAGE;
+    const sizeFactor = estFormule(req.category) ? FORMULES_LIVRAISON[formule].facteur : PACKAGE_FACTOR[size]!;
+    const vitesse = FORMULES_LIVRAISON[formule].vitesseKmh;
+    const delai = req.livraison?.delai && req.livraison.delai in DELAIS_LIVRAISON ? req.livraison.delai : 'express';
+    const portePorte = Boolean(req.livraison?.portePorte);
+    const isotherme = formule === 'moto' && Boolean(req.livraison?.isotherme);
+    const fragile = Boolean(req.livraison?.fragile);
 
     const stops = req.stops ?? [];
     // Distance par la route, comme pour une course (voir `distanceFacturee`).
@@ -76,8 +107,8 @@ export class DeliveryServiceModule implements ServiceModule {
     const trafficFactor = Math.max(1, ctx.trafficFactor ?? 1);
     // ETA informative : allongée par le trafic. Temps FACTURÉ : à vitesse libre, pour
     // ne pas faire payer les embouteillages au client.
-    const etaSeconds = Math.round((distanceKm / DELIVERY_TARIFF.avgSpeedKmh) * 3600 * trafficFactor);
-    const minutes = (distanceKm / DELIVERY_TARIFF.avgSpeedKmh) * 60;
+    const etaSeconds = Math.round((distanceKm / vitesse) * 3600 * trafficFactor);
+    const minutes = (distanceKm / vitesse) * 60;
 
     const base = DELIVERY_TARIFF.baseFare * sizeFactor;
     const distanceCost = distanceKm * DELIVERY_TARIFF.perKm * sizeFactor;
@@ -88,14 +119,22 @@ export class DeliveryServiceModule implements ServiceModule {
     const zoneFactor = Math.max(0.1, ctx.zoneFactor ?? 1);
     const surge = Math.max(1, ctx.surgeMultiplier ?? 1);
     const metered = (base + distanceCost + timeCost) * trafficMult * zoneFactor * surge;
-    const floored = Math.max(metered, DELIVERY_TARIFF.minFare);
+    const plancher = DELIVERY_TARIFF.minFare * (formule === 'voiture' ? FORMULES_LIVRAISON.voiture.facteur : 1);
+    // Réglage des prix de la direction (Mon poste PDG, hausse ou baisse) : il vaut pour les
+    // livraisons comme pour les courses — trajet, plancher et options compris.
+    const coef = coefAjustement(s);
+    const floored = Math.max(metered, plancher) * coef;
+    // Délai souple : remise sur le trajet. Options : ajoutées après la remise (prix fixe).
+    const remiseDelai = floored * (1 - DELAIS_LIVRAISON[delai].facteur);
+    const options = ((portePorte ? SUPPLEMENTS_LIVRAISON.portePorte : 0) + (isotherme ? SUPPLEMENTS_LIVRAISON.isotherme : 0)) * coef;
+    const avantPromo = floored - remiseDelai + options;
 
     // Codes promo de la console (montant calculé prioritaire sur un taux).
     const discountRate = Math.min(1, Math.max(0, ctx.discountRate ?? 0));
-    const promo = ctx.promoDiscount ? ctx.promoDiscount(floored) : 0;
-    const discount = Math.min(floored, promo > 0 ? promo : floored * discountRate);
+    const promo = ctx.promoDiscount ? ctx.promoDiscount(avantPromo) : 0;
+    const discount = Math.min(avantPromo, promo > 0 ? promo : avantPromo * discountRate);
 
-    const subtotal = floored - discount;
+    const subtotal = avantPromo - discount;
     const tva = subtotal * s.tvaRate;
     const fee = subtotal * s.feeRate;
     const amount = roundFcfa(subtotal + tva + fee);
@@ -123,7 +162,10 @@ export class DeliveryServiceModule implements ServiceModule {
         tva: Math.round(tva),
         fee: Math.round(fee),
         insurance: 0, // l'assurance ORION couvre les personnes, pas les colis
+        ...(remiseDelai > 0 ? { remiseDelai: Math.round(remiseDelai) } : {}),
+        ...(options > 0 ? { options: Math.round(options) } : {}),
       },
+      livraison: { formule, delai, ...(portePorte ? { portePorte } : {}), ...(isotherme ? { isotherme } : {}), ...(fragile ? { fragile } : {}) },
       expiresAt: new Date(Date.now() + config.QUOTE_TTL_SECONDS * 1000).toISOString(),
     };
   }

@@ -263,14 +263,45 @@ export function previewDelivery(origin: LatLng, destination: LatLng, size: PkgSi
 }
 
 /**
+ * LIVRAISON 2.6 : formules (moto, voiture), délai de remise et options. Mêmes valeurs que
+ * le serveur (deliveryModule.ts) : le prix affiché est le prix payé.
+ */
+export const FORMULES_LIVRAISON = {
+  moto: { facteur: 1, poidsMaxKg: 10, dimensionsCm: [40, 40, 40] as const, vitesseKmh: 26 },
+  voiture: { facteur: 1.45, poidsMaxKg: 30, dimensionsCm: [80, 60, 50] as const, vitesseKmh: 22 },
+};
+export type FormuleLivraison = keyof typeof FORMULES_LIVRAISON;
+export const DELAIS_LIVRAISON = { express: { facteur: 1, minutes: 0 }, heure: { facteur: 0.9, minutes: 60 }, deux_heures: { facteur: 0.75, minutes: 120 } };
+export type DelaiLivraison = keyof typeof DELAIS_LIVRAISON;
+export const SUPPLEMENTS_LIVRAISON = { portePorte: 150, isotherme: 100 };
+export interface OptionsLivraison { delai: DelaiLivraison; portePorte: boolean; isotherme: boolean; fragile: boolean }
+
+/** Aperçu immédiat du prix d'une livraison (sans attendre le serveur). */
+export function previewLivraison(origin: LatLng, destination: LatLng, formule: FormuleLivraison, o: OptionsLivraison, surge = 1): Quote {
+  const f = FORMULES_LIVRAISON[formule];
+  const trafic = traficServeur(origin, destination);
+  const { distanceMeters, etaSeconds } = baseTarifaire([origin, destination], f.vitesseKmh, trafic.factor);
+  const options = (o.portePorte ? SUPPLEMENTS_LIVRAISON.portePorte : 0) + (formule === 'moto' && o.isotherme ? SUPPLEMENTS_LIVRAISON.isotherme : 0);
+  const prix = prixLivraison({
+    origin, destination, distanceMeters, tailleFacteur: f.facteur, vitesseKmh: f.vitesseKmh,
+    plancher: BAREME_LIVRAISON.minFare * f.facteur, facteurDelai: DELAIS_LIVRAISON[o.delai].facteur, options, surge,
+  });
+  return {
+    lockId: `delivery-${Date.now()}`, amount: prix.amount, currency: 'XOF', distanceMeters: Math.round(distanceMeters),
+    etaSeconds, trafficLevel: prix.trafficLevel, breakdown: prix.breakdown,
+  };
+}
+
+/**
  * Devis de LIVRAISON auprès du backend (service coursier). Renvoie null si le backend
  * est absent ou indisponible — l'appelant retombe alors sur `previewDelivery` (démo).
  * Le lockId renvoyé permet de créer une vraie livraison au prix affiché.
+ * `category` : la formule (moto | voiture) ; les anciennes tailles (petit | moyen | grand) restent acceptées.
  */
-export async function estimateDelivery(origin: LatLng, destination: LatLng, size: PkgSize, promoCode?: string): Promise<Quote | null> {
+export async function estimateDelivery(origin: LatLng, destination: LatLng, size: PkgSize | FormuleLivraison, promoCode?: string, livraison?: OptionsLivraison): Promise<Quote | null> {
   const remote = await tryFetch<{ quote: Quote }>('/pricing/estimate', {
     method: 'POST',
-    body: JSON.stringify({ serviceType: 'delivery', origin, destination, category: size, promoCode, clientId: clientId() }),
+    body: JSON.stringify({ serviceType: 'delivery', origin, destination, category: size, promoCode, clientId: clientId(), ...(livraison ? { livraison } : {}) }),
   });
   return remote?.quote ?? null;
 }
@@ -732,11 +763,23 @@ export function clientId(): string {
  * `paymentMethod` (optionnel) : moyen annoncé, affiché au chauffeur ; « espèces » exclut
  * les chauffeurs au-delà du plafond de dette espèces fixé en console.
  */
-/** Livraison à moto : la personne qui reçoit le colis, et ce que le livreur doit savoir. */
+/** Précisions d'une adresse : ce que le coursier cherche sur place. */
+export interface AdresseDetaillee { batiment?: string; etage?: string; porte?: string; repere?: string }
+/**
+ * Livraison : qui remet le colis (expéditeur, absent = le client), qui le reçoit (destinataire),
+ * les précisions des deux adresses et ce que le coursier doit savoir. Le client peut commander
+ * pour d'autres personnes, sans être ni l'expéditeur ni le destinataire.
+ */
 export interface DetailsLivraison {
   destinataire: { nom: string; telephone: string };
+  expediteur?: { nom: string; telephone: string };
+  retrait?: AdresseDetaillee;
+  depot?: AdresseDetaillee;
   description?: string;
   instructions?: string;
+  /** ORION prévient par SMS le destinataire (code de remise) et l'expéditeur (arrivée du coursier). */
+  prevenirDestinataire?: boolean;
+  prevenirExpediteur?: boolean;
 }
 
 export async function createRide(lockId: string, cid: string, trustedContact?: TrustedContact, paymentMethod?: string, livraison?: DetailsLivraison, nomsArrets?: string[]): Promise<RideCreateResult | null> {

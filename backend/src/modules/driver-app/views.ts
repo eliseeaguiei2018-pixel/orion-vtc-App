@@ -167,8 +167,18 @@ export function activeRideFor(container: Container, driverId: string, offer?: { 
     // code de remise à demander à la livraison (jamais sa valeur).
     livraison: ride.serviceType === 'delivery' ? {
       destinataire: ride.livraison?.destinataire ?? null,
+      // L'expéditeur (celui qui remet le colis) ; absent : c'est le client qui a commandé.
+      expediteur: ride.livraison?.expediteur ?? null,
+      retrait: ride.livraison?.retrait ?? null,
+      depot: ride.livraison?.depot ?? null,
       description: ride.livraison?.description ?? null,
       instructions: ride.livraison?.instructions ?? null,
+      formule: ride.livraison?.formule ?? (ride.quote.category === 'voiture' ? 'voiture' : 'moto'),
+      delai: ride.livraison?.delai ?? 'express',
+      portePorte: Boolean(ride.livraison?.portePorte),
+      isotherme: Boolean(ride.livraison?.isotherme),
+      fragile: Boolean(ride.livraison?.fragile),
+      livrerAvant: ride.livraison?.livrerAvant ?? null,
       codeRemiseRequis: container.codesRemise.requis(ride.id),
     } : null,
     // Offre à confirmer (compte à rebours console) — null si déjà confirmée / chauffeur démo.

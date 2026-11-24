@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AdminError, LIVE, adminGet, adminPost } from '../api';
 
 /**
- * PRIX DES COURSES — réglage de la direction, dans Mon poste du PDG.
+ * PRIX DES COURSES ET DES LIVRAISONS — réglage de la direction, dans Mon poste du PDG.
  *
- * Un seul curseur monte ou baisse TOUS les prix des courses d'un pourcentage. Il s'applique au
+ * Un seul curseur monte ou baisse TOUS les prix des courses et des livraisons d'un pourcentage. Il s'applique au
  * prix de l'Argent ; l'Or et le Diamant gardent leur écart de la grille ORION (+5 % et +15 %,
  * +10 % et +20 % hors d'Abidjan), réglable ici aussi. Le serveur l'applique à chaque nouveau
  * devis : les apps client et chauffeur suivent aussitôt, sans nouvelle version. Les courses
@@ -18,6 +18,8 @@ interface EtatPrix {
   majorationsPctHorsAbidjan: Grille;
   modifie: { le: string; par: string } | null;
   exemples: Array<{ trajet: string; km: number; prix: Record<'argent' | 'or' | 'diamant', number>; sansAjustement: Record<'argent' | 'or' | 'diamant', number> }>;
+  /** Le même réglage s'applique aux livraisons (moto express et voiture, livrées dès que possible). */
+  livraisons?: Array<{ trajet: string; prix: Record<'moto' | 'voiture', number>; sansAjustement: Record<'moto' | 'voiture', number> }>;
 }
 
 const fcfa = (n: number) => `${new Intl.NumberFormat('fr-FR').format(n)} F`;
@@ -54,6 +56,10 @@ export function PrixDirection() {
     || grilleHors.or !== etat.majorationsPctHorsAbidjan.or || grilleHors.diamant !== etat.majorationsPctHorsAbidjan.diamant);
   const grilleValide = grille.diamant >= grille.or && grilleHors.diamant >= grilleHors.or;
   const lignes = useMemo(() => (etat?.exemples ?? []).map((ex) => ({ ...ex, nouveau: apercu(ex.sansAjustement.argent, pct, grille) })), [etat, pct, grille]);
+  // Livraisons : le même pourcentage, sur le prix de base de chaque formule.
+  const livraisons = useMemo(() => (etat?.livraisons ?? []).map((ex) => ({
+    ...ex, nouveau: { moto: arrondi50(ex.sansAjustement.moto * (1 + pct / 100)), voiture: arrondi50(ex.sansAjustement.voiture * (1 + pct / 100)) },
+  })), [etat, pct]);
 
   if (!LIVE) return null;
   const bornes = etat?.bornes ?? { min: -50, max: 100 };
@@ -65,7 +71,7 @@ export function PrixDirection() {
       const e = await adminPost<EtatPrix>('/admin/direction/prix', valeurs);
       recevoir(e);
       setConfirmer(false);
-      setMessage({ texte: `Appliqué : prix ${e.ajustementPct === 0 ? 'normaux' : `${signe(e.ajustementPct)} %`} sur toutes les nouvelles courses. Les apps client et chauffeur l’ont reçu.` });
+      setMessage({ texte: `Appliqué : prix ${e.ajustementPct === 0 ? 'normaux' : `${signe(e.ajustementPct)} %`} sur toutes les nouvelles courses et livraisons. Les apps client et ORION Pro l’ont reçu.` });
     } catch (e) {
       setMessage({ texte: e instanceof AdminError ? e.message : 'Le serveur n’a pas répondu. Rien n’a changé.', erreur: true });
     } finally {
@@ -76,14 +82,14 @@ export function PrixDirection() {
   return (
     <div className="adm-card adm-prix-direction">
       <div className="adm-card-h">
-        <h3>Prix des courses</h3>
+        <h3>Prix des courses et livraisons</h3>
         <span className="adm-muted">réglage de la direction · effet immédiat sur toutes les apps</span>
       </div>
 
       <div className="adm-prix-reglage">
         <div className="adm-prix-valeur">
           <strong className={pct > 0 ? 'hausse' : pct < 0 ? 'baisse' : ''}>{pct === 0 ? 'Prix normaux' : `${signe(pct)} %`}</strong>
-          <span className="adm-muted">{pct === 0 ? 'grille ORION sans ajustement' : pct > 0 ? 'toutes les courses augmentent' : 'toutes les courses baissent'}</span>
+          <span className="adm-muted">{pct === 0 ? 'grille ORION sans ajustement' : pct > 0 ? 'courses et livraisons augmentent' : 'courses et livraisons baissent'}</span>
         </div>
         <div className="adm-prix-boutons" role="group" aria-label="Ajuster les prix">
           {[-5, -1, 1, 5].map((d) => (
@@ -136,12 +142,33 @@ export function PrixDirection() {
         </div>
       )}
 
+      {livraisons.length > 0 && (
+        <div className="adm-table-wrap">
+          <table className="adm-table adm-prix-exemples">
+            <thead><tr><th>Livraison, même trajet (dès que possible, sans option)</th><th>Moto express</th><th>Voiture</th></tr></thead>
+            <tbody>
+              {livraisons.map((l) => (
+                <tr key={l.trajet}>
+                  <td>{l.trajet}</td>
+                  {(['moto', 'voiture'] as const).map((f) => (
+                    <td key={f} className="mono">
+                      <strong>{fcfa(l.nouveau[f])}</strong>
+                      {l.nouveau[f] !== l.prix[f] && <span className="adm-prix-avant">{fcfa(l.prix[f])}</span>}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {etat?.modifie && <p className="adm-muted adm-prix-trace">Dernier réglage : {new Date(etat.modifie.le).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} par {etat.modifie.par}</p>}
       {message && <p className={message.erreur ? 'adm-erreur' : 'adm-ok'} role="status">{message.texte}</p>}
 
       {confirmer ? (
         <div className="adm-prix-confirmer" role="alertdialog" aria-label="Confirmer le changement de prix">
-          <p><strong>{pct === 0 ? 'Revenir aux prix normaux' : `Prix ${signe(pct)} %`}</strong> pour toutes les nouvelles courses, dès maintenant. Les courses déjà commandées gardent leur prix.</p>
+          <p><strong>{pct === 0 ? 'Revenir aux prix normaux' : `Prix ${signe(pct)} %`}</strong> pour toutes les nouvelles courses et livraisons, dès maintenant. Celles déjà commandées gardent leur prix.</p>
           <div className="adm-dialogue-actions">
             <button type="button" className="adm-btn" onClick={() => setConfirmer(false)} disabled={envoi}>Annuler</button>
             <button type="button" className="adm-btn solid" disabled={envoi}

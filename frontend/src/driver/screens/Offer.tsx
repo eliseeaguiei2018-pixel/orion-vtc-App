@@ -4,7 +4,7 @@ import type { DriverApp } from '../useDriver';
 import type { ActiveRide } from '../types';
 import type { PrimeMois } from '../salarie';
 import { VehiculeChauffeur } from '../ui';
-import { fcfa, haversine, km, methodLabel, minutes, TAILLE_COLIS, TIER_LABEL, zoneAt } from '../format';
+import { fcfa, haversine, km, methodLabel, minutes, nomDelaiLivraison, nomFormuleLivraison, TAILLE_COLIS, TIER_LABEL, zoneAt } from '../format';
 import { aTraduire, tr } from '../i18n';
 
 /** Bip d'alerte (WebAudio, sans fichier) à l'arrivée d'une offre. */
@@ -72,20 +72,22 @@ export function OfferSheet({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
   const ratio = total > 0 ? left / total : 0;
   const urgent = left <= 4;
   const livraison = ride.serviceType === 'delivery';
+  const liv = livraison ? ride.livraison ?? null : null;
+  const enVoiture = liv?.formule === 'voiture';
 
   return (
     <div className="dv-offer-back">
       <div className="dv-offer" role="dialog" aria-label={livraison ? tr('Nouvelle offre de livraison') : tr('Nouvelle offre de course')}>
         <div className="dv-ride-grab" aria-hidden="true" />
         {/* Scène : l'appel arrive (ondes) sur le véhicule de la gamme demandée. */}
-        <div className={`dv-stage on${livraison ? ' moto' : ''}`}>
+        <div className={`dv-stage on${livraison && !enVoiture ? ' moto' : ''}`}>
           <span className="dv-onde" /><span className="dv-onde b" /><span className="dv-onde c" />
           <span className={`dv-stage-tag dv-pill ${livraison ? 'gold' : 'green'}`}>{tr('{0} · {1} de vous', [livraison ? tr('Livraison') : tr('Course'), km(toPickup)])}</span>
-          <VehiculeChauffeur category={livraison ? 'moto' : ride.category} largeur={150} />
+          <VehiculeChauffeur category={livraison ? (enVoiture ? 'argent' : 'moto') : ride.category} largeur={150} />
         </div>
         <div className="row between">
           <div>
-            <div className="eyebrow">{livraison ? tr('Nouvelle livraison moto · {0}', [TAILLE_COLIS[ride.category] ?? ride.category]) : tr('Nouvelle course · {0}', [TIER_LABEL[ride.category] ?? ride.category])}</div>
+            <div className="eyebrow">{livraison ? (liv?.formule ? `${tr('Livraison')} · ${nomFormuleLivraison(liv.formule)}` : tr('Nouvelle livraison moto · {0}', [TAILLE_COLIS[ride.category] ?? ride.category])) : tr('Nouvelle course · {0}', [TIER_LABEL[ride.category] ?? ride.category])}</div>
             <div className="dv-price">{fcfa(ride.amount)}</div>
             <div className="muted" style={{ fontSize: 13 }}>
               {ride.paymentMethod === 'cash' ? tr('Prix payé par le client, à encaisser pour ORION') : tr('Prix payé par le client à ORION')}
@@ -115,6 +117,10 @@ export function OfferSheet({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
           )}
           {ride.itineraire?.choix === 'peage' && <span className="dv-pill gold"><IconPeage size={13} /> {tr('Pont à péage · {0} inclus', [fcfa(peage)])}</span>}
           {ride.itineraire?.choix === 'normal' && <span className="dv-pill"><IconCar size={13} /> {tr('Voie normale (sans péage)')}</span>}
+          {liv?.delai && <span className={`dv-pill${liv.delai === 'express' ? ' gold' : ''}`}><IconClock size={13} /> {nomDelaiLivraison(liv.delai)}</span>}
+          {liv?.portePorte && <span className="dv-pill">{tr('Porte-à-porte')}</span>}
+          {liv?.isotherme && <span className="dv-pill">{tr('Sac isotherme')}</span>}
+          {liv?.fragile && <span className="dv-pill gold">{tr('Fragile')}</span>}
           {livraison && ride.livraison?.description && <span className="dv-pill"><IconPackage size={13} /> {ride.livraison.description}</span>}
         </div>
 
@@ -124,7 +130,7 @@ export function OfferSheet({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
           {livraison && ride.livraison?.destinataire && <div className="faint" style={{ fontSize: 12.5 }}>{tr('Pour {0}', [ride.livraison.destinataire.nom])}</div>}
         </div>
         <div className="faint" style={{ fontSize: 12.5 }}>
-          {tr('{0} : {1}{2} · Prix fixe garanti, embouteillages inclus.', [livraison ? tr('Expéditeur') : tr('Client'), ride.client.name ?? (livraison ? tr('Client ORION') : tr('Passager ORION')), ride.client.rides > 0 ? tr(ride.client.rides > 1 ? ' · {0} courses ORION' : ' · {0} course ORION', [ride.client.rides]) : ''])}
+          {tr('{0} : {1}{2} · Prix fixe garanti, embouteillages inclus.', [livraison ? tr('Expéditeur') : tr('Client'), liv?.expediteur?.nom ?? ride.client.name ?? (livraison ? tr('Client ORION') : tr('Passager ORION')), ride.client.rides > 0 ? tr(ride.client.rides > 1 ? ' · {0} courses ORION' : ' · {0} course ORION', [ride.client.rides]) : ''])}
         </div>
 
         {declining ? (

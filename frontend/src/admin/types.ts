@@ -279,8 +279,21 @@ export interface RideForensic {
     /** Tracé recalé sur les routes (Google Roads) à l'arrivée. */
     recalage?: Recalage | null;
     createdAt: string;
+    serviceType?: string;
+    /** Livraison : formule, délai, options, expéditeur (tiers) et destinataire, adresses précises. */
+    livraison?: LivraisonConsole | null;
   };
   driverName: string | null; matricule: string | null;
+}
+export interface AdresseLivraison { batiment?: string; etage?: string; porte?: string; repere?: string }
+export interface LivraisonConsole {
+  destinataire?: { nom: string; telephone: string } | null;
+  expediteur?: { nom: string; telephone: string } | null;
+  retrait?: AdresseLivraison | null; depot?: AdresseLivraison | null;
+  description?: string | null; instructions?: string | null;
+  formule?: 'moto' | 'voiture'; delai?: 'express' | 'heure' | 'deux_heures';
+  portePorte?: boolean; isotherme?: boolean; fragile?: boolean; livrerAvant?: string | null;
+  smsDestinataire?: boolean; smsExpediteur?: boolean;
 }
 
 export interface LedgerEntry { id?: string; type: string; amount: number; at?: string; createdAt?: string }

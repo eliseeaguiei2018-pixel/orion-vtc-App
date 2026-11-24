@@ -9,12 +9,40 @@ export interface TrustedContact {
   phone: string;
 }
 
+/** Précisions d'une adresse de livraison : ce que le coursier cherche sur place. */
+export interface AdresseDetaillee {
+  batiment?: string;
+  etage?: string;
+  porte?: string;
+  /** Point de repère (« portail bleu face à la pharmacie ») : essentiel à Abidjan. */
+  repere?: string;
+}
+
 export interface DetailsLivraison {
   destinataire: { nom: string; telephone: string };
+  /**
+   * La personne qui remet le colis au coursier. Absente : c'est le client qui a commandé.
+   * Le client peut commander pour d'autres : ni expéditeur, ni destinataire.
+   */
+  expediteur?: { nom: string; telephone: string };
+  /** Précisions du point de retrait et du point de remise. */
+  retrait?: AdresseDetaillee;
+  depot?: AdresseDetaillee;
   /** Ce que contient le colis (« documents », « gâteau », « téléphone »…). */
   description?: string;
   /** Consignes pour le livreur (étage, portail, appeler en arrivant…). */
   instructions?: string;
+  /** Formule, délai et options payés (repris du devis). */
+  formule?: 'moto' | 'voiture';
+  delai?: 'express' | 'heure' | 'deux_heures';
+  portePorte?: boolean;
+  isotherme?: boolean;
+  fragile?: boolean;
+  /** Heure limite de remise annoncée au client et au coursier (ISO). */
+  livrerAvant?: string;
+  /** SMS envoyés par ORION au destinataire / à l'expéditeur (code de remise, arrivée du coursier). */
+  smsDestinataire?: boolean;
+  smsExpediteur?: boolean;
 }
 
 export interface Ride {
