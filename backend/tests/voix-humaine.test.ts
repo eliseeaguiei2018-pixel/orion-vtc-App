@@ -68,6 +68,19 @@ test('fournisseurs : consigne de ton et voix envoyées, repli Chirp 3 HD, WAV de
   assert.deepEqual(o.appels[0]!.corps, { model: 'gpt-4o-mini-tts', voice: 'marin', input: 'Bonjour.', instructions: 'Chaleureuse', response_format: 'mp3' });
   assert.deepEqual(c.octets, MP3);
 
+  // Gemini-TTS refusé (droit Vertex AI absent) : retenu, l'accueil suivant va droit à Chirp 3 HD.
+  const v = fauxFournisseur((_u, c) => ((c.voice as { modelName?: string }).modelName ? json({ error: { message: 'Permission aiplatform.endpoints.predict denied' } }, 403) : json({ audioContent: MP3.toString('base64') })));
+  const cleVertex = 'cle-sans-vertex-456';
+  await synthetiser({ fournisseur: 'google', cle: cleVertex, voix: 'Achird', style: 'Chaleureux', texte: 'Bonjour.', recuperer: v.recuperer });
+  assert.equal(v.appels.length, 2, 'Gemini-TTS refusé puis Chirp 3 HD');
+  const suite = await synthetiser({ fournisseur: 'google', cle: cleVertex, voix: 'Achird', style: 'Chaleureux', texte: 'Bonsoir.', recuperer: v.recuperer });
+  assert.equal(v.appels.length, 3, 'un seul appel ensuite');
+  assert.equal((v.appels[2]!.corps.voice as { name: string }).name, 'fr-FR-Chirp3-HD-Achird');
+  assert.equal(suite.modele, 'chirp3-hd');
+  const direct = fauxFournisseur(() => json({ audioContent: MP3.toString('base64') }));
+  await synthetiser({ fournisseur: 'google', cle: 'autre-cle-789', voix: 'Sulafat', style: '', texte: 'Bonjour.', modele: 'chirp3-hd', recuperer: direct.recuperer });
+  assert.equal(direct.appels.length, 1, 'modèle « chirp3-hd » choisi : Chirp directement');
+
   // ElevenLabs : identifiant de voix obligatoire.
   await assert.rejects(synthetiser({ fournisseur: 'elevenlabs', cle: 'cle-eleven-123', voix: '', style: '', texte: 'Bonjour.', recuperer: o.recuperer }), /Voice ID/);
 });

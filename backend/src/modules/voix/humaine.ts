@@ -86,7 +86,7 @@ export const CATALOGUE: Record<Fournisseur, FicheFournisseur> = {
   google: {
     nom: 'Google : voix Gemini (Cloud Text-to-Speech)',
     cle: 'Clé API Google Cloud autorisée pour « Cloud Text-to-Speech API »',
-    obtenir: 'console.cloud.google.com → API et services → Bibliothèque → « Cloud Text-to-Speech API » → Activer ; puis Identifiants → Créer une clé API, restreinte à Cloud Text-to-Speech API. Utilisez une clé distincte de celle de Google Maps (la clé Maps est dans les applications).',
+    obtenir: 'console.cloud.google.com → API et services → Bibliothèque → « Cloud Text-to-Speech API » → Activer ; puis Identifiants → Créer une clé API, restreinte à Cloud Text-to-Speech API. Utilisez une clé distincte de celle de Google Maps (la clé Maps est dans les applications). Avec une clé simple, les voix sont celles de Chirp 3 HD ; le modèle Gemini-TTS (consigne de ton) demande en plus un compte de service Vertex AI.',
     feminines: GEMINI_F, masculines: GEMINI_M,
     defaut: { feminine: 'Sulafat', masculine: 'Achird' },
     modele: 'gemini-2.5-flash-tts',
@@ -210,14 +210,26 @@ async function enteteGoogle(d: DemandeSynthese): Promise<Record<string, string>>
   throw new ErreurVoix('google', 401, 'Aucune clé Google Cloud enregistrée');
 }
 
+/**
+ * Gemini-TTS (voix guidée par une consigne de ton) passe par Vertex AI : une clé API simple
+ * n'y a pas toujours droit. Refusé une fois, on ne le redemande pas avant 6 heures pour cette
+ * clé : on va droit aux mêmes voix en Chirp 3 HD (pas d'appel perdu à chaque accueil).
+ */
+const refusGeminiTts = new Map<string, number>();
+const DUREE_REFUS_MS = 6 * 3600_000;
+const empreinteCle = (d: DemandeSynthese) => createHash('sha256').update(d.cle ?? 'compte-de-service').digest('hex').slice(0, 16);
+
 async function syntheseGoogle(d: DemandeSynthese, r: Recuperer): Promise<AudioVoix> {
   const entete = { 'content-type': 'application/json', ...(await enteteGoogle(d)) };
   const modele = d.modele || CATALOGUE.google.modele;
-  const essais = [
+  const cleRefus = empreinteCle(d);
+  const chirpSeul = /^chirp/i.test(modele) || (refusGeminiTts.get(cleRefus) ?? 0) > Date.now();
+  const chirp = { modele: 'chirp3-hd', corps: { input: { text: d.texte }, voice: { languageCode: 'fr-FR', name: `fr-FR-Chirp3-HD-${d.voix}` }, audioConfig: { audioEncoding: 'MP3', speakingRate: 0.96 } } };
+  const essais = chirpSeul ? [chirp] : [
     // 1. Gemini-TTS : la voix suit la consigne de ton (chaleur, sourire, rythme).
     { modele, corps: { input: { prompt: d.style, text: d.texte }, voice: { languageCode: 'fr-FR', name: d.voix, modelName: modele }, audioConfig: { audioEncoding: 'MP3' } } },
     // 2. La même voix en Chirp 3 HD (sans consigne, très naturelle elle aussi).
-    { modele: 'chirp3-hd', corps: { input: { text: d.texte }, voice: { languageCode: 'fr-FR', name: `fr-FR-Chirp3-HD-${d.voix}` }, audioConfig: { audioEncoding: 'MP3', speakingRate: 0.96 } } },
+    chirp,
   ];
   const erreurs: string[] = [];
   let statut = 502;
@@ -232,6 +244,7 @@ async function syntheseGoogle(d: DemandeSynthese, r: Recuperer): Promise<AudioVo
       continue;
     }
     statut = res.status;
+    if (e !== chirp && (res.status === 401 || res.status === 403)) refusGeminiTts.set(cleRefus, Date.now() + DUREE_REFUS_MS);
     erreurs.push(`${e.modele} : ${res.status} ${await messageErreur(res)}`);
   }
   throw new ErreurVoix('google', statut, erreurs.join(' · '));
