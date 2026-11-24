@@ -158,7 +158,7 @@ export interface DetailsLivraison {
   depot?: AdresseDetaillee | null;
   description: string | null;
   instructions: string | null;
-  formule?: 'moto' | 'voiture';
+  formule?: 'moto' | 'cargo';
   delai?: 'express' | 'heure' | 'deux_heures';
   portePorte?: boolean;
   isotherme?: boolean;

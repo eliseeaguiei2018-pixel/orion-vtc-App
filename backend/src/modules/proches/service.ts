@@ -30,6 +30,8 @@ const CACHE_MS = 2500;
 
 export const GAMMES_COURSE = ['argent', 'or', 'diamant'] as const;
 export const GAMME_COURSIER = 'moto';
+/** Petits camions du cargo (gros colis). */
+export const GAMME_CARGO = 'cargo';
 
 /** Chauffeurs du simulateur du PDG (console) : vus par l'app cliente comme les vrais. */
 export interface SourceSimulee {
@@ -116,7 +118,7 @@ export class ChauffeursProches {
     const voisins = await this.geo.nearby(p, RAYON_APPROCHE_M, 300);
     const vitesse = this.vitesse();
     const vehicules: VehiculeProche[] = [];
-    const approche: Record<string, Approche | null> = Object.fromEntries([...GAMMES_COURSE, GAMME_COURSIER].map((g) => [g, null]));
+    const approche: Record<string, Approche | null> = Object.fromEntries([...GAMMES_COURSE, GAMME_COURSIER, GAMME_CARGO].map((g) => [g, null]));
     for (const v of voisins) {
       const d = this.drivers.get(v.id);
       if (!d || d.availability !== 'online') continue;

@@ -73,17 +73,17 @@ export function OfferSheet({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
   const urgent = left <= 4;
   const livraison = ride.serviceType === 'delivery';
   const liv = livraison ? ride.livraison ?? null : null;
-  const enVoiture = liv?.formule === 'voiture';
+  const enCargo = liv?.formule === 'cargo';
 
   return (
     <div className="dv-offer-back">
       <div className="dv-offer" role="dialog" aria-label={livraison ? tr('Nouvelle offre de livraison') : tr('Nouvelle offre de course')}>
         <div className="dv-ride-grab" aria-hidden="true" />
         {/* Scène : l'appel arrive (ondes) sur le véhicule de la gamme demandée. */}
-        <div className={`dv-stage on${livraison && !enVoiture ? ' moto' : ''}`}>
+        <div className={`dv-stage on${livraison && !enCargo ? ' moto' : ''}`}>
           <span className="dv-onde" /><span className="dv-onde b" /><span className="dv-onde c" />
           <span className={`dv-stage-tag dv-pill ${livraison ? 'gold' : 'green'}`}>{tr('{0} · {1} de vous', [livraison ? tr('Livraison') : tr('Course'), km(toPickup)])}</span>
-          <VehiculeChauffeur category={livraison ? (enVoiture ? 'argent' : 'moto') : ride.category} largeur={150} />
+          <VehiculeChauffeur category={livraison ? (enCargo ? 'cargo' : 'moto') : ride.category} largeur={150} />
         </div>
         <div className="row between">
           <div>

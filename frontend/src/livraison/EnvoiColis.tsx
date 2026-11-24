@@ -1,7 +1,7 @@
 /**
  * ENVOYER UN COLIS — le volet livraison de l'app cliente (version 2.6), en quatre étapes :
  *
- *   1. le trajet et la formule (moto pour les petits colis, voiture pour les volumineux) ;
+ *   1. le trajet et la formule (moto pour les petits colis, cargo — petit camion — pour les gros) ;
  *   2. le colis : délai de remise (moins cher quand on n'est pas pressé), porte-à-porte ou
  *      rendez-vous à l'entrée, sac isotherme, fragile, contenu et consignes ;
  *   3. qui envoie, qui reçoit : on peut commander pour d'autres — le coursier appelle
@@ -90,10 +90,10 @@ export function EnvoiColis({ origin, departAConfirmer, dropoff, profil, approche
   }, [dropoff, origin.location]);
   const apercu = (f: FormuleLivraison, o: OptionsLivraison) => (dropoff && trajet.pret ? previewLivraison(origin.location, dropoff.location, f, o, majoration) : null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const prixFormules = useMemo(() => Object.fromEntries((['moto', 'voiture'] as const).map((f) => [f, apercu(f, { delai: 'express', portePorte: false, isotherme: false, fragile: false })])) as Record<FormuleLivraison, Quote | null>, [dropoff, origin.location, trajet.pret, trajet.trajet, majoration]);
+  const prixFormules = useMemo(() => Object.fromEntries((['moto', 'cargo'] as const).map((f) => [f, apercu(f, { delai: 'express', portePorte: false, isotherme: false, fragile: false })])) as Record<FormuleLivraison, Quote | null>, [dropoff, origin.location, trajet.pret, trajet.trajet, majoration]);
   // « Dès » : le prix le plus bas de la formule (sous 2 h, sans option).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const prixDes = useMemo(() => Object.fromEntries((['moto', 'voiture'] as const).map((f) => [f, apercu(f, { delai: 'deux_heures', portePorte: false, isotherme: false, fragile: false })])) as Record<FormuleLivraison, Quote | null>, [dropoff, origin.location, trajet.pret, trajet.trajet, majoration]);
+  const prixDes = useMemo(() => Object.fromEntries((['moto', 'cargo'] as const).map((f) => [f, apercu(f, { delai: 'deux_heures', portePorte: false, isotherme: false, fragile: false })])) as Record<FormuleLivraison, Quote | null>, [dropoff, origin.location, trajet.pret, trajet.trajet, majoration]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const prixDelais = useMemo(() => Object.fromEntries(DELAIS.map((d) => [d, apercu(formule, { ...options, delai: d })])) as Record<DelaiLivraison, Quote | null>, [dropoff, origin.location, trajet.pret, trajet.trajet, formule, portePorte, isotherme, fragile, majoration]);
   const courant = prixDelais[delai];
@@ -161,7 +161,7 @@ export function EnvoiColis({ origin, departAConfirmer, dropoff, profil, approche
       </div>
     </div>
   );
-  const nomFormule = (f: FormuleLivraison) => t(f === 'moto' ? 'lv_moto' : 'lv_voiture');
+  const nomFormule = (f: FormuleLivraison) => t(f === 'moto' ? 'lv_moto' : 'lv_cargo');
   const [l, w, h] = FORMULES_LIVRAISON[formule].dimensionsCm;
 
   /* ------------------------------------------------ étape 1 : trajet et formule */
@@ -196,7 +196,7 @@ export function EnvoiColis({ origin, departAConfirmer, dropoff, profil, approche
           </div>
           {dropoff && (
             <div className="lv-formules" role="radiogroup" aria-label={t('lv_formule')}>
-              {(['moto', 'voiture'] as const).map((f) => {
+              {(['moto', 'cargo'] as const).map((f) => {
                 const q = prixFormules[f];
                 const min = approche[f];
                 return (
@@ -204,7 +204,7 @@ export function EnvoiColis({ origin, departAConfirmer, dropoff, profil, approche
                     <span className="lv-formule-img"><img src={image(`liv-${f}`)} alt="" loading="lazy" /></span>
                     {min !== undefined && <span className="lv-eta">{t('lv_min', { n: Math.max(1, Math.round(min)) })}</span>}
                     <strong>{nomFormule(f)}</strong>
-                    <small>{t(f === 'moto' ? 'lv_moto_d' : 'lv_voiture_d')}</small>
+                    <small>{t(f === 'moto' ? 'lv_moto_d' : 'lv_cargo_d')}</small>
                     <span className="lv-prix">{q && prixDes[f] ? t('lv_des', { p: formatXOF(prixDes[f]!.amount) }) : '…'}</span>
                   </button>
                 );
@@ -243,9 +243,9 @@ export function EnvoiColis({ origin, departAConfirmer, dropoff, profil, approche
       <>
         <section className="lv-vitrine">
           <div className="lv-vitrine-img"><img src={image(`liv-${formule}`)} alt="" /></div>
-          <div className="lv-cotes"><IcoColis size={16} /> {t('lv_dims', { l, w, h, kg: FORMULES_LIVRAISON[formule].poidsMaxKg })}</div>
+          <div className="lv-cotes"><IcoColis size={16} /> {t('lv_dims', { l, w, h, kg: new Intl.NumberFormat('fr-FR').format(FORMULES_LIVRAISON[formule].poidsMaxKg) })}</div>
           <h2>{nomFormule(formule)}</h2>
-          <p>{t(formule === 'moto' ? 'lv_moto_long' : 'lv_voiture_long')}</p>
+          <p>{t(formule === 'moto' ? 'lv_moto_long' : 'lv_cargo_long')}</p>
         </section>
 
         <section className="lv-carte" aria-labelledby="lv-quand">

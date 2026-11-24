@@ -41,7 +41,7 @@ export const LIVRAISON: Ligne[] = [
   ['Arrêts', 'Stops', 'Paradas', 'Fermate', 'التوقفات', '停靠', 'Stopps', 'Остановки'],
   // Livraison 2.6 : formules, délais, options, expéditeur tiers, adresses précises.
   ['Moto express', 'Express motorbike', 'Moto exprés', 'Moto express', 'دراجة سريعة', '摩托速递', 'Express-Motorrad', 'Мото-экспресс'],
-  ['Voiture · colis volumineux', 'Car · bulky parcel', 'Coche · paquete voluminoso', 'Auto · pacco voluminoso', 'سيارة · طرد كبير', '轿车 · 大件包裹', 'Auto · sperriges Paket', 'Автомобиль · крупная посылка'],
+  ['Cargo · gros colis', 'Cargo · large load', 'Cargo · carga grande', 'Cargo · carico grande', 'كارغو · حمولة كبيرة', '货运 · 大件货物', 'Cargo · große Ladung', 'Карго · крупный груз'],
   ['Dès que possible', 'As soon as possible', 'Lo antes posible', 'Il prima possibile', 'في أقرب وقت', '尽快', 'So schnell wie möglich', 'Как можно скорее'],
   ['Sous 1 heure', 'Within 1 hour', 'En menos de 1 hora', 'Entro 1 ora', 'خلال ساعة', '1 小时内', 'Innerhalb 1 Stunde', 'В течение 1 часа'],
   ['Sous 2 heures', 'Within 2 hours', 'En menos de 2 horas', 'Entro 2 ore', 'خلال ساعتين', '2 小时内', 'Innerhalb 2 Stunden', 'В течение 2 часов'],

@@ -40,7 +40,7 @@ export const STATUS_LABEL_LIVRAISON: Partial<Record<RideStatus, string>> = libel
 });
 export const TAILLE_COLIS: Record<string, string> = libelles({ petit: 'petit colis', moyen: 'colis moyen', grand: 'grand colis' });
 /** Livraison 2.6 : formule choisie par le client et délai de remise. */
-export const nomFormuleLivraison = (f: 'moto' | 'voiture') => (f === 'voiture' ? tr('Voiture · colis volumineux') : tr('Moto express'));
+export const nomFormuleLivraison = (f: 'moto' | 'cargo') => (f === 'cargo' ? tr('Cargo · gros colis') : tr('Moto express'));
 export const nomDelaiLivraison = (d: 'express' | 'heure' | 'deux_heures') => (d === 'express' ? tr('Dès que possible') : d === 'heure' ? tr('Sous 1 heure') : tr('Sous 2 heures'));
 export const statutLabel = (status: RideStatus, livraison: boolean) => (livraison ? STATUS_LABEL_LIVRAISON[status] : undefined) ?? STATUS_LABEL[status];
 // Trois gammes ; un compte créé avant la suppression du Bronze est lu comme Argent.

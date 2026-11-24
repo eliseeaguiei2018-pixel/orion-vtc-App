@@ -39,13 +39,6 @@ def moto():
                selle=M('selle', o3.hexa('#1B1D22'), rugosite=0.6, satin=0.3, grain=0.15, urbain='#1B1D22'), couvercle=nacre())
 
 
-@rendu('liv-voiture', 760, 440, azimut=58, elevation=12)
-def voiture():
-    """Berline bleue et ses colis posés à l'arrière : la formule voiture (colis volumineux)."""
-    o3.voiture('berline', laque_bleue())
-    _pile_colis(-2.05, -1.62, echelle=1.0)
-
-
 def _pile_colis(x, y, echelle=1.0):
     e = echelle
     o3.boite('grand colis', (0.62 * e, 0.52 * e, 0.46 * e), (x, y, 0.23 * e), carton_bleu(), rayon=0.02)
@@ -53,6 +46,54 @@ def _pile_colis(x, y, echelle=1.0):
     o3.boite('étiquette', (0.20 * e, 0.010, 0.14 * e), (x + 0.14 * e, y - 0.262 * e, 0.26 * e), nacre(), rayon=0.008)
     o3.boite('petit colis', (0.40 * e, 0.34 * e, 0.28 * e), (x + 0.03, y + 0.02, 0.60 * e), bleu_ciel(), rayon=0.02, rot=(0, 0, 0.32))
     o3.boite('ruban', (0.405 * e, 0.07 * e, 0.285 * e), (x + 0.03, y + 0.02, 0.60 * e), adhesif(), rayon=0.005, rot=(0, 0, 0.32))
+
+
+@rendu('liv-cargo', 760, 460, azimut=36, elevation=13)
+def cargo():
+    """Cargo : petit camion électrique à caisse, cabine bleue, caisse nacrée cerclée de bleu,
+    pour les gros colis (déménagement léger, électroménager, marchandises)."""
+    bleu, nacre_, graph = laque_bleue(), nacre(), graphite()
+    vitrage = M('vitrage', o3.hexa('#0E1726'), verre=True, rugosite=0.05, urbain='#0E1726')
+    phare = M('phare', (1.0, 0.98, 0.94), emission=2.6, rugosite=0.1)
+    feu = M('feu', (0.95, 0.05, 0.06), emission=1.4, rugosite=0.15)
+    # Châssis et cabine (nez vers +X).
+    o3.boite('châssis', (5.30, 1.50, 0.26), (0.30, 0, 0.62), graph, rayon=0.04)
+    o3.boite('cabine', (1.62, 1.96, 1.78), (2.24, 0, 1.52), bleu, rayon=0.20)
+    o3.boite('toit cabine', (1.30, 1.80, 0.16), (2.16, 0, 2.43), bleu, rayon=0.08)
+    o3.boite('pare-brise', (0.05, 1.70, 0.74), (3.06, 0, 1.92), vitrage, rayon=0.05, rot=(0, math.radians(-10), 0))
+    for y in (-1, 1):
+        o3.boite('vitre', (0.86, 0.03, 0.62), (2.40, y * 0.975, 1.92), vitrage, rayon=0.05)
+        o3.boite('montant', (0.07, 0.035, 0.66), (1.95, y * 0.978, 1.92), bleu, rayon=0.02)
+        o3.boite('poignée', (0.16, 0.04, 0.04), (2.05, y * 0.995, 1.48), o3.matiere('chrome', (0.8, 0.82, 0.86), rugosite=0.16, metal=1.0), rayon=0.015)
+        o3.boite('marchepied', (0.70, 0.22, 0.06), (2.30, y * 0.92, 0.56), graph, rayon=0.02)
+        o3.boite('bras', (0.05, 0.22, 0.04), (3.02, y * 1.06, 2.02), graph, rayon=0.015)
+        o3.boite('rétro', (0.08, 0.10, 0.30), (3.02, y * 1.18, 1.98), graph, rayon=0.03)
+        o3.sphere('phare', 0.16, (3.08, y * 0.70, 1.02), phare, echelle=(0.35, 1.25, 0.62))
+        o3.boite('feu', (0.04, 0.16, 0.30), (-2.43, y * 0.88, 1.10), feu, rayon=0.02)
+    o3.boite('calandre', (0.05, 1.10, 0.30), (3.06, 0, 1.06), graph, rayon=0.05)
+    o3.boite('pare-chocs', (0.22, 2.00, 0.26), (3.10, 0, 0.66), graph, rayon=0.06)
+    o3.boite('bande avant', (0.03, 1.40, 0.05), (3.065, 0, 1.30), nacre_, rayon=0.015)
+    # Caisse : nacre, cerclée de bleu, emblème colis sur le flanc.
+    o3.boite('caisse', (3.92, 2.08, 2.06), (-0.46, 0, 1.82), nacre_, rayon=0.07)
+    o3.boite('bande', (3.94, 2.10, 0.34), (-0.46, 0, 1.04), bleu, rayon=0.05)
+    o3.boite('liseré', (3.94, 2.10, 0.05), (-0.46, 0, 1.30), bleu_ciel(), rayon=0.02)
+    o3.boite('corniche', (3.94, 2.10, 0.07), (-0.46, 0, 2.83), bleu_profond(), rayon=0.03)
+    for y in (-1, 1):
+        o3.boite('emblème', (0.66, 0.02, 0.66), (-0.30, y * 1.045, 2.04), bleu, rayon=0.12)
+        o3.boite('colis', (0.30, 0.02, 0.24), (-0.30, y * 1.058, 1.98), nacre_, rayon=0.03)
+        o3.boite('ruban', (0.05, 0.022, 0.24), (-0.30, y * 1.06, 1.98), bleu_ciel(), rayon=0.01)
+        o3.boite('couvercle', (0.34, 0.022, 0.06), (-0.30, y * 1.06, 2.13), nacre_, rayon=0.02)
+        o3.boite('garde-boue', (0.95, 0.20, 0.10), (-1.45, y * 0.95, 0.98), graph, rayon=0.03)
+        o3.boite('garde-boue av', (0.95, 0.10, 0.10), (2.25, y * 0.99, 0.98), bleu, rayon=0.03)
+    o3.boite('joint portes', (0.02, 0.03, 1.86), (-2.425, 0, 1.84), graph, rayon=0.005)
+    for y in (-0.22, 0.22):
+        o3.boite('crémone', (0.04, 0.04, 1.70), (-2.44, y, 1.84), o3.matiere('chrome', (0.8, 0.82, 0.86), rugosite=0.16, metal=1.0), rayon=0.015)
+    # Roues : avant sous la cabine, arrière jumelées sous la caisse.
+    for y in (-0.86, 0.86):
+        o3.roue((2.25, y, 0.44), rayon=0.44, largeur=0.28)
+        o3.roue((-1.45, y * 1.0, 0.44), rayon=0.44, largeur=0.30)
+    # Gros colis prêts à charger, à l'arrière.
+    _pile_colis(-3.05, -1.55, echelle=1.25)
 
 
 # ------------------------------------------------------------------ objets

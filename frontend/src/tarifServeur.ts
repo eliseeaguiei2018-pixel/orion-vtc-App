@@ -355,7 +355,7 @@ export function prixCourse(d: {
 /** Prix d'une livraison à moto, comme le module de livraison du serveur. `tailleFacteur` : 1, 1,12 ou 1,25. */
 export function prixLivraison(d: {
   origin: Pt; destination: Pt; distanceMeters: number; tailleFacteur: number; at?: Date;
-  /** Formule voiture : vitesse et plancher propres ; délai souple : facteur de remise ; options HT. */
+  /** Formule cargo : vitesse et plancher propres ; délai souple : facteur de remise ; options HT. */
   vitesseKmh?: number; plancher?: number; facteurDelai?: number; options?: number;
   /** Majoration de la demande (offre et demande), relue sur un devis du serveur ; 1 par défaut. */
   surge?: number;

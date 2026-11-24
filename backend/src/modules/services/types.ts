@@ -120,8 +120,8 @@ export interface Quote {
   itineraire?: { choix: 'peage' | 'normal'; peages: string[] };
   /** Mise à disposition à l'heure : durée et heure de début choisies par le client. */
   miseADisposition?: { heures: number; debut?: string };
-  /** Livraison : formule (moto ou voiture), délai et options payés avec ce devis. */
-  livraison?: OptionsLivraison & { formule: 'moto' | 'voiture' };
+  /** Livraison : formule (moto ou cargo), délai et options payés avec ce devis. */
+  livraison?: OptionsLivraison & { formule: 'moto' | 'cargo' };
   /** Chauffeur libre le plus proche de la gamme : distance et minutes d'approche ; null si aucun. */
   approche?: { km: number; minutes: number } | null;
   expiresAt: string;

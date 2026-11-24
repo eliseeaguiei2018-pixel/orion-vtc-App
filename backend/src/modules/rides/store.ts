@@ -33,7 +33,7 @@ export interface DetailsLivraison {
   /** Consignes pour le livreur (étage, portail, appeler en arrivant…). */
   instructions?: string;
   /** Formule, délai et options payés (repris du devis). */
-  formule?: 'moto' | 'voiture';
+  formule?: 'moto' | 'cargo';
   delai?: 'express' | 'heure' | 'deux_heures';
   portePorte?: boolean;
   isotherme?: boolean;

@@ -2130,7 +2130,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       const { id } = req.params as { id: string };
       assertManagerScope(req, id);
       const body = parse(z.object({
-        category: z.enum(['argent', 'or', 'diamant', 'moto']).optional(),
+        category: z.enum(['argent', 'or', 'diamant', 'moto', 'cargo']).optional(),
         // Gammes servies en plus de celle du véhicule (le PDG ouvre au chauffeur d'autres gammes).
         categories: z.array(z.enum(['argent', 'or', 'diamant'])).max(3).optional(),
         vehicleModel: z.string().trim().min(2).max(60).optional(),
@@ -2154,7 +2154,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       }
       const avant = { category: d.category, categories: d.categories ?? [], vehicleModel: d.vehicleModel, vehiclePlate: d.vehiclePlate, matricule: d.matricule, kycStatus: d.kycStatus };
       if (body.category) d.category = body.category;
-      if (body.categories) d.categories = d.category === 'moto' ? [] : [...new Set(body.categories)].filter((g) => g !== d.category);
+      if (body.categories) d.categories = d.category === 'moto' || d.category === 'cargo' ? [] : [...new Set(body.categories)].filter((g) => g !== d.category);
       if (body.vehicleModel) d.vehicleModel = body.vehicleModel;
       if (body.vehiclePlate) d.vehiclePlate = body.vehiclePlate.toUpperCase();
       if (body.vehicleColor) d.vehicleColor = body.vehicleColor;
@@ -4043,11 +4043,11 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
       const p = container.settings.getPricing();
       const prixPour = (ajustementPct: number) => (t: typeof TRAJETS_TYPES[number]) =>
         Object.fromEntries((['argent', 'or', 'diamant'] as const).map((g) => [g, estimatePrice({ origin: t.origin, destination: t.destination, category: g }, { settings: { ...p, ajustementPct } }).amount]));
-      // Le même réglage vaut pour les livraisons : moto express et voiture, livrées dès que possible.
+      // Le même réglage vaut pour les livraisons : moto express et cargo, livrées dès que possible.
       const livraisonPour = async (ajustementPct: number, t: typeof TRAJETS_TYPES[number]) => {
         const module = new DeliveryServiceModule(async () => ({ settings: { ...p, ajustementPct } }));
-        const prix = async (formule: 'moto' | 'voiture') => (await module.estimate({ origin: t.origin, destination: t.destination, category: formule })).amount;
-        return { moto: await prix('moto'), voiture: await prix('voiture') };
+        const prix = async (formule: 'moto' | 'cargo') => (await module.estimate({ origin: t.origin, destination: t.destination, category: formule })).amount;
+        return { moto: await prix('moto'), cargo: await prix('cargo') };
       };
       const livraisons = await Promise.all(TRAJETS_TYPES.map(async (t) => ({
         trajet: t.trajet,

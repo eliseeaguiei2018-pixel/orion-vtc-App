@@ -291,7 +291,7 @@ export interface LivraisonConsole {
   expediteur?: { nom: string; telephone: string } | null;
   retrait?: AdresseLivraison | null; depot?: AdresseLivraison | null;
   description?: string | null; instructions?: string | null;
-  formule?: 'moto' | 'voiture'; delai?: 'express' | 'heure' | 'deux_heures';
+  formule?: 'moto' | 'cargo'; delai?: 'express' | 'heure' | 'deux_heures';
   portePorte?: boolean; isotherme?: boolean; fragile?: boolean; livrerAvant?: string | null;
   smsDestinataire?: boolean; smsExpediteur?: boolean;
 }

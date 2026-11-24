@@ -80,8 +80,8 @@ export async function driverAppRoutes(app: FastifyInstance, container: Container
       phone: z.string().min(6).max(25),
       code: z.string().min(4).max(8),
       name: z.string().trim().min(2).max(60).optional(),
-      // « moto » : coursier de la livraison à moto.
-      category: z.enum(['argent', 'or', 'diamant', 'moto']).optional(),
+      // « moto » : coursier de la livraison à moto ; « cargo » : petit camion (gros colis).
+      category: z.enum(['argent', 'or', 'diamant', 'moto', 'cargo']).optional(),
     }), req.body);
     const phone = normalizePhone(body.phone);
     if (!phone) throw badRequest('Numéro de téléphone invalide');

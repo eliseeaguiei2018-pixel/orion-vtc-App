@@ -177,7 +177,7 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
       : { nom: ride.livraison?.destinataire?.nom ?? ride.client.name, tel: ride.livraison?.destinataire?.telephone ?? ride.client.phone };
   const appelLabel = (n: string | null | undefined) => !livraison ? tr('Appeler le passager {0}', [numeroLisible(n)])
     : enRetrait ? tr('Appeler l’expéditeur {0}', [numeroLisible(n)]) : tr('Appeler le destinataire {0}', [numeroLisible(n)]);
-  const vehiculeCarte = livraison ? (ride.livraison?.formule === 'voiture' ? 'car' : 'moto') : 'car';
+  const vehiculeCarte = livraison ? (ride.livraison?.formule === 'cargo' ? 'car' : 'moto') : 'car';
   // Le colis ne se déclare livré qu'avec le code de remise que le destinataire donne au livreur.
   const remiseRequise = livraison && Boolean(ride.livraison?.codeRemiseRequis);
   // Guidage actif tant qu'il y a un point à rejoindre (client, puis destination).

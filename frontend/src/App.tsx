@@ -144,7 +144,7 @@ export function App() {
   const [depotLivraison, setDepotLivraison] = useState<Place | null>(null);
   const [destination, setDestination] = useState<Place | null>(null);
   const [mode, setMode] = useState<'ride' | 'delivery'>('ride');
-  /** Formule de la livraison en cours : moto (petits colis) ou voiture (volumineux). */
+  /** Formule de la livraison en cours : moto (petits colis) ou cargo (petit camion, gros colis). */
   const [formuleLiv, setFormuleLiv] = useState<FormuleLivraison>('moto');
   // Livraison : destinataire du colis (il recevra le code de remise de l'expéditeur).
   const [livraison, setLivraison] = useState<DetailsLivraison | null>(null);
@@ -846,7 +846,7 @@ export function App() {
   /** Coursier (livraison) — démo : à moto, ou en voiture pour les colis volumineux. */
   const pickCourier = (formule: FormuleLivraison = 'moto'): Driver => {
     const base = DRIVERS[Math.floor(Math.random() * DRIVERS.length)] ?? DRIVERS[0]!;
-    return formule === 'voiture' ? base : { ...base, car: 'Moto ORION · 100% électrique', plate: `CI-${(base.matricule.match(/\d+/)?.[0] ?? '0000')} M` };
+    return formule === 'cargo' ? { ...base, car: 'Cargo ORION · petit camion électrique', plate: `CI-${(base.matricule.match(/\d+/)?.[0] ?? '0000')} C` } : { ...base, car: 'Moto ORION · 100% électrique', plate: `CI-${(base.matricule.match(/\d+/)?.[0] ?? '0000')} M` };
   };
 
   /**
@@ -1051,7 +1051,7 @@ export function App() {
         {screen === 'delivery' && (
           <EnvoiColis origin={origin} departAConfirmer={departAConfirmer} dropoff={depotLivraison}
             profil={profil?.name && profil.phone ? { nom: profil.name, telephone: profil.phone } : null}
-            approche={{ moto: proches?.approche.moto?.minutes, voiture: proches?.approche.argent?.minutes }}
+            approche={{ moto: proches?.approche.moto?.minutes, cargo: proches?.approche.cargo?.minutes }}
             payment={payment} payments={enabledPayments} onPayment={setPayment}
             onPickup={() => ouvrirChoix('depart', 'delivery')} onDropoff={() => ouvrirChoix('livraison', 'delivery')}
             onBack={() => { setDepotLivraison(null); setScreen('home'); }} onCommander={(c) => { setDepotLivraison(null); void startDelivery(c); }} />
@@ -1099,12 +1099,12 @@ export function App() {
         )}
 
         {screen === 'searching' && destination && (
-          <SearchingScreen origin={origin} destination={destination} mode={mode} enVoiture={formuleLiv === 'voiture'} test={busId !== null} onCancel={busId ? annulerCourseBus : reset} />
+          <SearchingScreen origin={origin} destination={destination} mode={mode} enVoiture={formuleLiv === 'cargo'} test={busId !== null} onCancel={busId ? annulerCourseBus : reset} />
         )}
 
         {suiviMonte && destination && driver && (
           <div className="suivi-course" hidden={screen !== 'tracking'}>
-          <TrackingScreen onMessage={messagerie.recevoir} messages={messagerie.actif ? { nonLus: messagerie.nonLus, ouvrir: () => { setRetourMessages('tracking'); setScreen('messages'); } } : undefined} origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase} mode={mode} enVoiture={formuleLiv === 'voiture'}
+          <TrackingScreen onMessage={messagerie.recevoir} messages={messagerie.actif ? { nonLus: messagerie.nonLus, ouvrir: () => { setRetourMessages('tracking'); setScreen('messages'); } } : undefined} origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase} mode={mode} enVoiture={formuleLiv === 'cargo'}
             carPos={carPos} setCarPos={setCarPos} setPhase={setTripPhase} live={live} rideId={rideId} stops={stops} codeTest={busId ? busCode : null}
             onAjouterArret={() => ouvrirChoix('arret', 'tracking')} arretPropose={arretPropose}
             onArretTraite={(p) => { if (p) { setStops((s) => [...s, p]); showToast(tx('arretAjouteOk')); } setArretPropose(null); }}

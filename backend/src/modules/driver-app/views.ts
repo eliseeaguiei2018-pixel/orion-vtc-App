@@ -173,7 +173,7 @@ export function activeRideFor(container: Container, driverId: string, offer?: { 
       depot: ride.livraison?.depot ?? null,
       description: ride.livraison?.description ?? null,
       instructions: ride.livraison?.instructions ?? null,
-      formule: ride.livraison?.formule ?? (ride.quote.category === 'voiture' ? 'voiture' : 'moto'),
+      formule: ride.livraison?.formule ?? (ride.quote.category === 'cargo' ? 'cargo' : 'moto'),
       delai: ride.livraison?.delai ?? 'express',
       portePorte: Boolean(ride.livraison?.portePorte),
       isotherme: Boolean(ride.livraison?.isotherme),

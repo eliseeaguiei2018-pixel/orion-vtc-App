@@ -26,16 +26,17 @@ export const PACKAGE_FACTOR: Record<string, number> = { petit: 1, moyen: 1.12, g
 export const DEFAULT_PACKAGE = 'moyen';
 
 /**
- * FORMULES DE LIVRAISON (version 2.6) : la moto pour les petits colis, la voiture (coffre)
- * pour les colis volumineux. La voiture est servie par les chauffeurs de la gamme Argent ;
- * elle coûte à peu près une course Argent (la moto, environ 70 % d'une course).
+ * FORMULES DE LIVRAISON (version 2.6) : la moto pour les petits colis, le CARGO (petit camion
+ * électrique à caisse) pour les gros colis — électroménager, meubles, marchandises, petit
+ * déménagement. Le cargo a sa propre flotte et coûte nettement plus cher : 4,5 fois le
+ * barème coursier, avec un plancher six fois plus haut (chargement compris).
  */
 export const FORMULES_LIVRAISON = {
-  moto: { facteur: 1, poidsMaxKg: 10, dimensionsCm: [40, 40, 40], vitesseKmh: 26, flotte: 'moto' },
-  voiture: { facteur: 1.45, poidsMaxKg: 30, dimensionsCm: [80, 60, 50], vitesseKmh: 22, flotte: 'argent' },
+  moto: { facteur: 1, plancher: 1, poidsMaxKg: 10, dimensionsCm: [40, 40, 40], vitesseKmh: 26, flotte: 'moto' },
+  cargo: { facteur: 4.5, plancher: 6, poidsMaxKg: 1000, dimensionsCm: [250, 160, 160], vitesseKmh: 24, flotte: 'cargo' },
 } as const;
 export type FormuleLivraison = keyof typeof FORMULES_LIVRAISON;
-export const estFormule = (c: string | undefined): c is FormuleLivraison => c === 'moto' || c === 'voiture';
+export const estFormule = (c: string | undefined): c is FormuleLivraison => c === 'moto' || c === 'cargo';
 
 /**
  * DÉLAI DE REMISE : qui n'est pas pressé paie moins. « Express » part tout de suite ; « sous 1 h »
@@ -119,7 +120,7 @@ export class DeliveryServiceModule implements ServiceModule {
     const zoneFactor = Math.max(0.1, ctx.zoneFactor ?? 1);
     const surge = Math.max(1, ctx.surgeMultiplier ?? 1);
     const metered = (base + distanceCost + timeCost) * trafficMult * zoneFactor * surge;
-    const plancher = DELIVERY_TARIFF.minFare * (formule === 'voiture' ? FORMULES_LIVRAISON.voiture.facteur : 1);
+    const plancher = DELIVERY_TARIFF.minFare * FORMULES_LIVRAISON[formule].plancher;
     // Réglage des prix de la direction (Mon poste PDG, hausse ou baisse) : il vaut pour les
     // livraisons comme pour les courses — trajet, plancher et options compris.
     const coef = coefAjustement(s);

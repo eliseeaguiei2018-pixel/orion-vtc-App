@@ -18,8 +18,8 @@ interface EtatPrix {
   majorationsPctHorsAbidjan: Grille;
   modifie: { le: string; par: string } | null;
   exemples: Array<{ trajet: string; km: number; prix: Record<'argent' | 'or' | 'diamant', number>; sansAjustement: Record<'argent' | 'or' | 'diamant', number> }>;
-  /** Le même réglage s'applique aux livraisons (moto express et voiture, livrées dès que possible). */
-  livraisons?: Array<{ trajet: string; prix: Record<'moto' | 'voiture', number>; sansAjustement: Record<'moto' | 'voiture', number> }>;
+  /** Le même réglage s'applique aux livraisons (moto express et cargo, livrées dès que possible). */
+  livraisons?: Array<{ trajet: string; prix: Record<'moto' | 'cargo', number>; sansAjustement: Record<'moto' | 'cargo', number> }>;
 }
 
 const fcfa = (n: number) => `${new Intl.NumberFormat('fr-FR').format(n)} F`;
@@ -58,7 +58,7 @@ export function PrixDirection() {
   const lignes = useMemo(() => (etat?.exemples ?? []).map((ex) => ({ ...ex, nouveau: apercu(ex.sansAjustement.argent, pct, grille) })), [etat, pct, grille]);
   // Livraisons : le même pourcentage, sur le prix de base de chaque formule.
   const livraisons = useMemo(() => (etat?.livraisons ?? []).map((ex) => ({
-    ...ex, nouveau: { moto: arrondi50(ex.sansAjustement.moto * (1 + pct / 100)), voiture: arrondi50(ex.sansAjustement.voiture * (1 + pct / 100)) },
+    ...ex, nouveau: { moto: arrondi50(ex.sansAjustement.moto * (1 + pct / 100)), cargo: arrondi50(ex.sansAjustement.cargo * (1 + pct / 100)) },
   })), [etat, pct]);
 
   if (!LIVE) return null;
@@ -145,12 +145,12 @@ export function PrixDirection() {
       {livraisons.length > 0 && (
         <div className="adm-table-wrap">
           <table className="adm-table adm-prix-exemples">
-            <thead><tr><th>Livraison, même trajet (dès que possible, sans option)</th><th>Moto express</th><th>Voiture</th></tr></thead>
+            <thead><tr><th>Livraison, même trajet (dès que possible, sans option)</th><th>Moto express</th><th>Cargo</th></tr></thead>
             <tbody>
               {livraisons.map((l) => (
                 <tr key={l.trajet}>
                   <td>{l.trajet}</td>
-                  {(['moto', 'voiture'] as const).map((f) => (
+                  {(['moto', 'cargo'] as const).map((f) => (
                     <td key={f} className="mono">
                       <strong>{fcfa(l.nouveau[f])}</strong>
                       {l.nouveau[f] !== l.prix[f] && <span className="adm-prix-avant">{fcfa(l.prix[f])}</span>}

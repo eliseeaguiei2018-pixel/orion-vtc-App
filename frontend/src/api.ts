@@ -263,12 +263,13 @@ export function previewDelivery(origin: LatLng, destination: LatLng, size: PkgSi
 }
 
 /**
- * LIVRAISON 2.6 : formules (moto, voiture), délai de remise et options. Mêmes valeurs que
+ * LIVRAISON 2.6 : formules (moto, cargo), délai de remise et options. Mêmes valeurs que
  * le serveur (deliveryModule.ts) : le prix affiché est le prix payé.
  */
 export const FORMULES_LIVRAISON = {
-  moto: { facteur: 1, poidsMaxKg: 10, dimensionsCm: [40, 40, 40] as const, vitesseKmh: 26 },
-  voiture: { facteur: 1.45, poidsMaxKg: 30, dimensionsCm: [80, 60, 50] as const, vitesseKmh: 22 },
+  moto: { facteur: 1, plancher: 1, poidsMaxKg: 10, dimensionsCm: [40, 40, 40] as const, vitesseKmh: 26 },
+  /** Cargo : petit camion électrique pour les gros colis, nettement plus cher (4,5 × la moto, plancher × 6). */
+  cargo: { facteur: 4.5, plancher: 6, poidsMaxKg: 1000, dimensionsCm: [250, 160, 160] as const, vitesseKmh: 24 },
 };
 export type FormuleLivraison = keyof typeof FORMULES_LIVRAISON;
 export const DELAIS_LIVRAISON = { express: { facteur: 1, minutes: 0 }, heure: { facteur: 0.9, minutes: 60 }, deux_heures: { facteur: 0.75, minutes: 120 } };
@@ -284,7 +285,7 @@ export function previewLivraison(origin: LatLng, destination: LatLng, formule: F
   const options = (o.portePorte ? SUPPLEMENTS_LIVRAISON.portePorte : 0) + (formule === 'moto' && o.isotherme ? SUPPLEMENTS_LIVRAISON.isotherme : 0);
   const prix = prixLivraison({
     origin, destination, distanceMeters, tailleFacteur: f.facteur, vitesseKmh: f.vitesseKmh,
-    plancher: BAREME_LIVRAISON.minFare * f.facteur, facteurDelai: DELAIS_LIVRAISON[o.delai].facteur, options, surge,
+    plancher: BAREME_LIVRAISON.minFare * f.plancher, facteurDelai: DELAIS_LIVRAISON[o.delai].facteur, options, surge,
   });
   return {
     lockId: `delivery-${Date.now()}`, amount: prix.amount, currency: 'XOF', distanceMeters: Math.round(distanceMeters),
@@ -296,7 +297,7 @@ export function previewLivraison(origin: LatLng, destination: LatLng, formule: F
  * Devis de LIVRAISON auprès du backend (service coursier). Renvoie null si le backend
  * est absent ou indisponible — l'appelant retombe alors sur `previewDelivery` (démo).
  * Le lockId renvoyé permet de créer une vraie livraison au prix affiché.
- * `category` : la formule (moto | voiture) ; les anciennes tailles (petit | moyen | grand) restent acceptées.
+ * `category` : la formule (moto | cargo) ; les anciennes tailles (petit | moyen | grand) restent acceptées.
  */
 export async function estimateDelivery(origin: LatLng, destination: LatLng, size: PkgSize | FormuleLivraison, promoCode?: string, livraison?: OptionsLivraison): Promise<Quote | null> {
   const remote = await tryFetch<{ quote: Quote }>('/pricing/estimate', {

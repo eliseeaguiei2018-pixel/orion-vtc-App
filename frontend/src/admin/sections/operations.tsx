@@ -573,7 +573,7 @@ function BlocLivraison({ l }: { l: LivraisonConsole }) {
       <h4 className="adm-drawer-sec">Livraison</h4>
       <table className="adm-table sm">
         <tbody>
-          <tr><td>Formule</td><td className="r">{l.formule === 'voiture' ? 'Voiture · colis volumineux' : 'Moto express'}</td></tr>
+          <tr><td>Formule</td><td className="r">{l.formule === 'cargo' ? 'Cargo · petit camion, gros colis' : 'Moto express'}</td></tr>
           <tr><td>Délai</td><td className="r">{delai}{l.livrerAvant ? ` · avant ${new Date(l.livrerAvant).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : ''}</td></tr>
           <tr><td>Remise et options</td><td className="r">{options}</td></tr>
           {l.description && <tr><td>Contenu</td><td className="r">{l.description}</td></tr>}

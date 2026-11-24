@@ -5,6 +5,8 @@ import { TIER_RANK } from '../fleet/catalog.js';
 
 /** Catégorie de flotte des coursiers (livraison à moto). */
 export const CATEGORIE_COURSIER = 'moto';
+/** Catégorie de flotte du cargo (petits camions, gros colis). */
+export const CATEGORIE_CARGO = 'cargo';
 
 /**
  * Catégorie de flotte à chercher pour une commande. Une livraison cherche un COURSIER à
@@ -13,8 +15,8 @@ export const CATEGORIE_COURSIER = 'moto';
  * réelle finissait « sans chauffeur ». Une course cherche la gamme demandée.
  */
 export function categorieDeFlotte(serviceType: string | undefined, category: string | undefined): string | undefined {
-  // Livraison en voiture (colis volumineux) : servie par les chauffeurs Argent ; sinon, coursiers à moto.
-  if (serviceType === 'delivery') return category === 'voiture' ? 'argent' : CATEGORIE_COURSIER;
+  // Livraison cargo (gros colis) : les petits camions ; sinon, coursiers à moto.
+  if (serviceType === 'delivery') return category === 'cargo' ? CATEGORIE_CARGO : CATEGORIE_COURSIER;
   return category;
 }
 

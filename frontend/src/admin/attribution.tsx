@@ -17,7 +17,9 @@ export interface FicheAttribution {
   vehicule?: { modele: string | null; plaque: string | null; couleur: string | null; motorisation: string | null; batterieKwh: number | null } | null;
 }
 
-const GAMMES: Array<[string, string]> = [['argent', 'Argent'], ['or', 'Or'], ['diamant', 'Diamant'], ['moto', 'Coursier moto']];
+const GAMMES: Array<[string, string]> = [['argent', 'Argent'], ['or', 'Or'], ['diamant', 'Diamant'], ['moto', 'Coursier moto'], ['cargo', 'Cargo · petit camion']];
+/** Livraison (moto, cargo) : une seule flotte, pas de gammes de course en plus. */
+const LIVRAISON = (g: string) => g === 'moto' || g === 'cargo';
 
 export function DialogueAttribution({ fiche, valider, onFermer, onFait }: {
   fiche: FicheAttribution; valider: boolean; onFermer: () => void;
@@ -27,8 +29,8 @@ export function DialogueAttribution({ fiche, valider, onFermer, onFait }: {
   const [categorie, setCategorie] = useState(fiche.category || 'argent');
   // GAMMES SERVIES : le PDG ouvre au chauffeur d'autres gammes que celle de son véhicule ;
   // il reçoit alors les courses de chacune (son app l'affiche aussitôt).
-  const [servies, setServies] = useState<string[]>(() => (fiche.categories?.length ? fiche.categories : [fiche.category || 'argent']).filter((g) => g !== 'moto'));
-  const toutesServies = categorie === 'moto' ? [] : [...new Set([categorie, ...servies])];
+  const [servies, setServies] = useState<string[]>(() => (fiche.categories?.length ? fiche.categories : [fiche.category || 'argent']).filter((g) => !LIVRAISON(g)));
+  const toutesServies = LIVRAISON(categorie) ? [] : [...new Set([categorie, ...servies])];
   const [modele, setModele] = useState(v?.modele ?? '');
   const [plaque, setPlaque] = useState(v?.plaque ?? '');
   const [couleur, setCouleur] = useState(v?.couleur ?? '');
@@ -43,7 +45,7 @@ export function DialogueAttribution({ fiche, valider, onFermer, onFait }: {
     setErreur('');
     if (activer && (!modele.trim() || !plaque.trim())) { setErreur('Indiquez au moins le modèle et la plaque du véhicule attribué.'); return; }
     const corps: Record<string, unknown> = { category: categorie, engine: motorisation, valider: activer && fiche.kycStatus !== 'active' ? true : undefined };
-    if (categorie !== 'moto') corps['categories'] = toutesServies;
+    if (!LIVRAISON(categorie)) corps['categories'] = toutesServies;
     if (modele.trim()) corps['vehicleModel'] = modele.trim();
     if (plaque.trim()) corps['vehiclePlate'] = plaque.trim();
     if (couleur.trim()) corps['vehicleColor'] = couleur.trim();
@@ -100,12 +102,12 @@ export function DialogueAttribution({ fiche, valider, onFermer, onFait }: {
             </label>
           )}
         </div>
-        {categorie !== 'moto' && (
+        {!LIVRAISON(categorie) && (
           <fieldset className="adm-gammes-servies">
             <legend>Gammes servies</legend>
             <p className="adm-muted">Le chauffeur reçoit les courses de chaque gamme cochée. La gamme de son véhicule reste toujours servie.</p>
             <div className="adm-gammes-cases">
-              {GAMMES.filter(([id]) => id !== 'moto').map(([id, l]) => {
+              {GAMMES.filter(([id]) => !LIVRAISON(id)).map(([id, l]) => {
                 const principale = id === categorie;
                 return (
                   <label key={id} className={`adm-case${principale ? ' principale' : ''}`}>

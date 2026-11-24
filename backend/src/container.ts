@@ -655,6 +655,8 @@ export async function seedDemoDrivers(c: Container): Promise<void> {
     { name: 'Yacouba Ouattara', lat: 5.3228, lng: -4.0168, category: 'moto', phone: '+2250709101112' },
     { name: 'Bintou Coulibaly', lat: 5.3492, lng: -3.9935, category: 'moto', phone: '+2250710111213' },
     { name: 'Hervé Kouadio', lat: 5.3049, lng: -3.9871, category: 'moto', phone: '+2250711121314' },
+    // Cargo (petit camion électrique) pour les gros colis.
+    { name: 'Lassina Traoré', lat: 5.3301, lng: -4.0152, category: 'cargo', phone: '+2250712131415' },
   ];
   for (const s of seeds) {
     const d = c.drivers.upsert({
@@ -668,6 +670,7 @@ export async function seedDemoDrivers(c: Container): Promise<void> {
       ratingAvg: 4.9,
       ratingCount: 1000,
       ...(s.category === 'moto' ? { vehicleModel: 'Scooter électrique', engine: 'electric' as const } : {}),
+      ...(s.category === 'cargo' ? { vehicleModel: 'Petit camion électrique', engine: 'electric' as const } : {}),
     });
     await c.drivers.goOnline(d.id, { lat: s.lat, lng: s.lng });
   }

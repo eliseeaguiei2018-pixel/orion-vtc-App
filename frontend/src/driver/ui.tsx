@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { LogoApp } from '../components/Logo';
-import { Scooter, Voiture, vehiculeDeGamme } from '../components/Vehicules';
+import { rendu, Scooter, Voiture, vehiculeDeGamme } from '../components/Vehicules';
 import { IconActivity, IconAward, IconBell, IconBriefcase, IconCar, IconCheck, IconGlobe, IconHome, IconLeaf, IconSettings } from '../icons';
 import { tr } from './i18n';
 import { LANGUAGES, useI18n, type Lang } from '../i18n';
@@ -54,6 +54,8 @@ export function PageHeader({ title, sub, right, children, marque = false }: { ti
 /** Le véhicule du chauffeur, dessiné à la couleur de sa gamme (scooter pour un coursier). */
 export function VehiculeChauffeur({ category, largeur = 150 }: { category: string; largeur?: number }) {
   if (category === 'moto') return <Scooter largeur={largeur} />;
+  // Cargo : le petit camion bleu du volet livraison (gros colis).
+  if (category === 'cargo') return <img src={rendu('livraison/liv-cargo')} alt="" width={largeur} style={{ height: 'auto', display: 'block' }} />;
   const v = vehiculeDeGamme(category);
   return <Voiture modele={v.modele} peinture={v.peinture} largeur={largeur} />;
 }
