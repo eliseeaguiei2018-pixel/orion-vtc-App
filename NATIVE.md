@@ -234,4 +234,7 @@ paquets web d'une version qui demande ce nouveau moteur se publient avec un `nat
 nouveau versionCode : les téléphones plus anciens les ignorent et proposent d'abord l'APK. La clé de signature est créée et gardée par le serveur
 sur son disque persistant (`/var/data/paquets/cle-signature.pk8`) ; si ce disque était perdu,
 le serveur en créerait une autre et il faudrait de nouvelles APK portant sa clé publique.
-Projets iOS : lancer `npx cap sync ios` sur un Mac pour y ajouter le module de mise à jour.
+Projets iOS : le module de mise à jour, la voix, le GPS en arrière-plan et les notifications y
+sont inclus (Swift Package Manager). App officielle : `frontend/scripts/construire-ios.sh
+<client|chauffeur>` sur un Mac, puis Xcode › Archive ; les paquets à chaud valent aussi pour
+l'iPhone (build iOS 28 ≥ natifMin 25). L'annonce « nouvelle APK » ne s'affiche que sur Android.

@@ -13,8 +13,7 @@ import { BlocBiometrie } from '../../components/CompteScreens';
 import { VERSION_APP } from '../../version';
 import { LienServeur } from './Serveur';
 import type { EtatVoixHumaine } from '../backend';
-import { Capacitor } from '@capacitor/core';
-import { derniereVoixAccueil, deverrouillerAudio, direAccueil, installerVoix, taire } from '../../voix';
+import { derniereVoixAccueil, deverrouillerAudio, direAccueil, installationVoixPossible, installerVoix, taire } from '../../voix';
 
 const PIPELINE: KycStatus[] = ['draft', 'docs_submitted', 'manual_review', 'active'];
 
@@ -291,7 +290,7 @@ function VoixDeBord({ app }: Pick<ScreenProps, 'app'>) {
           </button>
         </div>
         {source && <span className="faint" style={{ fontSize: 12 }}>{source === 'humaine' ? tr('Voix humaine du serveur ORION.') : tr('Voix du téléphone. Pour une voix plus naturelle, installez les voix haute qualité.')}</span>}
-        {Capacitor.isNativePlatform() && !humaine?.active && (
+        {installationVoixPossible() && !humaine?.active && (
           <button type="button" className="dv-link" style={{ justifySelf: 'start' }} onClick={installerVoix}>{tr('Installer les voix haute qualité du téléphone')}</button>
         )}
       </div>

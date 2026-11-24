@@ -62,11 +62,14 @@
 	<string>Main</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
+	<!-- Comme sur Android : rotation automatique (support paysage au tableau de bord, tablette). -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<!-- Textes affichés par iOS au moment de demander l'accès (exigés par l'App Store). -->
 	<key>NSMicrophoneUsageDescription</key>
@@ -75,17 +78,16 @@
 	<string>ORION Chauffeur utilise l’appareil photo pour votre photo de profil : vos passagers vous reconnaissent à la prise en charge, et la supervision peut vous identifier si vous déclenchez une alerte SOS.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>ORION Chauffeur vous permet de choisir votre photo de profil dans votre galerie.</string>
-	<!-- Position du chauffeur pendant l'utilisation de l'app : offres de course autour de lui,
-	     navigation vers le client, tracé de la course et alerte SOS localisée. Pas de
-	     localisation en arrière-plan (voir NATIVE.md). -->
 	<key>NSFaceIDUsageDescription</key>
 	<string>ORION Chauffeur utilise Face ID pour vérifier que c’est bien vous à l’ouverture de l’application. Votre visage reste dans l’iPhone : ORION reçoit seulement « reconnu » ou « non reconnu ».</string>
 	<!-- Course ou service en cours : position gardée en arrière-plan (indicateur bleu d’iOS). -->
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>ORION Chauffeur garde votre position pendant votre service, même écran éteint ou application quittée, pour recevoir des courses et que les clients vous voient approcher.</string>
+	<!-- location : position gardée pendant la course ou le service ; audio : guidage vocal, accueil du client en voix humaine et appels par internet, même écran verrouillé ou app en arrière-plan. -->
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>
+		<string>audio</string>
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>ORION Chauffeur utilise votre position pendant votre service pour vous proposer les courses proches, vous guider vers le client, tracer la course et localiser une alerte SOS.</string>

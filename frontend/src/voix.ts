@@ -144,6 +144,9 @@ let lectureElement: HTMLAudioElement | null = null;
 
 /** À appeler sur un toucher (code validé, bouton) : le son de l'accueil pourra partir ensuite. */
 export function deverrouillerAudio(): void {
+  // iPhone : sans cela, la voix se tait quand le bouton « silencieux » est activé (session
+  // audio « ambiante » par défaut). En « lecture », elle parle comme le GPS d'une app de navigation.
+  try { const s = (navigator as unknown as { audioSession?: { type: string } }).audioSession; if (s) s.type = 'playback'; } catch { /* navigateur sans session audio */ }
   try {
     const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctx) return;
@@ -230,10 +233,12 @@ export async function direAccueil(texte: string, genre: GenreVoix, langue = 'fr-
   }
 }
 
-/** Ouvre l'installation des voix du téléphone (voix haute qualité de Google Text-to-Speech). */
+/** Ouvre l'installation des voix du téléphone (voix haute qualité de Google Text-to-Speech, Android). */
 export function installerVoix(): void {
   if (natif()) void TextToSpeech.openInstall().catch(() => undefined);
 }
+/** L'installation de voix depuis l'app n'existe que sur Android (sur iPhone : Réglages › Accessibilité). */
+export const installationVoixPossible = (): boolean => natif() && Capacitor.getPlatform() === 'android';
 
 export function taire(): void {
   jetonAccueil += 1;

@@ -62,7 +62,7 @@
 	<string>Main</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
@@ -80,9 +80,11 @@
 	<!-- Course ou service en cours : position gardée en arrière-plan (indicateur bleu d’iOS). -->
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>ORION garde votre position pendant une course, même si vous quittez l’app : votre chauffeur vous retrouve et vous êtes prévenu de son arrivée.</string>
+	<!-- location : position gardée pendant la course ou le service ; audio : appels par internet avec le chauffeur, même écran verrouillé ou app en arrière-plan. -->
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>
+		<string>audio</string>
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>ORION utilise votre position, seulement quand l’app est ouverte, pour que le chauffeur vienne vous chercher là où vous êtes. Vous pouvez aussi choisir votre point de départ sur la carte.</string>

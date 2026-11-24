@@ -121,7 +121,11 @@ export async function verifierMiseAJour(): Promise<void> {
     const natif = Number((await App.getInfo()).build) || 0;
     const absolue = (chemin: string) => new URL(chemin, base || window.location.origin).toString();
 
-    const rn = await fetch(`${base}/apps/${app}/version-native`, { cache: 'no-store' }).catch(() => null);
+    // Nouvelle APK : Android seulement (sur iPhone, l'app native vient de l'App Store / TestFlight ;
+    // les mises à jour à chaud ci-dessous valent pour les deux systèmes).
+    const rn = Capacitor.getPlatform() === 'android'
+      ? await fetch(`${base}/apps/${app}/version-native`, { cache: 'no-store' }).catch(() => null)
+      : null;
     if (rn?.ok) {
       const v = (await rn.json()) as VersionNative;
       if (v.app === app && v.versionCode > natif && typeof v.chemin === 'string' && v.chemin.startsWith(`/apps/${app}/apk/`)) {
