@@ -854,3 +854,12 @@ html[data-adm-theme='light'] .adm-alarme .adm-btn.ghost { background: transparen
 .adm-gservices { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: 10px; }
 .adm-gservice { border: 1px solid var(--a-stroke); border-radius: 12px; padding: 12px 14px; background: var(--a-panel2); display: grid; gap: 6px; font-size: 13px; }
 .adm-gservice-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 600; }
+
+.adm-vh-secours { margin-top: 14px; }
+.adm-vh-secours-liste { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.adm-vh-secours-liste .adm-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 4px 10px; font-variant-numeric: tabular-nums; }
+.adm-vh-retirer { border: 0; background: transparent; color: var(--a-muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 2px; }
+.adm-vh-retirer:hover { color: var(--a-danger); }
+.adm-vh-secours-ajout { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; }
+.adm-cle-masquee { -webkit-text-security: disc; font-family: ui-monospace, monospace; }
+@media (max-width: 560px) { .adm-vh-secours-ajout { grid-template-columns: 1fr; } }

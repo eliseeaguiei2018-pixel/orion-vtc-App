@@ -236,6 +236,8 @@ export function adminGet<T>(p: string): Promise<T> {
 export async function adminPost<T>(p: string, b?: unknown): Promise<T> { const r = await fetch(API + p, withCreds({ method: 'POST', headers: H(), body: JSON.stringify(b ?? {}) })); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
 export async function adminPut<T>(p: string, b: unknown): Promise<T> { const r = await fetch(API + p, withCreds({ method: 'PUT', headers: H(), body: JSON.stringify(b) })); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
 export async function adminDel(p: string): Promise<void> { const r = await fetch(API + p, withCreds({ method: 'DELETE', headers: H() })); if (r.status === 401) onUnauthorized(); if (!r.ok) await fail(r); }
+/** DELETE qui renvoie l'état mis à jour. */
+export async function adminDelJson<T>(p: string): Promise<T> { const r = await fetch(API + p, withCreds({ method: 'DELETE', headers: H() })); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
 /** Image servie par le serveur (carte du trajet) ; null si indisponible. */
 export async function adminGetBlob(p: string): Promise<Blob | null> {
   if (!LIVE) return null;

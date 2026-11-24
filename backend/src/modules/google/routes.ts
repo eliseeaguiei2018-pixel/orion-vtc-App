@@ -10,6 +10,7 @@ import { courseDuChauffeur } from '../rides/bienvenue.js';
 import { participant } from '../rides/courseLive.js';
 import type { Ride } from '../rides/store.js';
 import { SERVICES_GOOGLE, servicesGoogle, type ServiceGoogle } from './services.js';
+import { FORMAT_CLE_GOOGLE, trousseauGoogle } from './cles.js';
 
 /**
  * Routes des services Google du serveur : météo du chauffeur, image du trajet (client,
@@ -110,6 +111,28 @@ export function servicesGoogleAdminRoutes(
     const acteur = (req as unknown as { admin?: { name?: string } }).admin?.name ?? 'console';
     servicesGoogle(container).reglerActifs(b.actifs, acteur);
     journaliser(req, 'services_google.update', 'services', b.actifs);
+    return servicesGoogle(container).etat();
+  });
+  /** Clés de secours (remplace la liste ; [] les retire toutes). Jamais renvoyées : 4 derniers caractères seulement. */
+  scoped.put('/admin/services-google/secours', async (req) => {
+    exiger(req, 'services:write');
+    const b = parse(z.object({
+      cles: z.array(z.string().trim().regex(FORMAT_CLE_GOOGLE, 'Clé Google attendue (AIza…, 39 caractères)')).max(20),
+      /** « ajouter » (défaut) garde les clés déjà enregistrées ; « remplacer » repart de cette liste. */
+      mode: z.enum(['ajouter', 'remplacer']).default('ajouter'),
+    }), req.body);
+    const acteur = (req as unknown as { admin?: { name?: string } }).admin?.name ?? 'console';
+    if (b.mode === 'remplacer') trousseauGoogle(container).enregistrer(b.cles, acteur);
+    else trousseauGoogle(container).ajouter(b.cles, acteur);
+    journaliser(req, 'services_google.secours', 'cles', { nombre: b.cles.length });
+    return servicesGoogle(container).etat();
+  });
+  scoped.delete('/admin/services-google/secours/:fin', async (req) => {
+    exiger(req, 'services:write');
+    const { fin } = req.params as { fin: string };
+    const acteur = (req as unknown as { admin?: { name?: string } }).admin?.name ?? 'console';
+    if (!trousseauGoogle(container).retirer(fin, acteur)) throw notFound('Clé de secours introuvable');
+    journaliser(req, 'services_google.secours_retiree', `••••${fin}`);
     return servicesGoogle(container).etat();
   });
   scoped.get('/admin/meteo', async (req) => {

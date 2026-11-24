@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AdminError, LIVE, adminDel, adminGet, adminPostSon, adminPut } from '../api';
+import { AdminError, LIVE, adminDel, adminDelJson, adminGet, adminPostSon, adminPut } from '../api';
 import { avis, demanderLieu } from '../dialogues';
 
 /**
@@ -352,7 +352,7 @@ function VoixHumaine({ canWrite }: { canWrite: boolean }) {
 
 type ServiceG = 'meteo' | 'recalage' | 'cartes' | 'streetview';
 interface EtatServiceG { actif: boolean; coupe: boolean; appelsDuJour: number; erreursDuJour: number; dernierAppel: string | null; derniereErreur: string | null }
-interface EtatServicesG { cle: { presente: boolean; source: 'variable' | 'voix_humaine' | null; fin: string | null }; services: Record<ServiceG, EtatServiceG>; majLe: string | null; majPar: string | null }
+interface EtatServicesG { cle: { presente: boolean; source: 'variable' | 'voix_humaine' | null; fin: string | null }; services: Record<ServiceG, EtatServiceG>; majLe: string | null; majPar: string | null; secours: Array<{ fin: string; source: 'console' | 'variable'; refuseePour: string[] }> }
 const SERVICES_G: Array<{ id: ServiceG; nom: string; role: string }> = [
   { id: 'meteo', nom: 'Météo et pluie', role: 'Pluie attendue par commune : ORION Pro prévient les chauffeurs, la console voit la ville.' },
   { id: 'recalage', nom: 'Recalage GPS', role: 'À l’arrivée, le tracé de la course est collé aux routes : distance réelle, faux GPS repérés.' },
@@ -396,7 +396,51 @@ function ServicesGoogle({ canWrite }: { canWrite: boolean }) {
           );
         })}
       </div>
+      <ClesSecours etat={etat} canWrite={canWrite} onEtat={setEtat} />
       {etat.majLe && <p className="adm-muted" style={{ marginTop: 10 }}>Réglé le {date(etat.majLe)}{etat.majPar ? ` par ${etat.majPar}` : ''}</p>}
+    </div>
+  );
+}
+
+/**
+ * CLÉS DE SECOURS : si Google refuse la clé principale (supprimée, régénérée, restreinte par
+ * erreur), le serveur passe tout seul à la suivante — voix, météo, recalage et cartes continuent.
+ */
+function ClesSecours({ etat, canWrite, onEtat }: { etat: EtatServicesG; canWrite: boolean; onEtat: (e: EtatServicesG) => void }) {
+  const [saisie, setSaisie] = useState('');
+  const [occupe, setOccupe] = useState(false);
+  const cles = saisie.split(/[\s,;]+/).map((c) => c.trim()).filter(Boolean);
+  const ajouter = async () => {
+    setOccupe(true);
+    try { onEtat(await adminPut<EtatServicesG>('/admin/services-google/secours', { cles })); setSaisie(''); avis(`${cles.length} clé${cles.length > 1 ? 's' : ''} de secours enregistrée${cles.length > 1 ? 's' : ''}.`); }
+    catch (e) { avis(message(e)); } finally { setOccupe(false); }
+  };
+  const retirer = async (fin: string) => {
+    setOccupe(true);
+    try { onEtat(await adminDelJson<EtatServicesG>(`/admin/services-google/secours/${fin}`)); } catch (e) { avis(message(e)); } finally { setOccupe(false); }
+  };
+  return (
+    <div className="adm-vh-secours">
+      <h4 className="adm-drawer-sec">Clés de secours</h4>
+      <p className="adm-muted">Mêmes services que la clé principale : elles prennent le relais automatiquement si Google la refuse.</p>
+      {etat.secours.length === 0
+        ? <p className="adm-muted">Aucune clé de secours.</p>
+        : (
+          <div className="adm-vh-secours-liste">
+            {etat.secours.map((s) => (
+              <span key={s.fin + s.source} className="adm-pill">
+                ••••{s.fin}{s.source === 'variable' ? ' · variable' : ''}{s.refuseePour.length ? ` · refusée (${s.refuseePour.join(', ')})` : ''}
+                {canWrite && s.source === 'console' && <button type="button" className="adm-vh-retirer" aria-label={`Retirer la clé ••••${s.fin}`} disabled={occupe} onClick={() => void retirer(s.fin)}>×</button>}
+              </span>
+            ))}
+          </div>
+        )}
+      {canWrite && (
+        <div className="adm-vh-secours-ajout">
+          <textarea className="adm-input adm-cle-masquee" rows={2} value={saisie} spellCheck={false} autoComplete="off" placeholder="Collez une ou plusieurs clés (AIza…), une par ligne" onChange={(e) => setSaisie(e.target.value)} />
+          <button type="button" className="adm-btn" disabled={occupe || cles.length === 0} onClick={() => void ajouter()}>Ajouter {cles.length > 1 ? `${cles.length} clés` : 'la clé'}</button>
+        </div>
+      )}
     </div>
   );
 }

@@ -161,3 +161,47 @@ test('sans clé Google : services éteints, rien n’est appelé, l’app contin
   assert.equal(etat.services.meteo.actif, false);
   assert.equal(appels, 0);
 });
+
+test('clés de secours : la principale refusée, le serveur passe à la suivante (météo et voix)', async (t) => {
+  const { app, container } = await buildApp();
+  t.after(() => app.close());
+  const PRINCIPALE = `AIza${'PrincipaleTest'.padEnd(34, '0')}1`;
+  const SECOURS = `AIza${'SecoursTest'.padEnd(31, '0')}0002`;
+  const vues: string[] = [];
+  const recuperer = async (url: string, init?: RequestInit) => {
+    const cle = new URL(url).searchParams.get('key') ?? (init?.headers as Record<string, string> | undefined)?.['x-goog-api-key'] ?? '';
+    vues.push(cle.slice(-4));
+    if (cle === PRINCIPALE) return Response.json({ error: { code: 400, message: 'API key not valid. Please pass a valid API key.', status: 'INVALID_ARGUMENT', details: [{ reason: 'API_KEY_INVALID' }] } }, { status: 400 });
+    if (url.includes('weather.googleapis.com')) return Response.json({ forecastHours: [heure(new Date().toISOString(), 'CLEAR', 0)] });
+    if (url.includes('texttospeech')) return Response.json({ audioContent: Buffer.from('son').toString('base64') });
+    return new Response('{}', { status: 404 });
+  };
+  servicesGoogle(container, { env: { GOOGLE_SERVER_API_KEY: PRINCIPALE }, recuperer });
+  voixHumaine(container, { env: { GOOGLE_TTS_API_KEY: PRINCIPALE }, recuperer });
+
+  // Format vérifié ; la clé n'est jamais renvoyée.
+  assert.equal((await app.inject({ method: 'PUT', url: '/admin/services-google/secours', headers: AUTH, payload: { cles: ['pas-une-cle'] } })).statusCode, 400);
+  const put = await app.inject({ method: 'PUT', url: '/admin/services-google/secours', headers: AUTH, payload: { cles: [SECOURS, SECOURS] } });
+  assert.equal(put.statusCode, 200, put.body);
+  assert.deepEqual(put.json().secours.map((s: { fin: string }) => s.fin), ['0002'], 'doublon retiré, 4 derniers caractères seulement');
+  assert.ok(!put.body.includes(SECOURS));
+
+  // Météo : refus de la principale → secours, et la principale est mise de côté.
+  const m = await servicesGoogle(container).meteo({ lat: 5.3, lng: -4.0 });
+  assert.equal(m?.description, 'Dégagé');
+  assert.deepEqual(vues.slice(0, 2), ['0001', '0002']);
+  await servicesGoogle(container).meteo({ lat: 5.4, lng: -4.1 });
+  assert.equal(vues.at(-1), '0002', 'la clé refusée n’est plus essayée en premier');
+  assert.ok(!JSON.stringify(servicesGoogle(container).etat()).includes(PRINCIPALE));
+  const autre = `AIza${'AutreTest'.padEnd(31, '0')}0003`;
+  const ajout = (await app.inject({ method: 'PUT', url: '/admin/services-google/secours', headers: AUTH, payload: { cles: [autre] } })).json();
+  assert.deepEqual(ajout.secours.map((s: { fin: string }) => s.fin), ['0002', '0003'], 'ajout sans perdre les autres');
+  const retrait = (await app.inject({ method: 'DELETE', url: '/admin/services-google/secours/0003', headers: AUTH })).json();
+  assert.deepEqual(retrait.secours.map((s: { fin: string }) => s.fin), ['0002']);
+
+  // Voix humaine : même relais.
+  await app.inject({ method: 'PUT', url: '/admin/voix-humaine', headers: AUTH, payload: { fournisseur: 'google', modele: 'chirp3-hd' } });
+  const essai = await app.inject({ method: 'POST', url: '/admin/voix-humaine/essai', headers: AUTH, payload: { fournisseur: 'google', texte: 'Bonjour.' } });
+  assert.equal(essai.statusCode, 200, essai.body);
+  assert.equal(vues.at(-1), '0002');
+});

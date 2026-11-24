@@ -5,6 +5,7 @@ import { haversineMeters, type LatLng } from '../../core/geo.js';
 import { COMMUNES } from '../charge/service.js';
 import type { Ride } from '../rides/store.js';
 import { voixHumaine } from '../voix/humaine.js';
+import { refusDeCle, trousseauGoogle } from './cles.js';
 
 /**
  * SERVICES GOOGLE DU SERVEUR — ce que la clé Google du serveur apporte en plus de la voix :
@@ -163,7 +164,7 @@ export class ServicesGoogle {
   }
 
   actif(s: ServiceGoogle): boolean {
-    return Boolean(this.cle()) && this.depot.get('reglages')?.actifs?.[s] !== false;
+    return Boolean(this.cle() || trousseauGoogle(this.container).secours().length) && this.depot.get('reglages')?.actifs?.[s] !== false;
   }
   reglerActifs(actifs: Partial<Record<ServiceGoogle, boolean>>, acteur: string): void {
     const avant = this.depot.get('reglages')?.actifs ?? {};
@@ -179,32 +180,50 @@ export class ServicesGoogle {
         return [s, { actif: this.actif(s), coupe: r?.actifs?.[s] === false, appelsDuJour: u?.jour === jour ? u.appels : 0, erreursDuJour: u?.jour === jour ? u.erreurs : 0, dernierAppel: u?.dernierAppel ?? null, derniereErreur: u?.derniereErreur ?? null }];
       })) as Record<ServiceGoogle, { actif: boolean; coupe: boolean; appelsDuJour: number; erreursDuJour: number; dernierAppel: string | null; derniereErreur: string | null }>,
       majLe: r?.majLe ?? null, majPar: r?.majPar ?? null,
+      // Clés de secours (fin seulement) : prises le jour où la principale est refusée.
+      secours: trousseauGoogle(this.container).etat().secours,
     };
   }
 
-  /** Appel compté (par service et par jour) ; la clé n'apparaît jamais dans une erreur. */
+  /**
+   * Appel compté (par service et par jour) ; la clé n'apparaît jamais dans une erreur.
+   * L'adresse porte `__CLE__` à la place de la clé : si Google refuse la clé principale
+   * (supprimée, régénérée, restreinte), l'appel repart aussitôt avec une clé de secours.
+   */
   private async appel(s: ServiceGoogle, url: string, init?: RequestInit): Promise<Response> {
     const jour = new Date(this.maintenant()).toISOString().slice(0, 10);
     const u = this.usage.get(s);
     const e: UsageService = u && u.jour === jour ? u : { jour, appels: 0, erreurs: 0, dernierAppel: null, derniereErreur: u?.derniereErreur ?? null };
-    e.appels += 1;
     e.dernierAppel = new Date(this.maintenant()).toISOString();
     this.usage.set(s, e);
-    const cle = this.cle() ?? '';
-    try {
-      const res = await this.recuperer(url, { ...init, signal: AbortSignal.timeout(12_000) });
-      if (!res.ok) {
+    const trousseau = trousseauGoogle(this.container);
+    const cles = trousseau.ordre(this.cle(), s);
+    const masquer = (m: string) => cles.reduce((t, c) => t.split(c).join('••••'), m).slice(0, 200);
+    let derniere: Response | null = null;
+    for (const cle of cles) {
+      e.appels += 1;
+      try {
+        const res = await this.recuperer(url.split('__CLE__').join(encodeURIComponent(cle)), { ...init, signal: AbortSignal.timeout(12_000) });
+        const json = (res.headers.get('content-type') ?? '').includes('json');
+        if (res.ok && !json) return res;
+        const corps = await res.text();
+        const rejouable = new Response(corps, { status: res.status, headers: res.headers });
+        if (res.ok && !refusDeCle(res.status, corps)) return rejouable;
         e.erreurs += 1;
         let m = `${res.status}`;
-        try { m += ` ${((await res.clone().json()) as { error?: { message?: string }; error_message?: string }).error?.message ?? ''}`; } catch { /* corps non JSON */ }
-        e.derniereErreur = m.split(cle).join('••••').slice(0, 200);
+        try { const j = JSON.parse(corps) as { error?: { message?: string }; error_message?: string; status?: string }; m += ` ${j.error?.message ?? j.error_message ?? j.status ?? ''}`; } catch { /* corps non JSON */ }
+        e.derniereErreur = masquer(m);
+        derniere = rejouable;
+        // Refus de la demande elle-même (lieu sans données, paramètre) : une autre clé n'y changerait rien.
+        if (!refusDeCle(res.status, corps)) return rejouable;
+        trousseau.marquerRefusee(cle, s);
+      } catch (err) {
+        e.erreurs += 1;
+        e.derniereErreur = masquer(err instanceof Error ? err.message : 'réseau');
+        throw err;
       }
-      return res;
-    } catch (err) {
-      e.erreurs += 1;
-      e.derniereErreur = (err instanceof Error ? err.message : 'réseau').split(cle).join('••••').slice(0, 200);
-      throw err;
     }
+    return derniere ?? new Response('{}', { status: 503 });
   }
 
   private ranger(cle: string, octets: Buffer, type: string): void {
@@ -223,7 +242,7 @@ export class ServicesGoogle {
     let enCours = this.meteoEnCours.get(cle);
     if (!enCours) {
       enCours = (async () => {
-        const url = `https://weather.googleapis.com/v1/forecast/hours:lookup?key=${encodeURIComponent(this.cle()!)}&location.latitude=${p.lat}&location.longitude=${p.lng}&hours=6&languageCode=fr`;
+        const url = `https://weather.googleapis.com/v1/forecast/hours:lookup?key=__CLE__&location.latitude=${p.lat}&location.longitude=${p.lng}&hours=6&languageCode=fr`;
         try {
           const res = await this.appel('meteo', url);
           if (!res.ok) return garde?.m ?? null;
@@ -268,7 +287,7 @@ export class ServicesGoogle {
     for (let debut = 0; debut < pts.length - 1; debut += 99) {
       const lot = pts.slice(debut, debut + 100);
       const chemin = lot.map((p) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`).join('|');
-      const res = await this.appel('recalage', `https://roads.googleapis.com/v1/snapToRoads?key=${encodeURIComponent(this.cle()!)}&interpolate=true&path=${chemin}`);
+      const res = await this.appel('recalage', `https://roads.googleapis.com/v1/snapToRoads?key=__CLE__&interpolate=true&path=${chemin}`);
       if (!res.ok) return null;
       const j = (await res.json()) as { snappedPoints?: Array<{ location: { latitude: number; longitude: number }; originalIndex?: number }> };
       for (const s of j.snappedPoints ?? []) {
@@ -314,9 +333,9 @@ export class ServicesGoogle {
     u.searchParams.append('markers', `color:0x16a34a|label:A|${ride.origin.lat},${ride.origin.lng}`);
     arrets.slice(0, 5).forEach((a, i) => u.searchParams.append('markers', `color:0xf59e0b|label:${i + 1}|${a.lat},${a.lng}`));
     u.searchParams.append('markers', `color:0xdc2626|label:B|${ride.destination.lat},${ride.destination.lng}`);
-    u.searchParams.set('key', this.cle()!);
+    u.searchParams.set('key', 'CLEPLACE');
     try {
-      const res = await this.appel('cartes', u.toString());
+      const res = await this.appel('cartes', u.toString().replace('key=CLEPLACE', 'key=__CLE__'));
       if (!res.ok || !(res.headers.get('content-type') ?? '').startsWith('image/')) return null;
       const octets = Buffer.from(await res.arrayBuffer());
       this.ranger(cleImage, octets, res.headers.get('content-type') ?? 'image/jpeg');
@@ -342,7 +361,7 @@ export class ServicesGoogle {
     const g = this.svMeta.get(cle);
     if (g && this.maintenant() - g.at < STREETVIEW_DUREE_MS) return g;
     try {
-      const res = await this.appel('streetview', `https://maps.googleapis.com/maps/api/streetview/metadata?key=${encodeURIComponent(this.cle()!)}&location=${p.lat},${p.lng}&radius=60&source=outdoor`);
+      const res = await this.appel('streetview', `https://maps.googleapis.com/maps/api/streetview/metadata?key=__CLE__&location=${p.lat},${p.lng}&radius=60&source=outdoor`);
       const j = res.ok ? (await res.json()) as { status?: string; date?: string; copyright?: string; location?: { lat: number; lng: number } } : {};
       const source = (j.copyright ?? '').replace(/^©\s*/, '').trim() || null;
       const ok = j.status === 'OK' && SOURCES_RUE.test(source ?? '');
@@ -362,7 +381,7 @@ export class ServicesGoogle {
     if (g && this.maintenant() - g.at < STREETVIEW_DUREE_MS) return g;
     const cap = m.pano && haversineMeters(m.pano, p) > 4 ? `&heading=${cap360(m.pano, p).toFixed(0)}` : '';
     try {
-      const res = await this.appel('streetview', `https://maps.googleapis.com/maps/api/streetview?key=${encodeURIComponent(this.cle()!)}&size=640x360&location=${p.lat},${p.lng}&radius=60&source=outdoor&fov=90&pitch=-4${cap}&return_error_code=true`);
+      const res = await this.appel('streetview', `https://maps.googleapis.com/maps/api/streetview?key=__CLE__&size=640x360&location=${p.lat},${p.lng}&radius=60&source=outdoor&fov=90&pitch=-4${cap}&return_error_code=true`);
       if (!res.ok) return null;
       const octets = Buffer.from(await res.arrayBuffer());
       this.ranger(cleImage, octets, res.headers.get('content-type') ?? 'image/jpeg');

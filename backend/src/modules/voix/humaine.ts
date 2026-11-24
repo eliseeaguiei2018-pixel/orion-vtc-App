@@ -3,6 +3,7 @@ import type { Container } from '../../container.js';
 import { config } from '../../config/index.js';
 import { createRepository, type Repository } from '../../core/db/repository.js';
 import { AccesGoogle, compteServiceDe } from '../gcp/acces.js';
+import { refusDeCle, trousseauGoogle } from '../google/cles.js';
 
 /**
  * VOIX HUMAINE D'ORION PRO : l'accueil du client à bord n'est plus lu par le moteur vocal du
@@ -357,7 +358,7 @@ export class VoixHumaine {
   private acces: AccesGoogle | null | undefined;
   dernierEssai: DernierEssai | null = null;
 
-  constructor(o: OptionsVoix = {}) {
+  constructor(o: OptionsVoix = {}, private readonly container?: Container) {
     this.env = o.env ?? process.env;
     this.recuperer = o.recuperer;
     this.maintenant = o.maintenant ?? Date.now;
@@ -506,18 +507,28 @@ export class VoixHumaine {
   }
 
   private async fabriquer(o: { fournisseur: Fournisseur; voix: string; style: string; modele?: string; texte: string }, cleProposee?: string): Promise<AudioVoix> {
-    const cle = cleProposee?.trim() || this.cle(o.fournisseur);
-    try {
-      const a = await synthetiser({ ...o, cle, recuperer: this.recuperer, acces: o.fournisseur === 'google' && !cle ? this.accesGoogle() : null });
-      this.dernierEssai = { ok: true, at: new Date(this.maintenant()).toISOString(), fournisseur: o.fournisseur, voix: o.voix, modele: a.modele, octets: a.octets.length };
-      return a;
-    } catch (e) {
-      const erreur = e instanceof ErreurVoix ? e : new ErreurVoix(o.fournisseur, 502, e instanceof Error ? e.message : 'erreur inconnue');
-      // Jamais la clé dans un message : on la masque si un fournisseur la renvoie.
-      const message = cle ? erreur.message.split(cle).join('••••') : erreur.message;
-      this.dernierEssai = { ok: false, at: new Date(this.maintenant()).toISOString(), fournisseur: o.fournisseur, voix: o.voix, erreur: message };
-      throw new ErreurVoix(erreur.fournisseur, erreur.statut, message);
+    // Google : la clé principale, puis les clés de secours si Google la refuse (supprimée, régénérée…).
+    const principale = cleProposee?.trim() || this.cle(o.fournisseur);
+    const trousseau = o.fournisseur === 'google' && !cleProposee?.trim() && this.container ? trousseauGoogle(this.container) : null;
+    const cles: Array<string | null> = trousseau ? trousseau.ordre(principale, 'voix') : [principale];
+    if (cles.length === 0) cles.push(null);
+    const masquer = (m: string) => cles.reduce<string>((t, c) => (c ? t.split(c).join('••••') : t), m);
+    let derniere: ErreurVoix | null = null;
+    for (const cle of cles) {
+      try {
+        const a = await synthetiser({ ...o, cle, recuperer: this.recuperer, acces: o.fournisseur === 'google' && !cle ? this.accesGoogle() : null });
+        this.dernierEssai = { ok: true, at: new Date(this.maintenant()).toISOString(), fournisseur: o.fournisseur, voix: o.voix, modele: a.modele, octets: a.octets.length };
+        return a;
+      } catch (e) {
+        const erreur = e instanceof ErreurVoix ? e : new ErreurVoix(o.fournisseur, 502, e instanceof Error ? e.message : 'erreur inconnue');
+        // Jamais la clé dans un message : on la masque si un fournisseur la renvoie.
+        derniere = new ErreurVoix(erreur.fournisseur, erreur.statut, masquer(erreur.message));
+        if (!trousseau || !cle || !refusDeCle(erreur.statut, erreur.message)) break;
+        trousseau.marquerRefusee(cle, 'voix');
+      }
     }
+    this.dernierEssai = { ok: false, at: new Date(this.maintenant()).toISOString(), fournisseur: o.fournisseur, voix: o.voix, erreur: derniere!.message };
+    throw derniere!;
   }
 }
 
@@ -525,6 +536,6 @@ const instances = new WeakMap<Container, VoixHumaine>();
 /** Service de voix humaine d'un serveur (un par conteneur). */
 export function voixHumaine(c: Container, o?: OptionsVoix): VoixHumaine {
   let v = instances.get(c);
-  if (!v || o) { v = new VoixHumaine(o); instances.set(c, v); }
+  if (!v || o) { v = new VoixHumaine(o, c); instances.set(c, v); }
   return v;
 }
