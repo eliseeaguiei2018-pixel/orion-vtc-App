@@ -9,6 +9,13 @@ appId: ci.orion.app
 - waitForAnimationToEnd
 - takeScreenshot: 01-bienvenue
 - tapOn: "Commencer"
+# iPhone : le premier toucher peut arriver avant que la page web soit prête ; on retouche si besoin.
+- runFlow:
+    when:
+      visible: "Commencer"
+    commands:
+      - waitForAnimationToEnd
+      - tapOn: "Commencer"
 
 # Création du compte : nom, numéro, e-mail.
 - extendedWaitUntil:
