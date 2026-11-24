@@ -1,6 +1,5 @@
 import { Capacitor } from '@capacitor/core';
 import { QueueStrategy, TextToSpeech } from '@capacitor-community/text-to-speech';
-import { cleGoogle } from './carteGoogle';
 
 /**
  * VOIX D'ORION PRO : guidage GPS et accueil du client à bord.
@@ -10,9 +9,9 @@ import { cleGoogle } from './carteGoogle';
  * Samsung TTS…), comme Yango ou Waze. Dans un navigateur, on garde la synthèse du navigateur.
  *
  * VOIX DE BORD : pendant une course, la voix suit le client — féminine pour accueillir un
- * client, masculine pour une cliente. On choisit parmi les voix françaises installées celle
- * du bon genre, de la meilleure qualité (voix « réseau », plus naturelles) ; à défaut, la voix
- * du téléphone est légèrement réaccordée (hauteur) pour s'en approcher.
+ * client, masculine pour une cliente. L'accueil est dit par la voix humaine du serveur (plus
+ * bas) ; le guidage, instantané, garde la voix du téléphone : parmi les voix françaises
+ * installées, celle du bon genre et de la meilleure qualité, sinon la voix réaccordée.
  */
 export type GenreVoix = 'feminine' | 'masculine';
 
@@ -130,20 +129,18 @@ export async function parler(phrase: string, langue: string): Promise<void> {
   await dire(phrase, langue, await reglagePour(genreDeBord, langue, false), false);
 }
 
-/* --------------------- Voix neuronale Google (la plus humaine) --------------------- */
+/* ------------------- Voix humaine (IA conversationnelle, serveur) ------------------- */
 
 /**
- * VOIX « COMME UNE VRAIE PERSONNE » : quand le projet Google d'ORION autorise Cloud Text-to-Speech
- * pour la clé de l'application, l'accueil est dit par une voix neuronale Google (Chirp 3 HD,
- * sinon WaveNet) : intonation, respirations et rythme d'une vraie hôtesse ou d'un vrai hôte.
- * Sans cette autorisation (refus 403), on n'insiste plus et la meilleure voix du téléphone parle.
+ * VOIX HUMAINE : l'accueil n'est plus lu par le moteur vocal du téléphone. Le serveur ORION le
+ * fait dire par une voix d'IA conversationnelle (celles de Gemini ou de ChatGPT : intonation,
+ * respirations, sourire dans la voix) ; ORION Pro télécharge ce son pendant l'approche et le
+ * joue dès que le code est validé. Pas de son (réseau coupé, voix non réglée) : la meilleure
+ * voix du téléphone prend le relais, sans que le chauffeur ait rien à faire.
  */
-const VOIX_GOOGLE: Record<GenreVoix, Array<{ name: string; rate?: number }>> = {
-  feminine: [{ name: 'fr-FR-Chirp3-HD-Aoede' }, { name: 'fr-FR-Wavenet-F', rate: 0.94 }, { name: 'fr-FR-Wavenet-C', rate: 0.94 }],
-  masculine: [{ name: 'fr-FR-Chirp3-HD-Charon' }, { name: 'fr-FR-Wavenet-D', rate: 0.94 }, { name: 'fr-FR-Wavenet-B', rate: 0.94 }],
-};
-let googleRefuse = false;
 let contexteAudio: AudioContext | null = null;
+let lectureSon: AudioBufferSourceNode | null = null;
+let lectureElement: HTMLAudioElement | null = null;
 
 /** À appeler sur un toucher (code validé, bouton) : le son de l'accueil pourra partir ensuite. */
 export function deverrouillerAudio(): void {
@@ -155,66 +152,72 @@ export function deverrouillerAudio(): void {
   } catch { /* pas de son web : la voix du téléphone parlera */ }
 }
 
-async function syntheseGoogle(texte: string, genre: GenreVoix): Promise<ArrayBuffer | null> {
-  const cle = cleGoogle();
-  if (!cle || googleRefuse || typeof fetch === 'undefined') return null;
-  for (const v of VOIX_GOOGLE[genre]) {
-    try {
-      const res = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(cle)}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          input: { text: texte },
-          voice: { languageCode: 'fr-FR', name: v.name },
-          audioConfig: { audioEncoding: 'MP3', ...(v.rate ? { speakingRate: v.rate } : {}) },
-        }),
-      });
-      if (res.status === 401 || res.status === 403) { googleRefuse = true; return null; }
-      if (!res.ok) continue; // voix inconnue de ce projet : la suivante
-      const { audioContent } = await res.json() as { audioContent?: string };
-      if (!audioContent) continue;
-      const bin = atob(audioContent);
-      const octets = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) octets[i] = bin.charCodeAt(i);
-      return octets.buffer;
-    } catch { return null; }
+/** Lecture par un élément audio (si le contexte audio est bloqué). */
+async function jouerElement(audio: ArrayBuffer, type: string, mon: number): Promise<boolean> {
+  const url = URL.createObjectURL(new Blob([audio], { type }));
+  try {
+    const el = new Audio(url);
+    lectureElement = el;
+    await el.play();
+    if (jetonAccueil !== mon) { el.pause(); return true; }
+    await new Promise<void>((ok) => {
+      const fin = () => ok();
+      el.onended = fin; el.onerror = fin; el.onpause = fin;
+      // Filet : la durée connue + 3 s, au cas où « ended » ne viendrait jamais.
+      window.setTimeout(fin, ((Number.isFinite(el.duration) ? el.duration : 120) + 3) * 1000);
+    });
+    return true;
+  } catch { return false; } finally {
+    lectureElement = null;
+    URL.revokeObjectURL(url);
   }
-  return null;
 }
 
-/** Joue l'audio de Google ; renvoie false si le son web n'a pas pu partir. */
-async function jouer(audio: ArrayBuffer, mon: number): Promise<boolean> {
+/** Joue le son de la voix humaine ; renvoie false s'il n'a pas pu partir. */
+async function jouer(audio: ArrayBuffer, type: string, mon: number): Promise<boolean> {
   deverrouillerAudio();
   const ctx = contexteAudio;
-  if (!ctx) return false;
-  try {
-    const tampon = await ctx.decodeAudioData(audio.slice(0));
-    if (jetonAccueil !== mon) return true;
-    const src = ctx.createBufferSource();
-    src.buffer = tampon;
-    src.connect(ctx.destination);
-    lectureGoogle = src;
-    await new Promise<void>((ok) => { src.onended = () => ok(); src.start(); });
-    return true;
-  } catch { return false; } finally { lectureGoogle = null; }
+  if (ctx) {
+    try {
+      if (ctx.state !== 'running') await Promise.race([ctx.resume(), new Promise((ok) => window.setTimeout(ok, 600))]);
+      if (ctx.state === 'running') {
+        const tampon = await ctx.decodeAudioData(audio.slice(0));
+        if (jetonAccueil !== mon) return true;
+        const src = ctx.createBufferSource();
+        src.buffer = tampon;
+        src.connect(ctx.destination);
+        lectureSon = src;
+        await new Promise<void>((ok) => {
+          const t = window.setTimeout(ok, (tampon.duration + 3) * 1000);
+          src.onended = () => { window.clearTimeout(t); ok(); };
+          src.start();
+        });
+        return true;
+      }
+    } catch { /* format refusé par le contexte : on tente l'élément audio */ } finally { lectureSon = null; }
+  }
+  return jouerElement(audio, type, mon);
 }
-let lectureGoogle: AudioBufferSourceNode | null = null;
+
+/** Son fabriqué par le serveur (ou sa promesse, s'il est encore en route). */
+export interface SonVoix { audio: ArrayBuffer; type: string; voix: string | null; empreinte: string | null }
 
 /** Quelle voix a dit le dernier accueil (essai depuis l'app). */
-export let derniereVoixAccueil: 'google' | 'telephone' | null = null;
+export let derniereVoixAccueil: 'humaine' | 'telephone' | null = null;
 
 /**
- * Accueil du client à bord, dit par ORION Pro : voix neuronale Google si elle est autorisée,
- * sinon la meilleure voix du téléphone, phrase après phrase (pauses naturelles), du genre voulu.
- * Le guidage se tait le temps de l'accueil, puis reprend.
+ * Accueil du client à bord, dit par ORION Pro : la voix humaine du serveur si son son est là
+ * (attendu au plus `attenteMs`), sinon la meilleure voix du téléphone, phrase après phrase, du
+ * genre voulu. Le guidage se tait le temps de l'accueil, puis reprend.
  */
-export async function direAccueil(texte: string, genre: GenreVoix, langue = 'fr-FR'): Promise<void> {
+export async function direAccueil(texte: string, genre: GenreVoix, langue = 'fr-FR', son?: SonVoix | Promise<SonVoix | null> | null, attenteMs = 8000): Promise<void> {
   const mon = ++jetonAccueil;
   accueilEnCours = true;
   try {
-    const audio = await syntheseGoogle(texte, genre);
+    const pret = son ? await Promise.race([Promise.resolve(son).catch(() => null), new Promise<null>((ok) => window.setTimeout(() => ok(null), attenteMs))]) : null;
     if (jetonAccueil !== mon) return;
-    if (audio && await jouer(audio, mon)) { derniereVoixAccueil = 'google'; return; }
+    if (pret && await jouer(pret.audio, pret.type, mon)) { derniereVoixAccueil = 'humaine'; return; }
+    if (jetonAccueil !== mon) return;
     derniereVoixAccueil = 'telephone';
     const phrases = texte.match(/[^.!?;:]+[.!?;:]?/g)?.map((p) => p.trim()).filter(Boolean) ?? [texte];
     const r = await reglagePour(genre, langue, true);
@@ -235,7 +238,8 @@ export function installerVoix(): void {
 export function taire(): void {
   jetonAccueil += 1;
   accueilEnCours = false;
-  try { lectureGoogle?.stop(); } catch { /* déjà fini */ }
+  try { lectureSon?.stop(); } catch { /* déjà fini */ }
+  try { lectureElement?.pause(); } catch { /* déjà fini */ }
   if (natif()) void TextToSpeech.stop().catch(() => undefined);
   try { window.speechSynthesis?.cancel(); } catch { /* rien à couper */ }
 }

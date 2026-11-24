@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AdminError, LIVE, adminDel, adminGet, adminPut } from '../api';
+import { AdminError, LIVE, adminDel, adminGet, adminPostSon, adminPut } from '../api';
 import { avis, demanderLieu } from '../dialogues';
 
 /**
@@ -34,6 +34,7 @@ export function OrionProSection({ canWrite }: { canWrite: boolean }) {
   return (
     <div className="adm-orionpro">
       <SiegesOrion canWrite={canWrite} />
+      <VoixHumaine canWrite={canWrite} />
       <VoixDeBord canWrite={canWrite} />
     </div>
   );
@@ -129,7 +130,7 @@ function VoixDeBord({ canWrite }: { canWrite: boolean }) {
   return (
     <div className="adm-card">
       <div className="adm-card-h"><h3>Voix de bord · accueil du client</h3></div>
-      <p className="adm-muted">Le client donne son code à 4 chiffres, la course démarre : le téléphone du chauffeur (ORION Pro) l’accueille par sa civilité et son nom, avec la voix du GPS — féminine pour un client, masculine pour une cliente. Heure d’Abidjan.</p>
+      <p className="adm-muted">Le client donne son code à 4 chiffres, la course démarre : ORION Pro l’accueille par sa civilité et son nom, avec la voix humaine réglée ci-dessus (à défaut, la voix du téléphone) — féminine pour un client, masculine pour une cliente. Heure d’Abidjan.</p>
       <div className="adm-table-wrap">
         <table className="adm-table adm-voix-moments">
           <thead><tr><th>Moment</th><th>Salut</th><th>Vœu (après « {'{salut}'} Madame / Monsieur Nom, bienvenue à bord d’ORION. »)</th><th>Fin du message</th></tr></thead>
@@ -168,6 +169,177 @@ function VoixDeBord({ canWrite }: { canWrite: boolean }) {
           <button type="button" className="adm-btn solid" disabled={!modifie || occupe} onClick={() => void enregistrer()}>Enregistrer la voix de bord</button>
           <button type="button" className="adm-btn" disabled={occupe} onClick={() => void origine()}>Revenir au texte d’origine</button>
           {etat.majLe && <span className="adm-muted">Retouché le {date(etat.majLe)}{etat.majPar ? ` par ${etat.majPar}` : ''}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------ Voix humaine (IA) ------------------------------ */
+
+type Fournisseur = 'google' | 'gemini' | 'openai' | 'elevenlabs';
+type Genre = 'feminine' | 'masculine';
+interface VoixCat { id: string; nom: string; ton: string }
+interface FicheFournisseur { nom: string; cle: string; obtenir: string; feminines: VoixCat[]; masculines: VoixCat[]; voixLibres?: boolean; defaut: Record<Genre, string>; modele: string; cout: string }
+interface EtatCle { enregistree: boolean; source: 'console' | 'serveur' | 'compte_service' | null; fin: string | null }
+interface EtatVoixHumaine {
+  fournisseur: Fournisseur | 'aucun'; active: boolean; style: string; styleDefaut: string;
+  voix: Record<Fournisseur, Record<Genre, string>>; modele: Record<Fournisseur, string>; cles: Record<Fournisseur, EtatCle>;
+  catalogue: Record<Fournisseur, FicheFournisseur>;
+  dernierEssai: { ok: boolean; at: string; fournisseur: Fournisseur; voix: string; modele?: string; erreur?: string } | null;
+  majLe: string | null; majPar: string | null;
+}
+const ORDRE: Fournisseur[] = ['google', 'gemini', 'openai', 'elevenlabs'];
+const COURT: Record<Fournisseur, string> = { google: 'Google · voix Gemini', gemini: 'Gemini (AI Studio)', openai: 'OpenAI · voix ChatGPT', elevenlabs: 'ElevenLabs' };
+const SOURCE: Record<string, string> = { console: 'saisie dans la console', serveur: 'variable du serveur', compte_service: 'compte de service Google du serveur' };
+
+/**
+ * VOIX HUMAINE : la direction choisit la voix d'IA conversationnelle qui accueille les clients
+ * (Google/Gemini, OpenAI/ChatGPT, ElevenLabs), colle la clé du fournisseur (chiffrée sur le
+ * serveur, jamais réaffichée), choisit une voix féminine et une voix masculine, règle le ton,
+ * et écoute un essai avant de la mettre en service.
+ */
+function VoixHumaine({ canWrite }: { canWrite: boolean }) {
+  const [etat, setEtat] = useState<EtatVoixHumaine | null>(null);
+  const [f, setF] = useState<Fournisseur | 'aucun'>('aucun');
+  const [voix, setVoix] = useState<Record<Genre, string>>({ feminine: '', masculine: '' });
+  const [style, setStyle] = useState('');
+  const [modele, setModele] = useState('');
+  const [cle, setCle] = useState('');
+  const [occupe, setOccupe] = useState<string | null>(null);
+  const [lecture, setLecture] = useState<HTMLAudioElement | null>(null);
+  const [resultat, setResultat] = useState<{ ok: boolean; texte: string } | null>(null);
+  const appliquer = (r: EtatVoixHumaine, choix?: Fournisseur | 'aucun') => {
+    setEtat(r);
+    const g = choix ?? (r.fournisseur === 'aucun' ? 'google' : r.fournisseur);
+    setF(choix ?? r.fournisseur);
+    if (g !== 'aucun') { setVoix(r.voix[g]); setModele(r.modele[g]); }
+    setStyle(r.style);
+  };
+  const charger = () => adminGet<EtatVoixHumaine>('/admin/voix-humaine').then((r) => appliquer(r)).catch((e) => avis(message(e)));
+  useEffect(() => { void charger(); }, []);
+  useEffect(() => () => { lecture?.pause(); }, [lecture]);
+  if (!etat) return <div className="adm-card"><p className="adm-muted">Chargement de la voix humaine…</p></div>;
+
+  const choisir = (n: Fournisseur | 'aucun') => {
+    setF(n); setCle(''); setResultat(null);
+    if (n !== 'aucun') { setVoix(etat.voix[n]); setModele(etat.modele[n]); }
+  };
+  const fiche = f === 'aucun' ? null : etat.catalogue[f];
+  const etatCle = f === 'aucun' ? null : etat.cles[f];
+
+  const ecouter = async (genre: Genre) => {
+    if (f === 'aucun') return;
+    if (lecture) { lecture.pause(); setLecture(null); if (occupe === genre) { setOccupe(null); return; } }
+    setOccupe(genre); setResultat(null);
+    try {
+      const r = await adminPostSon('/admin/voix-humaine/essai', { fournisseur: f, genre, voix: voix[genre] || undefined, style, modele: modele || undefined, ...(cle.trim() ? { cle: cle.trim() } : {}) });
+      const el = new Audio(URL.createObjectURL(r.son));
+      setLecture(el);
+      el.onended = () => { setLecture(null); setOccupe(null); };
+      setResultat({ ok: true, texte: `Essai réussi : ${COURT[f]}, voix ${voix[genre] || fiche?.defaut[genre]}${r.modele ? ` (${r.modele === 'chirp3-hd' ? 'Chirp 3 HD' : r.modele})` : ''}.` });
+      await el.play();
+    } catch (e) {
+      setOccupe(null);
+      setResultat({ ok: false, texte: message(e) });
+    }
+  };
+  const enregistrer = async () => {
+    setOccupe('enregistrer');
+    try {
+      const r = await adminPut<EtatVoixHumaine>('/admin/voix-humaine', {
+        fournisseur: f,
+        ...(f !== 'aucun' ? { voix, modele, ...(cle.trim() ? { cle: cle.trim() } : {}) } : {}),
+        style,
+      });
+      setCle('');
+      appliquer(r, f);
+      avis(r.active ? 'Voix humaine en service : ORION Pro l’utilisera dès la prochaine course.' : f === 'aucun' ? 'Voix du téléphone rétablie.' : 'Réglage enregistré. Il manque la clé du fournisseur pour mettre la voix en service.');
+    } catch (e) { avis(message(e)); } finally { setOccupe(null); }
+  };
+  const effacerCle = async () => {
+    if (f === 'aucun') return;
+    setOccupe('enregistrer');
+    try { appliquer(await adminPut<EtatVoixHumaine>('/admin/voix-humaine', { fournisseur: f, cle: null }), f); avis('Clé effacée du serveur.'); }
+    catch (e) { avis(message(e)); } finally { setOccupe(null); }
+  };
+  const enService = etat.active && etat.fournisseur !== 'aucun';
+  const listeVoix = (genre: Genre) => (genre === 'feminine' ? fiche?.feminines : fiche?.masculines) ?? [];
+
+  return (
+    <div className="adm-card">
+      <div className="adm-card-h">
+        <h3>Voix humaine · accueil par une IA vocale</h3>
+        <span className={`adm-pill ${enService ? 'hab-green' : 'hab-amber'}`}>
+          {enService && etat.fournisseur !== 'aucun' ? `En service · ${COURT[etat.fournisseur]} · ${etat.voix[etat.fournisseur].feminine} / ${etat.voix[etat.fournisseur].masculine}` : 'Voix du téléphone'}
+        </span>
+      </div>
+      <p className="adm-muted">L’accueil n’est plus lu par le moteur vocal du téléphone : il est dit par une voix d’IA conversationnelle, celle des assistants comme Gemini ou ChatGPT, avec l’intonation et le sourire d’une vraie personne. Le serveur fabrique le son, ORION Pro le télécharge pendant l’approche et le joue dès le code validé. Sans réseau, la voix du téléphone prend le relais.</p>
+
+      <div className="adm-seg adm-vh-choix" role="radiogroup" aria-label="Fournisseur de la voix">
+        {ORDRE.map((n) => (
+          <button key={n} type="button" role="radio" aria-checked={f === n} className={`adm-seg-b${f === n ? ' on' : ''}`} disabled={!canWrite} onClick={() => choisir(n)}>{COURT[n]}</button>
+        ))}
+        <button type="button" role="radio" aria-checked={f === 'aucun'} className={`adm-seg-b${f === 'aucun' ? ' on' : ''}`} disabled={!canWrite} onClick={() => choisir('aucun')}>Voix du téléphone</button>
+      </div>
+
+      {fiche && f !== 'aucun' && etatCle && (
+        <div className="adm-vh-reglage">
+          <label className="adm-voix-champ">
+            <span>{fiche.cle}</span>
+            <input className="adm-input" type="password" autoComplete="off" spellCheck={false} value={cle} disabled={!canWrite}
+              placeholder={etatCle.enregistree ? `Clé enregistrée${etatCle.fin ? ` ••••${etatCle.fin}` : ''} (${SOURCE[etatCle.source ?? 'console']}) : laisser vide pour la garder` : 'Collez la clé ici'}
+              onChange={(e) => setCle(e.target.value)} />
+            <span className="adm-muted">Où l’obtenir : {fiche.obtenir}</span>
+            {etatCle.enregistree && etatCle.source === 'console' && canWrite && (
+              <button type="button" className="adm-btn adm-vh-effacer" disabled={occupe !== null} onClick={() => void effacerCle()}>Effacer la clé enregistrée</button>
+            )}
+          </label>
+
+          {(['feminine', 'masculine'] as Genre[]).map((genre) => (
+            <div key={genre} className="adm-vh-voix">
+              <label className="adm-voix-champ">
+                <span>{genre === 'feminine' ? 'Voix féminine · accueille les clients' : 'Voix masculine · accueille les clientes'}</span>
+                {fiche.voixLibres
+                  ? <input className="adm-input" value={voix[genre]} disabled={!canWrite} placeholder="Voice ID de la bibliothèque ElevenLabs" onChange={(e) => setVoix({ ...voix, [genre]: e.target.value.trim() })} />
+                  : (
+                    <select className="adm-select" value={voix[genre]} disabled={!canWrite} onChange={(e) => setVoix({ ...voix, [genre]: e.target.value })}>
+                      {listeVoix(genre).map((v) => <option key={v.id} value={v.id}>{v.nom} · {v.ton}{v.id === fiche.defaut[genre] ? ' (conseillée)' : ''}</option>)}
+                    </select>
+                  )}
+              </label>
+              <button type="button" className="adm-btn" disabled={occupe === 'enregistrer' || (occupe !== null && occupe !== genre)} onClick={() => void ecouter(genre)}>
+                {occupe === genre ? (lecture ? 'Arrêter' : 'Fabrication du son…') : 'Écouter l’accueil'}
+              </button>
+            </div>
+          ))}
+
+          <label className="adm-voix-champ adm-vh-modele">
+            <span>Modèle <span className="adm-muted">(laisser celui proposé, sauf conseil du fournisseur)</span></span>
+            <input className="adm-input" value={modele} disabled={!canWrite} onChange={(e) => setModele(e.target.value.trim())} />
+          </label>
+          <p className="adm-muted">Coût indicatif : {fiche.cout}. Un même accueil n’est fabriqué qu’une fois (préparé pendant l’approche, joué à bord).</p>
+        </div>
+      )}
+
+      {f !== 'aucun' && f !== 'elevenlabs' && (
+        <label className="adm-voix-champ">
+          <span>Ton de la voix <span className="adm-muted">— consigne donnée à l’IA (chaleur, sourire, rythme)</span></span>
+          <textarea className="adm-input adm-voix-texte" rows={3} value={style} disabled={!canWrite} onChange={(e) => setStyle(e.target.value)} />
+          {canWrite && style !== etat.styleDefaut && <button type="button" className="adm-btn adm-vh-effacer" onClick={() => setStyle(etat.styleDefaut)}>Ton d’origine</button>}
+        </label>
+      )}
+
+      {resultat && <p className={resultat.ok ? 'adm-vh-ok' : 'adm-vh-erreur'} role="status">{resultat.texte}</p>}
+      {canWrite && (
+        <div className="adm-orionpro-actions">
+          <button type="button" className="adm-btn solid" disabled={occupe !== null} onClick={() => void enregistrer()}>
+            {f === 'aucun' ? 'Revenir à la voix du téléphone' : 'Enregistrer et mettre en service'}
+          </button>
+          {etat.dernierEssai && !resultat && (
+            <span className="adm-muted">Dernier son : {date(etat.dernierEssai.at)} · {etat.dernierEssai.ok ? 'réussi' : `échec (${etat.dernierEssai.erreur ?? 'erreur'})`}</span>
+          )}
+          {etat.majLe && <span className="adm-muted">Réglé le {date(etat.majLe)}{etat.majPar ? ` par ${etat.majPar}` : ''}</span>}
         </div>
       )}
     </div>

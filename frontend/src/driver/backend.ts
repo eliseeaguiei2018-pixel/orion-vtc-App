@@ -8,6 +8,7 @@ import type {
   ProfilePatch, QueueInfo, RideHistory, RideStatus, Session, Training, TrainingResult, WaitResult, Wallet,
 } from './types';
 import { createDemoBackend } from './demo';
+import type { SonServeur } from '../courseLive';
 import { ApiError } from './errors';
 import { loadSession, saveSession } from './session';
 
@@ -106,7 +107,13 @@ export interface DriverBackend {
   carte(p: LatLng): Promise<CarteService | null>;
   /** Accueil vocal d'exemple (voix de bord), pour l'écouter avant la première course. */
   voixEssai(genre: 'feminine' | 'masculine'): Promise<{ texte: string; voix: 'feminine' | 'masculine' } | null>;
+  /** Voix humaine (IA) réglée par la direction : en service ? quel fournisseur, quelles voix ? */
+  voixHumaine(): Promise<EtatVoixHumaine | null>;
+  /** Son d'essai de la voix humaine (null : pas en service ou injoignable). */
+  voixHumaineEssai(genre: 'feminine' | 'masculine'): Promise<SonServeur | null>;
 }
+
+export interface EtatVoixHumaine { active: boolean; fournisseur: string | null; nom: string | null; voix: { feminine: string; masculine: string } | null }
 
 
 // Le serveur ORION auquel l'app est reliée : réglé dans l'app (Serveur ORION), sinon fixé à la
@@ -345,6 +352,21 @@ function createLiveBackend(): DriverBackend {
     },
     async voixEssai(genre) {
       try { return await call<{ texte: string; voix: 'feminine' | 'masculine' }>(`/drivers/${id()}/voix-bord/essai?genre=${genre}`); } catch { return null; }
+    },
+    async voixHumaine() {
+      try { return await call<EtatVoixHumaine>(`/drivers/${id()}/voix-bord/humaine`); } catch { return null; }
+    },
+    async voixHumaineEssai(genre) {
+      if (!current) return null;
+      const ctrl = new AbortController();
+      const t = window.setTimeout(() => ctrl.abort(), 45_000);
+      try {
+        const res = await fetch(`${API}/drivers/${id()}/voix-bord/essai/audio?genre=${genre}`, {
+          headers: { ...enTetesPasserelle(), authorization: `Bearer ${current.token}` }, signal: ctrl.signal,
+        });
+        if (!res.ok) return null;
+        return { audio: await res.arrayBuffer(), type: res.headers.get('content-type') ?? 'audio/mpeg', voix: res.headers.get('x-orion-voix'), empreinte: null };
+      } catch { return null; } finally { window.clearTimeout(t); }
     },
     async carte(p) {
       try { return await call<CarteService>(`/drivers/${id()}/carte?lat=${p.lat.toFixed(5)}&lng=${p.lng.toFixed(5)}`); } catch { return null; }

@@ -835,3 +835,15 @@ html[data-adm-theme='light'] .adm-alarme .adm-btn.ghost { background: transparen
 .adm-voix-exemples { display: grid; gap: 10px; margin-top: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
 .adm-voix-exemple { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--a-stroke); background: var(--a-panel2); }
 .adm-voix-exemple p { margin: 6px 0 0; font-size: 13px; line-height: 1.5; }
+
+/* Voix humaine (ORION Pro) */
+.adm-vh-choix { display: flex; flex-wrap: wrap; margin: 4px 0 14px; }
+.adm-vh-choix .adm-seg-b { padding: 7px 12px; font-size: 13px; }
+.adm-vh-reglage { display: grid; gap: 12px; }
+.adm-vh-voix { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+.adm-vh-voix .adm-btn { white-space: nowrap; }
+.adm-vh-modele { max-width: 360px; }
+.adm-vh-effacer { justify-self: start; margin-top: 4px; }
+.adm-vh-ok { color: var(--a-green-txt); margin: 10px 0 0; }
+.adm-vh-erreur { color: var(--a-danger); margin: 10px 0 0; overflow-wrap: anywhere; }
+@media (max-width: 560px) { .adm-vh-voix { grid-template-columns: 1fr; } }

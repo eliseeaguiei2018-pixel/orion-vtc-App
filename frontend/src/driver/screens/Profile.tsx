@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { IconCamera, IconCheck, IconImage, IconPhone, IconShield, IconStar } from '../../icons';
 import type { Accent } from '../../theme';
 import { ChoixCouleur, ChoixTheme } from '../../components/Apparence';
@@ -12,6 +12,7 @@ import { ConnecterEcranVehicule } from './Appairage';
 import { BlocBiometrie } from '../../components/CompteScreens';
 import { VERSION_APP } from '../../version';
 import { LienServeur } from './Serveur';
+import type { EtatVoixHumaine } from '../backend';
 import { Capacitor } from '@capacitor/core';
 import { derniereVoixAccueil, deverrouillerAudio, direAccueil, installerVoix, taire } from '../../voix';
 
@@ -257,29 +258,40 @@ function PhotoChauffeur({ app, aUnePhoto }: { app: ScreenProps['app']; aUnePhoto
  */
 function VoixDeBord({ app }: Pick<ScreenProps, 'app'>) {
   const [occupe, setOccupe] = useState<'feminine' | 'masculine' | null>(null);
-  const [source, setSource] = useState<'google' | 'telephone' | null>(null);
+  const [source, setSource] = useState<'humaine' | 'telephone' | null>(null);
+  const [humaine, setHumaine] = useState<EtatVoixHumaine | null>(null);
+  useEffect(() => { void app.backend.voixHumaine().then(setHumaine); }, [app.backend]);
   const ecouter = async (genre: 'feminine' | 'masculine') => {
     deverrouillerAudio();
     if (occupe) { taire(); setOccupe(null); return; }
-    const m = await app.backend.voixEssai(genre);
-    if (!m) { app.showToast(tr('Serveur ORION injoignable : réessayez.'), 'danger'); return; }
     setOccupe(genre);
-    try { await direAccueil(m.texte, m.voix, 'fr-FR'); setSource(derniereVoixAccueil); } finally { setOccupe(null); }
+    try {
+      const m = await app.backend.voixEssai(genre);
+      if (!m) { app.showToast(tr('Serveur ORION injoignable : réessayez.'), 'danger'); return; }
+      // Voix humaine en service : le son vient du serveur (quelques secondes la première fois).
+      const son = humaine?.active ? app.backend.voixHumaineEssai(genre) : null;
+      await direAccueil(m.texte, m.voix, 'fr-FR', son, 40_000);
+      setSource(derniereVoixAccueil);
+    } finally { setOccupe(null); }
   };
+  const nomVoix = (g: 'feminine' | 'masculine') => humaine?.active && humaine.voix ? ` · ${humaine.voix[g]}` : '';
   return (
     <Section title={tr('Voix de bord')}>
       <div className="card" style={{ padding: 14, display: 'grid', gap: 10, fontSize: 13.5 }}>
-        <span className="muted">{tr('Une fois le code du client validé, votre téléphone lui souhaite la bienvenue : voix féminine pour un client, masculine pour une cliente.')}</span>
+        <span className="muted">{tr('Une fois le code du client validé, ORION Pro lui souhaite la bienvenue : voix féminine pour un client, masculine pour une cliente.')}</span>
+        {humaine?.active
+          ? <span className="faint" style={{ fontSize: 12 }}>{tr('Voix humaine en service : {0}.', [humaine.nom ?? ''])}</span>
+          : humaine && <span className="faint" style={{ fontSize: 12 }}>{tr('Voix humaine pas encore activée par ORION : c’est la voix du téléphone qui parle.')}</span>}
         <div className="dv-grid2">
           <button type="button" className="btn btn-ghost" style={{ padding: 10 }} onClick={() => void ecouter('feminine')} disabled={occupe === 'masculine'}>
-            {occupe === 'feminine' ? tr('Arrêter') : tr('Écouter · voix féminine')}
+            {occupe === 'feminine' ? tr('Arrêter') : `${tr('Écouter · voix féminine')}${nomVoix('feminine')}`}
           </button>
           <button type="button" className="btn btn-ghost" style={{ padding: 10 }} onClick={() => void ecouter('masculine')} disabled={occupe === 'feminine'}>
-            {occupe === 'masculine' ? tr('Arrêter') : tr('Écouter · voix masculine')}
+            {occupe === 'masculine' ? tr('Arrêter') : `${tr('Écouter · voix masculine')}${nomVoix('masculine')}`}
           </button>
         </div>
-        {source && <span className="faint" style={{ fontSize: 12 }}>{source === 'google' ? tr('Voix neuronale Google (la plus naturelle).') : tr('Voix du téléphone. Pour une voix plus naturelle, installez les voix haute qualité.')}</span>}
-        {Capacitor.isNativePlatform() && (
+        {source && <span className="faint" style={{ fontSize: 12 }}>{source === 'humaine' ? tr('Voix humaine du serveur ORION.') : tr('Voix du téléphone. Pour une voix plus naturelle, installez les voix haute qualité.')}</span>}
+        {Capacitor.isNativePlatform() && !humaine?.active && (
           <button type="button" className="dv-link" style={{ justifySelf: 'start' }} onClick={installerVoix}>{tr('Installer les voix haute qualité du téléphone')}</button>
         )}
       </div>

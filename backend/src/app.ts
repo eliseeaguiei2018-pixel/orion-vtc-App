@@ -38,6 +38,7 @@ import { clientAccountRoutes } from './modules/clients/routes.js';
 import { courseLiveRoutes } from './modules/rides/courseLive.js';
 import { carteChauffeurRoutes } from './modules/driver-app/carte.js';
 import { bienvenueRoutes } from './modules/rides/bienvenue.js';
+import { voixHumaineRoutes } from './modules/voix/routes.js';
 import { driverAppRoutes, registerDriverGuard } from './modules/driver-app/routes.js';
 import { prochesRoutes } from './modules/proches/routes.js';
 
@@ -88,6 +89,8 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
   await app.register(cors, {
     origin: originsExplicites ? config.CORS_ORIGIN.split(',').map((s) => s.trim()) : true,
     credentials: originsExplicites,
+    // Voix humaine : ORION Pro lit l'empreinte du son préparé (comparée à celle de l'accueil).
+    exposedHeaders: ['x-orion-empreinte', 'x-orion-voix', 'x-orion-modele'],
   });
 
   // VOLUME : réponses compressées (Brotli, sinon gzip) dès 1 Ko. Une carte de flotte ou une
@@ -160,6 +163,7 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
   await courseLiveRoutes(app, container);
   await carteChauffeurRoutes(app, container);
   await bienvenueRoutes(app, container);
+  await voixHumaineRoutes(app, container);
   await complianceRoutes(app, container);
   await geoCiRoutes(app, container);
   await paymentRoutes(app, container);

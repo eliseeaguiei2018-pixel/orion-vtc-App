@@ -10,7 +10,7 @@ import { lienTel, numeroLisible } from '../../telephone';
 import { aTraduire, localeCourante, tr } from '../i18n';
 import { AvisNouvelArret, BoutonEspeces, BoutonsCourse, EcranAppel, FenetreChat, PanneauArrets, useCourseLive } from '../../CourseLiveUI';
 import { isLiveBackend } from '../../api';
-import { connexionCourse } from '../../courseLive';
+import { connexionCourse, type SonServeur } from '../../courseLive';
 import { definirVoixDeBord, deverrouillerAudio, direAccueil, parler } from '../../voix';
 import { loadSession } from '../session';
 
@@ -31,7 +31,13 @@ const CLE_ACCUEIL = 'orion.driver.accueil';
  * une seule fois par course ; puis elle garde, jusqu'à la fin, la voix choisie pour ce client
  * (féminine pour un client, masculine pour une cliente) pour tout le guidage.
  */
-function useVoixDeBord(rideId: string, actif: boolean) {
+function useVoixDeBord(rideId: string, actif: boolean, approche: boolean) {
+  // VOIX HUMAINE : dès la course acceptée, le son de l'accueil se prépare sur le serveur et se
+  // télécharge pendant l'approche ; à bord, il part sans attendre.
+  useEffect(() => {
+    if (!approche || !isLiveBackend()) return;
+    prechargerAccueil(rideId);
+  }, [rideId, approche]);
   useEffect(() => {
     if (!actif || !isLiveBackend()) return;
     let annule = false;
@@ -42,12 +48,31 @@ function useVoixDeBord(rideId: string, actif: boolean) {
       definirVoixDeBord(b.voix);
       if (deja) return;
       try { localStorage.setItem(CLE_ACCUEIL, rideId); } catch { /* accueil redit au besoin */ }
-      void direAccueil(b.texte, b.voix, 'fr-FR');
+      // Le son préparé sert s'il correspond à cet accueil ; sinon (heure qui a basculé, réglage
+      // changé), on le redemande. Sans voix humaine, la voix du téléphone parle.
+      const son = b.voixHumaine ? sonAccueil(rideId, b.voixHumaine.empreinte) : null;
+      void direAccueil(b.texte, b.voix, 'fr-FR', son, b.voixHumaine?.pret ? 12_000 : 8_000);
     }).catch(() => undefined);
     return () => { annule = true; };
   }, [rideId, actif]);
   // Fin de course (écran quitté) : la voix reprend celle du chauffeur.
   useEffect(() => () => definirVoixDeBord(null), [rideId]);
+}
+
+/** Sons d'accueil téléchargés pendant l'approche (un par course). */
+const sonsAccueil = new Map<string, Promise<SonServeur | null>>();
+function prechargerAccueil(rideId: string): void {
+  if (sonsAccueil.has(rideId)) return;
+  const p = cxChauffeur.sonBienvenue(rideId);
+  sonsAccueil.set(rideId, p);
+  // Échec (réseau, voix non réglée) : on pourra réessayer à l'étape suivante.
+  void p.then((s) => { if (!s) sonsAccueil.delete(rideId); });
+  for (const k of sonsAccueil.keys()) if (k !== rideId) sonsAccueil.delete(k);
+}
+async function sonAccueil(rideId: string, empreinte: string): Promise<SonServeur | null> {
+  const prepare = await (sonsAccueil.get(rideId) ?? Promise.resolve(null));
+  if (prepare && prepare.empreinte === empreinte) return prepare;
+  return cxChauffeur.sonBienvenue(rideId);
 }
 
 export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) {
@@ -66,7 +91,8 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
   const [deplie, setDeplie] = useState(false);
   useEffect(() => { setDeplie(false); }, [ride.status]);
   // Client à bord (course commencée, pas une livraison) : accueil vocal et voix de bord.
-  useVoixDeBord(ride.id, ride.status === 'in_progress' && ride.serviceType !== 'delivery');
+  useVoixDeBord(ride.id, ride.status === 'in_progress' && ride.serviceType !== 'delivery',
+    ['accepted', 'driver_en_route', 'arrived'].includes(ride.status) && ride.serviceType !== 'delivery');
   // ARRÊTS DU TRAJET (prévus à la commande ou ajoutés par le client) : le guidage passe par le
   // prochain arrêt non marqué, puis rejoint la destination.
   const prochainArret = ride.status === 'in_progress' ? (direct.arrets?.prevus ?? []).find((p) => !p.fait) ?? null : null;

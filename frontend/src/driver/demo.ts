@@ -889,6 +889,9 @@ export function createDemoBackend(): DriverBackend {
         ? 'Bonjour Monsieur Konan Yao, bienvenue à bord d’ORION. J’espère que votre journée se passe bien, et que vous passerez un excellent trajet avec votre chauffeur. Veuillez attacher votre ceinture de sécurité, même à l’arrière du véhicule. Merci d’avoir choisi ORION pour votre transport. Excellente journée, et que le Bon Dieu vous protège.'
         : 'Bonsoir Madame Aya Kouassi, bienvenue à bord d’ORION. J’espère que votre soirée a bien débuté et que la journée s’est bien passée, et que vous passerez un excellent trajet avec votre chauffeur. Veuillez attacher votre ceinture de sécurité, même à l’arrière du véhicule. Merci d’avoir choisi ORION pour votre transport. Excellente soirée, et que le Bon Dieu vous protège.',
     }),
+    // Démo : pas de serveur, donc pas de voix humaine (la voix du téléphone parle).
+    voixHumaine: async () => null,
+    voixHumaineEssai: async () => null,
     // Démo : trois zones chaudes, deux habituelles et deux sièges, à distance réelle du véhicule.
     carte: async (moi: LatLng): Promise<CarteService> => {
       const d = (p: LatLng) => Math.round(haversine(moi, p));

@@ -30,7 +30,13 @@ export interface ResumeArrets {
 }
 export interface ApercuArret { supplement: number; tarifMin: number; prixAvant: number; prixApres: number }
 /** Accueil vocal du client à bord (composé par le serveur). */
-export interface Bienvenue { texte: string; voix: 'feminine' | 'masculine'; civilite: 'M' | 'Mme' | null; moment: string; assure: boolean }
+export interface Bienvenue {
+  texte: string; voix: 'feminine' | 'masculine'; civilite: 'M' | 'Mme' | null; moment: string; assure: boolean;
+  /** Voix humaine en service : empreinte du son à jouer (déjà préparé pendant l'approche si `pret`). */
+  voixHumaine?: { empreinte: string; pret: boolean } | null;
+}
+/** Son de la voix humaine, fabriqué par le serveur. */
+export interface SonServeur { audio: ArrayBuffer; type: string; voix: string | null; empreinte: string | null }
 export interface MessageChat {
   id: string; de: Auteur | 'orion'; texte: string; rapide?: 'sors' | 'retard'; at: string;
 }
@@ -56,6 +62,17 @@ export function connexionCourse(jeton: () => string | null) {
     return corps as T;
   }
   const post = <T>(chemin: string, corps: unknown = {}) => appel<T>(chemin, { method: 'POST', body: JSON.stringify(corps) });
+  /** Son (voix humaine) : null si le serveur n'en a pas (voix non réglée, fournisseur injoignable). */
+  async function son(chemin: string, delaiMs = 45_000): Promise<SonServeur | null> {
+    const j = jeton();
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), delaiMs);
+    try {
+      const res = await fetch(`${base()}${chemin}`, { headers: { ...enTetesPasserelle(), ...(j ? { authorization: `Bearer ${j}` } : {}) }, signal: ctrl.signal });
+      if (!res.ok) return null;
+      return { audio: await res.arrayBuffer(), type: res.headers.get('content-type') ?? 'audio/mpeg', voix: res.headers.get('x-orion-voix'), empreinte: res.headers.get('x-orion-empreinte') };
+    } catch { return null; } finally { clearTimeout(t); }
+  }
   return {
     actif: () => Boolean(base()),
     arrets: (id: string) => appel<ResumeArrets>(`/rides/${id}/arrets`),
@@ -65,6 +82,7 @@ export function connexionCourse(jeton: () => string | null) {
     apercuArret: (id: string, position: { lat: number; lng: number }, nom?: string) => post<ApercuArret>(`/rides/${id}/arrets/apercu`, { position, ...(nom ? { nom } : {}) }),
     ajouterArret: (id: string, position: { lat: number; lng: number }, nom?: string) => post<ResumeArrets>(`/rides/${id}/arrets/ajout`, { position, ...(nom ? { nom: nom.slice(0, 80) } : {}) }),
     bienvenue: (id: string) => appel<Bienvenue>(`/rides/${id}/bienvenue`),
+    sonBienvenue: (id: string) => son(`/rides/${id}/bienvenue/audio`),
     chat: (id: string) => appel<{ messages: MessageChat[]; ouvert: boolean; moi: Auteur }>(`/rides/${id}/chat`),
     envoyer: (id: string, m: { texte?: string; rapide?: 'sors' | 'retard' }) => post<{ message: MessageChat }>(`/rides/${id}/chat`, m),
     appel: (id: string, action: 'appeler' | 'decrocher' | 'refuser' | 'raccrocher') => post<{ appelId: string; etat: EtatAppel }>(`/rides/${id}/appel`, { action }),

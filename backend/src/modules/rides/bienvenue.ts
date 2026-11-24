@@ -7,6 +7,7 @@ import { parse } from '../../core/validate.js';
 import type { Permission } from '../admin/roles.js';
 import { driverTokenOf, requireDriver, verifyDriverToken } from '../driver-app/auth.js';
 import type { Ride } from './store.js';
+import { voixHumaine } from '../voix/humaine.js';
 
 /**
  * LA VOIX DE BORD D'ORION PRO : une fois le client à bord (code à 4 chiffres donné au
@@ -193,28 +194,44 @@ export async function bienvenueRoutes(app: FastifyInstance, container: Container
 
   /** Message d'accueil de la course, pour la voix de bord du chauffeur (client à bord). */
   app.get('/rides/:id/bienvenue', async (req) => {
-    const { id } = req.params as { id: string };
-    const ride = container.rides.get(id);
-    if (!ride) throw notFound('Course introuvable');
-    const chauffeur = verifyDriverToken(driverTokenOf(req));
-    if (!chauffeur || chauffeur !== ride.driverId) throw forbidden('Réservé au chauffeur de la course');
-    if (ride.serviceType === 'delivery') throw conflict('Pas d’accueil vocal pour une livraison');
-    if (!['in_progress', 'arrived'].includes(ride.status)) throw conflict('Le client n’est pas encore à bord');
-    const client = container.clients.get(ride.clientId);
-    // Moment de l'accueil : la prise en charge (départ de la course), ou maintenant.
-    const depart = [...ride.events].reverse().find((e) => e.type === 'in_progress' || e.type === 'started')?.at;
-    const message = composerBienvenue({
-      nom: client?.deletedAt ? null : client?.name ?? null,
-      civilite: client?.civilite ?? null,
-      at: depart ? new Date(depart) : new Date(),
-      assure: courseAssuree(ride),
-      textes: textesEnVigueur(container),
-    });
+    const ride = courseDuChauffeur(req, container, ['in_progress', 'arrived']);
+    const message = messageDeCourse(container, ride);
     if (!ride.events.some((e) => e.type === 'bienvenue')) {
       ride.events.push({ type: 'bienvenue', at: new Date().toISOString(), payload: { moment: message.moment, voix: message.voix, civilite: message.civilite, origine: message.origineCivilite } });
       container.rides.persist(ride);
     }
-    return message;
+    // Voix humaine : empreinte du son à jouer (ORION Pro l'a souvent déjà téléchargé pendant l'approche).
+    const vh = voixHumaine(container);
+    const empreinte = vh.active() ? vh.empreinte(message.texte, message.voix) : null;
+    return { ...message, voixHumaine: empreinte ? { empreinte, pret: vh.enCache(empreinte) } : null };
+  });
+}
+
+/** Course du chauffeur qui appelle, dans l'un des états permis (accueil, préchargement du son). */
+export function courseDuChauffeur(req: FastifyRequest, container: Container, etats: string[]): Ride {
+  const { id } = req.params as { id: string };
+  const ride = container.rides.get(id);
+  if (!ride) throw notFound('Course introuvable');
+  const chauffeur = verifyDriverToken(driverTokenOf(req));
+  if (!chauffeur || chauffeur !== ride.driverId) throw forbidden('Réservé au chauffeur de la course');
+  if (ride.serviceType === 'delivery') throw conflict('Pas d’accueil vocal pour une livraison');
+  if (!etats.includes(ride.status)) throw conflict('Le client n’est pas encore à bord');
+  return ride;
+}
+
+/**
+ * Accueil de cette course. Moment de la journée : la prise en charge (départ de la course) ;
+ * avant elle (son préparé pendant l'approche), maintenant.
+ */
+export function messageDeCourse(container: Container, ride: Ride, at?: Date): MessageBienvenue {
+  const client = container.clients.get(ride.clientId);
+  const depart = [...ride.events].reverse().find((e) => e.type === 'in_progress' || e.type === 'started')?.at;
+  return composerBienvenue({
+    nom: client?.deletedAt ? null : client?.name ?? null,
+    civilite: client?.civilite ?? null,
+    at: at ?? (depart ? new Date(depart) : new Date()),
+    assure: courseAssuree(ride),
+    textes: textesEnVigueur(container),
   });
 }
 

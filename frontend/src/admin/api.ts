@@ -236,6 +236,13 @@ export function adminGet<T>(p: string): Promise<T> {
 export async function adminPost<T>(p: string, b?: unknown): Promise<T> { const r = await fetch(API + p, withCreds({ method: 'POST', headers: H(), body: JSON.stringify(b ?? {}) })); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
 export async function adminPut<T>(p: string, b: unknown): Promise<T> { const r = await fetch(API + p, withCreds({ method: 'PUT', headers: H(), body: JSON.stringify(b) })); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
 export async function adminDel(p: string): Promise<void> { const r = await fetch(API + p, withCreds({ method: 'DELETE', headers: H() })); if (r.status === 401) onUnauthorized(); if (!r.ok) await fail(r); }
+/** POST qui renvoie un son (essai de la voix humaine) : le corps audio et la voix qui l'a dit. */
+export async function adminPostSon(p: string, b: unknown): Promise<{ son: Blob; voix: string | null; modele: string | null }> {
+  const r = await fetch(API + p, withCreds({ method: 'POST', headers: H(), body: JSON.stringify(b) }));
+  if (r.status === 401) onUnauthorized();
+  if (!r.ok) return fail(r);
+  return { son: await r.blob(), voix: r.headers.get('x-orion-voix'), modele: r.headers.get('x-orion-modele') };
+}
 
 /**
  * Appel d'ÉCRITURE sûr : renvoie true seulement si le serveur a accepté. Les appelants
