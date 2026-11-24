@@ -863,3 +863,64 @@ html[data-adm-theme='light'] .adm-alarme .adm-btn.ghost { background: transparen
 .adm-vh-secours-ajout { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; }
 .adm-cle-masquee { -webkit-text-security: disc; font-family: ui-monospace, monospace; }
 @media (max-width: 560px) { .adm-vh-secours-ajout { grid-template-columns: 1fr; } }
+
+/* ---- Simulateur de flotte (Mon poste du PDG) ---- */
+.adm-flotte { margin-bottom: 16px; }
+.adm-flotte-pilote { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 4px 0 12px; }
+.adm-flotte-mesure { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--a-stroke); background: var(--a-panel2); min-width: 0; }
+.adm-flotte-mesure > span { font-size: 12px; }
+.adm-flotte-mesure strong { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.adm-flotte-mesure small { font-size: 11.5px; overflow-wrap: anywhere; }
+.adm-flotte-mesure.alerte { border-color: var(--a-amber); }
+.adm-flotte-mesure.alerte strong { color: var(--a-amber-txt); }
+.adm-flotte-recaler { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; font-size: 13px; }
+.adm-flotte-corps { display: grid; grid-template-columns: minmax(260px, 0.9fr) minmax(300px, 1.1fr); gap: 18px; align-items: start; }
+.adm-flotte-hypotheses fieldset { border: 1px solid var(--a-stroke); border-radius: 12px; padding: 10px 12px 4px; margin: 0 0 10px; min-width: 0; }
+.adm-flotte-hypotheses legend { padding: 0 6px; font-size: 12.5px; font-weight: 600; }
+.adm-flotte-champ { margin: 0 0 8px; }
+.adm-flotte-ligne { display: grid; grid-template-columns: minmax(0, 1fr) 96px minmax(64px, auto); align-items: center; gap: 8px; font-size: 13px; }
+.adm-flotte-ligne .adm-input { width: 96px; text-align: right; }
+.adm-flotte-lbl { min-width: 0; }
+.adm-flotte-unite { font-size: 12px; color: var(--a-muted); }
+.adm-flotte-aide { display: block; font-size: 11.5px; margin-top: 2px; }
+.adm-flotte-champ > .adm-prix-curseur { margin-top: 4px; }
+.adm-flotte-champ:has(.adm-flotte-segment) { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 13px; }
+.adm-flotte-segment { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--a-panel2); border: 1px solid var(--a-stroke); }
+.adm-flotte-segment button { min-width: 36px; height: 28px; border: none; border-radius: 8px; background: none; color: var(--a-muted); font-weight: 600; cursor: pointer; }
+.adm-flotte-segment button.actif { background: var(--a-panel); color: var(--a-text); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.adm-flotte-details { border: 1px solid var(--a-stroke); border-radius: 12px; padding: 8px 12px; }
+.adm-flotte-details summary { cursor: pointer; font-size: 12.5px; font-weight: 600; margin-bottom: 4px; }
+.adm-flotte-details[open] summary { margin-bottom: 10px; }
+.adm-flotte-resultats { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.adm-flotte-vedette { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border-radius: 14px; background: var(--a-panel2); border: 1px solid var(--a-stroke); }
+.adm-flotte-vedette strong { font-family: 'Sora', sans-serif; font-size: 40px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.adm-flotte-vedette > span { font-size: 12.5px; }
+.adm-flotte-tuiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.adm-flotte-tuile { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--a-stroke); min-width: 0; }
+.adm-flotte-tuile > span { font-size: 12px; }
+.adm-flotte-tuile strong { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.adm-flotte-tuile small { font-size: 11.5px; overflow-wrap: anywhere; }
+.adm-flotte-plan, .adm-flotte-paliers { padding: 12px 14px; border-radius: 14px; border: 1px solid var(--a-stroke); }
+.adm-flotte-plan h4, .adm-flotte-paliers h4 { margin: 0; font-size: 13.5px; font-weight: 600; }
+.adm-flotte-plan-tete { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.adm-flotte-objectif { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+.adm-flotte-objectif .adm-input { width: 96px; text-align: right; }
+.adm-flotte-plan p { margin: 8px 0 0; font-size: 13.5px; line-height: 1.5; }
+.adm-flotte-jauge { height: 8px; border-radius: 4px; background: var(--a-panel2); overflow: hidden; margin-top: 10px; }
+.adm-flotte-jauge span { display: block; height: 100%; border-radius: 4px; background: var(--a-green2); transition: width 0.3s; }
+.adm-flotte-note { font-size: 12px !important; margin-top: 6px !important; }
+.adm-flotte-paliers ol { list-style: none; margin: 10px 0 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.adm-flotte-paliers li { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--a-stroke); font-size: 11.5px; color: var(--a-muted); min-width: 0; }
+.adm-flotte-palier-n { font-size: 15px; font-weight: 600; color: var(--a-text); font-variant-numeric: tabular-nums; }
+.adm-flotte-paliers li.fait { background: var(--a-panel2); }
+.adm-flotte-paliers li.prochain { border-color: var(--a-green2); }
+.adm-flotte-signal { margin: 10px 0 0; font-size: 12.5px; color: var(--a-muted); }
+.adm-flotte-signal.go { color: var(--a-amber-txt); }
+.adm-flotte-actions { margin-top: 12px; flex-wrap: wrap; }
+@media (max-width: 900px) { .adm-flotte-corps { grid-template-columns: 1fr; } .adm-flotte-resultats { order: -1; } }
+@media (max-width: 560px) {
+  .adm-flotte-tuiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adm-flotte-paliers ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adm-flotte-ligne { grid-template-columns: minmax(0, 1fr) 88px; }
+  .adm-flotte-ligne .adm-flotte-unite { grid-column: 2; }
+}

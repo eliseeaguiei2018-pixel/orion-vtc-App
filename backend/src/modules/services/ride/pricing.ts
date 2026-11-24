@@ -1,3 +1,4 @@
+import type { PlanFlotte } from '../../admin/planFlotte.js';
 import { REGLES_TRAFIC_DEFAUT, type ReglesTrafic } from '../../geo-ci/traficItineraire.js';
 import type { DetailTrafic, EstimateRequest, QuoteBreakdown, TrafficLevel } from '../types.js';
 import { haversineMeters, type LatLng } from '../../../core/geo.js';
@@ -74,6 +75,8 @@ export interface PricingSettings {
   ajustementPct: number;
   /** Qui a réglé l'ajustement, et quand (affiché dans Mon poste). */
   ajustementModifie?: { le: string; par: string };
+  /** Plan de flotte enregistré par la direction (simulateur de flotte de Mon poste). */
+  planFlotte?: PlanFlotte;
 }
 
 export const AJUSTEMENT_MIN = -50;

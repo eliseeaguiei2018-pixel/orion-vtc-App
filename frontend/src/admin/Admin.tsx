@@ -29,6 +29,7 @@ import type { AccountsStats, ActiveSession, Alert, Amortization, Announcement, A
 import { ClientDrawer, DriverDrawer } from './ui';
 import { AccesTesteursSection } from './sections/testeurs';
 import { PrixDirection } from './sections/prixDirection';
+import { SimulateurFlotte } from './sections/simulateurFlotte';
 import { PANNEAUX } from './panneaux';
 import { DialogueAttribution, DialogueAttribuerCourse, type FicheAttribution } from './attribution';
 import { PrimesSection } from './sections/primes';
@@ -1810,6 +1811,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {section === 'direction' && <ObjectifsFinanciersCarte peutModifier={can('finance:write')} />}
         {/* Mon poste du PDG : réglage des prix des courses (direction seulement). */}
         {section === 'monPoste' && me && ['super_admin', 'ceo', 'dg'].includes(me.role) && <PrixDirection />}
+        {/* Mon poste du PDG : simulateur de flotte (combien de voitures, chauffeurs, bornes, motos). */}
+        {section === 'monPoste' && me && ['super_admin', 'ceo', 'dg'].includes(me.role) && <SimulateurFlotte />}
         {section === 'monPoste' && (
           <MonPosteSection
             poste={monPoste}

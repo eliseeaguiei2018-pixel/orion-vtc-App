@@ -1,5 +1,6 @@
 import { AJUSTEMENT_MAX, AJUSTEMENT_MIN, estimatePrice } from '../services/ride/pricing.js';
 import { DeliveryServiceModule } from '../services/delivery/deliveryModule.js';
+import { mesuresPilote, PLAN_FLOTTE_DEFAUT, schemaPlanFlotte } from './planFlotte.js';
 import { gammesServies } from '../drivers/store.js';
 import { mediasSchema } from '../rental/medias.js';
 import { exigerHumain } from '../gcp/securite.js';
@@ -4098,6 +4099,32 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
         apres: body,
       });
       return await etatPrix();
+    });
+
+    /* ---------------------- Simulateur de flotte (Mon poste du PDG) ---------------------- */
+    // Le plan de croissance de la flotte (hypothèses) et les mesures réelles du pilote pour le
+    // recaler. Réservé à la direction, comme le réglage des prix.
+    const exigerDirectionFlotte = (req: FastifyRequest) => {
+      const { admin } = req as FastifyRequest & { admin: AdminAccount };
+      if (!admin || !['super_admin', 'ceo', 'dg'].includes(admin.role)) throw forbidden('Seule la direction consulte et règle le plan de flotte.');
+      return admin;
+    };
+    const etatFlotte = () => ({
+      plan: { ...PLAN_FLOTTE_DEFAUT, ...(container.settings.getPricing().planFlotte ?? {}) },
+      defaut: PLAN_FLOTTE_DEFAUT,
+      mesures: mesuresPilote(container),
+    });
+    scoped.get('/admin/direction/flotte', async (req) => {
+      exigerDirectionFlotte(req);
+      return etatFlotte();
+    });
+    scoped.post('/admin/direction/flotte', async (req) => {
+      const admin = exigerDirectionFlotte(req);
+      const plan = parse(schemaPlanFlotte, req.body);
+      const avant = container.settings.getPricing().planFlotte ?? null;
+      container.settings.updatePricing({ planFlotte: { ...plan, modifie: { le: new Date().toISOString(), par: admin.name || admin.username || 'Direction' } } });
+      audit(req, 'flotte.plan', undefined, { avant, apres: plan });
+      return etatFlotte();
     });
 
     /* ---------------------- Accès testeurs (connexion sans SMS) ---------------------- */
