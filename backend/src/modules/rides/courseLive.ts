@@ -256,7 +256,7 @@ export async function courseLiveRoutes(app: FastifyInstance, container: Containe
     }), req.body ?? {});
     if (ride.status !== 'in_progress') throw conflict('Les arrêts se déclarent pendant la course, client à bord');
     const arrets = ride.arrets ?? [];
-    if (arrets.some((a) => !a.fin)) throw conflict('Un arrêt est déjà en cours : reprenez d’abord la course');
+    if (arrets.some((a) => !a.fin)) throw conflict('Un arrêt est déjà en cours : continuez d’abord l’itinéraire');
     const prevus = ride.quote.stops ?? [];
     if (body.type === 'prevu') {
       if (body.index === undefined || body.index >= prevus.length) throw badRequest('Arrêt prévu inconnu');
@@ -274,7 +274,7 @@ export async function courseLiveRoutes(app: FastifyInstance, container: Containe
     return resumeArrets(ride, tarif());
   });
 
-  /** Fin de l'arrêt : la course reprend ; les minutes et le montant sont arrêtés. */
+  /** Fin de l'arrêt (« Continuer l'itinéraire ») : le guidage repart vers la suite ; minutes et montant arrêtés. */
   app.post('/rides/:id/arrets/fin', async (req) => {
     const ride = course((req.params as { id: string }).id);
     exigerChauffeur(req, ride);

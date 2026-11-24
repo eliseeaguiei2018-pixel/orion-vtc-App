@@ -3039,6 +3039,27 @@ const TEXTES: Record<string, Huit> = {
   arr_max: ['Au plus 5 arrêts sur un trajet.', 'At most 5 stops on a trip.', 'Como máximo 5 paradas por trayecto.', 'Al massimo 5 soste per tragitto.', 'Höchstens 5 Stopps pro Fahrt.', '5 توقفات كحد أقصى في الرحلة.', '每次行程最多 5 个停靠点。', 'Не более 5 остановок за поездку.'],
   hist_carte: ['Carte du trajet', 'Trip map', 'Mapa del trayecto', 'Mappa del tragitto', 'Karte der Fahrt', 'خريطة الرحلة', '行程地图', 'Карта поездки'],
   hist_carte_recalee: ['Trajet réel, recalé sur la route : {km} km', 'Actual route, matched to roads: {km} km', 'Trayecto real, ajustado a la carretera: {km} km', 'Percorso reale, allineato alla strada: {km} km', 'Tatsächliche Strecke, an Straßen angepasst: {km} km', 'المسار الفعلي على الطريق: {km} كم', '实际路线（已贴合道路）：{km} 公里', 'Фактический маршрут по дорогам: {km} км'],
+  /* ------------------- Course en arrière-plan dans l'app ------------------- */
+  cf_titre: ['Course en cours', 'Ride in progress', 'Viaje en curso', 'Corsa in corso', 'Fahrt läuft', 'رحلة جارية', '行程进行中', 'Поездка идёт'],
+  cf_revenir: ['Revenir à la course', 'Back to the ride', 'Volver al viaje', 'Torna alla corsa', 'Zurück zur Fahrt', 'العودة إلى الرحلة', '返回行程', 'Вернуться к поездке'],
+  cf_continue: [
+    'Votre course continue. Touchez « Course en cours » pour y revenir.', 'Your ride continues. Tap “Ride in progress” to go back to it.',
+    'Su viaje continúa. Toque «Viaje en curso» para volver.', 'La corsa continua. Tocca «Corsa in corso» per tornarci.',
+    'Ihre Fahrt läuft weiter. Tippen Sie auf „Fahrt läuft“, um zurückzukehren.', 'رحلتك مستمرة. المس «رحلة جارية» للعودة إليها.',
+    '行程仍在继续。点击“行程进行中”即可返回。', 'Поездка продолжается. Нажмите «Поездка идёт», чтобы вернуться.',
+  ],
+  cf_deja: [
+    'Une course est déjà en cours : elle doit être terminée avant d’en commander une autre.', 'A ride is already in progress: it must end before you book another.',
+    'Ya hay un viaje en curso: debe terminar antes de pedir otro.', 'C’è già una corsa in corso: deve finire prima di prenotarne un’altra.',
+    'Es läuft bereits eine Fahrt: Sie muss enden, bevor Sie eine neue buchen.', 'هناك رحلة جارية بالفعل: يجب أن تنتهي قبل طلب رحلة أخرى.',
+    '已有行程在进行中：结束后才能再次下单。', 'Поездка уже идёт: дождитесь её окончания, чтобы заказать новую.',
+  ],
+  cf_deconnexion: [
+    'Déconnexion impossible pendant une course : elle sera possible dès la fin de votre course.', 'You can’t log out during a ride: you’ll be able to once your ride ends.',
+    'No puede cerrar sesión durante un viaje: podrá hacerlo cuando termine.', 'Non puoi disconnetterti durante una corsa: potrai farlo appena finisce.',
+    'Abmelden während einer Fahrt ist nicht möglich: nach dem Ende der Fahrt geht es wieder.', 'لا يمكن تسجيل الخروج أثناء الرحلة: سيكون ممكنًا فور انتهائها.',
+    '行程中无法退出登录：行程结束后即可退出。', 'Выйти во время поездки нельзя: это станет возможно после её окончания.',
+  ],
 };
 
 

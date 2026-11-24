@@ -288,10 +288,25 @@ export function App() {
   const [carPos, setCarPos] = useState<LatLng | null>(null);
   const [tripPhase, setTripPhase] = useState<TripPhase>('enroute');
   const [rideId, setRideId] = useState<string | null>(null);
+  /*
+   * COURSE EN ARRIÈRE-PLAN DANS L'APP : une fois la course lancée, le client peut quitter son
+   * écran (accueil, services, compte…) sans l'interrompre, et y revenir à tout moment par le
+   * bandeau « Course en cours ». L'écran de la course reste monté, caché : suivi du chauffeur,
+   * chat, appels, arrêts et contrôle de sécurité continuent. Fin de course : retour au paiement.
+   */
+  const [courseOuverte, setCourseOuverte] = useState(false);
+  useEffect(() => {
+    if (screen === 'tracking') setCourseOuverte(true);
+    else if (screen === 'payment' || screen === 'rating' || screen === 'searching' || screen === 'onboarding') setCourseOuverte(false);
+  }, [screen]);
+  const suiviMonte = Boolean(destination && driver) && (screen === 'tracking' || courseOuverte);
+  /** Course en cours (chauffeur trouvé, pas encore arrivé à destination) : pas de déconnexion. */
+  const courseEnCours = suiviMonte && tripPhase !== 'completed';
+  const [etatSuivi, setEtatSuivi] = useState({ nonLus: 0 });
   // Mise à jour à chaud : jamais pendant une commande ou une course, seulement depuis l'accueil.
   const libreMaj = useRef(true);
   // Mise à jour proposée à l'ouverture (accueil, ou écran de bienvenue avant connexion), jamais en commande.
-  libreMaj.current = !rideId && (screen === 'home' || screen === 'splash' || screen === 'onboarding');
+  libreMaj.current = !rideId && !courseOuverte && (screen === 'home' || screen === 'splash' || screen === 'onboarding');
   useEffect(() => { demarrerMisesAJour({ app: 'client', libre: () => libreMaj.current }); }, []);
   const [live, setLive] = useState(false);
   /**
@@ -450,6 +465,8 @@ export function App() {
   /** Garde de maintenance : bloque l'ouverture d'un flux de commande si ORION est fermé. */
   const guardOpen = (): boolean => {
     if (closed) { showToast(t('closed_toast'), true); return false; }
+    // Une course à la fois : la commande en cours garde sa destination, son chauffeur et son prix.
+    if (courseEnCours) { showToast(t('cf_deja'), true); setScreen('tracking'); return false; }
     return true;
   };
 
@@ -474,6 +491,8 @@ export function App() {
   }, [screen, destination, tier, bodyType, stops, insurance, promo, origin.location, trajetCourse.pret, trajetCourse.trajet, itinCourse.pret, optsRoute?.choix, optsRoute?.distanceMeters, approcheTest?.at, proches?.marche]);
 
   const chooseDestination = (place: Place) => {
+    // Course en cours : sa destination ne change pas par une nouvelle commande (filet de sécurité).
+    if (courseEnCours) { showToast(t('cf_deja'), true); setScreen('tracking'); return; }
     memoriserRecent(place);
     setDestination(place);
     setScreen('estimate');
@@ -490,6 +509,8 @@ export function App() {
     if (!c) return;
     setChoix(null);
     if (c.mode === 'destination') { chooseDestination(p); return; }
+    // Le point de départ et le colis d'une course en cours ne se changent pas depuis l'accueil.
+    if (courseEnCours && (c.mode === 'depart' || c.mode === 'livraison')) { showToast(t('cf_deja'), true); setScreen('tracking'); return; }
     if (c.mode === 'depart') { position.choisir(p); memoriserRecent(p); }
     else if (c.mode === 'livraison') { setDepotLivraison(p); memoriserRecent(p); }
     // Arrêt ajouté pendant le suivi (chauffeur en route, arrivé, ou en course) : supplément à confirmer.
@@ -673,7 +694,7 @@ export function App() {
     if (sosLive && !sosLive.clotureeA) { setSosOuvert(true); return; }
     setSosState('sending');
     const position = carPos ?? origin.location;
-    const enCourse = screen === 'tracking';
+    const enCourse = suiviMonte;
     // Le lieu lisible (« Riviéra Bonoumin, Cocody ») : l'agent le cite, le centre le lit.
     const zone = await quartierDe(position).catch(() => null);
     const res = await sos(clientId(), position, rideId ?? undefined, { langue: lang === 'fr' ? 'fr' : 'en', zoneName: zone?.nom, enCourse });
@@ -709,11 +730,11 @@ export function App() {
   /** La question « tout va bien ? » est à l'écran : la course simulée attend la réponse. */
   const [controleOuvert, setControleOuvert] = useState(false);
   useEffect(() => {
-    if (screen === 'tracking' && tripPhase === 'enroute') cleCourseLocale.current = `locale-${Date.now()}`;
-  }, [screen, tripPhase]);
+    if (suiviMonte && tripPhase === 'enroute') cleCourseLocale.current = `locale-${Date.now()}`;
+  }, [suiviMonte, tripPhase]);
   useEffect(() => {
     // Une alerte est déjà ouverte : la personne parle au centre, on ne lui repose pas la question.
-    if (!modeLocal() || mode !== 'ride' || screen !== 'tracking' || tripPhase !== 'inprogress' || sosId) return;
+    if (!modeLocal() || mode !== 'ride' || !suiviMonte || tripPhase !== 'inprogress' || sosId) return;
     const id = window.setTimeout(() => {
       const pose = controleSecuriteLocal(cleCourseLocale.current || 'locale', {
         titre: t('ctrl_titre'), texte: t('ctrl_texte'), ok: t('ctrl_ok'), appel: t('ctrl_appel'), danger: t('ctrl_danger'),
@@ -722,7 +743,7 @@ export function App() {
     }, 3000);
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen, tripPhase, mode, sosId]);
+  }, [suiviMonte, tripPhase, mode, sosId]);
 
   const repondreSos = async (texte: string) => {
     if (!sosLive) return;
@@ -782,6 +803,7 @@ export function App() {
       settings: 'home', profile: 'settings', sosHistory: 'settings', legal: 'settings', history: 'settings',
       preferences: 'settings', securite: 'settings', adresses: 'settings', carteFond: 'settings', serveur: 'settings',
       wallet: 'home', help: 'home', support: 'help', subscription: 'home', rental: 'home', myRentals: 'home', wedding: 'home', assurance: 'settings', messages: 'home', choixLieu: 'home',
+      tracking: 'home',
     };
     const ecoute = AppNative.addListener('backButton', () => {
       const e = etatRetour.current;
@@ -790,7 +812,7 @@ export function App() {
       const parent = PARENT[e.screen];
       // Pendant une course (suivi, paiement, notation), le retour ne quitte pas le parcours.
       if (parent) setScreen(parent);
-      else if (!['tracking', 'searching', 'payment', 'rating', 'photo', 'permissions'].includes(e.screen)) void AppNative.minimizeApp();
+      else if (!['searching', 'payment', 'rating', 'photo', 'permissions'].includes(e.screen)) void AppNative.minimizeApp();
     });
     return () => { void ecoute.then((l) => l.remove()); };
   }, []);
@@ -865,6 +887,7 @@ export function App() {
   };
 
   const reset = () => {
+    setCourseOuverte(false);
     setDestination(null);
     setQuote(null);
     setCoverage(null);
@@ -898,7 +921,8 @@ export function App() {
     if (gpsOccupe) return;
     setGpsOccupe(true);
     try {
-      if (screen === 'searching' || screen === 'tracking') {
+      // Pendant la course (même depuis un autre écran), le point de prise en charge ne bouge plus.
+      if (screen === 'searching' || suiviMonte) {
         try { setMaPosition(await lirePositionGps()); showToast(t('gps_ok_course')); }
         catch (e) { showToast(t((e as { code?: number }).code === 1 ? 'gps_refus' : 'gps_indispo'), true); }
       } else {
@@ -911,7 +935,7 @@ export function App() {
   // COURSE EN ARRIÈRE-PLAN : pendant une vraie course (recherche, approche, trajet), l'app
   // reste vivante si le client la quitte ou éteint l'écran (service de premier plan, notification
   // « Course ORION en cours ») : le suivi du chauffeur continue et le téléphone sonne aux étapes.
-  const enCourse = isLiveBackend() && (screen === 'searching' || (live && screen === 'tracking'));
+  const enCourse = isLiveBackend() && (screen === 'searching' || (live && suiviMonte));
   useEffect(() => {
     if (!enCourse || !gpsNatif()) return;
     void preparerNotifications();
@@ -925,7 +949,7 @@ export function App() {
   // Étapes de la course annoncées par une notification quand l'app n'est pas à l'écran.
   const phaseAnnoncee = useRef<string>('');
   useEffect(() => {
-    if (!live || screen !== 'tracking' || !driver) { phaseAnnoncee.current = ''; return; }
+    if (!live || !suiviMonte || !driver) { phaseAnnoncee.current = ''; return; }
     const cle = `${rideId}:${tripPhase}`;
     if (phaseAnnoncee.current === cle) return;
     const premier = phaseAnnoncee.current === '';
@@ -934,7 +958,7 @@ export function App() {
     else if (tripPhase === 'arrived') void prevenir(t('bg_arrive', { name: driver.name }), t('bg_arrive_detail'));
     else if (tripPhase === 'completed') void prevenir(t('bg_termine'), t('bg_termine_detail'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live, screen, tripPhase, rideId, driver?.name]);
+  }, [live, suiviMonte, tripPhase, rideId, driver?.name]);
   const ECRANS_GPS: Screen[] = ['delivery', 'estimate', 'confirm', 'searching', 'tracking'];
   const gps: GpsCarteValeur | null = ECRANS_GPS.includes(screen)
     ? {
@@ -954,11 +978,12 @@ export function App() {
     { cle: 'assurance', fait: assuranceInscrite, onAction: () => { if (!profil) { setScreen('auth'); return; } setRetourAssurance('controle'); setScreen('assurance'); } },
   ];
   const navVisible = !locked && (ONGLETS as Screen[]).includes(screen);
+  const bandeauCourse = !locked && courseEnCours && screen !== 'tracking' && !['payment', 'rating', 'splash'].includes(screen);
 
   return (
     <GpsCarte.Provider value={gps}>
     <div className="app-shell">
-      <div ref={cadre} className={`phone${sosLive && !sosOuvert ? ' sos-reduit' : ''}${navVisible ? ' a-nav' : ''}${simple ? ' mode-simple' : ''}`}>
+      <div ref={cadre} className={`phone${sosLive && !sosOuvert ? ' sos-reduit' : ''}${navVisible ? ' a-nav' : ''}${bandeauCourse ? ' a-course' : ''}${simple ? ' mode-simple' : ''}`}>
         {toast && <Toast message={toast.message} danger={toast.danger} />}
         {/* Nouvelle version publiée sur le serveur ORION : proposée à l'ouverture. */}
         <AvisMiseAJour />
@@ -1067,7 +1092,8 @@ export function App() {
           <SearchingScreen origin={origin} destination={destination} mode={mode} test={busId !== null} onCancel={busId ? annulerCourseBus : reset} />
         )}
 
-        {screen === 'tracking' && destination && driver && (
+        {suiviMonte && destination && driver && (
+          <div className="suivi-course" hidden={screen !== 'tracking'}>
           <TrackingScreen onMessage={messagerie.recevoir} messages={messagerie.actif ? { nonLus: messagerie.nonLus, ouvrir: () => { setRetourMessages('tracking'); setScreen('messages'); } } : undefined} origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase} mode={mode}
             carPos={carPos} setCarPos={setCarPos} setPhase={setTripPhase} live={live} rideId={rideId} stops={stops} codeTest={busId ? busCode : null}
             onAjouterArret={() => ouvrirChoix('arret', 'tracking')} arretPropose={arretPropose}
@@ -1082,7 +1108,11 @@ export function App() {
               setDriver(driverFromSafe(d)); setTripPhase('enroute'); setCarPos(null);
               showToast(t('toast_reassigned', { name: d.name }));
             }}
-            onServerCancel={() => { showToast(t('toast_no_driver'), true); reset(); }} />
+            onServerCancel={() => { showToast(t('toast_no_driver'), true); reset(); }}
+            visible={screen === 'tracking'}
+            onReduire={() => { setScreen('home'); showToast(t('cf_continue')); }}
+            onAttention={() => setScreen('tracking')} onEtat={setEtatSuivi} />
+          </div>
         )}
 
         {annulationOuverte && rideId && screen === 'tracking' && (
@@ -1134,7 +1164,7 @@ export function App() {
             </div>
           </div>
         )}
-        {screen === 'tracking' && (
+        {suiviMonte && (
           <ControleSecurite
             messagerie={messagerie} rideId={rideId} onAlerte={ouvrirSos} onVisible={setControleOuvert}
             contexte={{ location: carPos ?? origin.location, langue: lang === 'fr' ? 'fr' : 'en' }}
@@ -1164,9 +1194,9 @@ export function App() {
             onCarte={() => setScreen('carteFond')} carteGoogle={fond === 'google'} />
         )}
         {screen === 'preferences' && (
-          <PreferencesScreen profil={profil} onBack={() => setScreen(retourPreferences)}
-            onLogout={() => quitterCompte(t('set_logged_out'))}
-            onDelete={() => void supprimerCompte().then((r) => (r.ok ? quitterCompte(t('set_deleted')) : showToast(r.error, true)))} />
+          <PreferencesScreen profil={profil} onBack={() => setScreen(retourPreferences)} verrouCourse={courseEnCours}
+            onLogout={() => { if (courseEnCours) { showToast(t('cf_deconnexion'), true); return; } quitterCompte(t('set_logged_out')); }}
+            onDelete={() => { if (courseEnCours) { showToast(t('cf_deconnexion'), true); return; } void supprimerCompte().then((r) => (r.ok ? quitterCompte(t('set_deleted')) : showToast(r.error, true))); }} />
         )}
         {screen === 'securite' && (
           <SecuriteScreen onBack={() => revenir('securite')}
@@ -1228,6 +1258,20 @@ export function App() {
         {screen === 'entreprise' && <EntrepriseScreen nom={profil?.name ?? ''} telephone={profil?.phone ?? ''} onBack={() => setScreen('settings')} onToast={showToast} />}
         {screen === 'revenus' && <RevenusScreen nom={profil?.name ?? ''} telephone={profil?.phone ?? ''} onBack={() => setScreen('settings')} onToast={showToast} />}
 
+        {/* Course en arrière-plan : un toucher ramène à son écran, où qu'on soit dans l'app. */}
+        {bandeauCourse && destination && driver && (
+          <button type="button" className={`course-retour${navVisible ? ' avec-nav' : ''}`} onClick={() => setScreen('tracking')} aria-label={`${t('cf_revenir')} · ${driver.name}`}>
+            <span className="course-retour-point" aria-hidden="true" />
+            <span className="course-retour-texte">
+              <strong>{t('cf_titre')}</strong>
+              <span>{tripPhase === 'enroute' ? `${driver.name} ${t('track_arrives')}`
+                : tripPhase === 'arrived' ? t(mode === 'delivery' ? 'del_picked' : 'track_arrived')
+                : `${t('track_dest')} · ${destination.name}`}</span>
+            </span>
+            {etatSuivi.nonLus > 0 && <b className="course-retour-badge" aria-label={`${etatSuivi.nonLus}`}>{etatSuivi.nonLus > 9 ? '9+' : etatSuivi.nonLus}</b>}
+            <IconChevron size={18} />
+          </button>
+        )}
         {/* Barre du bas : sur les quatre écrans racines seulement. */}
         {navVisible && <NavBas actif={screen as Onglet} nonLus={messagerie.actif ? messagerie.nonLus : 0} onAller={allerOnglet} />}
       </div>
@@ -2521,7 +2565,9 @@ function SearchingScreen({ origin, destination, mode = 'ride', test = false, onC
 }
 
 /* ----------------------------- Tracking ------------------------------ */
-function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, codeTest = null, pause = false, passager = null, commandePar = '', destinataire = null, trafic, onSos, onShare, onArrived, onCancel, onReassigned, onServerCancel, onMessage, messages, onAjouterArret, arretPropose = null, onArretTraite }: {
+function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, codeTest = null, pause = false, passager = null, commandePar = '', destinataire = null, trafic, onSos, onShare, onArrived, onCancel, onReassigned, onServerCancel, onMessage, messages, onAjouterArret, arretPropose = null, onArretTraite, visible = true, onReduire, onAttention, onEtat }: {
+  /** L'écran est à l'avant (sinon la course tourne en arrière-plan, écran caché). */
+  visible?: boolean; onReduire?: () => void; onAttention?: () => void; onEtat?: (e: { nonLus: number }) => void;
   /** Arrêt ajouté après la commande : ouvrir le choix du lieu, lieu choisi, fin (ajouté ou non). */
   onAjouterArret?: () => void; arretPropose?: Place | null; onArretTraite?: (p: Place | null) => void;
   origin: Place; destination: Place; driver: Driver; tier: TierOption; phase: TripPhase; mode?: 'ride' | 'delivery';
@@ -2553,6 +2599,10 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
   // Course en direct avec le chauffeur : chat, appel par internet, arrêts facturés, réponses à l'arrivée.
   const direct = useCourseLive({ rideId, moi: 'client', jeton: jetonClient, actif: live && Boolean(rideId) && phase !== 'completed', nomAutre: driver.name });
   const del = mode === 'delivery';
+  // Course en arrière-plan : le chauffeur appelle par internet → retour à l'écran de la course pour décrocher.
+  const appelEntrant = direct.appel?.etat === 'sonne' && direct.appel.de !== 'client';
+  useEffect(() => { if (!visible && appelEntrant) onAttention?.(); }, [visible, appelEntrant, onAttention]);
+  useEffect(() => { onEtat?.({ nonLus: direct.nonLus }); }, [direct.nonLus, onEtat]);
   // BOUTON « APPELER » : le numéro du chauffeur vient du serveur (aux seuls participants,
   // pendant la course). Le bouton est un vrai lien tel: : un toucher ouvre le clavier du
   // téléphone avec le numéro composé ; il ne reste qu'à appuyer sur la touche d'appel.
@@ -2674,7 +2724,7 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
   return (
     <div className="screen">
       <OrionMap origin={origin.location} destination={destination.location} stops={stops.map((s) => s.location)} car={carPos} vehicle={del ? 'moto' : 'car'} approche={phase === 'enroute'} />
-      <TopBar title={t('track_title')} right={messages ? <BoutonMessages nonLus={messages.nonLus} onClick={messages.ouvrir} /> : undefined} />
+      <TopBar onBack={onReduire} title={t('track_title')} right={messages ? <BoutonMessages nonLus={messages.nonLus} onClick={messages.ouvrir} /> : undefined} />
       <button className="sos" onClick={onSos} aria-label="SOS">SOS</button>
       <div style={{ flex: 1 }} />
       <Sheet>
@@ -2768,11 +2818,11 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
         </div>
 
         {/* Chat et appel par internet avec le chauffeur (sans unités). */}
-        <BoutonsCourse live={direct} />
+        <BoutonsCourse live={direct} variante="client" />
         <FenetreChat live={direct} moi="client" nomAutre={driver.name} rapides={phase === 'arrived'} />
         <EcranAppel live={direct} moi="client" nomAutre={driver.name} />
         <div className="row gap-sm">
-          <button className="btn btn-ghost" onClick={onShare}><IconShare size={18} /> {t('track_share')}</button>
+          <button className="btn btn-partager" onClick={onShare}><IconShare size={18} /> {t('track_share')}</button>
           {/* Un vrai lien « tel: » : c'est ce que le téléphone transmet le plus sûrement à son
               clavier d'appel. Sans serveur, le chauffeur est simulé : le lien porte un numéro
               fictif qui ne joint personne, et l'écran le dit. */}

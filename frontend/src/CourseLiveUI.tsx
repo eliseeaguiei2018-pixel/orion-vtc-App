@@ -55,7 +55,9 @@ const T = {
   demande: ['Arrêt demandé', 'Requested stop', 'Parada solicitada', 'Sosta richiesta', 'Gewünschter Stopp', 'توقف مطلوب', '临时停靠', 'Остановка по просьбе'],
   jeSuis: ['Je suis à l’arrêt : {nom}', 'I’m at the stop: {nom}', 'Estoy en la parada: {nom}', 'Sono alla fermata: {nom}', 'Ich bin am Stopp: {nom}', 'أنا في نقطة التوقف: {nom}', '已到停靠点：{nom}', 'Я на остановке: {nom}'],
   demandeClient: ['Arrêt demandé par le client', 'Stop requested by the customer', 'Parada pedida por el cliente', 'Sosta chiesta dal cliente', 'Stopp auf Kundenwunsch', 'توقف بطلب من العميل', '乘客要求停靠', 'Остановка по просьбе клиента'],
-  reprendre: ['Reprendre la course', 'Resume the ride', 'Reanudar el viaje', 'Riprendi la corsa', 'Fahrt fortsetzen', 'استئناف الرحلة', '继续行程', 'Продолжить поездку'],
+  reprendre: ['Continuer l’itinéraire', 'Continue the route', 'Continuar el itinerario', 'Continua l’itinerario', 'Route fortsetzen', 'متابعة المسار', '继续路线', 'Продолжить маршрут'],
+  ensuite: ['Ensuite : {nom}', 'Next: {nom}', 'Después: {nom}', 'Poi: {nom}', 'Danach: {nom}', 'التالي: {nom}', '下一站：{nom}', 'Далее: {nom}'],
+  laDestination: ['la destination', 'the destination', 'el destino', 'la destinazione', 'das Ziel', 'الوجهة', '目的地', 'пункт назначения'],
   ajoutes: ['Arrêts ajoutés au prix : {f}', 'Stops added to the price: {f}', 'Paradas sumadas al precio: {f}', 'Soste aggiunte al prezzo: {f}', 'Stopps zum Preis addiert: {f}', 'التوقفات المضافة إلى السعر: {f}', '停靠费已计入：{f}', 'Остановки в цене: {f}'],
   parMinute: ['Chaque minute d’arrêt : {f}', 'Each minute stopped: {f}', 'Cada minuto de parada: {f}', 'Ogni minuto di sosta: {f}', 'Jede Stoppminute: {f}', 'كل دقيقة توقف: {f}', '每停靠一分钟：{f}', 'Каждая минута остановки: {f}'],
   prevu: ['Arrêt prévu', 'Planned stop', 'Parada prevista', 'Sosta prevista', 'Geplanter Stopp', 'توقف مخطط', '计划停靠', 'Плановая остановка'],
@@ -280,12 +282,15 @@ function IconeAppel() {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z" /></svg>;
 }
 
-/** Deux boutons : chat (avec les messages non lus) et appel ORION par internet. */
-export function BoutonsCourse({ live }: { live: CourseLive }) {
+/**
+ * Deux boutons : chat (avec les messages non lus) et appel ORION par internet.
+ * App client : le chat est un bouton jaune en léger relief (`variante="client"`).
+ */
+export function BoutonsCourse({ live, variante }: { live: CourseLive; variante?: 'client' }) {
   if (!live.actif) return null;
   return (
     <div className="cl-boutons">
-      <button type="button" className="cl-bouton" onClick={live.ouvrirChat} aria-label={tx('chat')}>
+      <button type="button" className={`cl-bouton${variante === 'client' ? ' cl-chat-jaune' : ''}`} onClick={live.ouvrirChat} aria-label={tx('chat')}>
         <IconeChat /> {tx('chat')}
         {live.nonLus > 0 && <span className="cl-pastille" aria-label={`${live.nonLus}`}>{live.nonLus}</span>}
       </button>
@@ -410,7 +415,8 @@ function useCompteur(debut: string | null | undefined, tarif: number) {
 
 /**
  * Arrêts : côté chauffeur, les boutons (« Je suis à l'arrêt », « Arrêt demandé par le client »,
- * « Reprendre la course ») ; côté client, le compteur et le récapitulatif.
+ * « Continuer l'itinéraire », qui relance le guidage vers l'arrêt suivant ou la destination) ;
+ * côté client, le compteur et le récapitulatif.
  */
 export function PanneauArrets({ live, role, enCourse, position }: { live: CourseLive; role: Auteur; enCourse: boolean; position?: { lat: number; lng: number } | null }) {
   const r = live.arrets;
@@ -428,7 +434,13 @@ export function PanneauArrets({ live, role, enCourse, position }: { live: Course
           <span className="cl-arret-titre">{tx('enCours')} · {r.enCours.type === 'prevu' ? (r.enCours.nom ?? tx('prevu')) : tx('demande')}</span>
           <span className="cl-arret-compteur">{c?.temps}</span>
           <span className="cl-muet">{francs(c?.montant ?? 0)} · {tx('parMinute', { f: francs(r.tarifMin) })}</span>
-          {role === 'chauffeur' && <button type="button" className="cl-principal" disabled={live.occupe} onClick={() => void live.finArret()}>{tx('reprendre')}</button>}
+          {role === 'chauffeur' && (
+            <>
+              <button type="button" className="cl-principal" disabled={live.occupe} onClick={() => void live.finArret()}>{tx('reprendre')}</button>
+              {/* L'arrêt en cours est déjà marqué : la suite est l'arrêt suivant, sinon la destination. */}
+              <span className="cl-muet">{tx('ensuite', { nom: prochain?.nom ?? tx('laDestination') })}</span>
+            </>
+          )}
         </div>
       ) : role === 'chauffeur' && enCourse && (
         <div className="cl-arret-actions">

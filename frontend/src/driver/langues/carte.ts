@@ -2,6 +2,10 @@ import type { Ligne } from './index';
 
 /** ORION Pro comme GPS hors course : zones à forte demande, siège ORION, lieu ; arrêts ajoutés par le client. */
 export const CARTE: Ligne[] = [
+  ['Je suis à l’arrêt', 'I’m at the stop', 'Estoy en la parada', 'Sono alla fermata', 'أنا في نقطة التوقف', '已到停靠点', 'Ich bin am Stopp', 'Я на остановке'],
+  ['Itinéraire vers : {0}', 'Route to: {0}', 'Itinerario hacia: {0}', 'Itinerario verso: {0}', 'المسار نحو: {0}', '前往：{0}', 'Route nach: {0}', 'Маршрут к: {0}'],
+  ['la destination', 'the destination', 'el destino', 'la destinazione', 'الوجهة', '目的地', 'das Ziel', 'пункт назначения'],
+  ['le point de livraison', 'the delivery point', 'el punto de entrega', 'il punto di consegna', 'نقطة التسليم', '送达点', 'den Lieferort', 'пункт доставки'],
   ['Naviguer', 'Navigate', 'Navegar', 'Naviga', 'التنقل', '导航', 'Navigieren', 'Навигация'],
   ['Voir la carte', 'See the map', 'Ver el mapa', 'Vedi la mappa', 'عرض الخريطة', '查看地图', 'Karte ansehen', 'Открыть карту'],
   ['prix +{0} %', 'fares +{0}%', 'precio +{0} %', 'prezzo +{0}%', 'السعر +{0}٪', '价格 +{0}%', 'Preis +{0} %', 'цена +{0} %'],

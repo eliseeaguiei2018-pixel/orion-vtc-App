@@ -134,6 +134,18 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
     const a = direct.nouvelArret;
     if (a) void parler(tr('Le client a ajouté un arrêt : {0}', [a.nom]), localeCourante().replace('-u-nu-latn', ''));
   }, [direct.nouvelArret]);
+  // « CONTINUER L'ITINÉRAIRE » : l'arrêt se termine (ses minutes sont comptées) et le guidage
+  // repart vers la suite — l'arrêt suivant, sinon la destination. Le chauffeur l'entend.
+  const arretEnCours = direct.arrets?.enCours ?? null;
+  const arretAvant = useRef(arretEnCours?.id ?? null);
+  useEffect(() => {
+    const avant = arretAvant.current;
+    arretAvant.current = arretEnCours?.id ?? null;
+    if (!avant || arretEnCours || ride.status !== 'in_progress') return;
+    const suite = prochainArret?.nom ?? (ride.serviceType === 'delivery' ? tr('le point de livraison') : tr('la destination'));
+    void parler(tr('Itinéraire vers : {0}', [suite]), localeCourante().replace('-u-nu-latn', ''));
+    setDeplie(false);
+  }, [arretEnCours?.id, ride.status]);
   // La fiche se tire comme une vraie feuille : vers le haut pour l'ouvrir, vers le bas pour
   // la refermer, ou un simple toucher sur la poignée (toujours visible, même fiche défilée).
   const feuille = useGlisserFeuille(deplie, setDeplie);
@@ -169,10 +181,20 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
     : ride.status === 'driver_en_route'
       ? <button className="btn btn-primary" disabled={app.busy} onClick={() => t('arrived')}>{livraison ? tr('Je suis au point de retrait') : tr('Je suis arrivé')}</button>
       : ride.status === 'in_progress'
-        ? (remiseRequise
-          ? <button className="btn btn-primary" disabled={app.busy} onClick={() => setDeplie(true)}>{tr('Remettre le colis')}</button>
-          : <button className="btn btn-primary" disabled={app.busy} onClick={() => t('completed')}>{livraison ? tr('Colis livré') : tr('Terminer la course')}</button>)
+        // Arrêt en cours : le bouton « Continuer l'itinéraire » est dans le panneau des arrêts.
+        // Arrêt encore à rejoindre : le geste suivant est « Je suis à l'arrêt », pas la fin de course.
+        ? (arretEnCours ? null
+          : prochainArret && direct.actif
+            ? <button className="btn btn-primary" disabled={app.busy || direct.occupe} onClick={() => void direct.debutArret('prevu', prochainArret.index, app.position)}>{tr('Je suis à l’arrêt')}</button>
+            : remiseRequise
+              ? <button className="btn btn-primary" disabled={app.busy} onClick={() => setDeplie(true)}>{tr('Remettre le colis')}</button>
+              : <button className="btn btn-primary" disabled={app.busy} onClick={() => t('completed')}>{livraison ? tr('Colis livré') : tr('Terminer la course')}</button>)
         : null;
+  // Fiche dépliée : la fin de course reste possible pendant un arrêt ou avant le dernier arrêt
+  // (client qui renonce), mais en bouton discret, sous les gestes d'arrêt.
+  const finDiscrete = ride.status === 'in_progress' && !remiseRequise && (arretEnCours || (prochainArret && direct.actif))
+    ? <button className="btn btn-ghost" disabled={app.busy} onClick={() => t('completed')}>{livraison ? tr('Colis livré') : tr('Terminer la course')}</button>
+    : null;
 
   return (
     <div className={`dv-ride${reduite ? ' navigation' : ''}`}>
@@ -203,7 +225,7 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
             <span className="dv-poignee-fleche haut" aria-hidden="true"><IconChevronDown size={16} /></span>
           </button>
           <AvisNouvelArret live={direct} />
-          {/* Arrêt en cours : le compteur et « Reprendre la course » restent sous la main. */}
+          {/* Arrêt en cours : le compteur et « Continuer l'itinéraire » restent sous la main. */}
           {direct.arrets?.enCours && <PanneauArrets live={direct} role="chauffeur" enCourse position={app.position} />}
           <button type="button" className="dv-ride-resume" {...feuille.zone} onClick={feuille.toucher(() => setDeplie(true))} aria-expanded={false} aria-label={tr('Afficher les détails de la course')}>
             <span className="row between" style={{ width: '100%', gap: 12 }}>
@@ -298,7 +320,7 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
 
         {/* Chat et appel par internet avec le client (sans unités). */}
         <BoutonsCourse live={direct} />
-        {/* Arrêts : « Je suis à l'arrêt » (arrêt prévu), « Arrêt demandé par le client », reprise. */}
+        {/* Arrêts : « Je suis à l'arrêt » (arrêt prévu), « Arrêt demandé par le client », « Continuer l'itinéraire ». */}
         <PanneauArrets live={direct} role="chauffeur" enCourse={ride.status === 'in_progress'} position={app.position} />
         {ride.status === 'arrived' && (
           <div className="card" style={{ padding: 12 }}>
@@ -317,7 +339,7 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
         {ride.status === 'arrived' && !livraison && ride.codeRequis
           ? <SaisieCode app={app} rideId={ride.id} />
           : ride.status === 'arrived' && <button className="btn btn-primary" disabled={app.busy} onClick={() => { deverrouillerAudio(); t('in_progress'); }}>{livraison ? tr('Colis récupéré, je livre') : tr('Client à bord — démarrer')}</button>}
-        {ride.status === 'in_progress' && (remiseRequise ? <SaisieRemise app={app} rideId={ride.id} /> : boutonEtape)}
+        {ride.status === 'in_progress' && (remiseRequise ? <SaisieRemise app={app} rideId={ride.id} /> : (finDiscrete ?? boutonEtape))}
 
         {ride.status === 'completed' && totalDue === 0 && (
           <div className="col" style={{ gap: 10 }}>

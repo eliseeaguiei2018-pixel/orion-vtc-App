@@ -404,8 +404,10 @@ export function SettingsScreen({
 /* ============================== PARAMÈTRES ============================== */
 
 /** Apparence, langue, pays, et la fin du compte (déconnexion, suppression). */
-export function PreferencesScreen({ profil, onBack, onLogout, onDelete }: {
+export function PreferencesScreen({ profil, onBack, onLogout, onDelete, verrouCourse = false }: {
   profil: ProfilClient | null; onBack: () => void; onLogout: () => void; onDelete: () => void;
+  /** Une course est en cours : déconnexion et suppression du compte attendent sa fin. */
+  verrouCourse?: boolean;
 }) {
   const { t, lang, setLang } = useI18n();
   const [confirmerSuppression, setConfirmerSuppression] = useState(false);
@@ -448,9 +450,10 @@ export function PreferencesScreen({ profil, onBack, onLogout, onDelete }: {
         {profil && (
           <>
             <span className="eyebrow set-titre">{t('set_account')}</span>
-            <button className="btn btn-ghost" onClick={onLogout}>{t('set_logout')}</button>
+            {verrouCourse && <p className="faint set-verrou" role="note">{t('cf_deconnexion')}</p>}
+            <button className="btn btn-ghost" onClick={onLogout} aria-disabled={verrouCourse || undefined}>{t('set_logout')}</button>
             {!confirmerSuppression ? (
-              <button className="btn set-supprimer" onClick={() => setConfirmerSuppression(true)}>{t('set_delete')}</button>
+              <button className="btn set-supprimer" onClick={() => { if (verrouCourse) onDelete(); else setConfirmerSuppression(true); }} aria-disabled={verrouCourse || undefined}>{t('set_delete')}</button>
             ) : (
               <div className="card set-confirmation">
                 <p style={{ margin: '0 0 10px', fontSize: 13.5 }}>{t('set_delete_confirm')}</p>
