@@ -2,19 +2,7 @@
 appId: ci.orion.app
 ---
 - takeScreenshot: 00-icone-installee
-# Le client cherche l'app par son nom dans la recherche de l'iPhone, puis l'ouvre.
-- tapOn:
-    text: "Recherche"
-    optional: true
-- inputText:
-    text: "ORION"
-    optional: true
-- waitForAnimationToEnd
-- takeScreenshot: 00b-recherche-iphone
-- pressKey:
-    key: Enter
-    optional: true
-# Filet de sécurité : si la recherche n'a pas ouvert l'app, on l'ouvre comme iOS le ferait.
+# L'app est ouverte directement (la recherche Spotlight du simulateur bloquait le pilote).
 - launchApp:
     appId: ci.orion.app
     stopApp: false

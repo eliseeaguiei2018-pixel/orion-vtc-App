@@ -54,6 +54,31 @@ xcrun simctl install "$UDID" "$APP"
 jalon "App installée"
 sleep 4
 
+# Contrôle du démarrage : l'app s'ouvre-t-elle et affiche-t-elle sa première page ?
+# (lisible directement dans le journal de la CI, sans télécharger les artefacts)
+jalon "Contrôle du démarrage"
+xcrun simctl launch "$UDID" ci.orion.app || echo "(lancement refusé)"
+sleep 45
+echo "== Démarrage : textes visibles à l'écran"
+maestro hierarchy 2> /dev/null | python3 -c '
+import json, sys
+try: arbre = json.load(sys.stdin)
+except Exception: sys.exit("(hiérarchie illisible)")
+vus = []
+def parcourir(n):
+    a = n.get("attributes", {})
+    for k in ("text", "accessibilityText"):
+        v = (a.get(k) or "").strip()
+        if v and v not in vus: vus.append(v)
+    for e in n.get("children", []): parcourir(e)
+parcourir(arbre)
+print("\n".join(vus[:60]) or "(écran vide)")
+' || true
+echo "== Démarrage : messages de l'app (Capacitor, erreurs JavaScript)"
+xcrun simctl spawn "$UDID" log show --last 2m --style compact --predicate 'process == "App"' 2> /dev/null \
+  | grep -aE "⚡️|rror|xception|WebContent|CapacitorUpdater" | tail -n 60 || true
+xcrun simctl io "$UDID" screenshot "$SORTIE/demarrage.png" > /dev/null 2>&1 || true
+
 cd "$SORTIE/captures"
 jalon "Ouverture et inscription"
 maestro test "$RACINE/mobile/maestro/ios/02-ouvrir-et-inscrire.yaml"
