@@ -10,7 +10,7 @@ import {
 import type { SosSuivi } from '../api';
 import type {
   EtapeLocation, LocationChauffeur, MessagesChef, Poste, RequeteVue,
-  ActiveRide, Announcement, DemandCell, DriverConfig, DriverEvent, DriverProfile, Finance, LatLng,
+  ActiveRide, Announcement, CarteService, DemandCell, DriverConfig, DriverEvent, DriverProfile, Finance, LatLng, NiveauZone,
   LedgerEntry, RideHistory, RideStatus, RideView, Totals,
 } from './types';
 
@@ -883,5 +883,27 @@ export function createDemoBackend(): DriverBackend {
     demand: async (): Promise<DemandCell[]> => PLACES.slice(0, 6).map((p, i) => ({
       cell: `demo-${i}`, lat: p.lat, lng: p.lng, demand: 2 + ((i * 3) % 7), supply: 1 + (i % 3), surge: i % 3 === 0 ? 1.3 : 1,
     })),
+    voixEssai: async (genre: 'feminine' | 'masculine') => ({
+      voix: genre,
+      texte: genre === 'feminine'
+        ? 'Bonjour Monsieur Konan Yao, bienvenue à bord d’ORION. J’espère que votre journée se passe bien, et que vous passerez un excellent trajet avec votre chauffeur. Veuillez attacher votre ceinture de sécurité, même à l’arrière du véhicule. Merci d’avoir choisi ORION pour votre transport. Excellente journée, et que le Bon Dieu vous protège.'
+        : 'Bonsoir Madame Aya Kouassi, bienvenue à bord d’ORION. J’espère que votre soirée a bien débuté et que la journée s’est bien passée, et que vous passerez un excellent trajet avec votre chauffeur. Veuillez attacher votre ceinture de sécurité, même à l’arrière du véhicule. Merci d’avoir choisi ORION pour votre transport. Excellente soirée, et que le Bon Dieu vous protège.',
+    }),
+    // Démo : trois zones chaudes, deux habituelles et deux sièges, à distance réelle du véhicule.
+    carte: async (moi: LatLng): Promise<CarteService> => {
+      const d = (p: LatLng) => Math.round(haversine(moi, p));
+      const noms = ['Adjamé · Forum', 'Plateau · Cité administrative', 'Cocody · Saint-Jean', 'Yopougon · Siporex', 'Marcory · Zone 4'];
+      const niveaux: NiveauZone[] = ['forte', 'elevee', 'moderee'];
+      return {
+        zones: PLACES.slice(0, 3).map((p, i) => ({ id: `demo-z${i}`, lat: p.lat, lng: p.lng, niveau: niveaux[i]!, demande: 9 - i * 3, offre: 2, majorationPct: i === 0 ? 30 : i === 1 ? 30 : 0, nom: noms[i]!, distanceMeters: d(p) })),
+        prevues: PLACES.slice(3, 5).map((p, i) => ({ id: `demo-p${i}`, lat: p.lat, lng: p.lng, attendu: 3 - i, nom: noms[i + 3]!, distanceMeters: d(p) })),
+        bases: [
+          { id: 'demo-siege', nom: 'Siège ORION · Plateau', zone: 'Plateau', lat: 5.3236, lng: -4.0217, principale: true, distanceMeters: d({ lat: 5.3236, lng: -4.0217 }) },
+          { id: 'demo-yop', nom: 'Agence ORION · Yopougon', zone: 'Yopougon', lat: 5.3456, lng: -4.0864, distanceMeters: d({ lat: 5.3456, lng: -4.0864 }) },
+        ],
+        baseConseillee: 'demo-siege',
+        majLe: new Date().toISOString(),
+      };
+    },
   };
 }

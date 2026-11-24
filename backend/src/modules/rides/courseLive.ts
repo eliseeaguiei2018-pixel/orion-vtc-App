@@ -9,6 +9,7 @@ import { parse } from '../../core/validate.js';
 import { verifyClientToken } from '../clients/auth.js';
 import { driverTokenOf, verifyDriverToken } from '../driver-app/auth.js';
 import { rideRoom } from '../realtime/hub.js';
+import type { ServiceType } from '../services/types.js';
 import type { Ride } from './store.js';
 
 /**
@@ -58,9 +59,22 @@ export function minutesFacturees(debutMs: number, finMs: number): number {
   return s <= TOLERANCE_ARRET_S ? 0 : Math.ceil((s - TOLERANCE_ARRET_S) / 60);
 }
 
+/** Arrêt ajouté par le client après sa commande (avant la prise en charge ou en course). */
+export interface ArretAjoute {
+  index: number;
+  nom: string;
+  lieu: LatLng;
+  /** Détour facturé : prix du trajet avec l'arrêt moins prix sans (F CFA, jamais négatif). */
+  supplement: number;
+  at: string;
+}
+/** Au plus 5 arrêts sur un trajet (comme à la commande). */
+export const ARRETS_MAX = 5;
+
 type AvecLive = Ride & {
   arrets?: Arret[];
   nomsArrets?: string[];
+  arretsAjoutes?: ArretAjoute[];
   /** Espèces autorisées par le chauffeur quand le moyen choisi n'a pas fonctionné. */
   especes?: { autoriseLe: string; clientConfirmeLe?: string };
 };
@@ -73,17 +87,27 @@ export function resumeArrets(ride: Ride, tarifMin: number, maintenant = Date.now
   const minutes = finis.reduce((t, a) => t + (a.minutes ?? 0), 0);
   const montant = finis.reduce((t, a) => t + (a.montant ?? 0), 0);
   const minutesEnCours = enCours ? minutesFacturees(Date.parse(enCours.debut), maintenant) : 0;
+  const ajoutes = (ride as AvecLive).arretsAjoutes ?? [];
+  const supplementTrajet = ajoutes.reduce((t, a) => t + a.supplement, 0);
   return {
     tarifMin,
     arrets,
     enCours: enCours ? { ...enCours, minutes: minutesEnCours, montant: minutesEnCours * tarifMin } : null,
     minutes,
-    montant,
+    /** Minutes d'arrêt facturées + détours des arrêts ajoutés par le client. */
+    montant: montant + supplementTrajet,
+    montantMinutes: montant,
+    supplementTrajet,
+    ajoutes,
+    /** Prix fixe de la commande, et ce prix avec les détours ajoutés (hors minutes d'arrêt). */
+    prixCommande: ride.quote.amount,
+    prixAvecDetours: ride.quote.amount + supplementTrajet,
     /** Prévus au trajet : nom et s'ils ont été marqués. */
     prevus: ((ride.quote.stops ?? []) as LatLng[]).map((p, index) => ({
       index, lat: p.lat, lng: p.lng,
       nom: (ride as AvecLive).nomsArrets?.[index] ?? `Arrêt ${index + 1}`,
       fait: arrets.some((a) => a.type === 'prevu' && a.index === index),
+      ajoute: ajoutes.some((a) => a.index === index),
     })),
   };
 }
@@ -97,9 +121,28 @@ export function fermerArretEnCours(ride: Ride, tarifMin: number, at = Date.now()
   a.montant = a.minutes * tarifMin;
 }
 
-/** Montant des arrêts d'une course (arrêts terminés). */
+/** Montant des arrêts d'une course : minutes des arrêts terminés et détours des arrêts ajoutés par le client. */
 export function montantArrets(ride: Ride): number {
-  return ((ride as AvecLive).arrets ?? []).reduce((t, a) => t + (a.fin ? a.montant ?? 0 : 0), 0);
+  const minutes = ((ride as AvecLive).arrets ?? []).reduce((t, a) => t + (a.fin ? a.montant ?? 0 : 0), 0);
+  return minutes + ((ride as AvecLive).arretsAjoutes ?? []).reduce((t, a) => t + a.supplement, 0);
+}
+
+/**
+ * Détour d'un arrêt ajouté : prix du trajet passant par les arrêts `apres`, moins le prix par les
+ * arrêts `avant`, aux conditions du moment (gamme, assurance, itinéraire choisi). Les deux devis
+ * sont des aperçus : ils ne comptent pas comme des demandes (pas d'effet sur la majoration).
+ */
+export async function supplementDetour(container: Container, ride: Ride, avant: LatLng[], apres: LatLng[]): Promise<number> {
+  const service = container.registry.get((ride.serviceType === 'delivery' ? 'delivery' : 'ride') as ServiceType);
+  const base = {
+    origin: ride.origin, destination: ride.destination, category: ride.quote.category,
+    insurance: (ride.quote.breakdown?.insurance ?? 0) > 0,
+    ...(ride.quote.itineraire ? { itineraire: ride.quote.itineraire.choix } : {}),
+    ...(ride.quote.miseADisposition ? { miseADisposition: ride.quote.miseADisposition } : {}),
+    apercu: true,
+  };
+  const [sans, avec] = await Promise.all([service.estimate({ ...base, stops: avant }), service.estimate({ ...base, stops: apres })]);
+  return Math.max(0, Math.round(avec.amount - sans.amount));
 }
 
 export function especesAutorisees(ride: Ride): boolean {
@@ -241,6 +284,55 @@ export async function courseLiveRoutes(app: FastifyInstance, container: Containe
     ride.events.push({ type: 'arret_fin', at: a.fin!, payload: { arretId: a.id, minutes: a.minutes, montant: a.montant } });
     container.rides.persist(ride);
     publierArrets(ride);
+    return resumeArrets(ride, tarif());
+  });
+
+  /*
+   * ARRÊT AJOUTÉ PAR LE CLIENT, après la commande : avant la prise en charge ou en course.
+   * Il voit d'abord le supplément (aperçu), puis confirme ; le chauffeur est prévenu (message
+   * ORION dans le chat, notification) et son guidage passe par l'arrêt.
+   */
+  const ARRET_POSSIBLE = new Set(['accepted', 'driver_en_route', 'arrived', 'in_progress']);
+  const schemaArretClient = z.object({
+    position: z.object({ lat: z.number().min(4).max(11), lng: z.number().min(-9).max(-2) }),
+    nom: z.string().trim().min(1).max(80).optional(),
+  });
+  const preparerAjout = async (req: FastifyRequest) => {
+    const ride = course((req.params as { id: string }).id);
+    if (participant(req, ride) !== 'client') throw forbidden('Seul le client ajoute un arrêt à sa course');
+    if (!ARRET_POSSIBLE.has(ride.status)) throw conflict('La course n’accepte plus de nouvel arrêt');
+    const body = parse(schemaArretClient, req.body ?? {});
+    const avant = (ride.quote.stops ?? []) as LatLng[];
+    if (avant.length >= ARRETS_MAX) throw conflict(`Au plus ${ARRETS_MAX} arrêts sur un trajet`);
+    const apres = [...avant, body.position];
+    const supplement = await supplementDetour(container, ride, avant, apres);
+    return { ride, body, avant, apres, supplement };
+  };
+
+  app.post('/rides/:id/arrets/apercu', async (req) => {
+    const { ride, supplement } = await preparerAjout(req);
+    const r = resumeArrets(ride, tarif());
+    return { supplement, tarifMin: tarif(), prixAvant: r.prixAvecDetours, prixApres: r.prixAvecDetours + supplement };
+  });
+
+  app.post('/rides/:id/arrets/ajout', async (req) => {
+    const { ride, body, apres, supplement } = await preparerAjout(req);
+    const index = apres.length - 1;
+    const nom = body.nom ?? `Arrêt ${index + 1}`;
+    ride.quote.stops = apres;
+    // Les arrêts commandés sans nom gardent « Arrêt n » ; le nouveau prend sa place dans la liste.
+    const noms = [...(ride.nomsArrets ?? [])];
+    while (noms.length < index) noms.push(`Arrêt ${noms.length + 1}`);
+    noms[index] = nom;
+    ride.nomsArrets = noms.slice(0, 20);
+    const ajout: ArretAjoute = { index, nom, lieu: body.position, supplement, at: new Date().toISOString() };
+    ride.arretsAjoutes = [...(ride.arretsAjoutes ?? []), ajout];
+    ride.events.push({ type: 'arret_ajoute', at: ajout.at, payload: { index, nom, supplement, statut: ride.status } });
+    container.rides.persist(ride);
+    publier(ride, 'ride.arrets', { arrets: resumeArrets(ride, tarif()), nouvelArret: ajout });
+    ajouterMessage(ride, { de: 'orion', texte: supplement > 0
+      ? `Le client a ajouté un arrêt : ${nom}. Détour : +${supplement.toLocaleString('fr-FR').replace(/\u202f|\u00a0/g, ' ')} F ; chaque minute sur place est comptée.`
+      : `Le client a ajouté un arrêt : ${nom}. Chaque minute sur place est comptée.` });
     return resumeArrets(ride, tarif());
   });
 

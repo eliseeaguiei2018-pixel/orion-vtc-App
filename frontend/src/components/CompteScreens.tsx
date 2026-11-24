@@ -176,12 +176,34 @@ export function PhotoScreen({ profil, onDone }: { profil: ProfilClient | null; o
 
 /* ================================ PROFIL ================================ */
 
+/**
+ * CIVILITÉ : Monsieur ou Madame (facultatif). L'app du chauffeur accueille le client par sa
+ * civilité et son nom une fois à bord ; sans choix, ORION la déduit du prénom quand il le peut.
+ */
+export function ChoixCivilite({ valeur, onChange }: { valeur: 'M' | 'Mme' | null; onChange: (v: 'M' | 'Mme' | null) => void }) {
+  const { t } = useI18n();
+  return (
+    <div className="civilite" role="radiogroup" aria-label={t('civ_titre')}>
+      <span className="eyebrow">{t('civ_titre')}</span>
+      <div className="civilite-choix">
+        {(['M', 'Mme'] as const).map((c) => (
+          <button key={c} type="button" role="radio" aria-checked={valeur === c} className={`chip${valeur === c ? ' on' : ''}`} onClick={() => onChange(valeur === c ? null : c)}>
+            {t(c === 'M' ? 'civ_m' : 'civ_mme')}
+          </button>
+        ))}
+      </div>
+      <span className="civilite-aide">{t('civ_aide')}</span>
+    </div>
+  );
+}
+
 export function ProfileScreen({ profil, onBack, onSaved, onToast }: {
   profil: ProfilClient | null; onBack: () => void; onSaved: (p: ProfilClient) => void; onToast: (m: string, d?: boolean) => void;
 }) {
   const { t } = useI18n();
   const [name, setName] = useState(profil?.name ?? '');
   const [email, setEmail] = useState(profil?.email ?? '');
+  const [civilite, setCivilite] = useState<'M' | 'Mme' | null>(profil?.civilite ?? null);
   const [changerPhoto, setChangerPhoto] = useState(false);
   const [enCours, setEnCours] = useState(false);
 
@@ -197,7 +219,7 @@ export function ProfileScreen({ profil, onBack, onSaved, onToast }: {
     if (r.ok) onSaved(r.client); else onToast(r.error, true);
   };
   const enregistrer = async () => {
-    const r = await modifierProfil({ name: name.trim(), email: email.trim() });
+    const r = await modifierProfil({ name: name.trim(), email: email.trim(), civilite });
     if (r.ok) { onSaved(r.client); onToast(t('prof_saved')); onBack(); } else onToast(r.error, true);
   };
   return (
@@ -215,7 +237,8 @@ export function ProfileScreen({ profil, onBack, onSaved, onToast }: {
         </div>
         {changerPhoto && <PhotoCapture onPhoto={(d) => void photo(d)} enCours={enCours} />}
 
-        <span className="eyebrow" style={{ display: 'block', marginTop: 18 }}>{t('prof_name')}</span>
+        <div style={{ marginTop: 18 }}><ChoixCivilite valeur={civilite} onChange={setCivilite} /></div>
+        <span className="eyebrow" style={{ display: 'block', marginTop: 6 }}>{t('prof_name')}</span>
         <div className="field" style={{ margin: '8px 0 12px' }}><input value={name} onChange={(e) => setName(e.target.value)} /></div>
         <span className="eyebrow">{t('prof_email')}</span>
         <div className="field" style={{ margin: '8px 0 12px' }}><input type="email" inputMode="email" value={email} placeholder="nom@exemple.ci" onChange={(e) => setEmail(e.target.value)} /></div>

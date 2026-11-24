@@ -242,8 +242,9 @@ export function repondreLocal(chemin: string, init: RequestInit = {}): ReponseLo
     effacer('otp');
     const ancien = lire<Profil | null>('profil', null);
     const retrouve = Boolean(ancien && ancien.phone === phone);
-    const profil: Profil = retrouve ? { ...ancien!, name: (corps.name as string) || ancien!.name, email: (corps.email as string) || ancien!.email } : {
-      id: String(corps.clientId ?? id('client')), name: (corps.name as string) || null, phone, email: (corps.email as string) || null,
+    const civ = corps.civilite === 'M' || corps.civilite === 'Mme' ? corps.civilite : undefined;
+    const profil: Profil = retrouve ? { ...ancien!, name: (corps.name as string) || ancien!.name, email: (corps.email as string) || ancien!.email, ...(civ ? { civilite: civ } : {}) } : {
+      id: String(corps.clientId ?? id('client')), name: (corps.name as string) || null, phone, email: (corps.email as string) || null, ...(civ ? { civilite: civ } : {}),
       photo: null, phoneVerifiedAt: maintenant(), createdAt: maintenant(),
     };
     ecrire('profil', profil);
@@ -253,7 +254,8 @@ export function repondreLocal(chemin: string, init: RequestInit = {}): ReponseLo
     const p = lire<Profil | null>('profil', null);
     if (!p) return erreur(404, 'Aucun compte sur ce téléphone.');
     if (methode === 'PUT') {
-      const maj = { ...p, ...(typeof corps.name === 'string' ? { name: corps.name.trim() || p.name } : {}), ...(typeof corps.email === 'string' ? { email: corps.email.trim() || null } : {}) };
+      const maj = { ...p, ...(typeof corps.name === 'string' ? { name: corps.name.trim() || p.name } : {}), ...(typeof corps.email === 'string' ? { email: corps.email.trim() || null } : {}),
+        ...(corps.civilite === 'M' || corps.civilite === 'Mme' || corps.civilite === null ? { civilite: corps.civilite as 'M' | 'Mme' | null } : {}) };
       ecrire('profil', maj); return ok({ client: profilAvecStats(maj) });
     }
     return ok({ client: profilAvecStats(p) });

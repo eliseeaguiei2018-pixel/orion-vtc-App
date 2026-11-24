@@ -10,6 +10,7 @@ import { itineraire, type ItineraireRoute } from '../api';
 import { styleOrion } from './styleCarte';
 import { comblerCarte } from '../lieux';
 import { nomVoitureDessus, rendu } from './Vehicules';
+import { cleZones, elementZone, type ZoneCarte } from './zonesCarte';
 
 /**
  * VRAIE CARTE (MapLibre, données OpenStreetMap) : l'itinéraire suit les routes,
@@ -46,6 +47,9 @@ interface Props {
   moi?: LatLng | null;
   /** Péages de l'itinéraire choisi : mis en avant sur la carte. */
   peages?: { id: string }[];
+  /** ORION Pro hors course : zones à forte demande et sièges ORION (touchables). */
+  zones?: ZoneCarte[];
+  onZone?: (id: string) => void;
 }
 
 
@@ -97,7 +101,7 @@ const cap = (a: LatLng, b: LatLng) => {
   return (Math.atan2(y, x) * 180) / Math.PI;
 };
 
-export function CarteReelle({ origin, destination, stops = [], car, vehicle = 'car', approche = false, config, onEchec, basCouvert = 0.46, trace, ponts, suivi = false, libelleRecentrer = 'Recentrer', moi, peages }: Props) {
+export function CarteReelle({ origin, destination, stops = [], car, vehicle = 'car', approche = false, config, onEchec, basCouvert = 0.46, trace, ponts, suivi = false, libelleRecentrer = 'Recentrer', moi, peages, zones, onZone }: Props) {
   const { resolved, accent } = useTheme();
   const boite = useRef<HTMLDivElement>(null);
   const carte = useRef<CarteML | null>(null);
@@ -256,6 +260,33 @@ export function CarteReelle({ origin, destination, stops = [], car, vehicle = 'c
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prete, cleTrajet, origin.lat, origin.lng]);
+
+  // 6 ter. Zones à forte demande et sièges ORION (ORION Pro hors course) : touchables.
+  const surZone = useRef(onZone);
+  surZone.current = onZone;
+  const repZones = useRef<Marker[]>([]);
+  const cleZ = cleZones(zones);
+  useEffect(() => {
+    const m = carte.current;
+    repZones.current.forEach((x) => x.remove());
+    repZones.current = [];
+    if (!prete || !m || !zones?.length) return;
+    let annule = false;
+    void chargerML().then((ml) => {
+      if (annule) return;
+      repZones.current = zones.map((z) => new ml.Marker({ element: elementZone(z, (id) => surZone.current?.(id)) }).setLngLat([z.lng, z.lat]).addTo(m));
+      // Sans trajet à suivre : la carte s'ouvre assez large pour montrer le véhicule ET les zones.
+      if (!destination && !(trace && trace.length > 1) && !suivi) {
+        const pts = [origin, ...zones];
+        const lats = pts.map((p) => p.lat), lngs = pts.map((p) => p.lng);
+        const h = m.getContainer().clientHeight || 600;
+        m.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+          { padding: { top: 100, left: 110, right: 110, bottom: Math.round(h * basCouvert) + 60 }, duration: 0, maxZoom: 15 });
+      }
+    });
+    return () => { annule = true; repZones.current.forEach((x) => x.remove()); repZones.current = []; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prete, cleZ]);
 
   // 6 bis. Position réelle du client : un point bleu, sur lequel la carte se recentre.
   useEffect(() => {

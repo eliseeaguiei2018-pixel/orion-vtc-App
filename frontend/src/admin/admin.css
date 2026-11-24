@@ -824,3 +824,14 @@ html[data-adm-theme='light'] .adm-alarme .adm-btn.ghost { background: transparen
   background: var(--a-text); border: 2px solid var(--a-bg); box-shadow: 0 2px 6px rgba(0,0,0,.3); }
 .adm-sim-pin.dest::before { background: var(--a-danger); }
 .adm-sim-pin::after { content: ''; position: absolute; left: 8px; top: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--a-bg); }
+
+/* ORION Pro : sièges et voix de bord */
+.adm-orionpro { display: grid; gap: 16px; }
+.adm-orionpro .adm-table .adm-input { width: 100%; min-width: 110px; }
+.adm-orionpro-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+.adm-voix-moments td { vertical-align: top; }
+.adm-voix-texte { width: 100%; resize: vertical; font: inherit; line-height: 1.45; }
+.adm-voix-champ { display: grid; gap: 6px; margin-top: 12px; font-size: 13px; font-weight: 600; }
+.adm-voix-exemples { display: grid; gap: 10px; margin-top: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.adm-voix-exemple { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--a-stroke); background: var(--a-panel2); }
+.adm-voix-exemple p { margin: 6px 0 0; font-size: 13px; line-height: 1.5; }

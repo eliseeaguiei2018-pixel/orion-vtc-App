@@ -2401,3 +2401,40 @@ button.menu-texte { cursor: pointer; }
 .traf-ligne.fort { color: var(--text); font-weight: 500; }
 .dem-trafic { border: 1px solid var(--stroke); border-radius: 18px; padding: 12px 14px 2px; margin-bottom: 14px; }
 .dem-trafic .traf-ligne { margin: 0 0 10px; font-size: 14px; }
+
+/* ---- Zones de la carte de service (ORION Pro hors course) ---- */
+.carte-zone { position: relative; display: grid; place-items: center; width: 0; height: 0; padding: 0; border: 0; background: none; cursor: pointer; font: inherit; color: var(--text); }
+.carte-zone-halo { position: absolute; width: 92px; height: 92px; border-radius: 50%; transform: translate(-50%, -50%); left: 0; top: 0; pointer-events: auto; }
+.carte-zone.forte .carte-zone-halo { background: radial-gradient(circle, rgba(229, 72, 77, 0.42) 0%, rgba(229, 72, 77, 0.16) 58%, rgba(229, 72, 77, 0) 72%); }
+.carte-zone.elevee .carte-zone-halo { background: radial-gradient(circle, rgba(240, 140, 0, 0.4) 0%, rgba(240, 140, 0, 0.14) 58%, rgba(240, 140, 0, 0) 72%); width: 78px; height: 78px; }
+.carte-zone.moderee .carte-zone-halo { background: radial-gradient(circle, rgba(212, 170, 0, 0.34) 0%, rgba(212, 170, 0, 0.12) 58%, rgba(212, 170, 0, 0) 72%); width: 66px; height: 66px; }
+.carte-zone.prevue .carte-zone-halo { width: 60px; height: 60px; border: 1.5px dashed rgba(90, 96, 108, 0.7); background: rgba(90, 96, 108, 0.08); }
+.carte-zone.siege .carte-zone-halo { width: 44px; height: 44px; background: none; }
+.carte-zone-point { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); }
+.carte-zone.forte .carte-zone-point { background: #e5484d; }
+.carte-zone.elevee .carte-zone-point { background: #f08c00; }
+.carte-zone.moderee .carte-zone-point { background: #d4aa00; }
+.carte-zone.prevue .carte-zone-point { background: #5a606c; width: 10px; height: 10px; }
+.carte-zone.siege .carte-zone-point { width: 30px; height: 30px; border-radius: 10px; background: var(--bg-1, #fff); color: var(--text, #111); display: grid; place-items: center; border: 1.5px solid var(--text, #111); }
+.carte-zone-nom { position: absolute; left: 0; top: 14px; transform: translateX(-50%); white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis;
+  padding: 3px 8px; border-radius: 999px; background: var(--bg-1, #fff); color: var(--text, #111); font-size: 11.5px; font-weight: 600; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); }
+.carte-zone.siege .carte-zone-nom { top: 20px; }
+.carte-zone.choisie .carte-zone-nom { background: var(--text, #111); color: var(--bg-1, #fff); }
+.carte-zone:focus-visible .carte-zone-point { outline: 2px solid var(--text, #111); outline-offset: 3px; }
+html:not([data-ecran]) .carte-zone.forte .carte-zone-halo { animation: zone-pouls 2.4s ease-in-out infinite; }
+@keyframes zone-pouls { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) { .carte-zone .carte-zone-halo { animation: none !important; } }
+
+/* Civilité (inscription, profil) : deux choix, facultatifs. */
+.civilite { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.civilite-choix { display: flex; gap: 8px; }
+.civilite-choix .chip { min-height: 40px; padding-inline: 18px; }
+.civilite-choix .chip.on { background: var(--text); color: var(--bg-0); border-color: var(--text); }
+.civilite-aide { font-size: 12px; color: var(--text-dim); line-height: 1.4; }
+
+/* Suivi de course : ajouter un arrêt (avant la prise en charge ou en course). */
+.ajout-arret { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; margin: 0 0 12px; border-radius: 16px;
+  border: 1px solid var(--stroke); background: var(--bg-1); color: var(--text); font: inherit; text-align: start; cursor: pointer; }
+.ajout-arret strong { font-size: 14.5px; font-weight: 600; }
+.ajout-arret .faint { font-size: 12.5px; line-height: 1.35; }
+.ajout-arret:active { transform: scale(0.99); }

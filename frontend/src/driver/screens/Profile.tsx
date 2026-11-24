@@ -12,6 +12,8 @@ import { ConnecterEcranVehicule } from './Appairage';
 import { BlocBiometrie } from '../../components/CompteScreens';
 import { VERSION_APP } from '../../version';
 import { LienServeur } from './Serveur';
+import { Capacitor } from '@capacitor/core';
+import { derniereVoixAccueil, deverrouillerAudio, direAccueil, installerVoix, taire } from '../../voix';
 
 const PIPELINE: KycStatus[] = ['draft', 'docs_submitted', 'manual_review', 'active'];
 
@@ -168,6 +170,8 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
         <button className="btn btn-ghost" onClick={() => void app.actions.logout()} disabled={driver.availability === 'on_trip'}>{tr('Se déconnecter')}</button>
       </Section>
 
+      <VoixDeBord app={app} />
+
       <Section title={tr('Écran de véhicule')}>
         <div className="card" style={{ padding: 14, display: 'grid', gap: 10, fontSize: 13.5 }}>
           <div className="faint">{tr('Ouvrez l’app ORION Pro sur l’écran large de votre voiture (Android Automotive, écran du constructeur, tablette de bord) sans ressaisir vos identifiants.')}</div>
@@ -242,6 +246,43 @@ function PhotoChauffeur({ app, aUnePhoto }: { app: ScreenProps['app']; aUnePhoto
         </div>
       )}
       {aUnePhoto && !apercu && <button className="dv-pill" style={{ justifySelf: 'start' }} onClick={() => void app.actions.deletePhoto()}>{tr('Retirer ma photo')}</button>}
+    </Section>
+  );
+}
+
+/**
+ * VOIX DE BORD : le chauffeur écoute, avant sa première course, l'accueil que son téléphone dira
+ * au client (voix féminine pour un client, masculine pour une cliente), et installe au besoin les
+ * voix haute qualité du téléphone.
+ */
+function VoixDeBord({ app }: Pick<ScreenProps, 'app'>) {
+  const [occupe, setOccupe] = useState<'feminine' | 'masculine' | null>(null);
+  const [source, setSource] = useState<'google' | 'telephone' | null>(null);
+  const ecouter = async (genre: 'feminine' | 'masculine') => {
+    deverrouillerAudio();
+    if (occupe) { taire(); setOccupe(null); return; }
+    const m = await app.backend.voixEssai(genre);
+    if (!m) { app.showToast(tr('Serveur ORION injoignable : réessayez.'), 'danger'); return; }
+    setOccupe(genre);
+    try { await direAccueil(m.texte, m.voix, 'fr-FR'); setSource(derniereVoixAccueil); } finally { setOccupe(null); }
+  };
+  return (
+    <Section title={tr('Voix de bord')}>
+      <div className="card" style={{ padding: 14, display: 'grid', gap: 10, fontSize: 13.5 }}>
+        <span className="muted">{tr('Une fois le code du client validé, votre téléphone lui souhaite la bienvenue : voix féminine pour un client, masculine pour une cliente.')}</span>
+        <div className="dv-grid2">
+          <button type="button" className="btn btn-ghost" style={{ padding: 10 }} onClick={() => void ecouter('feminine')} disabled={occupe === 'masculine'}>
+            {occupe === 'feminine' ? tr('Arrêter') : tr('Écouter · voix féminine')}
+          </button>
+          <button type="button" className="btn btn-ghost" style={{ padding: 10 }} onClick={() => void ecouter('masculine')} disabled={occupe === 'feminine'}>
+            {occupe === 'masculine' ? tr('Arrêter') : tr('Écouter · voix masculine')}
+          </button>
+        </div>
+        {source && <span className="faint" style={{ fontSize: 12 }}>{source === 'google' ? tr('Voix neuronale Google (la plus naturelle).') : tr('Voix du téléphone. Pour une voix plus naturelle, installez les voix haute qualité.')}</span>}
+        {Capacitor.isNativePlatform() && (
+          <button type="button" className="dv-link" style={{ justifySelf: 'start' }} onClick={installerVoix}>{tr('Installer les voix haute qualité du téléphone')}</button>
+        )}
+      </div>
     </Section>
   );
 }

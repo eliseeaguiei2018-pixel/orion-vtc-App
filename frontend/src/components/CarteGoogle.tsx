@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { cleZones, elementZone, type ZoneCarte } from './zonesCarte';
 import type { LatLng } from '../types';
 import type { VehiculeProche } from '../api';
 import { useTheme } from '../theme';
@@ -41,6 +42,9 @@ interface Props {
   voisins?: VehiculeProche[];
   /** Clé refusée, API injoignable : l'appelant affiche la carte ORION. */
   onEchec: () => void;
+  /** ORION Pro hors course : zones à forte demande et sièges ORION (touchables). */
+  zones?: ZoneCarte[];
+  onZone?: (id: string) => void;
 }
 
 interface Repere { placer: (p: LatLng, angle?: number) => void; retirer: () => void }
@@ -229,7 +233,7 @@ export function GoogleIndisponible() {
   );
 }
 
-export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'car', approche = false, moi, trace, peages, basCouvert = 0.46, voisins, onEchec }: Props) {
+export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'car', approche = false, moi, trace, peages, basCouvert = 0.46, voisins, onEchec, zones, onZone }: Props) {
   const { resolved, accent } = useTheme();
   const { t, lang } = useI18n();
   const enveloppe = useRef<HTMLDivElement>(null);
@@ -412,6 +416,29 @@ export function CarteGoogle({ origin, destination, stops = [], car, vehicle = 'c
   }, [prete]);
   const clePeages = (peages ?? []).map((p) => p.id).join(',');
   useEffect(() => { couche.current?.actifs(clePeages ? clePeages.split(',') : []); }, [prete, clePeages]);
+
+  // 4 ter. Zones à forte demande et sièges ORION (ORION Pro hors course) : touchables.
+  const surZone = useRef(onZone);
+  surZone.current = onZone;
+  const repZones = useRef<Repere[]>([]);
+  const cleZ = cleZones(zones);
+  useEffect(() => {
+    const g = api.current; const m = carte.current;
+    repZones.current.forEach((r) => r.retirer());
+    repZones.current = [];
+    if (!prete || !g || !m || !zones?.length) return;
+    repZones.current = zones.map((z) => poserRepere(g, m, elementZone(z, (id) => surZone.current?.(id)), { lat: z.lat, lng: z.lng }));
+    // Sans trajet à suivre : la carte s'ouvre assez large pour montrer le véhicule ET les zones.
+    if (!destination && !(trace && trace.length > 1)) {
+      const bornes = new g.LatLngBounds();
+      bornes.extend(origin);
+      zones.forEach((z) => bornes.extend(z));
+      const h = m.getDiv().clientHeight || 600;
+      m.fitBounds(bornes, { top: 100, left: 110, right: 110, bottom: Math.round(h * basCouvert) + 60 });
+    }
+    return () => { repZones.current.forEach((r) => r.retirer()); repZones.current = []; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prete, cleZ]);
 
   // 5. Repères : départ, arrêts, arrivée.
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
+import type { ZoneCarte } from './zonesCarte';
 import type { LatLng } from '../types';
 import { rendu } from './Vehicules';
 import { useTheme, type Accent } from '../theme';
@@ -76,6 +77,9 @@ interface Props {
   suivi?: boolean;
   basCouvert?: number;
   libelleRecentrer?: string;
+  /** ORION Pro hors course : zones à forte demande, zones habituelles, sièges ORION. */
+  zones?: ZoneCarte[];
+  onZone?: (id: string) => void;
 }
 
 /** Itinéraire, départ et véhicule prennent la couleur choisie par le client. */
@@ -125,7 +129,7 @@ export function OrionMap(props: Props) {
   const seul = googleSeul();
   const gps = useContext(GpsCarte);
   const config = getVectorConfig();
-  const { origin, destination, stops, car, vehicle, approche, trace, ponts, suivi, basCouvert, libelleRecentrer, peages } = props;
+  const { origin, destination, stops, car, vehicle, approche, trace, ponts, suivi, basCouvert, libelleRecentrer, peages, zones, onZone } = props;
   // NAVIGATION GUIDÉE (app chauffeur, en course) : vue GPS comme Yango ou Waze — caméra derrière
   // le véhicule, carte inclinée et tournée dans le sens de la route, noms de rues lisibles.
   // La carte Google de l'application ne sait ni s'incliner ni tourner ; la vraie carte (MapLibre,
@@ -133,14 +137,14 @@ export function OrionMap(props: Props) {
   const navigationGps = Boolean(suivi && car && config && !repli);
   const carte = navigationGps
     ? <CarteReelle origin={origin} destination={destination} stops={stops} car={car} vehicle={vehicle} approche={approche} config={config!} onEchec={() => setRepli(true)}
-        trace={trace} ponts={ponts} suivi basCouvert={basCouvert} libelleRecentrer={libelleRecentrer} peages={peages} />
+        trace={trace} ponts={ponts} suivi basCouvert={basCouvert} libelleRecentrer={libelleRecentrer} peages={peages} zones={zones} onZone={onZone} />
     : fond === 'google' && !googleEchec && !(seul && refus)
     ? <CarteGoogle origin={origin} destination={destination} stops={stops} car={car} vehicle={vehicle} approche={approche} moi={gps?.moi} voisins={gps?.voisins}
-        trace={trace} peages={peages} basCouvert={basCouvert} onEchec={() => setGoogleEchec(true)} />
+        trace={trace} peages={peages} basCouvert={basCouvert} onEchec={() => setGoogleEchec(true)} zones={zones} onZone={onZone} />
     : seul ? <GoogleIndisponible />
     : config && !repli
       ? <CarteReelle origin={origin} destination={destination} stops={stops} car={car} vehicle={vehicle} approche={approche} config={config} onEchec={() => setRepli(true)}
-          trace={trace} ponts={ponts} suivi={suivi} basCouvert={basCouvert} libelleRecentrer={libelleRecentrer} moi={gps?.moi} peages={peages} />
+          trace={trace} ponts={ponts} suivi={suivi} basCouvert={basCouvert} libelleRecentrer={libelleRecentrer} moi={gps?.moi} peages={peages} zones={zones} onZone={onZone} />
       : <CarteStylisee {...props} />;
   return (
     <>

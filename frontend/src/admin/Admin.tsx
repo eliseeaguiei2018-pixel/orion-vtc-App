@@ -23,6 +23,7 @@ import { CaisseSection } from './sections/caisse';
 import { PosteEquipeSection } from './sections/posteequipe';
 import { TelematiqueSection } from './sections/telematique';
 import { SimulateurSection } from './sections/simulateur';
+import { OrionProSection } from './sections/orionPro';
 import { AnnuaireSection, ChangerMotDePasse } from './sections/annuaire';
 import type { AccountsStats, ActiveSession, Alert, Amortization, Announcement, AssistantSujet, CaisseConsolidation, CaisseEtat, CaisseReferentiel, CrewTableau, DossierEquipage, EquipageRow, PosteEquipe, RoleOption, StaffAccountRow, SuiviFlotte, AuditEntry, CashDebtor, ChurnReport, Client, ClientDetail, Conversation, ConversionCell, ContactJournal, ContactUrgence, CopilotAnswer, ExecutiveBoard, MonPoste, MouvementPage, SanteVigilance, CorporateAccount, CsatReport, Dispute, DriverDetail, DriverRow, ElasticityCell, ExpenseTicket, ExpiringDoc, Finance, FleetUnit, FraudReport, GatewayStatus, GreenReport, Liquidity, Macro, MaintenanceTicket, Me, OpsConfig, Overview, PageMeta, PredictCell, Pricing, PrestigeUnit, Promo, QualityRow, QualityTop, RentalAvailabilityRow, RentalRow, RentalStats, Reservation, RideForensic, RideRow, SearchResults, SecurityAttempt, ServicesConfig, ShadowPricing, Shift, SimResult, RentalTarifEtat, SosChat, SosDossier, SquadPnl, StaffKpi, Stats, SubInvoiceRow, SubPlanRow, SubStats, SubscriptionRow, SupportMsg, SupportStats, Team, Transfer, Triggers, Zone } from './types';
 import { ClientDrawer, DriverDrawer } from './ui';
@@ -222,7 +223,7 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /* ------------------------------ Navigation --------------------------- */
-type Section = 'monPoste' | 'simulateur' | 'posteEquipe' | 'crew' | 'caisses' | 'telematique' | 'comptes' | 'overview' | 'direction' | 'vigilance' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'primes' | 'clients' | 'support' | 'messagesClients' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles' | 'habilitations';
+type Section = 'monPoste' | 'simulateur' | 'orionPro' | 'posteEquipe' | 'crew' | 'caisses' | 'telematique' | 'comptes' | 'overview' | 'direction' | 'vigilance' | 'alerts' | 'rental' | 'rentalTarifs' | 'subscriptions' | 'rides' | 'drivers' | 'primes' | 'clients' | 'support' | 'messagesClients' | 'notify' | 'pricing' | 'zones' | 'promos' | 'finance' | 'treasury' | 'dispatch' | 'quality' | 'disputes' | 'green' | 'teams' | 'intel' | 'b2b' | 'services' | 'audit' | 'sessions' | 'security' | 'roles' | 'habilitations';
 const NAV: { id: Section; label: string; perm: string; icon: (p: { size?: number; strokeWidth?: number }) => React.JSX.Element }[] = [
   { id: 'monPoste', label: 'Mon poste', perm: '', icon: IconInbox },
   { id: 'posteEquipe', label: 'Mon équipe', perm: 'teams:read', icon: IconCompass },
@@ -257,6 +258,7 @@ const NAV: { id: Section; label: string; perm: string; icon: (p: { size?: number
   { id: 'zones', label: 'Zones & tarifs', perm: 'pricing:read', icon: IconMap },
   { id: 'promos', label: 'Codes promo', perm: 'promos:read', icon: IconTicket },
   { id: 'services', label: 'Services & ville', perm: 'services:read', icon: IconGrid },
+  { id: 'orionPro', label: 'ORION Pro : carte et voix', perm: 'services:read', icon: IconCompass },
   { id: 'audit', label: 'Journal', perm: 'audit:read', icon: IconFile },
   { id: 'sessions', label: 'Sessions actives', perm: 'sessions:read', icon: IconMonitor },
   { id: 'security', label: 'Alertes sécurité', perm: 'security:read', icon: IconAlert },
@@ -1874,6 +1876,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
           />
         )}
         {section === 'simulateur' && can('simulateur:use') && <SimulateurSection />}
+        {section === 'orionPro' && can('services:read') && <OrionProSection canWrite={can('services:write')} />}
         {section === 'telematique' && (
           <TelematiqueSection
             suivi={suiviFlotte}

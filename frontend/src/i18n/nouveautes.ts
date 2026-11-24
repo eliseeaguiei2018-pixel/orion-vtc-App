@@ -3010,6 +3010,33 @@ const TEXTES: Record<string, Huit> = {
     'Choisissez un début dans 20 minutes au moins.', 'Choose a start at least 20 minutes from now.', 'Elija un inicio dentro de 20 minutos como mínimo.', 'Scelga un inizio tra almeno 20 minuti.',
     'Wählen Sie einen Beginn in frühestens 20 Minuten.', 'اختر بداية بعد 20 دقيقة على الأقل.', '请选择至少 20 分钟后的开始时间。', 'Выберите начало не раньше чем через 20 минут.',
   ],
+  /* ------------------------- Civilité (accueil vocal à bord) ------------------------- */
+  civ_titre: ['Civilité', 'Title', 'Tratamiento', 'Titolo', 'Anrede', 'اللقب', '称谓', 'Обращение'],
+  civ_m: ['Monsieur', 'Mr', 'Señor', 'Signore', 'Herr', 'السيد', '先生', 'Господин'],
+  civ_mme: ['Madame', 'Mrs', 'Señora', 'Signora', 'Frau', 'السيدة', '女士', 'Госпожа'],
+  civ_aide: [
+    'À bord, votre chauffeur ORION vous accueille par votre nom : « Bonjour Monsieur… », « Bonsoir Madame… ».',
+    'On board, your ORION driver’s app welcomes you by name: “Good morning Mr…”, “Good evening Mrs…”.',
+    'A bordo, la app de su conductor ORION le recibe por su nombre: «Buenos días señor…», «Buenas noches señora…».',
+    'A bordo, l’app del tuo autista ORION ti accoglie per nome: «Buongiorno signore…», «Buonasera signora…».',
+    'An Bord begrüßt Sie die App Ihres ORION-Fahrers mit Namen: „Guten Tag Herr…“, „Guten Abend Frau…“.',
+    'على متن السيارة، يرحّب بك تطبيق سائق ORION باسمك: «صباح الخير سيدي…»، «مساء الخير سيدتي…».',
+    '上车后，ORION 司机的应用会称呼您的姓名致欢迎词：“先生，您好……”“女士，晚上好……”。',
+    'В салоне приложение водителя ORION приветствует вас по имени: «Здравствуйте, господин…», «Добрый вечер, госпожа…».',
+  ],
+  /* ------------------------- Arrêt ajouté pendant la course ------------------------- */
+  arr_ajouter: ['Ajouter un arrêt', 'Add a stop', 'Añadir una parada', 'Aggiungi una sosta', 'Stopp hinzufügen', 'إضافة توقف', '添加停靠点', 'Добавить остановку'],
+  arr_ajouter_d: [
+    'Votre chauffeur est prévenu ; le prix augmente du détour et des minutes d’arrêt.',
+    'Your driver is told; the price goes up by the detour and the minutes stopped.',
+    'Su conductor es avisado; el precio sube por el desvío y los minutos de parada.',
+    'Il tuo autista viene avvisato; il prezzo aumenta per la deviazione e i minuti di sosta.',
+    'Ihr Fahrer wird informiert; der Preis steigt um den Umweg und die Stoppminuten.',
+    'يُبلَّغ سائقك؛ ويرتفع السعر بقدر التحويل ودقائق التوقف.',
+    '司机会收到通知；价格将按绕行距离和停靠时长增加。',
+    'Водитель будет предупреждён; цена вырастет на крюк и минуты остановки.',
+  ],
+  arr_max: ['Au plus 5 arrêts sur un trajet.', 'At most 5 stops on a trip.', 'Como máximo 5 paradas por trayecto.', 'Al massimo 5 soste per tragitto.', 'Höchstens 5 Stopps pro Fahrt.', '5 توقفات كحد أقصى في الرحلة.', '每次行程最多 5 个停靠点。', 'Не более 5 остановок за поездку.'],
 };
 
 

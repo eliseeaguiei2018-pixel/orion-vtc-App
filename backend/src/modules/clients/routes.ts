@@ -33,7 +33,7 @@ function profil(c: Client, container: Container) {
   // annulées comprises : il affichait 4 courses à qui n'en avait fait que 2.
   const effectuees = container.rides.listByClient(c.id).filter((r) => TERMINEES.has(r.status)).length;
   return {
-    id: c.id, name: c.name ?? null, phone: c.phone ?? null, email: c.email ?? null,
+    id: c.id, name: c.name ?? null, civilite: c.civilite ?? null, phone: c.phone ?? null, email: c.email ?? null,
     photo: c.photo ?? null, phoneVerifiedAt: c.phoneVerifiedAt ?? null, createdAt: c.createdAt,
     stats: {
       courses: effectuees, commandes: c.rides, annulations: c.cancellations ?? 0, avertissements: c.warnings ?? 0,
@@ -85,6 +85,7 @@ export async function clientAccountRoutes(app: FastifyInstance, container: Conta
       code: z.string().min(4).max(8),
       name: z.string().trim().min(2).max(80).optional(),
       email: z.string().trim().email().max(120).optional(),
+      civilite: z.enum(['M', 'Mme']).optional(),
     }), req.body);
     const phone = normalizePhone(body.phone);
     if (!phone) throw badRequest('Numéro de téléphone invalide');
@@ -116,6 +117,7 @@ export async function clientAccountRoutes(app: FastifyInstance, container: Conta
       idToken: z.string().min(100).max(4096),
       name: z.string().trim().min(2).max(80).optional(),
       email: z.string().trim().email().max(120).optional(),
+      civilite: z.enum(['M', 'Mme']).optional(),
     }), req.body);
     let verifiee;
     try { verifiee = await identite.verifier(body.idToken); } catch (e) {
@@ -133,7 +135,7 @@ export async function clientAccountRoutes(app: FastifyInstance, container: Conta
   });
 
   /** Ouvre (ou crée) le compte du numéro vérifié et délivre le jeton de session ORION. */
-  function ouvrirSession(phone: string, body: { clientId: string; name?: string; email?: string }, existant: Client | undefined, preuve: 'sms-orion' | 'identity-platform' = 'sms-orion') {
+  function ouvrirSession(phone: string, body: { clientId: string; name?: string; email?: string; civilite?: 'M' | 'Mme' }, existant: Client | undefined, preuve: 'sms-orion' | 'identity-platform' = 'sms-orion') {
     if (existant?.status === 'blocked') throw forbidden('Ce compte est suspendu. Contactez le support ORION.');
     const now = new Date().toISOString();
     // Numéro déjà connu : le client retrouve SON compte (et son historique).
@@ -145,7 +147,7 @@ export async function clientAccountRoutes(app: FastifyInstance, container: Conta
       ? `client-${randomBytes(6).toString('hex')}` : body.clientId;
     const client = existant
       ? container.clients.updateProfile(existant.id, { phoneVerifiedAt: existant.phoneVerifiedAt ?? now })
-      : container.clients.updateProfile(idNeuf, { name: body.name, email: body.email, phone, phoneVerifiedAt: now });
+      : container.clients.updateProfile(idNeuf, { name: body.name, email: body.email, phone, phoneVerifiedAt: now, ...(body.civilite ? { civilite: body.civilite } : {}) });
     container.audit.log({
       actor: client.name ?? 'Client', role: 'super_admin', action: existant ? 'client.login' : 'client.signup',
       target: client.id, details: { phone: masquer(phone), preuve },
@@ -170,9 +172,12 @@ export async function clientAccountRoutes(app: FastifyInstance, container: Conta
     const body = parse(z.object({
       name: z.string().trim().min(2).max(80).optional(),
       email: z.union([z.string().trim().email().max(120), z.literal('')]).optional(),
+      // Civilité (accueil vocal à bord) ; null : ne pas préciser.
+      civilite: z.enum(['M', 'Mme']).nullable().optional(),
     }), req.body);
     const c = container.clients.updateProfile(clientId, {
       name: body.name, email: body.email === undefined ? undefined : (body.email || null),
+      ...(body.civilite !== undefined ? { civilite: body.civilite } : {}),
     });
     return { client: profil(c, container) };
   });

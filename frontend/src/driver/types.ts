@@ -235,6 +235,13 @@ export interface Announcement { id: string; title: string; body: string; at: str
 
 export interface DemandCell { cell: string; lat: number; lng: number; demand: number; supply: number; surge: number }
 
+/** CARTE DE SERVICE (hors course) : zones à forte demande, zones habituelles de l'heure, sièges ORION. */
+export type NiveauZone = 'forte' | 'elevee' | 'moderee';
+export interface ZoneDemande { id: string; lat: number; lng: number; niveau: NiveauZone; demande: number; offre: number; majorationPct: number; nom: string; distanceMeters: number | null }
+export interface ZonePrevue { id: string; lat: number; lng: number; attendu: number; nom: string; distanceMeters: number | null }
+export interface BaseOrion { id: string; nom: string; adresse?: string; zone?: string; lat: number; lng: number; telephone?: string; horaires?: string; principale?: boolean; distanceMeters: number | null }
+export interface CarteService { zones: ZoneDemande[]; prevues: ZonePrevue[]; bases: BaseOrion[]; baseConseillee: string | null; majLe: string }
+
 export interface Training { title: string; videoUrl: string; questions: { q: string; options: string[] }[]; passScore: number }
 
 export interface TrainingResult { score: number; total: number; passed: boolean; trained: boolean }

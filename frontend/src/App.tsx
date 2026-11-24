@@ -40,6 +40,7 @@ import { useI18n } from './i18n';
 import type { DetailTrafic, Driver, LatLng, Place, Quote, Screen, SubCoverage, SubPlan, SubPlanInfo, SubState, TierOption, WeddingDuration } from './types';
 import { MyRentalsScreen, RentalScreen } from './components/RentalScreens';
 import { ChoixLieu, iconeLieu, type ModeChoix } from './components/ChoixLieu';
+import { ChoixCivilite } from './components/CompteScreens';
 import { LIEUX_POPULAIRES, enregistrerLieu, lieuEnregistre, lieuxRecents, lirePositionGps, memoriserRecent, quartierDe, useDepart, type EtatPosition } from './lieux';
 import { AdressesScreen, CancelSheet, HistoryScreen, LegalScreen, PhotoScreen, PreferencesScreen, ProfileScreen, SecuriteScreen, SettingsScreen, SosHistoryScreen } from './components/CompteScreens';
 import { CarteFondScreen } from './components/CarteFondScreen';
@@ -48,7 +49,7 @@ import { prechaufferCarte } from './components/CarteGoogle';
 import { GpsCarte, type GpsCarteValeur } from './components/gpsCarte';
 import { relancerProches, useVehiculesProches } from './proches';
 import { LigneTrafic, PastilleDemande } from './demande';
-import { BoutonsCourse, EcranAppel, FenetreChat, PanneauArrets, ReponsesArrivee, relayerEvenementCourse, tx, useCourseLive } from './CourseLiveUI';
+import { AjoutArretClient, BoutonsCourse, EcranAppel, FenetreChat, PanneauArrets, ReponsesArrivee, relayerEvenementCourse, tx, useCourseLive } from './CourseLiveUI';
 
 /** Jeton de session du client (chat, appels, arrêts) : lu à chaque appel. */
 const jetonClient = (): string | null => { try { return localStorage.getItem('orion.clientSession'); } catch { return null; } };
@@ -178,6 +179,9 @@ export function App() {
   const [quote, setQuote] = useState<Quote | null>(null);
   /** Nom saisi à l'inscription — enregistré côté serveur après vérification du numéro. */
   const [clientName, setClientName] = useState('');
+  const [civilite, setCivilite] = useState<'M' | 'Mme' | null>(null);
+  /** Lieu choisi pour un arrêt ajouté après la commande (supplément à confirmer). */
+  const [arretPropose, setArretPropose] = useState<Place | null>(null);
   /*
    * COMPTE : le profil vérifié (nom, numéro, e-mail, photo). Conservé sur l'appareil
    * avec la session : on ne refait pas l'inscription à chaque ouverture de l'app.
@@ -488,6 +492,8 @@ export function App() {
     if (c.mode === 'destination') { chooseDestination(p); return; }
     if (c.mode === 'depart') { position.choisir(p); memoriserRecent(p); }
     else if (c.mode === 'livraison') { setDepotLivraison(p); memoriserRecent(p); }
+    // Arrêt ajouté pendant le suivi (chauffeur en route, arrivé, ou en course) : supplément à confirmer.
+    else if (c.mode === 'arret' && c.retour === 'tracking') { setArretPropose(p); memoriserRecent(p); }
     else if (c.mode === 'arret') { setStops((s) => (s.length < 3 ? [...s, p] : s)); memoriserRecent(p); }
     else { enregistrerLieu(c.mode === 'domicile' ? 'home' : 'work', p, t(c.mode === 'domicile' ? 'lieu_domicile' : 'lieu_bureau')); showToast(t('lieu_enregistre_ok')); }
     setScreen(c.retour);
@@ -799,7 +805,7 @@ export function App() {
     setScreen('otp');
   };
   const verifierNumero = async (code: string): Promise<string | null> => {
-    const r = await verifierCode(phone, code, clientName, email, canalCode);
+    const r = await verifierCode(phone, code, clientName, email, canalCode, civilite);
     if (!r.ok) return r.error;
     setProfil(r.client);
     if (r.compteRetrouve) showToast(t('welcome_back', { name: r.client.name ?? '' }));
@@ -965,7 +971,7 @@ export function App() {
 
         {screen === 'splash' && <Splash onDone={() => setScreen(profil ? 'home' : 'onboarding')} />}
         {screen === 'onboarding' && <Onboarding onStart={() => setScreen('auth')} onLang={() => { setRetourPreferences('onboarding'); setScreen('preferences'); }} />}
-        {screen === 'auth' && <AuthScreen phone={phone} setPhone={setPhone} name={clientName} setName={setClientName} email={email} setEmail={setEmail} erreur={erreurInscription} onBack={() => setScreen('onboarding')} onNext={() => void envoyerCode('sms')} onWhatsApp={appConfig?.codeWhatsApp ? () => void envoyerCode('whatsapp') : undefined} />}
+        {screen === 'auth' && <AuthScreen phone={phone} setPhone={setPhone} name={clientName} setName={setClientName} civilite={civilite} setCivilite={setCivilite} email={email} setEmail={setEmail} erreur={erreurInscription} onBack={() => setScreen('onboarding')} onNext={() => void envoyerCode('sms')} onWhatsApp={appConfig?.codeWhatsApp ? () => void envoyerCode('whatsapp') : undefined} />}
         {screen === 'otp' && (
           <OtpScreen
             phone={phone}
@@ -1064,6 +1070,8 @@ export function App() {
         {screen === 'tracking' && destination && driver && (
           <TrackingScreen onMessage={messagerie.recevoir} messages={messagerie.actif ? { nonLus: messagerie.nonLus, ouvrir: () => { setRetourMessages('tracking'); setScreen('messages'); } } : undefined} origin={origin} destination={destination} driver={driver} tier={tier} phase={tripPhase} mode={mode}
             carPos={carPos} setCarPos={setCarPos} setPhase={setTripPhase} live={live} rideId={rideId} stops={stops} codeTest={busId ? busCode : null}
+            onAjouterArret={() => ouvrirChoix('arret', 'tracking')} arretPropose={arretPropose}
+            onArretTraite={(p) => { if (p) { setStops((s) => [...s, p]); showToast(tx('arretAjouteOk')); } setArretPropose(null); }}
             passager={passager} commandePar={profil?.name ?? ''} destinataire={mode === 'delivery' ? livraison?.destinataire ?? null : null} trafic={quote?.trafficLevel}
             pause={controleOuvert || (sosOuvert && modeLocal())}
             onSos={triggerSos} onShare={() => void partagerTrajet()} onArrived={() => setScreen('payment')}
@@ -1547,9 +1555,10 @@ const fermerClavierHorsFeuille = (e: React.PointerEvent) => {
   if (actif instanceof HTMLInputElement || actif instanceof HTMLTextAreaElement) actif.blur();
 };
 
-function AuthScreen({ phone, setPhone, name, setName, email, setEmail, erreur, onBack, onNext, onWhatsApp }: {
+function AuthScreen({ phone, setPhone, name, setName, civilite, setCivilite, email, setEmail, erreur, onBack, onNext, onWhatsApp }: {
   phone: string; setPhone: (v: string) => void;
   name: string; setName: (v: string) => void;
+  civilite: 'M' | 'Mme' | null; setCivilite: (v: 'M' | 'Mme' | null) => void;
   email: string; setEmail: (v: string) => void; erreur: string | null;
   onBack: () => void; onNext: () => void;
   /** Absent : le serveur n'envoie pas de code par WhatsApp, le bouton n'est pas proposé. */
@@ -1579,6 +1588,7 @@ function AuthScreen({ phone, setPhone, name, setName, email, setEmail, erreur, o
         <div style={{ marginBottom: 12 }}><LogoApp size={60} /></div>
         <h2 className="h-title">{t('reg_title')}</h2>
         <p className="h-sub" style={{ marginBottom: 16 }}>{t('reg_subtitle')}</p>
+        <ChoixCivilite valeur={civilite} onChange={setCivilite} />
         <div className="field" style={{ marginBottom: 10 }}>
           <input aria-label={t('reg_name')} autoComplete="name" enterKeyHint="next" onKeyDown={suivant(telRef)} placeholder={t('reg_name')} value={name} onChange={(e) => setName(e.target.value)} />
         </div>
@@ -2511,7 +2521,9 @@ function SearchingScreen({ origin, destination, mode = 'ride', test = false, onC
 }
 
 /* ----------------------------- Tracking ------------------------------ */
-function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, codeTest = null, pause = false, passager = null, commandePar = '', destinataire = null, trafic, onSos, onShare, onArrived, onCancel, onReassigned, onServerCancel, onMessage, messages }: {
+function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride', carPos, setCarPos, setPhase, live, rideId, stops, codeTest = null, pause = false, passager = null, commandePar = '', destinataire = null, trafic, onSos, onShare, onArrived, onCancel, onReassigned, onServerCancel, onMessage, messages, onAjouterArret, arretPropose = null, onArretTraite }: {
+  /** Arrêt ajouté après la commande : ouvrir le choix du lieu, lieu choisi, fin (ajouté ou non). */
+  onAjouterArret?: () => void; arretPropose?: Place | null; onArretTraite?: (p: Place | null) => void;
   origin: Place; destination: Place; driver: Driver; tier: TierOption; phase: TripPhase; mode?: 'ride' | 'delivery';
   /** Livraison : la personne qui reçoit le colis (le code de remise lui est envoyé par SMS). */
   destinataire?: { nom: string; telephone: string } | null;
@@ -2712,6 +2724,20 @@ function TrackingScreen({ origin, destination, driver, tier, phase, mode = 'ride
         {phase === 'arrived' && !del && <ReponsesArrivee live={direct} />}
         {/* Arrêts en course : compteur de l'arrêt en cours et récapitulatif (100 F la minute). */}
         <PanneauArrets live={direct} role="client" enCourse={phase === 'inprogress'} />
+        {/* AJOUTER UN ARRÊT après la commande (chauffeur en route, arrivé, ou en course) : le prix
+            monte du détour et des minutes sur place ; le chauffeur est prévenu. */}
+        {!del && direct.actif && onAjouterArret && phase !== 'completed' && (
+          (direct.arrets?.prevus.length ?? stops.length) < 5
+            ? <button type="button" className="ajout-arret" onClick={onAjouterArret}>
+                <span className="list-ico" aria-hidden="true"><IconPlus size={18} /></span>
+                <span className="col grow" style={{ minWidth: 0, alignItems: 'flex-start' }}><strong>{t('arr_ajouter')}</strong><span className="faint">{t('arr_ajouter_d')}</span></span>
+                <IconChevron size={18} />
+              </button>
+            : <p className="faint" style={{ fontSize: 12.5, margin: '0 0 10px' }}>{t('arr_max')}</p>
+        )}
+        {arretPropose && direct.actif && (
+          <AjoutArretClient live={direct} lieu={{ nom: arretPropose.name, lat: arretPropose.location.lat, lng: arretPropose.location.lng }} onFini={(ok) => onArretTraite?.(ok ? arretPropose : null)} />
+        )}
         {/* Fiche chauffeur : photo, nom & prénom, note, matricule ORION */}
         <div className="card" style={{ padding: 14, marginBottom: 12 }}>
           <div className="row">

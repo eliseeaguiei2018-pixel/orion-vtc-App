@@ -14,6 +14,7 @@ import { Green } from './screens/Green';
 import { Profile } from './screens/Profile';
 import { OfferSheet } from './screens/Offer';
 import { RideScreen, SettledModal } from './screens/Ride';
+import { Naviguer } from './screens/Naviguer';
 import { Poste } from './screens/Poste';
 import { SosLive, SosPill } from './screens/SosLive';
 import { tr, useLangueChauffeur } from './i18n';
@@ -108,16 +109,20 @@ function Shell({ app, vehicule = false }: { app: DriverApp; vehicule?: boolean }
   }, [tab]);
   const [noticesOpen, setNoticesOpen] = useState(false);
   const [seen, setSeen] = useState(0);
+  // GPS hors course : zones à forte demande, siège ORION, lieu (le guidage reste actif en fond).
+  const [naviguer, setNaviguer] = useState(false);
+  useEffect(() => { if (app.navLibre) setNaviguer(true); }, [app.navLibre]);
 
-  // App native Android (ORION Pro) : le bouton retour ferme les notifications, revient
-  // à l'accueil, puis met l'app en arrière-plan — jamais de sortie en pleine course.
-  const etatRetour = useRef({ tab, noticesOpen });
-  etatRetour.current = { tab, noticesOpen };
+  // App native Android (ORION Pro) : le bouton retour ferme les notifications et la carte GPS,
+  // revient à l'accueil, puis met l'app en arrière-plan — jamais de sortie en pleine course.
+  const etatRetour = useRef({ tab, noticesOpen, naviguer });
+  etatRetour.current = { tab, noticesOpen, naviguer };
   useEffect(() => {
     if (Capacitor.getPlatform() !== 'android') return;
     const ecoute = AppNative.addListener('backButton', () => {
       const e = etatRetour.current;
       if (e.noticesOpen) { setNoticesOpen(false); return; }
+      if (e.naviguer) { setNaviguer(false); return; }
       if (e.tab !== 'home') { setTabBrut('home'); return; }
       void AppNative.minimizeApp();
     });
@@ -153,7 +158,7 @@ function Shell({ app, vehicule = false }: { app: DriverApp; vehicule?: boolean }
 
   return (
     <div className="dv-app">
-      {tab === 'home' && <Home {...common} onTab={setTab} />}
+      {tab === 'home' && <Home {...common} onTab={setTab} onNaviguer={() => setNaviguer(true)} />}
       {tab === 'rides' && <Rides {...common} />}
       {tab === 'activite' && <Activite {...common} />}
       {tab === 'prime' && <Prime {...common} />}
@@ -165,6 +170,7 @@ function Shell({ app, vehicule = false }: { app: DriverApp; vehicule?: boolean }
         rides: app.rentals.some((r) => r.status === 'confirmee' && Date.parse(r.debut) - Date.now() < 86_400_000),
       }} />
 
+      {naviguer && !(ride && !ride.offer) && <Naviguer app={app} onClose={() => setNaviguer(false)} />}
       {ride && !ride.offer && <RideScreen app={app} ride={ride} />}
       {ride?.offer && <OfferSheet app={app} ride={ride} />}
       {app.settled && <SettledModal app={app} />}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { createPortal } from 'react-dom';
-import { connexionCourse, ErreurCourse, LiaisonVocale, microDisponible, type Auteur, type EtatAppel, type MessageChat, type ResumeArrets } from './courseLive';
+import { connexionCourse, ErreurCourse, LiaisonVocale, microDisponible, type ApercuArret, type ArretAjoute, type Auteur, type EtatAppel, type MessageChat, type ResumeArrets } from './courseLive';
 import { prevenir } from './arrierePlan';
 import './courseLive.css';
 
@@ -62,6 +62,20 @@ const T = {
   autoriser: ['Autoriser l’espèce au client', 'Allow the customer to pay cash', 'Autorizar efectivo al cliente', 'Consenti il contante al cliente', 'Barzahlung erlauben', 'السماح للعميل بالدفع نقدًا', '允许乘客付现金', 'Разрешить клиенту наличные'],
   autorisees: ['Espèces autorisées : le client peut payer en espèces.', 'Cash allowed: the customer can pay in cash.', 'Efectivo autorizado: el cliente puede pagar en efectivo.', 'Contante consentito: il cliente può pagare in contanti.', 'Barzahlung erlaubt: Der Kunde kann bar zahlen.', 'تم السماح بالدفع نقدًا: يمكن للعميل الدفع نقدًا.', '已允许现金：乘客可以付现金。', 'Наличные разрешены: клиент может заплатить наличными.'],
   clientEspeces: ['Le client confirme payer en espèces : encaissez puis confirmez.', 'The customer confirms paying cash: collect it, then confirm.', 'El cliente confirma pagar en efectivo: cobre y confirme.', 'Il cliente conferma di pagare in contanti: incassa e conferma.', 'Der Kunde zahlt bar: kassieren und bestätigen.', 'أكد العميل الدفع نقدًا: استلم المبلغ ثم أكد.', '乘客确认付现金：收款后请确认。', 'Клиент платит наличными: получите и подтвердите.'],
+  ajouterArret: ['Ajouter un arrêt', 'Add a stop', 'Añadir una parada', 'Aggiungi una sosta', 'Stopp hinzufügen', 'إضافة توقف', '添加停靠点', 'Добавить остановку'],
+  arretVers: ['Arrêt : {nom}', 'Stop: {nom}', 'Parada: {nom}', 'Sosta: {nom}', 'Stopp: {nom}', 'توقف: {nom}', '停靠点：{nom}', 'Остановка: {nom}'],
+  calcul: ['Calcul du supplément…', 'Working out the extra cost…', 'Calculando el suplemento…', 'Calcolo del supplemento…', 'Aufpreis wird berechnet…', 'جارٍ حساب الرسوم الإضافية…', '正在计算附加费…', 'Считаем доплату…'],
+  apercuTexte: ['Votre chauffeur passera par cet arrêt. Le détour ajoute {f} au prix ; chaque minute d’attente sur place coûte {m} (15 s offertes).', 'Your driver will go via this stop. The detour adds {f} to the price; each minute waiting there costs {m} (first 15 s free).', 'Su conductor pasará por esta parada. El desvío suma {f} al precio; cada minuto de espera allí cuesta {m} (15 s gratis).', 'Il tuo autista passerà da questa sosta. La deviazione aggiunge {f} al prezzo; ogni minuto di attesa costa {m} (15 s gratis).', 'Ihr Fahrer fährt über diesen Stopp. Der Umweg kostet {f} mehr; jede Wartezeitminute dort kostet {m} (15 s frei).', 'سيمر سائقك بهذا التوقف. يضيف التحويل {f} إلى السعر؛ وكل دقيقة انتظار هناك تكلف {m} (أول 15 ثانية مجانًا).', '司机将途经此停靠点。绕行加价 {f}；在该处每等待一分钟收费 {m}（前 15 秒免费）。', 'Водитель заедет на эту остановку. Крюк добавит {f} к цене; каждая минута ожидания стоит {m} (15 с бесплатно).'],
+  sansDetour: ['Pas de détour : le prix ne change pas ; chaque minute d’attente sur place coûte {m} (15 s offertes).', 'No detour: the price stays the same; each minute waiting there costs {m} (first 15 s free).', 'Sin desvío: el precio no cambia; cada minuto de espera allí cuesta {m} (15 s gratis).', 'Nessuna deviazione: il prezzo non cambia; ogni minuto di attesa costa {m} (15 s gratis).', 'Kein Umweg: Der Preis bleibt; jede Wartezeitminute dort kostet {m} (15 s frei).', 'لا يوجد تحويل: السعر لا يتغير؛ وكل دقيقة انتظار هناك تكلف {m} (أول 15 ثانية مجانًا).', '无需绕行：价格不变；在该处每等待一分钟收费 {m}（前 15 秒免费）。', 'Без крюка: цена прежняя; каждая минута ожидания стоит {m} (15 с бесплатно).'],
+  nouveauPrix: ['Nouveau prix : {f}', 'New price: {f}', 'Nuevo precio: {f}', 'Nuovo prezzo: {f}', 'Neuer Preis: {f}', 'السعر الجديد: {f}', '新价格：{f}', 'Новая цена: {f}'],
+  confirmerArret: ['Ajouter l’arrêt · +{f}', 'Add the stop · +{f}', 'Añadir la parada · +{f}', 'Aggiungi la sosta · +{f}', 'Stopp hinzufügen · +{f}', 'إضافة التوقف · +{f}', '添加停靠点 · +{f}', 'Добавить остановку · +{f}'],
+  annuler: ['Annuler', 'Cancel', 'Cancelar', 'Annulla', 'Abbrechen', 'إلغاء', '取消', 'Отмена'],
+  arretAjouteOk: ['Arrêt ajouté : votre chauffeur est prévenu.', 'Stop added: your driver has been told.', 'Parada añadida: su conductor está avisado.', 'Sosta aggiunta: il tuo autista è stato avvisato.', 'Stopp hinzugefügt: Ihr Fahrer ist informiert.', 'أُضيف التوقف: تم إخطار سائقك.', '已添加停靠点，已通知司机。', 'Остановка добавлена: водитель предупреждён.'],
+  nouvelArret: ['Le client a ajouté un arrêt : {nom}', 'The customer added a stop: {nom}', 'El cliente añadió una parada: {nom}', 'Il cliente ha aggiunto una sosta: {nom}', 'Der Kunde hat einen Stopp hinzugefügt: {nom}', 'أضاف العميل توقفًا: {nom}', '乘客添加了停靠点：{nom}', 'Клиент добавил остановку: {nom}'],
+  detour: ['Détour : +{f} · le guidage passe par l’arrêt', 'Detour: +{f} · guidance goes via the stop', 'Desvío: +{f} · la guía pasa por la parada', 'Deviazione: +{f} · la guida passa dalla sosta', 'Umweg: +{f} · die Navigation führt über den Stopp', 'التحويل: +{f} · يمر التوجيه بالتوقف', '绕行：+{f} · 导航将途经该点', 'Крюк: +{f} · маршрут через остановку'],
+  orionArret: ['Le client a ajouté un arrêt : {nom}. Chaque minute sur place est comptée.', 'The customer added a stop: {nom}. Each minute there is counted.', 'El cliente añadió una parada: {nom}. Cada minuto allí se cobra.', 'Il cliente ha aggiunto una sosta: {nom}. Ogni minuto lì viene conteggiato.', 'Der Kunde hat einen Stopp hinzugefügt: {nom}. Jede Minute dort zählt.', 'أضاف العميل توقفًا: {nom}. تُحتسب كل دقيقة هناك.', '乘客添加了停靠点：{nom}。在该处的每分钟都会计费。', 'Клиент добавил остановку: {nom}. Каждая минута там учитывается.'],
+  orionArretDetour: ['Le client a ajouté un arrêt : {nom}. Détour : +{f} ; chaque minute sur place est comptée.', 'The customer added a stop: {nom}. Detour: +{f}; each minute there is counted.', 'El cliente añadió una parada: {nom}. Desvío: +{f}; cada minuto allí se cobra.', 'Il cliente ha aggiunto una sosta: {nom}. Deviazione: +{f}; ogni minuto lì viene conteggiato.', 'Der Kunde hat einen Stopp hinzugefügt: {nom}. Umweg: +{f}; jede Minute dort zählt.', 'أضاف العميل توقفًا: {nom}. التحويل: +{f}؛ تُحتسب كل دقيقة هناك.', '乘客添加了停靠点：{nom}。绕行：+{f}；在该处的每分钟都会计费。', 'Клиент добавил остановку: {nom}. Крюк: +{f}; каждая минута там учитывается.'],
+  detourLigne: ['Détour vers {nom}', 'Detour to {nom}', 'Desvío a {nom}', 'Deviazione verso {nom}', 'Umweg zu {nom}', 'تحويل إلى {nom}', '绕行至 {nom}', 'Крюк к {nom}'],
   autoriseClient: ['Votre chauffeur autorise le paiement en espèces.', 'Your driver allows payment in cash.', 'Su conductor autoriza el pago en efectivo.', 'Il tuo autista consente il pagamento in contanti.', 'Ihr Fahrer erlaubt Barzahlung.', 'يسمح سائقك بالدفع نقدًا.', '您的司机允许现金支付。', 'Водитель разрешает оплату наличными.'],
 } satisfies Record<string, Huit>;
 type Cle = keyof typeof T;
@@ -84,6 +98,8 @@ const minutesFacturees = (ms: number) => { const s = ms / 1000; return s <= 15 ?
 function texteMessage(m: MessageChat): string {
   if (m.rapide) return tx(m.rapide);
   if (m.de === 'orion' && m.texte.startsWith('Votre chauffeur est arrivé')) return tx('orionArrive');
+  const ajout = m.de === 'orion' ? /^Le client a ajouté un arrêt : (.+?)\. (?:Détour : \+(.+?) F ; )?[Cc]haque minute/.exec(m.texte) : null;
+  if (ajout) return ajout[2] ? tx('orionArretDetour', { nom: ajout[1]!, f: `${ajout[2]} F` }) : tx('orionArret', { nom: ajout[1]! });
   return m.texte;
 }
 
@@ -100,6 +116,8 @@ export function useCourseLive(o: { rideId: string | null; moi: Auteur; jeton: ()
   const [avis, setAvis] = useState<string | null>(null);
   const [especes, setEspeces] = useState<{ autorise: boolean; clientConfirme: boolean }>({ autorise: false, clientConfirme: false });
   const [occupe, setOccupe] = useState(false);
+  /** Dernier arrêt ajouté par le client (le chauffeur en est prévenu). */
+  const [nouvelArret, setNouvelArret] = useState<ArretAjoute | null>(null);
   const liaison = useRef<LiaisonVocale | null>(null);
   const appelCourant = useRef<AppelEnCours | null>(null);
   appelCourant.current = appel;
@@ -132,7 +150,15 @@ export function useCourseLive(o: { rideId: string | null; moi: Auteur; jeton: ()
     const f = (m: Evt) => {
       const d = (m.data ?? {}) as Record<string, unknown>;
       if (d.rideId && d.rideId !== id) return;
-      if (m.type === 'ride.arrets') setArrets(d.arrets as ResumeArrets);
+      if (m.type === 'ride.arrets') {
+        setArrets(d.arrets as ResumeArrets);
+        const ajout = d.nouvelArret as ArretAjoute | undefined;
+        if (ajout && o.moi === 'chauffeur') {
+          setNouvelArret(ajout);
+          try { navigator.vibrate?.([120, 80, 120]); } catch { /* sans vibreur */ }
+          if (document.hidden) void prevenir('ORION', tx('nouvelArret', { nom: ajout.nom })).catch(() => undefined);
+        }
+      }
       if (m.type === 'paiement.especes') setEspeces({ autorise: Boolean(d.autorise), clientConfirme: Boolean(d.clientConfirme) });
       if (m.type === 'chat.message') {
         const msg = d.message as MessageChat;
@@ -205,7 +231,19 @@ export function useCourseLive(o: { rideId: string | null; moi: Auteur; jeton: ()
 
   return {
     actif: Boolean(id),
-    arrets, messages, nonLus, chatVisible, appel, muet, avis, especes, occupe,
+    arrets, messages, nonLus, chatVisible, appel, muet, avis, especes, occupe, nouvelArret,
+    effacerNouvelArret: () => setNouvelArret(null),
+    /** Client : supplément d'un arrêt avant de l'ajouter. */
+    apercuArret: async (position: { lat: number; lng: number }, nom?: string): Promise<ApercuArret | null> => {
+      if (!id) return null;
+      try { return await cx.apercuArret(id, position, nom); } catch (e) { setAvis(e instanceof ErreurCourse ? e.message : tx('reseau')); return null; }
+    },
+    /** Client : ajoute l'arrêt (le chauffeur est prévenu, le prix monte du détour). */
+    ajouterArret: async (position: { lat: number; lng: number }, nom?: string): Promise<boolean> => {
+      if (!id) return false;
+      setOccupe(true);
+      try { setArrets(await cx.ajouterArret(id, position, nom)); return true; } catch (e) { setAvis(e instanceof ErreurCourse ? e.message : tx('reseau')); return false; } finally { setOccupe(false); }
+    },
     ouvrirChat: () => { setChatVisible(true); setNonLus(0); },
     fermerChat: () => setChatVisible(false),
     effacerAvis: () => setAvis(null),
@@ -380,8 +418,9 @@ export function PanneauArrets({ live, role, enCourse, position }: { live: Course
   if (!live.actif || !r) return null;
   const prochain = r.prevus.find((p) => !p.fait);
   const finis = r.arrets.filter((a) => a.fin);
-  if (role === 'client' && !r.enCours && finis.length === 0) return null;
-  if (role === 'chauffeur' && !enCourse && finis.length === 0) return null;
+  const detours = (r.ajoutes ?? []).filter((a) => a.supplement > 0);
+  if (role === 'client' && !r.enCours && finis.length === 0 && detours.length === 0) return null;
+  if (role === 'chauffeur' && !enCourse && finis.length === 0 && detours.length === 0) return null;
   return (
     <div className="cl-arrets">
       {r.enCours ? (
@@ -398,8 +437,11 @@ export function PanneauArrets({ live, role, enCourse, position }: { live: Course
           <span className="cl-muet">{tx('parMinute', { f: francs(r.tarifMin) })}</span>
         </div>
       )}
-      {finis.length > 0 && (
+      {(finis.length > 0 || detours.length > 0) && (
         <ul className="cl-arret-liste">
+          {detours.map((a) => (
+            <li key={`d${a.index}`}><span>{tx('detourLigne', { nom: a.nom })}</span><span>+{francs(a.supplement)}</span></li>
+          ))}
           {finis.map((a) => (
             <li key={a.id}><span>{a.type === 'prevu' ? (a.nom ?? tx('prevu')) : tx('demande')}</span><span>{a.minutes ?? 0} min · {francs(a.montant ?? 0)}</span></li>
           ))}
@@ -416,4 +458,54 @@ export function BoutonEspeces({ live }: { live: CourseLive }) {
   if (live.especes.clientConfirme) return <p className="cl-info" role="status">{tx('clientEspeces')}</p>;
   if (live.especes.autorise) return <p className="cl-info" role="status">{tx('autorisees')}</p>;
   return <button type="button" className="cl-secondaire" disabled={live.occupe} onClick={() => void live.autoriserEspeces()}>{tx('autoriser')}</button>;
+}
+
+/** Chauffeur : le client vient d'ajouter un arrêt (bandeau discret, le guidage passe par l'arrêt). */
+export function AvisNouvelArret({ live }: { live: CourseLive }) {
+  const a = live.nouvelArret;
+  useEffect(() => { if (!a) return; const t = window.setTimeout(live.effacerNouvelArret, 12_000); return () => window.clearTimeout(t); }, [a, live.effacerNouvelArret]);
+  if (!a) return null;
+  return (
+    <button type="button" className="cl-avis-arret" role="status" onClick={live.effacerNouvelArret}>
+      <strong>{tx('nouvelArret', { nom: a.nom })}</strong>
+      <span>{a.supplement > 0 ? tx('detour', { f: francs(a.supplement) }) : tx('parMinute', { f: francs(live.arrets?.tarifMin ?? 100) })}</span>
+    </button>
+  );
+}
+
+/**
+ * Client : il a choisi un lieu pour un nouvel arrêt. Le supplément s'affiche (détour, minutes sur
+ * place), il confirme ; le chauffeur est prévenu et le prix de la course monte d'autant.
+ */
+export function AjoutArretClient({ live, lieu, onFini }: { live: CourseLive; lieu: { nom: string; lat: number; lng: number }; onFini: (ajoute: boolean) => void }) {
+  const [apercu, setApercu] = useState<ApercuArret | null>(null);
+  const [charge, setCharge] = useState(true);
+  useEffect(() => {
+    let fini = false;
+    setCharge(true);
+    void live.apercuArret({ lat: lieu.lat, lng: lieu.lng }, lieu.nom).then((a) => { if (!fini) { setApercu(a); setCharge(false); } });
+    return () => { fini = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lieu.lat, lieu.lng, lieu.nom]);
+  const confirmer = async () => { if (await live.ajouterArret({ lat: lieu.lat, lng: lieu.lng }, lieu.nom)) onFini(true); };
+  return createPortal(
+    <div className="cl-fond" role="dialog" aria-modal="true" aria-label={tx('ajouterArret')}>
+      <div className="cl-ajout-arret">
+        <strong className="cl-ajout-titre">{tx('arretVers', { nom: lieu.nom })}</strong>
+        {charge ? <p className="cl-muet">{tx('calcul')}</p> : apercu ? (
+          <>
+            <p className="cl-ajout-texte">{apercu.supplement > 0
+              ? tx('apercuTexte', { f: francs(apercu.supplement), m: francs(apercu.tarifMin) })
+              : tx('sansDetour', { m: francs(apercu.tarifMin) })}</p>
+            <div className="cl-ajout-prix"><span>{tx('nouveauPrix', { f: francs(apercu.prixApres) })}</span>{apercu.supplement > 0 && <strong>+{francs(apercu.supplement)}</strong>}</div>
+          </>
+        ) : <p className="cl-info" role="alert">{live.avis ?? tx('reseau')}</p>}
+        <div className="cl-ajout-actions">
+          <button type="button" className="cl-secondaire" onClick={() => { live.effacerAvis(); onFini(false); }}>{tx('annuler')}</button>
+          <button type="button" className="cl-principal" disabled={!apercu || live.occupe} onClick={() => void confirmer()}>{apercu ? tx('confirmerArret', { f: francs(apercu.supplement) }) : tx('ajouterArret')}</button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
 }

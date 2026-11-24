@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { OrionMap } from '../../components/OrionMap';
-import { IconBolt, IconClock, IconLeaf, IconPin } from '../../icons';
+import { IconBolt, IconClock, IconCompass, IconLeaf, IconPin } from '../../icons';
+import type { ZoneCarte } from '../../components/zonesCarte';
 import { Objet, type Icone3D, type ObjetService } from '../../components/Vehicules';
 import type { ScreenProps } from '../Driver';
 import type { PrimeMois } from '../salarie';
-import type { DemandCell, QueueInfo, RideHistory } from '../types';
+import type { CarteService, QueueInfo, RideHistory, ZoneDemande } from '../types';
 import { BellButton, Banner, PageHeader, Section, Stat, VehiculeChauffeur, type Tab } from '../ui';
-import { fcfa, gammesLisibles, inOffPeak, meetsStandard, pct, TIER_LABEL, zoneAt } from '../format';
+import { fcfa, gammesLisibles, inOffPeak, km, meetsStandard, pct, TIER_LABEL, zoneAt } from '../format';
 import { Alerts } from './Alerts';
 import { Capacitor } from '@capacitor/core';
 import { clientRecent, suivreBus } from '../../busTest';
@@ -18,13 +19,13 @@ import { IconBell } from '../../icons';
  * ACCUEIL : mise en ligne / hors ligne / pause, position GPS, secteur courant (bonus,
  * standard minimal), file d'attente, gains du jour et zones à forte demande.
  */
-export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab: (t: Tab) => void }) {
+export function Home({ app, unread, openNotices, onTab, onNaviguer }: ScreenProps & { onTab: (t: Tab) => void; onNaviguer: () => void }) {
   const { driverConfig, appConfig, position } = app;
   // Le shell n'affiche les onglets qu'une fois la fiche chargée.
   const driver = app.driver!;
   const [queue, setQueue] = useState<QueueInfo | null>(null);
   const [history, setHistory] = useState<RideHistory | null>(null);
-  const [cells, setCells] = useState<DemandCell[]>([]);
+  const [carte, setCarte] = useState<CarteService | null>(null);
   const [confirmSos, setConfirmSos] = useState(false);
 
   const online = driver.availability === 'online';
@@ -51,13 +52,21 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
     const id = window.setInterval(load, 20_000);
     return () => window.clearInterval(id);
   }, [online, app.backend]);
-  // Zones à forte demande (rafraîchies chaque minute).
+  // Carte de service : zones à forte demande, zones habituelles, sièges ORION (chaque minute).
+  const pos = useRef(position);
+  pos.current = position;
+  const cleCarte = `${position.lat.toFixed(2)},${position.lng.toFixed(2)}`;
   useEffect(() => {
-    const load = () => { void app.backend.demand().then(setCells); };
+    const load = () => { void app.backend.carte(pos.current).then(setCarte); };
     load();
     const id = window.setInterval(load, 60_000);
     return () => window.clearInterval(id);
-  }, [app.backend]);
+  }, [app.backend, cleCarte]);
+  const zonesCarte: ZoneCarte[] = useMemo(() => !carte ? [] : [
+    ...carte.zones.map((z) => ({ id: z.id, lat: z.lat, lng: z.lng, genre: z.niveau, libelle: z.nom })),
+    ...carte.bases.map((b) => ({ id: b.id, lat: b.lat, lng: b.lng, genre: 'siege' as const, libelle: b.nom })),
+  ], [carte]);
+  const allerVers = (z: ZoneDemande) => app.actions.naviguerVers({ cible: { lat: z.lat, lng: z.lng }, nom: z.nom, type: 'zone' });
 
   // Livreur moto (même application Orion Pro) : livraisons de colis au lieu de courses.
   const livreur = driver.category === 'moto';
@@ -136,7 +145,9 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
       </div>
 
       <div className="dv-home-map">
-        <OrionMap origin={position} car={position} traffic={false} />
+        <OrionMap origin={position} car={position} traffic={false} zones={zonesCarte} onZone={onNaviguer} />
+        {/* La carte d'ORION Pro sert aussi de GPS hors course : zones à forte demande, siège, lieu. */}
+        <button type="button" className="dv-home-nav" onClick={onNaviguer}><IconCompass size={16} /> {tr('Naviguer')}</button>
         <div className="dv-map-chip">
           <span className="dv-link"><IconPin size={13} /> {zone ? zone.name : tr('Hors secteur tarifé')} · {({ real: tr('GPS'), simulated: tr('GPS simulé'), attente: tr('Recherche du GPS…'), refus: tr('Localisation refusée'), desactive: tr('Localisation désactivée') } as const)[app.gps]}</span>
         </div>
@@ -176,9 +187,20 @@ export function Home({ app, unread, openNotices, onTab }: ScreenProps & { onTab:
         <Banner tone="warn" icon={<IconBolt size={18} />} title={tr('Batterie faible : {0} %', [driver.batteryPct])}>{tr('Les longues courses ne vous seront pas proposées. Pensez à recharger.')}</Banner>
       )}
 
-      <Section title={tr('Zones à forte demande')} right={<span className="faint" style={{ fontSize: 12 }}>{tr('10 dernières min')}</span>}>
-        <Heatmap cells={cells} me={position} />
-        {cells.length === 0 && <div className="faint" style={{ fontSize: 13 }}>{tr('Demande calme pour le moment.')}</div>}
+      <Section title={tr('Zones à forte demande')} right={<button type="button" className="dv-link" onClick={onNaviguer}>{tr('Voir la carte')}</button>}>
+        <div className="dv-zone-liste">
+          {(carte?.zones ?? []).slice(0, 3).map((z) => (
+            <button key={z.id} type="button" className="dv-nav-ligne" onClick={() => allerVers(z)}>
+              <span className={`dv-nav-pastille ${z.niveau}`} aria-hidden="true" />
+              <span className="col grow" style={{ minWidth: 0, alignItems: 'flex-start' }}>
+                <strong>{z.nom}</strong>
+                <span className="faint">{z.distanceMeters !== null ? `${km(z.distanceMeters)} · ` : ''}{z.majorationPct > 0 ? tr('prix +{0} %', [z.majorationPct]) : tr('{0} demande(s), {1} chauffeur(s) libre(s)', [z.demande, z.offre])}</span>
+              </span>
+              <span className="dv-pill">{tr('Y aller')}</span>
+            </button>
+          ))}
+          {carte && carte.zones.length === 0 && <div className="faint" style={{ fontSize: 13 }}>{tr('Demande calme pour le moment.')}</div>}
+        </div>
       </Section>
 
       <Section title={tr('Règles du moment (console ORION)')}>
@@ -247,35 +269,6 @@ export function LinkPill({ app }: { app: ScreenProps['app'] }) {
   return <span className={`dv-link ${app.link}`}><i />{label}</span>;
 }
 
-/** Carte de chaleur simplifiée : cellules de demande autour d'Abidjan + ma position. */
-function Heatmap({ cells, me }: { cells: DemandCell[]; me: { lat: number; lng: number } }) {
-  const pts = [...cells.map((c) => ({ lat: c.lat, lng: c.lng })), me];
-  const minLat = Math.min(...pts.map((p) => p.lat)) - 0.01;
-  const maxLat = Math.max(...pts.map((p) => p.lat)) + 0.01;
-  const minLng = Math.min(...pts.map((p) => p.lng)) - 0.01;
-  const maxLng = Math.max(...pts.map((p) => p.lng)) + 0.01;
-  const x = (lng: number) => ((lng - minLng) / (maxLng - minLng || 1)) * 400;
-  const y = (lat: number) => (1 - (lat - minLat) / (maxLat - minLat || 1)) * 210;
-  const max = Math.max(1, ...cells.map((c) => c.demand));
-  return (
-    <div className="dv-heat">
-      <svg viewBox="0 0 400 210" preserveAspectRatio="xMidYMid meet" role="img" aria-label={tr('Zones à forte demande')}>
-        {cells.map((c) => {
-          const r = 14 + (c.demand / max) * 30;
-          const hot = c.surge > 1;
-          return (
-            <g key={c.cell}>
-              <circle cx={x(c.lng)} cy={y(c.lat)} r={r} fill={hot ? 'rgba(255,77,94,0.35)' : 'rgba(245,196,81,0.3)'} />
-              <circle cx={x(c.lng)} cy={y(c.lat)} r={r * 0.45} fill={hot ? 'rgba(255,77,94,0.6)' : 'rgba(245,196,81,0.55)'} />
-              <text x={x(c.lng)} y={y(c.lat) + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="currentColor">{hot ? `×${c.surge}` : c.demand}</text>
-            </g>
-          );
-        })}
-        <circle cx={x(me.lng)} cy={y(me.lat)} r="7" fill="var(--green)" stroke="#fff" strokeWidth="2" />
-      </svg>
-    </div>
-  );
-}
 
 
 /**

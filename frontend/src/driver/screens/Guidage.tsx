@@ -3,7 +3,7 @@ import { IconVolume } from '../../icons';
 import type { Manoeuvre } from '../../api';
 import { localeCourante, tr } from '../i18n';
 import { angleFleche, distanceLisible, texteManoeuvre, type Guidage } from '../navigation';
-import { parler, taire, voixDisponible } from '../../voix';
+import { parler, taire, voixDisponible, voixOccupee } from '../../voix';
 
 const CLE_VOIX = 'orion.driver.voix';
 
@@ -41,6 +41,8 @@ function useVoix(guidage: Guidage | null, active: boolean, arrivee: string) {
   const depart = useRef('');
   useEffect(() => {
     if (!active || !guidage || !voixDisponible()) return;
+    // Accueil du client en cours : rien n'est marqué comme dit, l'annonce viendra juste après.
+    if (voixOccupee()) return;
     const langue = localeCourante().replace('-u-nu-latn', '');
     // Départ : une annonce par destination (client à rejoindre, puis destination de la course).
     const cleTrajet = arrivee;

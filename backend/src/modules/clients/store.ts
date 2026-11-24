@@ -39,6 +39,8 @@ export interface Client {
    * cela, n'importe qui pouvait se déclarer sous le numéro d'un autre.
    */
   phoneVerifiedAt?: string;
+  /** Civilité choisie par le client (accueil vocal à bord : « Bonjour Monsieur… »). */
+  civilite?: 'M' | 'Mme';
   /**
    * Photo de profil (data URL JPEG/PNG/WebP, ≤ PHOTO_MAX_OCTETS). Elle sert à
    * reconnaître le passager : le chauffeur à la prise en charge, la supervision et
@@ -201,9 +203,10 @@ export class ClientStore {
     return trouves;
   }
 
-  updateProfile(id: string, patch: { name?: string; email?: string | null; phone?: string; phoneVerifiedAt?: string }): Client {
+  updateProfile(id: string, patch: { name?: string; email?: string | null; phone?: string; phoneVerifiedAt?: string; civilite?: 'M' | 'Mme' | null }): Client {
     const c = this.touch(id);
     if (patch.name !== undefined) c.name = patch.name;
+    if (patch.civilite !== undefined) { if (patch.civilite) c.civilite = patch.civilite; else delete c.civilite; }
     if (patch.email !== undefined) c.email = patch.email ?? undefined;
     if (patch.phone !== undefined) { this.indexerTelephone(id, c.phone, patch.phone); c.phone = patch.phone; }
     if (patch.phoneVerifiedAt !== undefined) c.phoneVerifiedAt = patch.phoneVerifiedAt;
@@ -229,7 +232,7 @@ export class ClientStore {
     const c = this.clients.get(id);
     if (!c) return undefined;
     this.indexerTelephone(id, c.phone, undefined);
-    delete c.name; delete c.phone; delete c.email; delete c.photo; delete c.photoUpdatedAt; delete c.phoneVerifiedAt;
+    delete c.name; delete c.civilite; delete c.phone; delete c.email; delete c.photo; delete c.photoUpdatedAt; delete c.phoneVerifiedAt;
     c.deletedAt = new Date().toISOString();
     this.repo?.put(c);
     this.cleDe(c);

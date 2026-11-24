@@ -329,6 +329,8 @@ export async function registerClientProfile(name: string, phone: string): Promis
  */
 export interface ProfilClient {
   id: string; name: string | null; phone: string | null; email: string | null; photo: string | null;
+  /** Civilité (accueil vocal à bord : « Bonjour Monsieur… ») ; null : non précisée. */
+  civilite?: 'M' | 'Mme' | null;
   phoneVerifiedAt: string | null; createdAt: string;
   stats: { courses: number; commandes?: number; annulations: number; avertissements: number; pointsCarbone: number; co2EconomiseKg: number };
 }
@@ -402,9 +404,9 @@ export async function demanderCode(phone: string, canal: CanalCode = 'sms'): Pro
 }
 
 /** Vérifie le code ; en cas de succès, l'appareil adopte le compte (et sa session). */
-export async function verifierCode(phone: string, code: string, name?: string, email?: string, canal: CanalCode = 'sms'): Promise<{ ok: true; client: ProfilClient; compteRetrouve: boolean } | { ok: false; error: string }> {
+export async function verifierCode(phone: string, code: string, name?: string, email?: string, canal: CanalCode = 'sms', civilite?: 'M' | 'Mme' | null): Promise<{ ok: true; client: ProfilClient; compteRetrouve: boolean } | { ok: false; error: string }> {
   type Session = { token: string; client: ProfilClient; compteRetrouve: boolean };
-  const identite = { clientId: clientId(), name: name?.trim() || undefined, email: email?.trim() || undefined };
+  const identite = { clientId: clientId(), name: name?.trim() || undefined, email: email?.trim() || undefined, ...(civilite ? { civilite } : {}) };
   let r: Awaited<ReturnType<typeof appel<Session>>>;
   if (identiteGoogleActive && API && canal === 'sms') {
     // Le code est vérifié par Google ; le serveur ORION reçoit le jeton d'identité et ouvre le compte du numéro.
@@ -429,7 +431,7 @@ export async function chargerProfil(): Promise<ProfilClient | null> {
   return profilEnCache();
 }
 
-export async function modifierProfil(patch: { name?: string; email?: string }): Promise<{ ok: true; client: ProfilClient } | { ok: false; error: string }> {
+export async function modifierProfil(patch: { name?: string; email?: string; civilite?: 'M' | 'Mme' | null }): Promise<{ ok: true; client: ProfilClient } | { ok: false; error: string }> {
   const r = await appel<{ client: ProfilClient }>(`/clients/${clientId()}/profile`, { method: 'PUT', body: JSON.stringify(patch) });
   if (!r.ok) return r;
   memoriserProfil(r.data.client);

@@ -1,15 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as PointeurReact } from 'react';
 import { OrionMap } from '../../components/OrionMap';
-import { IconCar, IconClock, IconMessage, IconPackage, IconPeage, IconPhone, IconPin, IconSablier, IconWallet } from '../../icons';
+import { IconCar, IconChevronDown, IconClock, IconMessage, IconPackage, IconPeage, IconPhone, IconPin, IconSablier, IconWallet } from '../../icons';
 import type { DriverApp } from '../useDriver';
 import type { ActiveRide, MotifAnnulationChauffeur, RideStatus, RideView } from '../types';
 import { Banner, Modal } from '../ui';
 import { BandeauGuidage } from './Guidage';
 import { fcfa, haversine, km, methodLabel, navLinks, statutLabel, TAILLE_COLIS } from '../format';
 import { lienTel, numeroLisible } from '../../telephone';
-import { aTraduire, tr } from '../i18n';
-import { BoutonEspeces, BoutonsCourse, EcranAppel, FenetreChat, PanneauArrets, useCourseLive } from '../../CourseLiveUI';
+import { aTraduire, localeCourante, tr } from '../i18n';
+import { AvisNouvelArret, BoutonEspeces, BoutonsCourse, EcranAppel, FenetreChat, PanneauArrets, useCourseLive } from '../../CourseLiveUI';
 import { isLiveBackend } from '../../api';
+import { connexionCourse } from '../../courseLive';
+import { definirVoixDeBord, deverrouillerAudio, direAccueil, parler } from '../../voix';
 import { loadSession } from '../session';
 
 const STEPS: RideStatus[] = ['driver_en_route', 'arrived', 'in_progress', 'completed'];
@@ -21,6 +23,32 @@ const STEPS: RideStatus[] = ['driver_en_route', 'arrived', 'in_progress', 'compl
  */
 /** Jeton du chauffeur (chat, appel, arrêts, espèces) : lu à chaque appel. */
 const jetonChauffeur = (): string | null => loadSession()?.token ?? null;
+const cxChauffeur = connexionCourse(jetonChauffeur);
+const CLE_ACCUEIL = 'orion.driver.accueil';
+
+/**
+ * VOIX DE BORD : le client est à bord (code donné), la voix du GPS lui souhaite la bienvenue,
+ * une seule fois par course ; puis elle garde, jusqu'à la fin, la voix choisie pour ce client
+ * (féminine pour un client, masculine pour une cliente) pour tout le guidage.
+ */
+function useVoixDeBord(rideId: string, actif: boolean) {
+  useEffect(() => {
+    if (!actif || !isLiveBackend()) return;
+    let annule = false;
+    let deja = false;
+    try { deja = localStorage.getItem(CLE_ACCUEIL) === rideId; } catch { /* mémoire indisponible */ }
+    void cxChauffeur.bienvenue(rideId).then((b) => {
+      if (annule) return;
+      definirVoixDeBord(b.voix);
+      if (deja) return;
+      try { localStorage.setItem(CLE_ACCUEIL, rideId); } catch { /* accueil redit au besoin */ }
+      void direAccueil(b.texte, b.voix, 'fr-FR');
+    }).catch(() => undefined);
+    return () => { annule = true; };
+  }, [rideId, actif]);
+  // Fin de course (écran quitté) : la voix reprend celle du chauffeur.
+  useEffect(() => () => definirVoixDeBord(null), [rideId]);
+}
 
 export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) {
   // Course en direct avec le client : chat, appel par internet, arrêts facturés, espèces de secours.
@@ -37,10 +65,27 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
   // Un toucher sur la barre la déplie ; elle se replie d'elle-même à chaque nouvelle étape.
   const [deplie, setDeplie] = useState(false);
   useEffect(() => { setDeplie(false); }, [ride.status]);
+  // Client à bord (course commencée, pas une livraison) : accueil vocal et voix de bord.
+  useVoixDeBord(ride.id, ride.status === 'in_progress' && ride.serviceType !== 'delivery');
+  // ARRÊTS DU TRAJET (prévus à la commande ou ajoutés par le client) : le guidage passe par le
+  // prochain arrêt non marqué, puis rejoint la destination.
+  const prochainArret = ride.status === 'in_progress' ? (direct.arrets?.prevus ?? []).find((p) => !p.fait) ?? null : null;
+  const { definirEtape } = app.actions;
+  useEffect(() => { definirEtape(prochainArret ? { lat: prochainArret.lat, lng: prochainArret.lng } : null); }, [prochainArret?.lat, prochainArret?.lng, definirEtape]);
+  useEffect(() => () => definirEtape(null), [definirEtape]);
+  // Le client vient d'ajouter un arrêt : le chauffeur l'entend, sans quitter la route des yeux.
+  useEffect(() => {
+    const a = direct.nouvelArret;
+    if (a) void parler(tr('Le client a ajouté un arrêt : {0}', [a.nom]), localeCourante().replace('-u-nu-latn', ''));
+  }, [direct.nouvelArret]);
+  // La fiche se tire comme une vraie feuille : vers le haut pour l'ouvrir, vers le bas pour
+  // la refermer, ou un simple toucher sur la poignée (toujours visible, même fiche défilée).
+  const feuille = useGlisserFeuille(deplie, setDeplie);
   const nav = app.navigation;
   const step = STEPS.indexOf(ride.status);
   const toPickup = ride.status === 'accepted' || ride.status === 'driver_en_route';
   const target = toPickup || ride.status === 'arrived' ? ride.origin : ride.destination;
+  const restants = (direct.arrets?.prevus ?? []).filter((p) => !p.fait).map((p) => ({ lat: p.lat, lng: p.lng }));
   const links = navLinks(target);
   const { wait } = app.driverConfig;
   const billable = Math.max(0, ride.waitMinutes - wait.freeMinutes);
@@ -79,11 +124,13 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
         {/* Vraie carte de Côte d'Ivoire + navigation guidée : la carte suit le véhicule sur
             l'itinéraire réel (ponts, échangeurs, voies nouvelles), vers le client puis la destination. */}
         {enNavigation
-          ? <OrionMap origin={ride.origin} destination={toPickup ? null : ride.destination} car={app.position} vehicle={livraison ? 'moto' : 'car'} traffic
+          ? <OrionMap origin={ride.origin} destination={toPickup ? null : ride.destination} stops={toPickup ? undefined : restants} car={app.position} vehicle={livraison ? 'moto' : 'car'} traffic
               trace={nav.guidage?.restant ?? null} ponts={nav.guidage?.ponts} suivi={suivi} basCouvert={0} libelleRecentrer={tr('Recentrer')} />
-          : <OrionMap origin={ride.origin} destination={ride.destination} car={app.position} vehicle={livraison ? 'moto' : 'car'} traffic basCouvert={0} />}
+          : <OrionMap origin={ride.origin} destination={ride.destination} stops={restants} car={app.position} vehicle={livraison ? 'moto' : 'car'} traffic basCouvert={0} />}
         <BandeauGuidage guidage={nav.guidage} recalcul={nav.recalcul} actif={enNavigation}
-          arrivee={toPickup ? (livraison ? tr('Arrivée au point de retrait du colis') : tr('Arrivée au point de prise en charge')) : (livraison ? tr('Arrivée au point de livraison') : tr('Arrivée à destination'))} />
+          arrivee={toPickup ? (livraison ? tr('Arrivée au point de retrait du colis') : tr('Arrivée au point de prise en charge'))
+            : prochainArret ? tr('Arrivée à l’arrêt : {0}', [prochainArret.nom])
+              : (livraison ? tr('Arrivée au point de livraison') : tr('Arrivée à destination'))} />
         <div className={`dv-map-chip${enNavigation ? ' bas' : ''}`}>
           <span className="dv-link online"><i />{statutLabel(ride.status, livraison)}</span>
           {enNavigation && (
@@ -94,16 +141,20 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
       </div>
 
       {reduite ? (
-        <div className="dv-ride-sheet reduite">
+        <div className="dv-ride-sheet reduite" ref={feuille.ref}>
+          <button type="button" className="dv-poignee" {...feuille.poignee} aria-expanded={false} aria-label={tr('Tirer vers le haut pour ouvrir la fiche')}>
+            <span className="dv-ride-grab" />
+            <span className="dv-poignee-fleche haut" aria-hidden="true"><IconChevronDown size={16} /></span>
+          </button>
+          <AvisNouvelArret live={direct} />
           {/* Arrêt en cours : le compteur et « Reprendre la course » restent sous la main. */}
           {direct.arrets?.enCours && <PanneauArrets live={direct} role="chauffeur" enCourse position={app.position} />}
-          <button type="button" className="dv-ride-resume" onClick={() => setDeplie(true)} aria-expanded={false} aria-label={tr('Afficher les détails de la course')}>
-            <span className="dv-ride-grab" />
+          <button type="button" className="dv-ride-resume" {...feuille.zone} onClick={feuille.toucher(() => setDeplie(true))} aria-expanded={false} aria-label={tr('Afficher les détails de la course')}>
             <span className="row between" style={{ width: '100%', gap: 12 }}>
               <span className="col grow" style={{ minWidth: 0, alignItems: 'flex-start' }}>
                 <strong className="dv-ride-resume-titre">{resteMin !== null ? `${resteMin} min` : '…'} · {km(resteDistance)}</strong>
                 <span className="faint dv-ride-resume-sous">
-                  {(toPickup ? (livraison ? tr('Retrait du colis') : tr('Prise en charge')) : tr('Destination'))} · {ride.client.name ?? (livraison ? tr('Client ORION') : tr('Passager ORION'))}
+                  {(toPickup ? (livraison ? tr('Retrait du colis') : tr('Prise en charge')) : prochainArret ? tr('Arrêt : {0}', [prochainArret.nom]) : tr('Destination'))} · {ride.client.name ?? (livraison ? tr('Client ORION') : tr('Passager ORION'))}
                 </span>
               </span>
               <span className="dv-price" style={{ fontSize: 19 }}>{fcfa(brut)}</span>
@@ -125,12 +176,14 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
           </div>
         </div>
       ) : (
-      <div className="dv-ride-sheet">
+      <div className={`dv-ride-sheet${enNavigation ? ' depliee' : ''}`} ref={enNavigation ? feuille.ref : undefined}>
         {enNavigation && (
-          <button type="button" className="dv-ride-replier" onClick={() => setDeplie(false)} aria-expanded aria-label={tr('Réduire pour voir la carte')}>
+          <button type="button" className="dv-poignee" {...feuille.poignee} aria-expanded aria-label={tr('Réduire pour voir la carte')}>
             <span className="dv-ride-grab" />
+            <span className="dv-poignee-fleche" aria-hidden="true"><IconChevronDown size={16} /></span>
           </button>
         )}
+        <AvisNouvelArret live={direct} />
         <div className="dv-steps" aria-label={livraison ? tr('Étapes de la livraison') : tr('Étapes de la course')}>
           {STEPS.map((s, i) => <span key={s} className={i <= step ? 'done' : ''} />)}
         </div>
@@ -206,7 +259,7 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
         {ride.status !== 'in_progress' && ride.status !== 'arrived' && boutonEtape}
         {ride.status === 'arrived' && !livraison && ride.codeRequis
           ? <SaisieCode app={app} rideId={ride.id} />
-          : ride.status === 'arrived' && <button className="btn btn-primary" disabled={app.busy} onClick={() => t('in_progress')}>{livraison ? tr('Colis récupéré, je livre') : tr('Client à bord — démarrer')}</button>}
+          : ride.status === 'arrived' && <button className="btn btn-primary" disabled={app.busy} onClick={() => { deverrouillerAudio(); t('in_progress'); }}>{livraison ? tr('Colis récupéré, je livre') : tr('Client à bord — démarrer')}</button>}
         {ride.status === 'in_progress' && (remiseRequise ? <SaisieRemise app={app} rideId={ride.id} /> : boutonEtape)}
 
         {ride.status === 'completed' && totalDue === 0 && (
@@ -406,6 +459,8 @@ function SaisieCode({ app, rideId }: { app: DriverApp; rideId: string }) {
   const [erreur, setErreur] = useState<string | null>(null);
   const valider = async () => {
     setErreur(null);
+    // Le toucher qui démarre la course ouvre aussi le son : l'accueil du client pourra partir.
+    deverrouillerAudio();
     const e = await app.actions.start(rideId, code);
     if (e) { setErreur(e); setCode(''); }
   };
@@ -451,4 +506,70 @@ export function SettledModal({ app }: { app: DriverApp }) {
       </div>
     </Modal>
   );
+}
+
+/**
+ * FEUILLE DE COURSE GLISSABLE (mode navigation). La poignée suit le doigt : tirée vers le haut,
+ * la fiche s'ouvre ; tirée vers le bas, elle se replie et rend toute la carte. Un geste rapide
+ * suffit, un simple toucher bascule aussi. Le reste de la barre réduite s'ouvre en la tirant
+ * vers le haut ; ses boutons (chat, appel, étape) restent de vrais boutons.
+ */
+export function useGlisserFeuille(deplie: boolean, setDeplie: (v: boolean) => void) {
+  const ref = useRef<HTMLDivElement>(null);
+  const geste = useRef<{ y: number; t: number; bouge: boolean } | null>(null);
+  const ignorerClic = useRef(false);
+  // Un geste n'est pas toujours suivi d'un clic : la consigne d'ignorer s'efface d'elle-même.
+  const ignorer = () => { ignorerClic.current = true; window.setTimeout(() => { ignorerClic.current = false; }, 450); };
+  const deplacer = (dy: number | null) => {
+    const el = ref.current;
+    if (!el) return;
+    if (dy === null) { el.style.transition = ''; el.style.transform = ''; return; }
+    // Ouverte : elle ne suit que vers le bas ; réduite : un peu vers le haut (amorti).
+    const v = deplie ? Math.max(0, dy) : Math.max(-140, Math.min(0, dy)) * 0.6;
+    el.style.transition = 'none';
+    el.style.transform = `translateY(${Math.round(v)}px)`;
+  };
+  const debut = (e: PointeurReact<HTMLElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    geste.current = { y: e.clientY, t: performance.now(), bouge: false };
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* capture indisponible */ }
+  };
+  const mouvement = (e: PointeurReact<HTMLElement>) => {
+    const g = geste.current;
+    if (!g) return;
+    const dy = e.clientY - g.y;
+    if (!g.bouge && Math.abs(dy) > 8) g.bouge = true;
+    if (g.bouge) deplacer(dy);
+  };
+  /** `tap` : ce qu'un simple toucher fait (la poignée bascule ; la barre réduite laisse le clic agir). */
+  const fin = (tap: boolean) => (e: PointeurReact<HTMLElement>) => {
+    const g = geste.current;
+    geste.current = null;
+    deplacer(null);
+    if (!g) return;
+    const dy = e.clientY - g.y;
+    const vitesse = Math.abs(dy) / Math.max(1, performance.now() - g.t);
+    if (!g.bouge) {
+      if (tap) { ignorer(); setDeplie(!deplie); }
+      return;
+    }
+    ignorer();
+    if (deplie && (dy > 56 || (vitesse > 0.45 && dy > 16))) setDeplie(false);
+    else if (!deplie && (dy < -28 || (vitesse > 0.45 && dy < -12))) setDeplie(true);
+  };
+  const annuler = () => { geste.current = null; deplacer(null); };
+  // Le clic qui suit un geste (ou un toucher déjà traité) ne rebascule pas la feuille.
+  const toucher = (action: () => void) => () => {
+    if (ignorerClic.current) { ignorerClic.current = false; return; }
+    action();
+  };
+  return {
+    ref,
+    poignee: {
+      onPointerDown: debut, onPointerMove: mouvement, onPointerUp: fin(true), onPointerCancel: annuler,
+      onClick: toucher(() => setDeplie(!deplie)),
+    },
+    zone: { onPointerDown: debut, onPointerMove: mouvement, onPointerUp: fin(false), onPointerCancel: annuler },
+    toucher,
+  };
 }

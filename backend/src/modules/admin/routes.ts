@@ -6,6 +6,8 @@ import { Readable } from 'node:stream';
 import { lotRoutes } from './lot.js';
 import { misesAJourAdminRoutes } from '../mises-a-jour/admin.js';
 import { simulateurAdminRoutes } from '../simulateur/admin.js';
+import { basesOrionAdminRoutes } from '../driver-app/carte.js';
+import { voixBordAdminRoutes } from '../rides/bienvenue.js';
 import { nearestZone } from '../geo-ci/zones.js';
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -262,6 +264,10 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     misesAJourAdminRoutes(scoped, container, require, audit);
     // Simulateur du marché (PDG seul) : chauffeurs et clients simulés vus par l'app cliente.
     simulateurAdminRoutes(scoped, container, require, audit);
+    // Sièges et agences ORION : ORION Pro y guide les chauffeurs et livreurs de chaque zone.
+    basesOrionAdminRoutes(scoped, container, require, audit);
+    // Voix de bord : textes de l'accueil vocal du client (ORION Pro), retouchables par la direction.
+    voixBordAdminRoutes(scoped, container, require, audit);
 
     // Identité + permissions du compte connecté (le front adapte l'affichage).
     scoped.get('/admin/me', async (req) => {

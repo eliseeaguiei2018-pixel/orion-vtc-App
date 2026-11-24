@@ -12,14 +12,25 @@ export interface Arret {
   id: string; type: 'prevu' | 'demande'; index?: number; nom?: string;
   debut: string; fin?: string; minutes?: number; montant?: number;
 }
+/** Arrêt ajouté par le client après sa commande (détour facturé). */
+export interface ArretAjoute { index: number; nom: string; lieu: { lat: number; lng: number }; supplement: number; at: string }
 export interface ResumeArrets {
   tarifMin: number;
   arrets: Arret[];
   enCours: (Arret & { minutes: number; montant: number }) | null;
   minutes: number;
+  /** Minutes d'arrêt facturées + détours des arrêts ajoutés. */
   montant: number;
-  prevus: Array<{ index: number; nom: string; lat: number; lng: number; fait: boolean }>;
+  montantMinutes?: number;
+  supplementTrajet?: number;
+  ajoutes?: ArretAjoute[];
+  prixCommande?: number;
+  prixAvecDetours?: number;
+  prevus: Array<{ index: number; nom: string; lat: number; lng: number; fait: boolean; ajoute?: boolean }>;
 }
+export interface ApercuArret { supplement: number; tarifMin: number; prixAvant: number; prixApres: number }
+/** Accueil vocal du client à bord (composé par le serveur). */
+export interface Bienvenue { texte: string; voix: 'feminine' | 'masculine'; civilite: 'M' | 'Mme' | null; moment: string; assure: boolean }
 export interface MessageChat {
   id: string; de: Auteur | 'orion'; texte: string; rapide?: 'sors' | 'retard'; at: string;
 }
@@ -51,6 +62,9 @@ export function connexionCourse(jeton: () => string | null) {
     debutArret: (id: string, type: 'prevu' | 'demande', index?: number, position?: { lat: number; lng: number } | null) =>
       post<ResumeArrets>(`/rides/${id}/arrets`, { type, ...(index !== undefined ? { index } : {}), ...(position ? { position } : {}) }),
     finArret: (id: string) => post<ResumeArrets>(`/rides/${id}/arrets/fin`),
+    apercuArret: (id: string, position: { lat: number; lng: number }, nom?: string) => post<ApercuArret>(`/rides/${id}/arrets/apercu`, { position, ...(nom ? { nom } : {}) }),
+    ajouterArret: (id: string, position: { lat: number; lng: number }, nom?: string) => post<ResumeArrets>(`/rides/${id}/arrets/ajout`, { position, ...(nom ? { nom: nom.slice(0, 80) } : {}) }),
+    bienvenue: (id: string) => appel<Bienvenue>(`/rides/${id}/bienvenue`),
     chat: (id: string) => appel<{ messages: MessageChat[]; ouvert: boolean; moi: Auteur }>(`/rides/${id}/chat`),
     envoyer: (id: string, m: { texte?: string; rapide?: 'sors' | 'retard' }) => post<{ message: MessageChat }>(`/rides/${id}/chat`, m),
     appel: (id: string, action: 'appeler' | 'decrocher' | 'refuser' | 'raccrocher') => post<{ appelId: string; etat: EtatAppel }>(`/rides/${id}/appel`, { action }),

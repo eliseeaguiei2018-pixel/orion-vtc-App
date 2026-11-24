@@ -4,7 +4,7 @@ import { configSocketUrl, etatServeur, fetchAppConfig, isLiveBackend, sosRepondr
 import type { ActiviteMois, PrimeMois } from './salarie';
 import type {
   EtapeLocation, LocationChauffeur, MessagesChef, MotifAnnulationChauffeur, NouvelleRequete, Poste, RequeteVue,
-  ActiveRide, Announcement, DemandCell, DriverConfig, DriverEvent, DriverProfile, Finance, LatLng, LinkState,
+  ActiveRide, Announcement, CarteService, DemandCell, DriverConfig, DriverEvent, DriverProfile, Finance, LatLng, LinkState,
   ProfilePatch, QueueInfo, RideHistory, RideStatus, Session, Training, TrainingResult, WaitResult, Wallet,
 } from './types';
 import { createDemoBackend } from './demo';
@@ -102,6 +102,10 @@ export interface DriverBackend {
   submitTraining(answers: number[]): Promise<TrainingResult>;
   announcements(): Promise<Announcement[]>;
   demand(): Promise<DemandCell[]>;
+  /** Carte de service : zones à forte demande, zones habituelles, sièges ORION (null : indisponible). */
+  carte(p: LatLng): Promise<CarteService | null>;
+  /** Accueil vocal d'exemple (voix de bord), pour l'écouter avant la première course. */
+  voixEssai(genre: 'feminine' | 'masculine'): Promise<{ texte: string; voix: 'feminine' | 'masculine' } | null>;
 }
 
 
@@ -338,6 +342,12 @@ function createLiveBackend(): DriverBackend {
     },
     async demand() {
       try { return (await call<{ cells: DemandCell[] }>('/drivers/demand', {}, false)).cells; } catch { return []; }
+    },
+    async voixEssai(genre) {
+      try { return await call<{ texte: string; voix: 'feminine' | 'masculine' }>(`/drivers/${id()}/voix-bord/essai?genre=${genre}`); } catch { return null; }
+    },
+    async carte(p) {
+      try { return await call<CarteService>(`/drivers/${id()}/carte?lat=${p.lat.toFixed(5)}&lng=${p.lng.toFixed(5)}`); } catch { return null; }
     },
   };
 }

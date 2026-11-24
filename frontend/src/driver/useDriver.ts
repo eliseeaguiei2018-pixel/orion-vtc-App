@@ -12,6 +12,9 @@ import { demarrerMisesAJour, signalerNouvelleVersion } from '../miseAJour';
 import { relayerEvenementCourse } from '../CourseLiveUI';
 import { positionUnique, prevenir, preparerNotifications, ramenerAuPremierPlan, suivreGps, suivreGpsNavigateur, type PointGps } from '../arrierePlan';
 
+/** Destination de la navigation libre (hors course). */
+export interface DestinationLibre { cible: LatLng; nom: string; type: 'zone' | 'prevue' | 'siege' | 'lieu' }
+
 /** Notification affichée dans l'app (console, système, annonces). */
 export interface Notice { id: string; title: string; body: string; at: string; kind: 'notification' | 'announcement' | 'system' }
 
@@ -338,12 +341,21 @@ export function useDriver() {
     return () => { document.removeEventListener('visibilitychange', brancher); stop?.(); };
   }, [tracking, session, backend, appliquerPoint]);
 
-  /* ---------- Navigation guidée : vers le client, puis vers la destination ---------- */
-  const cibleNavigation = !activeRide ? null
-    : activeRide.status === 'in_progress' ? activeRide.destination
-      : (activeRide.status === 'accepted' && !activeRide.offer) || activeRide.status === 'driver_en_route' ? activeRide.origin : null;
+  /* ---------- Navigation guidée : vers le client, puis l'arrêt suivant, puis la destination ---------- */
+  // NAVIGATION LIBRE (hors course) : zone à forte demande, siège ORION de la zone, ou tout lieu.
+  const [navLibre, setNavLibre] = useState<DestinationLibre | null>(null);
+  // Arrêt suivant de la course (prévu à la commande ou ajouté par le client), fourni par l'écran de course.
+  const [etapeCourse, setEtapeCourse] = useState<LatLng | null>(null);
+  // Une offre qui s'affiche ne coupe pas la navigation libre ; une course acceptée la remplace.
+  const enMission = Boolean(activeRide && !activeRide.offer);
+  useEffect(() => { if (enMission) setNavLibre(null); }, [enMission]);
+  useEffect(() => { if (activeRide?.status !== 'in_progress') setEtapeCourse(null); }, [activeRide?.status]);
+  const cibleNavigation = !activeRide ? (navLibre?.cible ?? null)
+    : activeRide.offer ? null
+      : activeRide.status === 'in_progress' ? (etapeCourse ?? activeRide.destination)
+        : activeRide.status === 'accepted' || activeRide.status === 'driver_en_route' ? activeRide.origin : null;
   // Vers la destination, le guidage suit l'itinéraire choisi par le client (pont à péage ou voie normale).
-  const consigne = activeRide?.status === 'in_progress' && activeRide.itineraire ? { choix: activeRide.itineraire.choix, peages: activeRide.itineraire.peages } : null;
+  const consigne = activeRide?.status === 'in_progress' && activeRide.itineraire && !etapeCourse ? { choix: activeRide.itineraire.choix, peages: activeRide.itineraire.peages } : null;
   const navigation = useNavigation(position, cibleNavigation, consigne);
   const routeNav = useRef(navigation.route);
   routeNav.current = navigation.route;
@@ -560,12 +572,17 @@ export function useDriver() {
     submitKyc: () => run(async () => { setDriver(await backend.submitKyc()); }, tr('Dossier envoyé à ORION pour validation')),
     payout: (amount: number, method: string) => run(async () => { await backend.payout(amount, method); await refresh(); return true; }, tr('Demande de retrait envoyée')),
     dismissSettled: () => setSettled(null),
+    /** Hors course : guidage vers une zone à forte demande, le siège ORION, ou un lieu. */
+    naviguerVers: (d: DestinationLibre) => setNavLibre(d),
+    arreterNavigation: () => setNavLibre(null),
+    /** Écran de course : arrêt suivant à rejoindre (null : direction la destination). */
+    definirEtape: (p: LatLng | null) => setEtapeCourse((avant) => (avant?.lat === p?.lat && avant?.lng === p?.lng ? avant : p)),
     refresh,
   };
 
   return {
     backend, live: backend.live, booting, session, driver, finance, appConfig, driverConfig, activeRide, link,
-    notices, announcements, toast, settled, position, gps, busy, showToast, actions, navigation,
+    notices, announcements, toast, settled, position, gps, busy, showToast, actions, navigation, navLibre,
     rentals, posteVersion, sosLive, sosOuvert, sosHorsLigne,
   };
 }
