@@ -891,6 +891,7 @@ export function createDemoBackend(): DriverBackend {
     }),
     // Démo : pas de serveur, donc pas de voix humaine (la voix du téléphone parle).
     voixHumaine: async () => null,
+    meteo: async () => null,
     voixHumaineEssai: async () => null,
     // Démo : trois zones chaudes, deux habituelles et deux sièges, à distance réelle du véhicule.
     carte: async (moi: LatLng): Promise<CarteService> => {

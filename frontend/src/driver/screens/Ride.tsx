@@ -59,6 +59,36 @@ function useVoixDeBord(rideId: string, actif: boolean, approche: boolean) {
   useEffect(() => () => definirVoixDeBord(null), [rideId]);
 }
 
+/**
+ * POINT DE PRISE EN CHARGE : quand Google a photographié la rue (Street View), le chauffeur
+ * voit l'endroit où attend le client avant d'y arriver. Rien ne s'affiche s'il n'y a pas de photo.
+ */
+function PointDeRencontre({ rideId }: { rideId: string }) {
+  const [info, setInfo] = useState<{ disponible: boolean; date: string | null } | null>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [ouvert, setOuvert] = useState(false);
+  useEffect(() => { void cxChauffeur.pointDeRencontre(rideId).then(setInfo).catch(() => setInfo(null)); }, [rideId]);
+  useEffect(() => () => { if (photo) URL.revokeObjectURL(photo); }, [photo]);
+  if (!info?.disponible) return null;
+  const ouvrir = async () => {
+    setOuvert(true);
+    if (!photo) { const b = await cxChauffeur.photoPointDeRencontre(rideId); if (b) setPhoto(URL.createObjectURL(b)); }
+  };
+  return (
+    <>
+      <button type="button" className="dv-link dv-point-rencontre" onClick={() => void ouvrir()}><IconPin size={14} /> {tr('Voir le point de prise en charge')}</button>
+      {ouvert && (
+        <Modal title={tr('Point de prise en charge')} onClose={() => setOuvert(false)}>
+          {photo
+            ? <img className="dv-point-photo" src={photo} alt={tr('Photo de la rue où attend le client')} />
+            : <div className="dv-point-photo vide">{tr('Chargement de la photo…')}</div>}
+          <p className="faint" style={{ fontSize: 12, marginTop: 8 }}>{tr('Photo Google Street View · {0}', [info.date ?? '—'])}</p>
+        </Modal>
+      )}
+    </>
+  );
+}
+
 /** Sons d'accueil téléchargés pendant l'approche (un par course). */
 const sonsAccueil = new Map<string, Promise<SonServeur | null>>();
 function prechargerAccueil(rideId: string): void {
@@ -245,6 +275,7 @@ export function RideScreen({ app, ride }: { app: DriverApp; ride: ActiveRide }) 
             {ride.itineraire?.choix === 'normal' && <span className="dv-pill"><IconCar size={13} /> {tr('Itinéraire du client : voie normale (sans péage)')}</span>}
           </div>
         )}
+        {(toPickup || ride.status === 'arrived') && isLiveBackend() && <PointDeRencontre rideId={ride.id} />}
         {livraison && <CarteColis ride={ride} />}
         {livraison && ride.status === 'arrived' && (
           <p className="faint dv-colis-conseil">{tr('Vérifiez que le colis est bien fermé et correspond à la description avant de partir.')}</p>

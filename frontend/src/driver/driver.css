@@ -796,3 +796,13 @@ html[data-ecran] .tuile-fond .vehicule { animation: objet-arrive 0.7s var(--ease
 .dv-home-nav { position: absolute; right: 12px; bottom: 12px; z-index: 4; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px;
   border-radius: 999px; border: none; background: var(--text); color: var(--bg-0); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; box-shadow: 0 8px 20px -8px rgba(0, 0, 0, 0.45); }
 .dv-zone-liste { display: flex; flex-direction: column; gap: 8px; }
+
+/* Point de prise en charge (Street View) et météo */
+.dv-point-rencontre { display: inline-flex; align-items: center; gap: 6px; margin: 8px 0 2px; font-size: 13px; }
+.dv-point-photo { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 14px; background: var(--card2, rgba(0,0,0,.06)); }
+.dv-point-photo.vide { display: grid; place-items: center; color: var(--muted); font-size: 13px; }
+.dv-meteo { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.dv-meteo-temp { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+.dv-meteo-alertes { display: grid; gap: 6px; margin-top: 8px; }
+.dv-meteo-alerte { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
+.dv-meteo-alerte .dv-pill { flex: none; }

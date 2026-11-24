@@ -34,6 +34,8 @@ export function OrionProSection({ canWrite }: { canWrite: boolean }) {
   return (
     <div className="adm-orionpro">
       <SiegesOrion canWrite={canWrite} />
+      <MeteoAbidjan />
+      <ServicesGoogle canWrite={canWrite} />
       <VoixHumaine canWrite={canWrite} />
       <VoixDeBord canWrite={canWrite} />
     </div>
@@ -342,6 +344,105 @@ function VoixHumaine({ canWrite }: { canWrite: boolean }) {
           {etat.majLe && <span className="adm-muted">Réglé le {date(etat.majLe)}{etat.majPar ? ` par ${etat.majPar}` : ''}</span>}
         </div>
       )}
+    </div>
+  );
+}
+
+/* --------------------------- Services Google du serveur --------------------------- */
+
+type ServiceG = 'meteo' | 'recalage' | 'cartes' | 'streetview';
+interface EtatServiceG { actif: boolean; coupe: boolean; appelsDuJour: number; erreursDuJour: number; dernierAppel: string | null; derniereErreur: string | null }
+interface EtatServicesG { cle: { presente: boolean; source: 'variable' | 'voix_humaine' | null; fin: string | null }; services: Record<ServiceG, EtatServiceG>; majLe: string | null; majPar: string | null }
+const SERVICES_G: Array<{ id: ServiceG; nom: string; role: string }> = [
+  { id: 'meteo', nom: 'Météo et pluie', role: 'Pluie attendue par commune : ORION Pro prévient les chauffeurs, la console voit la ville.' },
+  { id: 'recalage', nom: 'Recalage GPS', role: 'À l’arrivée, le tracé de la course est collé aux routes : distance réelle, faux GPS repérés.' },
+  { id: 'cartes', nom: 'Carte du trajet', role: 'Image du trajet dans l’historique du client et la fiche de course de la console.' },
+  { id: 'streetview', nom: 'Point de prise en charge', role: 'Photo de la rue où attend le client (Street View), quand Google en a une.' },
+];
+
+/** Services Google du serveur : état, appels du jour, coupure ou remise en service. */
+function ServicesGoogle({ canWrite }: { canWrite: boolean }) {
+  const [etat, setEtat] = useState<EtatServicesG | null>(null);
+  const [occupe, setOccupe] = useState(false);
+  useEffect(() => { void adminGet<EtatServicesG>('/admin/services-google').then(setEtat).catch((e) => avis(message(e))); }, []);
+  if (!etat) return <div className="adm-card"><p className="adm-muted">Chargement des services Google…</p></div>;
+  const basculer = async (id: ServiceG, actif: boolean) => {
+    setOccupe(true);
+    try { setEtat(await adminPut<EtatServicesG>('/admin/services-google', { actifs: { [id]: actif } })); } catch (e) { avis(message(e)); } finally { setOccupe(false); }
+  };
+  return (
+    <div className="adm-card">
+      <div className="adm-card-h">
+        <h3>Services Google du serveur</h3>
+        <span className={`adm-pill ${etat.cle.presente ? 'hab-green' : 'hab-amber'}`}>{etat.cle.presente ? `Clé ••••${etat.cle.fin} · ${etat.cle.source === 'variable' ? 'variable du serveur' : 'celle de la voix humaine'}` : 'Aucune clé Google sur le serveur'}</span>
+      </div>
+      <p className="adm-muted">La clé Google reste sur le serveur : les applications reçoivent seulement les résultats (météo, images). Chaque service se coupe ici ; ses appels du jour sont comptés.</p>
+      <div className="adm-gservices">
+        {SERVICES_G.map((sv) => {
+          const e = etat.services[sv.id];
+          return (
+            <div key={sv.id} className="adm-gservice">
+              <div className="adm-gservice-h">
+                <span>{sv.nom}</span>
+                <span className={`adm-pill ${e.actif ? 'hab-green' : 'hab-amber'}`}>{e.actif ? 'En service' : e.coupe ? 'Coupé' : 'Sans clé'}</span>
+              </div>
+              <span className="adm-muted">{sv.role}</span>
+              <span className="adm-muted">Aujourd’hui : {e.appelsDuJour} appel{e.appelsDuJour > 1 ? 's' : ''}{e.erreursDuJour ? ` · ${e.erreursDuJour} refus` : ''}</span>
+              {e.derniereErreur && <span className="adm-vh-erreur" style={{ margin: 0 }}>Dernier refus : {e.derniereErreur}</span>}
+              {canWrite && etat.cle.presente && (
+                <button type="button" className="adm-btn" disabled={occupe} onClick={() => void basculer(sv.id, !e.actif)}>{e.actif ? 'Couper' : 'Remettre en service'}</button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {etat.majLe && <p className="adm-muted" style={{ marginTop: 10 }}>Réglé le {date(etat.majLe)}{etat.majPar ? ` par ${etat.majPar}` : ''}</p>}
+    </div>
+  );
+}
+
+/* ------------------------------- Météo d'Abidjan ------------------------------- */
+
+interface AlerteM { niveau: 'pluie' | 'forte_pluie' | 'orage'; heure: string; dansMinutes: number; description: string; probabilite: number }
+interface MeteoM { type: string; description: string; temperature: number | null; ressenti: number | null; humidite: number | null; alerte: AlerteM | null; majLe: string }
+const NIVEAU: Record<AlerteM['niveau'], string> = { pluie: 'Pluie', forte_pluie: 'Forte pluie', orage: 'Orage' };
+const quand = (a: AlerteM) => (a.dansMinutes <= 10 ? 'en ce moment' : a.dansMinutes < 60 ? `dans ${a.dansMinutes} min` : `vers ${new Date(a.heure).getUTCHours()} h`);
+
+/** Météo des communes (Google) : le temps qu'il fait et la pluie qui arrive, pour anticiper la demande. */
+function MeteoAbidjan() {
+  const [communes, setCommunes] = useState<Array<{ commune: string; meteo: MeteoM | null }> | null>(null);
+  useEffect(() => {
+    const charger = () => { void adminGet<{ communes: Array<{ commune: string; meteo: MeteoM | null }> }>('/admin/meteo').then((r) => setCommunes(r.communes)).catch(() => setCommunes([])); };
+    charger();
+    const id = window.setInterval(charger, 10 * 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  if (communes === null) return <div className="adm-card"><p className="adm-muted">Chargement de la météo…</p></div>;
+  if (communes.length === 0) return null;
+  const pluies = communes.filter((c) => c.meteo?.alerte && c.meteo.alerte.dansMinutes <= 180);
+  return (
+    <div className="adm-card">
+      <div className="adm-card-h">
+        <h3>Météo d’Abidjan</h3>
+        <span className={`adm-pill ${pluies.length ? 'hab-amber' : 'hab-green'}`}>{pluies.length ? `Pluie attendue dans ${pluies.length} commune${pluies.length > 1 ? 's' : ''}` : 'Pas de pluie attendue (3 h)'}</span>
+      </div>
+      <p className="adm-muted">Prévision Google heure par heure, mise à jour toutes les 30 minutes. Quand il pleut, la demande monte : ORION Pro prévient les chauffeurs des communes concernées.</p>
+      <div className="adm-table-wrap">
+        <table className="adm-table sm">
+          <thead><tr><th>Commune</th><th>Temps</th><th className="r">Température</th><th className="r">Humidité</th><th>Pluie attendue</th></tr></thead>
+          <tbody>
+            {communes.map((c) => (
+              <tr key={c.commune}>
+                <td><strong>{c.commune}</strong></td>
+                <td>{c.meteo?.description || '—'}</td>
+                <td className="r">{c.meteo?.temperature != null ? `${Math.round(c.meteo.temperature)} °C` : '—'}{c.meteo?.ressenti != null ? <span className="adm-muted"> · ressenti {Math.round(c.meteo.ressenti)}°</span> : null}</td>
+                <td className="r">{c.meteo?.humidite != null ? `${c.meteo.humidite} %` : '—'}</td>
+                <td>{c.meteo?.alerte ? <span className="adm-meteo-alerte">{NIVEAU[c.meteo.alerte.niveau]} {quand(c.meteo.alerte)} · {c.meteo.alerte.probabilite} %</span> : <span className="adm-muted">Non</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -847,3 +847,10 @@ html[data-adm-theme='light'] .adm-alarme .adm-btn.ghost { background: transparen
 .adm-vh-ok { color: var(--a-green-txt); margin: 10px 0 0; }
 .adm-vh-erreur { color: var(--a-danger); margin: 10px 0 0; overflow-wrap: anywhere; }
 @media (max-width: 560px) { .adm-vh-voix { grid-template-columns: 1fr; } }
+
+/* Services Google : carte du trajet, météo */
+.adm-carte-trajet { display: block; width: 100%; max-width: 640px; aspect-ratio: 2 / 1; object-fit: cover; border-radius: 12px; border: 1px solid var(--a-stroke); background: var(--a-panel2); }
+.adm-meteo-alerte { color: var(--a-amber-txt); font-weight: 600; }
+.adm-gservices { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: 10px; }
+.adm-gservice { border: 1px solid var(--a-stroke); border-radius: 12px; padding: 12px 14px; background: var(--a-panel2); display: grid; gap: 6px; font-size: 13px; }
+.adm-gservice-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 600; }

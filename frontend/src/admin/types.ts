@@ -276,6 +276,8 @@ export interface RideForensic {
     quote: { amount: number; currency: string; breakdown?: Record<string, number> };
     events: { type: string; at: string; payload?: Record<string, unknown> }[];
     trace?: { lat: number; lng: number }[];
+    /** Tracé recalé sur les routes (Google Roads) à l'arrivée. */
+    recalage?: Recalage | null;
     createdAt: string;
   };
   driverName: string | null; matricule: string | null;
@@ -652,3 +654,6 @@ export interface SuiviFlotte {
   vehicules: VehiculeSuivi[]; vols: DeclarationVol[]; immobilisations: Immobilisation[];
   vitesseCoupureMax: number; motifs: Record<string, string>;
 }
+
+/** Tracé d'une course recalé sur les routes (Google Roads). */
+export interface Recalage { points: { lat: number; lng: number }[]; distanceM: number; distanceGpsM: number; ecartMedianM: number; ecartMaxM: number; at: string }

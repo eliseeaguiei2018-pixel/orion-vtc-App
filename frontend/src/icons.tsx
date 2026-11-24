@@ -238,6 +238,15 @@ export const IconAlarm = ({ size, strokeWidth }: P) => (
 export const IconSun = ({ size, strokeWidth }: P) => (
   <svg {...base(size, strokeWidth)}><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" /></svg>
 );
+export const IconCloud = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M7 18h10a4 4 0 0 0 .6-7.96A5.5 5.5 0 0 0 7.1 9.2 4.4 4.4 0 0 0 7 18Z" /></svg>
+);
+export const IconRain = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M7 15h10a4 4 0 0 0 .6-7.96A5.5 5.5 0 0 0 7.1 6.2 4.4 4.4 0 0 0 7 15Z" /><path d="M8 18.5 7 21M12 18.5 11 21M16 18.5 15 21" /></svg>
+);
+export const IconStorm = ({ size, strokeWidth }: P) => (
+  <svg {...base(size, strokeWidth)}><path d="M7 15h10a4 4 0 0 0 .6-7.96A5.5 5.5 0 0 0 7.1 6.2 4.4 4.4 0 0 0 7 15Z" /><path d="m12.5 16-2 3h3l-2 3" /></svg>
+);
 export const IconMoon = ({ size, strokeWidth }: P) => (
   <svg {...base(size, strokeWidth)}><path d="M20 14.5A8 8 0 1 1 9.5 4 6.5 6.5 0 0 0 20 14.5Z" /></svg>
 );

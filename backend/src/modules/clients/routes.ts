@@ -229,6 +229,7 @@ export async function clientAccountRoutes(app: FastifyInstance, container: Conta
           id: r.id, createdAt: r.createdAt, status: r.status, statutLabel: LIBELLE_STATUT[r.status] ?? r.status,
           depart: zone(r.origin), arrivee: zone(r.destination),
           distanceKm: Math.round(r.quote.distanceMeters / 100) / 10,
+          distanceReelleKm: r.recalage ? Math.round(r.recalage.distanceM / 100) / 10 : null,
           montant: r.quote.amount, breakdown: r.quote.breakdown, categorie: r.quote.category,
           paiement: { moyen: paye?.method ?? r.paymentMethod ?? null, regle: Boolean(paye), montant: paye?.amount ?? null },
           chauffeur: d ? { name: d.name, matricule: d.matricule, vehicule: d.vehicleModel ?? null, plaque: d.vehiclePlate ?? null } : null,

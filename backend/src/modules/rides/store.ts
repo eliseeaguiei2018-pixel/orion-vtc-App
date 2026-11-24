@@ -48,6 +48,11 @@ export interface Ride {
    * déviation d'itinéraire.
    */
   traceDepart?: number;
+  /**
+   * Tracé de la course recalé sur les routes (Google Roads) à son arrivée : distance réelle,
+   * trajet propre pour le client et la console, écart GPS (un tracé loin des routes trahit un faux GPS).
+   */
+  recalage?: { points: LatLng[]; distanceM: number; distanceGpsM: number; ecartMedianM: number; ecartMaxM: number; at: string };
   /** Itinéraire routier prévu (tracé réel des routes, ponts empruntés). */
   itineraire?: { geometrie: LatLng[]; distanceMeters: number; durationSeconds: number; ponts: string[]; provider: string };
   /** Minutes d'attente facturables (pauses demandées par le client en course). */

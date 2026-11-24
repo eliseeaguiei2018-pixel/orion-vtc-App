@@ -154,7 +154,7 @@ const COURSE_ACTIVE = new Set(['accepted', 'driver_en_route', 'arrived', 'in_pro
 const CHAT_APRES_FIN_MS = 60 * 60_000;
 
 /** Qui parle : le chauffeur de la course (jeton ORION Pro) ou son client (jeton de l'app). */
-function participant(req: FastifyRequest, ride: Ride, jeton?: string): 'client' | 'chauffeur' {
+export function participant(req: FastifyRequest, ride: Ride, jeton?: string): 'client' | 'chauffeur' {
   const brut = jeton ?? (() => { const h = req.headers.authorization; const m = h ? /^Bearer\s+(.+)$/i.exec(h.trim()) : null; return m?.[1]; })();
   const chauffeur = verifyDriverToken(jeton ?? driverTokenOf(req));
   if (chauffeur) {

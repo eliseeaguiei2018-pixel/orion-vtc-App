@@ -22,7 +22,7 @@ import { Anneau } from './CompteExtras';
 import { OFFRE_PARRAINAGE } from '../compte';
 import {
   AGENT_GENERIQUE, MOTIFS_ANNULATION, etatServeur, annulerCourse, apercuAnnulation, chargerHistorique, envoyerPhoto, mesAlertesSos,
-  modifierProfil, retirerPhoto, sessionClient,
+  modifierProfil, retirerPhoto, sessionClient, carteTrajetCourse,
   type CourseHistorique, type FraisAnnulation, type Historique, type MotifAnnulation, type ProfilClient, type SosSuivi,
   type TrustedContact,
 } from '../api';
@@ -749,6 +749,7 @@ export function HistoryScreen({ onBack, onLogin, onglet = false }: { onBack: () 
                           {c.chauffeur && (
                             <div className="fare-line"><span>{t('hist_driver')}</span><span>{c.chauffeur.name}{c.chauffeur.vehicule ? ` · ${c.chauffeur.vehicule}` : ''}{c.chauffeur.plaque ? ` · ${c.chauffeur.plaque}` : ''}</span></div>
                           )}
+                          {!c.annulation && <CarteTrajet id={c.id} km={c.distanceReelleKm ?? null} />}
                           {!c.annulation && (
                             <>
                               <div className="fare-line"><span>{t('hist_payment')}</span><span>{c.paiement.moyen ? (MOYEN[c.paiement.moyen] ?? c.paiement.moyen) : '—'} · {c.paiement.regle ? t('hist_paid') : t('hist_pending')}</span></div>
@@ -910,3 +911,22 @@ export function CancelSheet({ rideId, onClose, onCancelled, onSos }: {
   );
 }
 
+
+/** Carte du trajet d'une course passée (image du serveur ORION) ; rien si elle n'est pas disponible. */
+function CarteTrajet({ id, km }: { id: string; km: number | null }) {
+  const { t, lang } = useI18n();
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let annule = false;
+    let cree: string | null = null;
+    void carteTrajetCourse(id).then((b) => { if (b && !annule) { cree = URL.createObjectURL(b); setUrl(cree); } });
+    return () => { annule = true; if (cree) URL.revokeObjectURL(cree); };
+  }, [id]);
+  if (!url) return null;
+  return (
+    <figure className="hist-carte">
+      <img src={url} alt={t('hist_carte')} loading="lazy" />
+      {km !== null && <figcaption className="faint">{t('hist_carte_recalee', { km: km.toLocaleString(lang, { maximumFractionDigits: 1 }) })}</figcaption>}
+    </figure>
+  );
+}

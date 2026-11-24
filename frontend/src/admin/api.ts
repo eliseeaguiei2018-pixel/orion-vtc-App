@@ -236,6 +236,15 @@ export function adminGet<T>(p: string): Promise<T> {
 export async function adminPost<T>(p: string, b?: unknown): Promise<T> { const r = await fetch(API + p, withCreds({ method: 'POST', headers: H(), body: JSON.stringify(b ?? {}) })); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
 export async function adminPut<T>(p: string, b: unknown): Promise<T> { const r = await fetch(API + p, withCreds({ method: 'PUT', headers: H(), body: JSON.stringify(b) })); if (r.status === 401) onUnauthorized(); if (!r.ok) return fail(r); return r.json() as Promise<T>; }
 export async function adminDel(p: string): Promise<void> { const r = await fetch(API + p, withCreds({ method: 'DELETE', headers: H() })); if (r.status === 401) onUnauthorized(); if (!r.ok) await fail(r); }
+/** Image servie par le serveur (carte du trajet) ; null si indisponible. */
+export async function adminGetBlob(p: string): Promise<Blob | null> {
+  if (!LIVE) return null;
+  try {
+    const r = await fetch(API + p, withCreds({ headers: H() }));
+    if (r.status === 401) onUnauthorized();
+    return r.ok ? await r.blob() : null;
+  } catch { return null; }
+}
 /** POST qui renvoie un son (essai de la voix humaine) : le corps audio et la voix qui l'a dit. */
 export async function adminPostSon(p: string, b: unknown): Promise<{ son: Blob; voix: string | null; modele: string | null }> {
   const r = await fetch(API + p, withCreds({ method: 'POST', headers: H(), body: JSON.stringify(b) }));

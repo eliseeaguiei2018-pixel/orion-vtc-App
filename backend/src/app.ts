@@ -39,6 +39,7 @@ import { courseLiveRoutes } from './modules/rides/courseLive.js';
 import { carteChauffeurRoutes } from './modules/driver-app/carte.js';
 import { bienvenueRoutes } from './modules/rides/bienvenue.js';
 import { voixHumaineRoutes } from './modules/voix/routes.js';
+import { servicesGoogleRoutes } from './modules/google/routes.js';
 import { driverAppRoutes, registerDriverGuard } from './modules/driver-app/routes.js';
 import { prochesRoutes } from './modules/proches/routes.js';
 
@@ -164,6 +165,7 @@ export async function buildApp(container = createContainer()): Promise<BuiltApp>
   await carteChauffeurRoutes(app, container);
   await bienvenueRoutes(app, container);
   await voixHumaineRoutes(app, container);
+  await servicesGoogleRoutes(app, container);
   await complianceRoutes(app, container);
   await geoCiRoutes(app, container);
   await paymentRoutes(app, container);

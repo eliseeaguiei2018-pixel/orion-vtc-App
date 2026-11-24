@@ -268,3 +268,8 @@ export interface DriverEvent {
 }
 
 export type LinkState = 'connecting' | 'online' | 'offline';
+
+/* -------------------- Météo (Google, via le serveur ORION) -------------------- */
+export interface AlerteMeteo { niveau: 'pluie' | 'forte_pluie' | 'orage'; heure: string; dansMinutes: number; description: string; probabilite: number }
+export interface Meteo { type: string; description: string; temperature: number | null; ressenti: number | null; humidite: number | null; jour: boolean; alerte: AlerteMeteo | null; majLe: string }
+export interface MeteoChauffeur { commune: string; meteo: Meteo | null; alertes: Array<{ commune: string; alerte: AlerteMeteo }> }

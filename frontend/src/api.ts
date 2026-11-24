@@ -473,6 +473,8 @@ export async function supprimerCompte(): Promise<{ ok: true } | { ok: false; err
 }
 
 export interface CourseHistorique {
+  /** Trajet réel recalé sur la route (Google), en km, quand le serveur l'a fait. */
+  distanceReelleKm?: number | null;
   id: string; createdAt: string; status: string; statutLabel: string;
   depart: string; arrivee: string; distanceKm: number; montant: number; categorie: string;
   breakdown: Quote['breakdown'];
@@ -1363,4 +1365,17 @@ export interface TensionMarche {
 export async function vehiculesProches(p: LatLng): Promise<VehiculesProches | null> {
   if (!API) return null;
   return tryFetch<VehiculesProches>(`/vehicules/proches?lat=${p.lat.toFixed(5)}&lng=${p.lng.toFixed(5)}`, { method: 'GET' }, 3500);
+}
+
+/** Image du trajet d'une course du client (carte servie par le serveur ORION : la clé Google y reste). */
+export async function carteTrajetCourse(rideId: string): Promise<Blob | null> {
+  if (!API) return null;
+  const jeton = sessionClient();
+  if (!jeton) return null;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 15_000);
+  try {
+    const res = await fetch(`${API}/rides/${encodeURIComponent(rideId)}/carte.jpg`, { headers: { ...enTetesPasserelle(), authorization: `Bearer ${jeton}` }, signal: ctrl.signal });
+    return res.ok ? await res.blob() : null;
+  } catch { return null; } finally { clearTimeout(t); }
 }

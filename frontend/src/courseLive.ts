@@ -73,8 +73,21 @@ export function connexionCourse(jeton: () => string | null) {
       return { audio: await res.arrayBuffer(), type: res.headers.get('content-type') ?? 'audio/mpeg', voix: res.headers.get('x-orion-voix'), empreinte: res.headers.get('x-orion-empreinte') };
     } catch { return null; } finally { clearTimeout(t); }
   }
+  /** Image servie par le serveur (photo de la rue, carte du trajet) : la clé Google reste sur le serveur. */
+  async function fichier(chemin: string, delaiMs = 20_000): Promise<Blob | null> {
+    const j = jeton();
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), delaiMs);
+    try {
+      const res = await fetch(`${base()}${chemin}`, { headers: { ...enTetesPasserelle(), ...(j ? { authorization: `Bearer ${j}` } : {}) }, signal: ctrl.signal });
+      return res.ok ? await res.blob() : null;
+    } catch { return null; } finally { clearTimeout(t); }
+  }
   return {
     actif: () => Boolean(base()),
+    pointDeRencontre: (id: string) => appel<{ disponible: boolean; date: string | null }>(`/rides/${id}/point-de-rencontre`),
+    photoPointDeRencontre: (id: string) => fichier(`/rides/${id}/point-de-rencontre.jpg`),
+    carteTrajet: (id: string) => fichier(`/rides/${id}/carte.jpg`),
     arrets: (id: string) => appel<ResumeArrets>(`/rides/${id}/arrets`),
     debutArret: (id: string, type: 'prevu' | 'demande', index?: number, position?: { lat: number; lng: number } | null) =>
       post<ResumeArrets>(`/rides/${id}/arrets`, { type, ...(index !== undefined ? { index } : {}), ...(position ? { position } : {}) }),

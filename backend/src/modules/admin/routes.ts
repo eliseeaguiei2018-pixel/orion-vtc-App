@@ -9,6 +9,7 @@ import { simulateurAdminRoutes } from '../simulateur/admin.js';
 import { basesOrionAdminRoutes } from '../driver-app/carte.js';
 import { voixBordAdminRoutes } from '../rides/bienvenue.js';
 import { voixHumaineAdminRoutes } from '../voix/routes.js';
+import { servicesGoogleAdminRoutes } from '../google/routes.js';
 import { nearestZone } from '../geo-ci/zones.js';
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -270,6 +271,7 @@ export async function adminRoutes(app: FastifyInstance, container: Container): P
     // Voix de bord : textes de l'accueil vocal du client (ORION Pro), retouchables par la direction.
     voixBordAdminRoutes(scoped, container, require, audit);
     voixHumaineAdminRoutes(scoped, container, require, audit);
+    servicesGoogleAdminRoutes(scoped, container, require, audit);
 
     // Identité + permissions du compte connecté (le front adapte l'affichage).
     scoped.get('/admin/me', async (req) => {

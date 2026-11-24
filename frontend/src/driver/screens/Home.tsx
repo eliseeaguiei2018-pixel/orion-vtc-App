@@ -12,6 +12,7 @@ import { Alerts } from './Alerts';
 import { Capacitor } from '@capacitor/core';
 import { clientRecent, suivreBus } from '../../busTest';
 import { tr } from '../i18n';
+import { MeteoAccueil } from './Meteo';
 import { affichageParDessus, demanderAffichageParDessus, gpsNatif, notificationsAutorisees, ouvrirReglagesPosition, preparerNotifications } from '../../arrierePlan';
 import { IconBell } from '../../icons';
 
@@ -186,6 +187,8 @@ export function Home({ app, unread, openNotices, onTab, onNaviguer }: ScreenProp
       {driver.engine !== 'hybrid' && driver.batteryPct !== undefined && driver.batteryPct < 25 && (
         <Banner tone="warn" icon={<IconBolt size={18} />} title={tr('Batterie faible : {0} %', [driver.batteryPct])}>{tr('Les longues courses ne vous seront pas proposées. Pensez à recharger.')}</Banner>
       )}
+
+      <MeteoAccueil app={app} />
 
       <Section title={tr('Zones à forte demande')} right={<button type="button" className="dv-link" onClick={onNaviguer}>{tr('Voir la carte')}</button>}>
         <div className="dv-zone-liste">

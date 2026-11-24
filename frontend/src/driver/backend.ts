@@ -4,7 +4,7 @@ import { configSocketUrl, etatServeur, fetchAppConfig, isLiveBackend, sosRepondr
 import type { ActiviteMois, PrimeMois } from './salarie';
 import type {
   EtapeLocation, LocationChauffeur, MessagesChef, MotifAnnulationChauffeur, NouvelleRequete, Poste, RequeteVue,
-  ActiveRide, Announcement, CarteService, DemandCell, DriverConfig, DriverEvent, DriverProfile, Finance, LatLng, LinkState,
+  ActiveRide, Announcement, CarteService, DemandCell, MeteoChauffeur, DriverConfig, DriverEvent, DriverProfile, Finance, LatLng, LinkState,
   ProfilePatch, QueueInfo, RideHistory, RideStatus, Session, Training, TrainingResult, WaitResult, Wallet,
 } from './types';
 import { createDemoBackend } from './demo';
@@ -107,6 +107,8 @@ export interface DriverBackend {
   carte(p: LatLng): Promise<CarteService | null>;
   /** Accueil vocal d'exemple (voix de bord), pour l'écouter avant la première course. */
   voixEssai(genre: 'feminine' | 'masculine'): Promise<{ texte: string; voix: 'feminine' | 'masculine' } | null>;
+  /** Météo de la commune du chauffeur et pluie attendue ailleurs (null : service coupé ou injoignable). */
+  meteo(p: LatLng): Promise<MeteoChauffeur | null>;
   /** Voix humaine (IA) réglée par la direction : en service ? quel fournisseur, quelles voix ? */
   voixHumaine(): Promise<EtatVoixHumaine | null>;
   /** Son d'essai de la voix humaine (null : pas en service ou injoignable). */
@@ -352,6 +354,9 @@ function createLiveBackend(): DriverBackend {
     },
     async voixEssai(genre) {
       try { return await call<{ texte: string; voix: 'feminine' | 'masculine' }>(`/drivers/${id()}/voix-bord/essai?genre=${genre}`); } catch { return null; }
+    },
+    async meteo(p) {
+      try { return (await call<{ meteo: MeteoChauffeur | null }>(`/drivers/${id()}/meteo?lat=${p.lat.toFixed(4)}&lng=${p.lng.toFixed(4)}`)).meteo; } catch { return null; }
     },
     async voixHumaine() {
       try { return await call<EtatVoixHumaine>(`/drivers/${id()}/voix-bord/humaine`); } catch { return null; }

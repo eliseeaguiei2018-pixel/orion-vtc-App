@@ -4,9 +4,10 @@
  * Extrait de Admin.tsx lors de l'audit : le fichier atteignait 3 750 lignes et
  * mélangeait types, couche réseau, orchestration et 37 composants.
  */
-import { useState, type CSSProperties } from 'react';
-import { fcfa } from '../api';
-import type { Client, ContactHandler, CsatReport, Dispute, DriverRow, ExpiringDoc, OpsConfig, PageMeta, QualityRow, QualityTop, Reservation, RideForensic, RideRow, SimResult } from '../types';
+import { useEffect, useState, type CSSProperties } from 'react';
+import { AdminError, adminGetBlob, adminPost, fcfa } from '../api';
+import { avis } from '../dialogues';
+import type { Client, ContactHandler, CsatReport, Dispute, DriverRow, ExpiringDoc, OpsConfig, PageMeta, QualityRow, QualityTop, Reservation, RideForensic, RideRow, SimResult, Recalage } from '../types';
 import { AvatarChauffeur, ContactRapide, Drawer, Kpi, Pager, kycLabel, rideStatusLabel, trafficLabel } from '../ui';
 
 export const REASSIGNABLE = new Set(['searching', 'no_driver', 'accepted', 'driver_en_route', 'arrived']);
@@ -529,6 +530,7 @@ export function ForensicDrawer({ f, onClose }: { f: RideForensic; onClose: () =>
         <span className="adm-pill">{fcfa(ride.quote.amount)}</span>
         <span className="adm-pill">{new Date(ride.createdAt).toLocaleString('fr-FR')}</span>
       </div>
+      <CarteTrajetConsole rideId={ride.id} recalage={ride.recalage ?? null} statut={ride.status} />
       <h4 className="adm-drawer-sec">Tracé GPS ({ride.trace?.length ?? 0} points)</h4>
       <svg className="adm-trace" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Tracé GPS de la course">
         <rect x="0" y="0" width={W} height={H} rx="10" className="adm-trace-bg" />
@@ -713,3 +715,40 @@ export function ClientsSection({ clients, canWrite, onStatus, onOpen, meta, onPa
 export const slugify = (s: string) => s.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
 export const pct = (f: number) => (f === 1 ? 'neutre' : `${f > 1 ? '+' : ''}${Math.round((f - 1) * 100)} %`);
 
+
+/**
+ * CARTE DU TRAJET (Google, servie par le serveur) et RECALAGE GPS : le tracé du téléphone collé
+ * aux routes réelles. Distance réelle, et écart GPS : un tracé loin de toute route signale un
+ * GPS faussé (litige, fraude).
+ */
+function CarteTrajetConsole({ rideId, recalage, statut }: { rideId: string; recalage: Recalage | null; statut: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [rec, setRec] = useState<Recalage | null>(recalage);
+  const [occupe, setOccupe] = useState(false);
+  const [version, setVersion] = useState(0);
+  useEffect(() => {
+    let annule = false; let cree: string | null = null;
+    void adminGetBlob(`/admin/courses/${rideId}/carte.jpg`).then((b) => { if (b && !annule) { cree = URL.createObjectURL(b); setUrl(cree); } });
+    return () => { annule = true; if (cree) URL.revokeObjectURL(cree); };
+  }, [rideId, version]);
+  const recaler = async () => {
+    setOccupe(true);
+    try { const r = await adminPost<{ recalage: Recalage }>(`/admin/courses/${rideId}/recaler`); setRec(r.recalage); setVersion((v) => v + 1); }
+    catch (e) { avis(e instanceof AdminError ? e.message : 'Serveur ORION injoignable'); } finally { setOccupe(false); }
+  };
+  const douteux = rec && rec.ecartMedianM > 40;
+  return (
+    <>
+      <h4 className="adm-drawer-sec">Carte du trajet</h4>
+      {url ? <img className="adm-carte-trajet" src={url} alt="Carte du trajet : départ A, arrivée B" /> : <p className="adm-muted">Carte indisponible (clé Google du serveur absente ou service coupé).</p>}
+      {rec ? (
+        <p className={douteux ? 'adm-vh-erreur' : 'adm-muted'}>
+          Trajet recalé sur la route : <strong>{(rec.distanceM / 1000).toFixed(1)} km</strong> (GPS brut {(rec.distanceGpsM / 1000).toFixed(1)} km) · écart GPS médian {rec.ecartMedianM} m, max {rec.ecartMaxM} m
+          {douteux ? ' · tracé éloigné des routes : GPS à vérifier' : ''}
+        </p>
+      ) : statut === 'completed' || statut === 'paid' || statut === 'rated' ? (
+        <button type="button" className="adm-btn" disabled={occupe} onClick={() => void recaler()}>{occupe ? 'Recalage…' : 'Recaler le tracé sur la route'}</button>
+      ) : null}
+    </>
+  );
+}

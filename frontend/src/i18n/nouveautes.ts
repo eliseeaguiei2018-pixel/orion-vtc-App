@@ -3037,6 +3037,8 @@ const TEXTES: Record<string, Huit> = {
     'Водитель будет предупреждён; цена вырастет на крюк и минуты остановки.',
   ],
   arr_max: ['Au plus 5 arrêts sur un trajet.', 'At most 5 stops on a trip.', 'Como máximo 5 paradas por trayecto.', 'Al massimo 5 soste per tragitto.', 'Höchstens 5 Stopps pro Fahrt.', '5 توقفات كحد أقصى في الرحلة.', '每次行程最多 5 个停靠点。', 'Не более 5 остановок за поездку.'],
+  hist_carte: ['Carte du trajet', 'Trip map', 'Mapa del trayecto', 'Mappa del tragitto', 'Karte der Fahrt', 'خريطة الرحلة', '行程地图', 'Карта поездки'],
+  hist_carte_recalee: ['Trajet réel, recalé sur la route : {km} km', 'Actual route, matched to roads: {km} km', 'Trayecto real, ajustado a la carretera: {km} km', 'Percorso reale, allineato alla strada: {km} km', 'Tatsächliche Strecke, an Straßen angepasst: {km} km', 'المسار الفعلي على الطريق: {km} كم', '实际路线（已贴合道路）：{km} 公里', 'Фактический маршрут по дорогам: {km} км'],
 };
 
 
