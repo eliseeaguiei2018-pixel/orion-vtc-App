@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { ACCENTS_RENDUS, useAccentSur } from '../theme';
+import { ACCENTS_RENDUS, useAccentSur, useStyleOrionSur } from '../theme';
 import {
   IconAlarm, IconAward, IconBadge, IconBag, IconBank, IconBriefcase, IconBuilding, IconBus, IconCalendar, IconCar, IconCarburant, IconCart, IconChart, IconGift,
   IconClock, IconCrown, IconEcole, IconEglise, IconFile, IconFlag, IconFlame, IconGem, IconHeadset, IconHome, IconKey, IconLeaf, IconLit, IconLock,
@@ -102,9 +102,10 @@ export function Voiture({ modele = 'berline', peinture = 'accent', largeur = 120
   modele?: Modele; peinture?: Peinture; largeur?: number; phares?: boolean; accueil?: boolean;
 }) {
   const accent = useAccentSur();
-  // Accueil : la voiture à la couleur choisie (vert, bleu, orange) quand elle existe en rendu ;
-  // sinon celle de la palette d'accueil.
-  if (accueil && style.accueil !== 'couleur' && !(ACCENTS_RENDUS as string[]).includes(accent)) {
+  const styleOrion = useStyleOrionSur();
+  // Accueil (design 2.7) : la voiture à la couleur choisie (vert, bleu, orange) quand elle existe
+  // en rendu ; sinon, et toujours en « Style Orion », celle de la palette d'accueil.
+  if (accueil && style.accueil !== 'couleur' && (styleOrion || !(ACCENTS_RENDUS as string[]).includes(accent))) {
     return <Rendu nom={`${dossierAccueil()}berline-orion`} largeur={largeur} ratio={0.58} />;
   }
   return <Rendu nom={fichierVoiture(modele, peinture, accent)} largeur={largeur} ratio={0.58} />;

@@ -3137,6 +3137,29 @@ const TEXTES: Record<string, Huit> = {
   lv_e_contacts: ["Expéditeur et destinataire", "Sender and recipient", "Remitente y destinatario", "Mittente e destinatario", "Absender und Empfänger", "المرسل والمستلم", "寄件人和收件人", "Отправитель и получатель"],
   lv_e_recap: ["Récapitulatif", "Summary", "Resumen", "Riepilogo", "Übersicht", "الملخص", "订单摘要", "Сводка"],
   lv_pour_moi: ["Vous", "You", "Usted", "Tu", "Sie", "أنت", "您", "Вы"],
+  /* ------------------------------ Apparence 2.7 ------------------------------ */
+  style_orion_titre: ["Style Orion", "Orion style", "Estilo Orion", "Stile Orion", "Orion-Stil", "نمط Orion", "Orion 风格", "Стиль Orion"],
+  style_orion_detail: [
+    "Le style de la version 2.6.0 à la place du nouveau design",
+    "The version 2.6.0 style instead of the new design",
+    "El estilo de la versión 2.6.0 en lugar del nuevo diseño",
+    "Lo stile della versione 2.6.0 al posto del nuovo design",
+    "Der Stil der Version 2.6.0 statt des neuen Designs",
+    "نمط الإصدار 2.6.0 بدلًا من التصميم الجديد",
+    "使用 2.6.0 版本的风格，而非新设计",
+    "Стиль версии 2.6.0 вместо нового дизайна",
+  ],
+  meler_titre: ["Mêler les couleurs", "Blend colours", "Mezclar los colores", "Fondi i colori", "Farben mischen", "مزج الألوان", "融合颜色", "Смешивать цвета"],
+  meler_detail: [
+    "La couleur choisie teinte légèrement les fonds",
+    "The chosen colour lightly tints the backgrounds",
+    "El color elegido tiñe ligeramente los fondos",
+    "Il colore scelto tinge leggermente gli sfondi",
+    "Die gewählte Farbe tönt die Hintergründe leicht",
+    "يُضفي اللون المختار مسحة خفيفة على الخلفيات",
+    "所选颜色会轻微渲染背景",
+    "Выбранный цвет слегка окрашивает фон",
+  ],
 };
 
 

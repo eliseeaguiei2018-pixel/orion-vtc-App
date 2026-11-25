@@ -36,6 +36,33 @@ export function ChoixTheme({ libelles }: { libelles: Record<ThemeMode, string> }
   );
 }
 
+/** Une ligne de réglage : titre, explication, interrupteur iOS. */
+function Interrupteur({ titre, detail, actif, onChange }: { titre: string; detail: string; actif: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="reglage-interrupteur">
+      <span className="col grow"><strong>{titre}</strong><small>{detail}</small></span>
+      <button type="button" className={`toggle${actif ? ' on' : ''}`} role="switch" aria-checked={actif} aria-label={titre} onClick={() => onChange(!actif)}><span /></button>
+    </div>
+  );
+}
+
+/**
+ * « Mêler les couleurs » : sous les pastilles. Activé, la couleur choisie teinte légèrement
+ * les fonds, les surfaces et le haut de l'accueil (comme en version 2.6) ; désactivé, l'app
+ * reste en blanc pur (ou noir pur en sombre). Sans objet en « Style Orion », qui teinte déjà.
+ */
+export function MelerCouleurs({ titre, detail }: { titre: string; detail: string }) {
+  const { meler, setMeler, styleOrion } = useTheme();
+  if (styleOrion) return null;
+  return <Interrupteur titre={titre} detail={detail} actif={meler} onChange={setMeler} />;
+}
+
+/** « Style Orion » : le style de la version 2.6.0, au choix, à la place du design 2.7. */
+export function StyleOrion({ titre, detail }: { titre: string; detail: string }) {
+  const { styleOrion, setStyleOrion } = useTheme();
+  return <Interrupteur titre={titre} detail={detail} actif={styleOrion} onChange={setStyleOrion} />;
+}
+
 export function ChoixCouleur({ libelle, titre }: { libelle: (a: Accent) => string; titre: string }) {
   const { accent, setAccent } = useTheme();
   return (

@@ -11,7 +11,7 @@ import { Drapeau } from './Drapeau';
 import { Objet, PastilleIos, type TeinteIos } from './Vehicules';
 import { lieuEnregistre, lieuxRecents } from '../lieux';
 import type { Place } from '../types';
-import { ChoixCouleur, ChoixTheme } from './Apparence';
+import { ChoixCouleur, ChoixTheme, MelerCouleurs, StyleOrion } from './Apparence';
 import { COUNTRIES, formatXOF } from '../data';
 import {
   biometrieLieeDepuis, etatBiometrie, isBiometricEnabled, setBiometricEnabled, verifierBiometrie,
@@ -416,13 +416,15 @@ export function PreferencesScreen({ profil, onBack, onLogout, onDelete, verrouCo
       <TopBar onBack={onBack} title={t('set_title')} />
       <div className="page-body">
         <span className="eyebrow set-titre">{t('set_prefs')}</span>
+        <StyleOrion titre={t('style_orion_titre')} detail={t('style_orion_detail')} />
         <span className="faint" style={{ fontSize: 12 }}>{t('set_theme')}</span>
         {/* Thème : trois vignettes (Clair, Sombre, Système) dessinées comme l'écran qu'elles donnent. */}
         <ChoixTheme libelles={{ light: t('theme_light'), dark: t('theme_dark'), system: t('theme_systeme') }} />
         {/* Couleur de l'app : huit palettes, deux rangées de quatre, appliquées tout de suite partout. */}
         <span className="faint" style={{ fontSize: 12 }}>{t('set_accent')}</span>
         <ChoixCouleur titre={t('set_accent')} libelle={(a) => t(`accent_${a}`)} />
-        <p className="faint" style={{ fontSize: 11, margin: '-6px 2px 14px' }}>{t('accent_hint')}</p>
+        <p className="faint" style={{ fontSize: 11, margin: '-6px 2px 10px' }}>{t('accent_hint')}</p>
+        <MelerCouleurs titre={t('meler_titre')} detail={t('meler_detail')} />
         {/* Empreinte ou visage : s'active ici, dans les paramètres (et dans Sécurité). */}
         <span className="faint" style={{ display: 'block', fontSize: 12, marginBottom: 8 }}><IconLock size={12} /> {t('lock_hint')}</span>
         <BlocBiometrie />

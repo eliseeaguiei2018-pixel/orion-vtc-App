@@ -1,9 +1,10 @@
 /* ==========================================================================================
    ORION 2.7 — DESIGN APPLE : BLANC PUR, COULEURS SYSTÈME SATURÉES, VERRE, RESSORTS
    ==========================================================================================
-   Dernière couche de l'app cliente et d'ORION Pro (chargée après index.css, driver.css et
-   premium.css). Elle ne restructure rien : elle remplace les jetons et le rendu des
-   composants pour s'aligner sur iOS.
+   Dernière couche de l'app cliente et d'ORION Pro, injectée par styleApp.ts après toutes les
+   autres feuilles. Elle ne restructure rien : elle remplace les jetons et le rendu des
+   composants pour s'aligner sur iOS. Le réglage « Style Orion » l'éteint, et l'app retrouve
+   exactement le style de la version 2.6.0.
 
    Direction
    - Produit : commander une course électrique ou un coursier à Abidjan.
@@ -355,7 +356,7 @@ h1, h2, h3, .h-hero, .h-title, .volet-titre, .hub-mot { font-family: var(--font-
   background: linear-gradient(180deg, color-mix(in srgb, var(--t, var(--ios-gris)) 80%, #ffffff) 0%, var(--t, var(--ios-gris)) 100%);
   box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.5), inset 0 0 0 0.5px rgba(0, 0, 0, 0.06);
 }
-.objet-ios svg { width: 60%; height: 60%; color: #ffffff; stroke: currentColor; }
+.objet-ios svg { width: 60%; height: 60%; color: #ffffff; stroke: currentColor; stroke-width: 2.1; }
 :root .list-ico:has(.objet-ios), :root .menu-ico:has(.objet-ios), :root .veh-ico.pack-ico:has(.objet-ios) {
   background: none; border: 0; box-shadow: none; width: auto; height: auto; min-width: 34px;
 }
@@ -472,3 +473,44 @@ h1, h2, h3, .h-hero, .h-title, .volet-titre, .hub-mot { font-family: var(--font-
 :root .dv-tab.on { color: var(--accent-ink); background: var(--surbrillance); font-weight: 600; }
 :root .dv-tab:active { transform: scale(0.92); transition-duration: 0.12s; }
 :root .dv-item-ico:has(.objet-ios) { background: none; }
+
+/* ---------------------------------------------------------------- « Mêler les couleurs »
+   Réglage de l'app cliente (Paramètres, sous les pastilles de couleur). Activé, la couleur
+   choisie se mêle de nouveau aux fonds, exactement comme en version 2.6 : quelques pour cent
+   dans le blanc du mode clair et le graphite du mode sombre, une lueur en haut de l'accueil.
+   Désactivé (par défaut), l'app reste en blanc pur et noir pur. « Blanc » ne teinte jamais. */
+:root[data-theme='light'][data-meler='1'] {
+  --rappel: rgb(var(--accent-bright-rgb));
+  --bg: color-mix(in srgb, var(--rappel) 3%, #ffffff);
+  --bg-0: color-mix(in srgb, var(--rappel) 3%, #ffffff);
+  --bg-1: color-mix(in srgb, var(--rappel) 3%, #ffffff);
+  --bg-2: color-mix(in srgb, var(--rappel) 10%, #ffffff);
+  --plein: color-mix(in srgb, var(--rappel) 2.5%, #ffffff);
+  --surface: color-mix(in srgb, var(--rappel) 11%, #ffffff);
+  --surface-2: color-mix(in srgb, var(--rappel) 17%, #ffffff);
+  --stroke: color-mix(in srgb, var(--rappel) 26%, #e8e8ec);
+  --stroke-strong: color-mix(in srgb, var(--rappel) 16%, #d2d2d7);
+  --remplissage: color-mix(in srgb, var(--rappel) 10%, #efeff2);
+  --sheet-grad: var(--plein); --toast-bg: var(--plein); --photo-grad: var(--surface);
+  --phone-grad: var(--bg-0); --shell-grad: var(--bg-0);
+}
+:root:not([data-theme='light'])[data-meler='1'] {
+  --rappel: rgb(var(--accent-bright-rgb));
+  --bg: color-mix(in srgb, var(--rappel) 4%, #0c0d0f);
+  --bg-0: color-mix(in srgb, var(--rappel) 4%, #0c0d0f);
+  --bg-1: color-mix(in srgb, var(--rappel) 5%, #131417);
+  --bg-2: color-mix(in srgb, var(--rappel) 6%, #1a1b1f);
+  --plein: color-mix(in srgb, var(--rappel) 5%, #16171a);
+  --surface: color-mix(in srgb, var(--rappel) 11%, #1c1d21);
+  --surface-2: color-mix(in srgb, var(--rappel) 14%, #25272c);
+  --stroke: color-mix(in srgb, var(--rappel) 13%, #2b2d33);
+  --stroke-strong: color-mix(in srgb, var(--rappel) 13%, #3b3e46);
+  --remplissage: color-mix(in srgb, var(--rappel) 10%, #26272b);
+  --sheet-grad: var(--plein); --toast-bg: var(--surface); --photo-grad: var(--surface);
+  --phone-grad: var(--bg-0); --shell-grad: var(--bg-0);
+}
+:root[data-theme='light'][data-meler='1'][data-accent='blanc'] { --rappel: #ffffff; }
+:root:not([data-theme='light'])[data-meler='1'][data-accent='blanc'] { --rappel: #0c0d0f; }
+/* Accueil : la lueur de la couleur choisie derrière le titre et la recherche. */
+:root[data-meler='1'] .hub { background: linear-gradient(180deg, color-mix(in srgb, var(--rappel) 22%, var(--bg-0)) 0%, var(--bg-0) 196px); }
+:root[data-meler='1'] .hub .hub-hero, :root[data-meler='1'] .hub .page-body { background: none; }

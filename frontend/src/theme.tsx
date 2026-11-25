@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { appliquerStyle, memoriserStyle, styleInitial } from './styleApp';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type Resolved = 'light' | 'dark';
@@ -18,11 +19,18 @@ interface ThemeValue {
   setMode: (m: ThemeMode) => void;
   accent: Accent;
   setAccent: (a: Accent) => void;
+  /** « Mêler les couleurs » : la couleur choisie teinte légèrement les fonds (comme en 2.6). */
+  meler: boolean;
+  setMeler: (v: boolean) => void;
+  /** « Style Orion » : le style de la version 2.6.0 à la place du design 2.7. */
+  styleOrion: boolean;
+  setStyleOrion: (v: boolean) => void;
 }
 
 const ThemeContext = createContext<ThemeValue | null>(null);
 const KEY = 'orion.theme';
 const KEY_ACCENT = 'orion.accent';
+const KEY_MELER = 'orion.meler';
 
 /** Couleur de la barre du navigateur / du système, par accent et par mode. */
 const BARRE: Record<Accent, Record<Resolved, string>> = Object.fromEntries(
@@ -42,9 +50,22 @@ function appliquerAccent(a: Accent, r: Resolved): void {
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', BARRE[a][r]);
 }
 
+/** « Mêler les couleurs » : désactivé par défaut (blanc et noir purs, version 2.7). */
+function melerInitial(): boolean {
+  try { return localStorage.getItem(KEY_MELER) === '1'; } catch { return false; }
+}
+function appliquerMeler(v: boolean): void {
+  if (v) document.documentElement.setAttribute('data-meler', '1');
+  else document.documentElement.removeAttribute('data-meler');
+}
+
 // Appliqué dès le chargement du module, avant le premier affichage : pas d'éclair vert
-// au démarrage pour un client qui a choisi l'orange ou le bleu.
-if (typeof document !== 'undefined') document.documentElement.setAttribute('data-accent', accentInitial());
+// au démarrage pour un client qui a choisi l'orange ou le bleu, ni de fond qui change de ton.
+if (typeof document !== 'undefined') {
+  document.documentElement.setAttribute('data-accent', accentInitial());
+  appliquerMeler(melerInitial());
+  appliquerStyle(styleInitial());
+}
 
 const systemPrefersDark = () =>
   typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
@@ -57,6 +78,8 @@ function initialMode(): ThemeMode {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>(initialMode);
   const [accent, setAccentState] = useState<Accent>(accentInitial);
+  const [meler, setMelerState] = useState<boolean>(melerInitial);
+  const [styleOrion, setStyleOrionState] = useState<boolean>(() => styleInitial() === 'orion');
   const [resolved, setResolved] = useState<Resolved>(
     initialMode() === 'system' ? (systemPrefersDark() ? 'dark' : 'light') : (initialMode() as Resolved),
   );
@@ -103,12 +126,35 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     else changer();
   };
 
-  return <ThemeContext.Provider value={{ mode, resolved, setMode, accent, setAccent }}>{children}</ThemeContext.Provider>;
+  /** Mêle (ou non) la couleur choisie aux fonds, en fondu comme le changement de couleur. */
+  const setMeler = (v: boolean) => {
+    try { localStorage.setItem(KEY_MELER, v ? '1' : '0'); } catch { /* stockage indisponible */ }
+    const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+    const changer = () => { appliquerMeler(v); setMelerState(v); };
+    if (doc.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) doc.startViewTransition(changer);
+    else changer();
+  };
+
+  /** Bascule entre le design 2.7 et le « Style Orion » (2.6.0), en fondu. */
+  const setStyleOrion = (v: boolean) => {
+    memoriserStyle(v ? 'orion' : 'apple');
+    const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+    const changer = () => { appliquerStyle(v ? 'orion' : 'apple'); setStyleOrionState(v); };
+    if (doc.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) doc.startViewTransition(changer);
+    else changer();
+  };
+
+  return <ThemeContext.Provider value={{ mode, resolved, setMode, accent, setAccent, meler, setMeler, styleOrion, setStyleOrion }}>{children}</ThemeContext.Provider>;
 }
 
 /** Accent courant, y compris hors de ThemeProvider (console, tableau de bord) : vert par défaut. */
 export function useAccentSur(): Accent {
   return useContext(ThemeContext)?.accent ?? 'vert';
+}
+
+/** « Style Orion » actif, y compris hors de ThemeProvider (console, tableau de bord) : non par défaut. */
+export function useStyleOrionSur(): boolean {
+  return useContext(ThemeContext)?.styleOrion ?? false;
 }
 
 export function useTheme(): ThemeValue {

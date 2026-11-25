@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { IconCamera, IconCheck, IconImage, IconPhone, IconShield, IconStar } from '../../icons';
 import type { Accent } from '../../theme';
-import { ChoixCouleur, ChoixTheme } from '../../components/Apparence';
+import { ChoixCouleur, ChoixTheme, MelerCouleurs, StyleOrion } from '../../components/Apparence';
 import { EMERGENCY_NUMBERS } from '../../api';
 import type { ScreenProps } from '../Driver';
 import type { DriverProfile, KycStatus, ProfilePatch } from '../types';
@@ -155,10 +155,12 @@ export function Profile({ app, unread, openNotices }: ScreenProps) {
 
       <Section title={tr('Préférences')}>
         {/* Mêmes réglages que l'app cliente 1.5.9 : thème, couleur, empreinte ou visage, langue. */}
+        <StyleOrion titre={tr('Style Orion')} detail={tr('Le style de la version 2.6.0 à la place du nouveau design')} />
         <div className="dv-pref-titre">{tr('Thème')}</div>
         <ChoixTheme libelles={{ light: tr('Clair'), dark: tr('Sombre'), system: tr('Système') }} />
         <div className="dv-pref-titre">{tr('Couleur')}</div>
         <ChoixCouleur titre={tr('Couleur')} libelle={(a) => COULEURS[a]} />
+        <MelerCouleurs titre={tr('Mêler les couleurs')} detail={tr('La couleur choisie teinte légèrement les fonds')} />
         <div className="dv-pref-titre">{tr('Empreinte digitale / Face ID')}</div>
         <BlocBiometrie />
         <div className="dv-pref-titre">{tr('Langue de l’application')}</div>
