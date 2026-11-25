@@ -8,7 +8,7 @@ import {
 } from '../icons';
 import { useI18n, LANGUAGES, type Lang } from '../i18n';
 import { Drapeau } from './Drapeau';
-import { Objet } from './Vehicules';
+import { Objet, PastilleIos, type TeinteIos } from './Vehicules';
 import { lieuEnregistre, lieuxRecents } from '../lieux';
 import type { Place } from '../types';
 import { ChoixCouleur, ChoixTheme } from './Apparence';
@@ -299,15 +299,15 @@ export function SettingsScreen({
   const { t } = useI18n();
   const serveur = etatServeur();
   const hoteServeur = (() => { try { return new URL(serveur.url).host; } catch { return serveur.url; } })();
-  const bulle = (icone: ReactNode, nom: string, onClick: () => void) => (
-    <button className="menu-bulle" onClick={onClick}>
+  const bulle = (teinte: TeinteIos, icone: ReactNode, nom: string, onClick: () => void) => (
+    <button className="menu-bulle" data-teinte={teinte} onClick={onClick}>
       <span>{icone}</span>
       {nom}
     </button>
   );
-  const ligne = (icone: ReactNode, titre: string, sous: string | null, onClick: () => void, droite?: ReactNode) => (
+  const ligne = (teinte: TeinteIos, icone: ReactNode, titre: string, sous: string | null, onClick: () => void, droite?: ReactNode) => (
     <button className="menu-ligne" onClick={onClick}>
-      <span className="menu-ico">{icone}</span>
+      <span className="menu-ico"><PastilleIos teinte={teinte}>{icone}</PastilleIos></span>
       <span className="menu-texte"><strong>{titre}</strong>{sous && <small>{sous}</small>}</span>
       {droite}
       <IconChevron size={20} strokeWidth={2.2} />
@@ -332,10 +332,10 @@ export function SettingsScreen({
         </button>
 
         <div className="menu-bulles">
-          {bulle(<IconClock size={28} strokeWidth={T} />, t('menu_history'), onHistory)}
-          {bulle(<IconHeadset size={28} strokeWidth={T} />, t('menu_help'), onHelp)}
-          {bulle(<IconPin size={28} strokeWidth={T} />, t('menu_adresses'), onAdresses)}
-          {bulle(<IconSettings size={28} strokeWidth={T} />, t('set_title'), onPreferences)}
+          {bulle('bleu', <IconClock size={28} strokeWidth={T} />, t('menu_history'), onHistory)}
+          {bulle('vert', <IconHeadset size={28} strokeWidth={T} />, t('menu_help'), onHelp)}
+          {bulle('rouge', <IconPin size={28} strokeWidth={T} />, t('menu_adresses'), onAdresses)}
+          {bulle('gris', <IconSettings size={28} strokeWidth={T} />, t('set_title'), onPreferences)}
         </div>
 
         {/* Deux cartes : où en est la sécurité du compte, et l'invitation d'un ami. */}
@@ -351,41 +351,41 @@ export function SettingsScreen({
         </div>
 
         <div className="menu-groupe">
-          {ligne(<IconUsers size={27} strokeWidth={T} />, t('cpt_famille'), t('cpt_famille_d'), onFamille)}
+          {ligne('orange', <IconUsers size={27} strokeWidth={T} />, t('cpt_famille'), t('cpt_famille_d'), onFamille)}
           <div className="menu-ligne statique">
-            <span className="menu-ico"><IconMobile size={27} strokeWidth={T} /></span>
+            <span className="menu-ico"><PastilleIos teinte="bleu"><IconMobile size={27} strokeWidth={T} /></PastilleIos></span>
             <span className="menu-texte"><strong>{t('cpt_simple')} <span className="menu-nouveau">{t('cpt_nouveau')}</span></strong><small>{t('cpt_simple_d')}</small></span>
             <button className={`toggle${modeSimple ? ' on' : ''}`} role="switch" aria-checked={modeSimple} aria-label={t('cpt_simple')} onClick={() => onModeSimple(!modeSimple)}><span /></button>
           </div>
-          {ligne(<IconContacts size={27} strokeWidth={T} />, t('cpt_contacts'), t('cpt_contacts_d'), onContacts)}
-          {ligne(<IconUsers size={27} strokeWidth={T} />, t('cpt_groupes'), t('cpt_groupes_d'), onGroupes, <span className="menu-nouveau">{t('cpt_nouveau')}</span>)}
+          {ligne('sarcelle', <IconContacts size={27} strokeWidth={T} />, t('cpt_contacts'), t('cpt_contacts_d'), onContacts)}
+          {ligne('indigo', <IconUsers size={27} strokeWidth={T} />, t('cpt_groupes'), t('cpt_groupes_d'), onGroupes, <span className="menu-nouveau">{t('cpt_nouveau')}</span>)}
         </div>
 
         <div className="menu-groupe">
-          {onMessages && ligne(<IconMessage size={27} strokeWidth={T} />, t('msg_titre'), nonLus > 0 ? t('menu_messages_n', { n: nonLus }) : t('menu_messages_d'), onMessages,
+          {onMessages && ligne('vert', <IconMessage size={27} strokeWidth={T} />, t('msg_titre'), nonLus > 0 ? t('menu_messages_n', { n: nonLus }) : t('menu_messages_d'), onMessages,
             nonLus > 0 ? <span className="menu-pastille">{nonLus > 9 ? '9+' : nonLus}</span> : undefined)}
-          {ligne(<IconWallet size={27} strokeWidth={T} />, t('wal_title'), t('menu_wallet_d'), onWallet)}
-          {ligne(<IconCrown size={27} strokeWidth={T} />, t('set_subscription'), t('menu_sub_d'), onSubscription)}
+          {ligne('sarcelle', <IconWallet size={27} strokeWidth={T} />, t('wal_title'), t('menu_wallet_d'), onWallet)}
+          {ligne('orange', <IconCrown size={27} strokeWidth={T} />, t('set_subscription'), t('menu_sub_d'), onSubscription)}
         </div>
 
         <div className="menu-groupe">
-          {profil && onAssurance && ligne(<IconShieldCheck size={27} strokeWidth={T} />, t('as_title'), t(assuranceActive ? 'set_assurance_d_on' : 'set_assurance_d_off'), onAssurance)}
-          {ligne(<IconAlarm size={27} strokeWidth={T} />, t('set_sos'), t('set_sos_d'), onSos)}
-          {ligne(<IconLock size={27} strokeWidth={T} />, t('sec_title'), t('menu_securite_d'), onSecurite)}
+          {profil && onAssurance && ligne('vert', <IconShieldCheck size={27} strokeWidth={T} />, t('as_title'), t(assuranceActive ? 'set_assurance_d_on' : 'set_assurance_d_off'), onAssurance)}
+          {ligne('rouge', <IconAlarm size={27} strokeWidth={T} />, t('set_sos'), t('set_sos_d'), onSos)}
+          {ligne('bleu', <IconLock size={27} strokeWidth={T} />, t('sec_title'), t('menu_securite_d'), onSecurite)}
         </div>
 
         <div className="menu-groupe">
-          {ligne(<IconSteering size={27} strokeWidth={T} />, t('cpt_revenus'), t('cpt_revenus_d'), onRevenus)}
-          {ligne(<IconBriefcase size={27} strokeWidth={T} />, t('cpt_pro_tableau'), t('cpt_pro_tableau_d'), onBusiness)}
-          {ligne(<IconBuilding size={27} strokeWidth={T} />, t('cpt_pro'), t('cpt_pro_d'), onEntreprise)}
-          {ligne(<IconGift size={27} strokeWidth={T} />, t('cpt_parrainer'), t('cpt_parrainer_d'), onParrainage)}
+          {ligne('indigo', <IconSteering size={27} strokeWidth={T} />, t('cpt_revenus'), t('cpt_revenus_d'), onRevenus)}
+          {ligne('brun', <IconBriefcase size={27} strokeWidth={T} />, t('cpt_pro_tableau'), t('cpt_pro_tableau_d'), onBusiness)}
+          {ligne('gris', <IconBuilding size={27} strokeWidth={T} />, t('cpt_pro'), t('cpt_pro_d'), onEntreprise)}
+          {ligne('rose', <IconGift size={27} strokeWidth={T} />, t('cpt_parrainer'), t('cpt_parrainer_d'), onParrainage)}
         </div>
 
         <div className="menu-groupe">
-          {profil && ligne(<IconUser size={27} strokeWidth={T} />, t('cpt_gerer'), t('cpt_gerer_d'), onProfile)}
-          {ligne(<IconInfo size={27} strokeWidth={T} />, t('menu_infos'), t('menu_infos_d'), onLegal)}
-          {onCarte && ligne(<IconMap size={27} strokeWidth={T} />, t('carte_titre'), t(carteGoogle ? 'carte_d_google' : 'carte_d_orion'), onCarte)}
-          {onServeur && ligne(<IconMonitor size={27} strokeWidth={T} />, t('srv_title'), serveur.url ? t('srv_d_relie', { h: hoteServeur }) : t('srv_d_autonome'), onServeur)}
+          {profil && ligne('gris', <IconUser size={27} strokeWidth={T} />, t('cpt_gerer'), t('cpt_gerer_d'), onProfile)}
+          {ligne('bleu', <IconInfo size={27} strokeWidth={T} />, t('menu_infos'), t('menu_infos_d'), onLegal)}
+          {onCarte && ligne('vert', <IconMap size={27} strokeWidth={T} />, t('carte_titre'), t(carteGoogle ? 'carte_d_google' : 'carte_d_orion'), onCarte)}
+          {onServeur && ligne('gris', <IconMonitor size={27} strokeWidth={T} />, t('srv_title'), serveur.url ? t('srv_d_relie', { h: hoteServeur }) : t('srv_d_autonome'), onServeur)}
         </div>
 
         {profil && (

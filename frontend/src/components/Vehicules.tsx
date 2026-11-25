@@ -33,7 +33,7 @@ export const rendu = (nom: string): string => `${import.meta.env.BASE_URL}rendus
  *
  * Revenir à l'ancien accueil : `accueil: 'couleur'` dans src/main.tsx, rien d'autre.
  */
-export interface StyleOrion { icones: 'volume' | 'trait'; accueil: 'couleur' | 'nb' | 'urbain' | 'vif' }
+export interface StyleOrion { icones: 'volume' | 'trait' | 'ios'; accueil: 'couleur' | 'nb' | 'urbain' | 'vif' }
 const style: StyleOrion = { icones: 'volume', accueil: 'couleur' };
 export function definirStyle(s: Partial<StyleOrion>): void { Object.assign(style, s); }
 const dossierAccueil = (): string => (style.accueil === 'couleur' ? '' : `${style.accueil}/`);
@@ -102,7 +102,11 @@ export function Voiture({ modele = 'berline', peinture = 'accent', largeur = 120
   modele?: Modele; peinture?: Peinture; largeur?: number; phares?: boolean; accueil?: boolean;
 }) {
   const accent = useAccentSur();
-  if (accueil && style.accueil !== 'couleur') return <Rendu nom={`${dossierAccueil()}berline-orion`} largeur={largeur} ratio={0.58} />;
+  // Accueil : la voiture à la couleur choisie (vert, bleu, orange) quand elle existe en rendu ;
+  // sinon celle de la palette d'accueil.
+  if (accueil && style.accueil !== 'couleur' && !(ACCENTS_RENDUS as string[]).includes(accent)) {
+    return <Rendu nom={`${dossierAccueil()}berline-orion`} largeur={largeur} ratio={0.58} />;
+  }
   return <Rendu nom={fichierVoiture(modele, peinture, accent)} largeur={largeur} ratio={0.58} />;
 }
 
@@ -124,12 +128,40 @@ const TRAITS: Record<ObjetService | Icone3D, (p: { size?: number; strokeWidth?: 
 };
 
 /**
+ * Style « ios » : chaque pictogramme a sa couleur système Apple, celle qu'on lui donnerait
+ * dans les Réglages d'un iPhone (rouge pour l'urgence, vert pour l'argent et la protection,
+ * bleu pour les lieux et l'aide…). Le nom de la teinte renvoie à une variable `--ios-<teinte>`.
+ */
+export type TeinteIos = 'rouge' | 'orange' | 'jaune' | 'vert' | 'menthe' | 'sarcelle' | 'cyan' | 'bleu' | 'indigo' | 'violet' | 'rose' | 'brun' | 'gris';
+const TEINTES: Record<ObjetService | Icone3D, TeinteIos> = {
+  food: 'orange', achat: 'rose', supermarche: 'vert', colis: 'brun', abonnement: 'orange', location: 'indigo', mariage: 'rose',
+  'mes-courses': 'bleu', aide: 'vert', reserver: 'rouge', protection: 'vert', cadeau: 'rose',
+  'pack-argent': 'gris', 'pack-or': 'orange', 'pack-diamant': 'cyan', samu: 'rouge', police: 'bleu', pompiers: 'orange',
+  reglages: 'gris', assurance: 'vert', historique: 'indigo', 'alertes-sos': 'rouge', portefeuille: 'sarcelle', cadenas: 'bleu',
+  document: 'gris', serveur: 'indigo', telephone: 'vert', message: 'vert', wifi: 'bleu',
+  lieu: 'rouge', destination: 'vert', domicile: 'bleu', bureau: 'brun', banque: 'vert', aeroport: 'bleu', ecole: 'orange',
+  eglise: 'violet', mosquee: 'sarcelle', hotel: 'indigo', carburant: 'orange', bus: 'bleu', loisirs: 'rose', immeuble: 'gris', parc: 'vert',
+  eco: 'vert', chauffeur: 'indigo', clients: 'bleu', finances: 'vert', objectif: 'rouge', carte: 'sarcelle',
+};
+
+/** Pictogramme blanc sur un carré arrondi de couleur saturée, comme les icônes des Réglages iOS. */
+export function PastilleIos({ teinte, taille = 34, children }: { teinte: TeinteIos; taille?: number; children: ReactNode }) {
+  return <span className="objet-ios" data-teinte={teinte} style={{ width: taille, height: taille }} aria-hidden="true">{children}</span>;
+}
+
+/**
  * Objet d'un service ou icône d'une liste. `volume` : toujours le rendu 3D (tuiles de
  * l'accueil), dans la palette de l'accueil. Sinon l'app cliente affiche le pictogramme
- * au trait ; l'app chauffeur, la console et le tableau de bord gardent l'objet en volume.
+ * (au trait, ou blanc sur sa pastille de couleur en style « ios ») ; l'app chauffeur, la
+ * console et le tableau de bord gardent l'objet en volume.
  */
 export function Objet({ nom, taille = 96, volume = false }: { nom: ObjetService | Icone3D; taille?: number; volume?: boolean }) {
   if (volume) return <Rendu nom={`${dossierAccueil()}${nom}`} largeur={taille} ratio={1} classe="objet" />;
+  if (style.icones === 'ios') {
+    const Trait = TRAITS[nom];
+    const cote = Math.max(24, Math.min(64, Math.round(taille)));
+    return <PastilleIos teinte={TEINTES[nom]} taille={cote}><Trait size={Math.round(cote * 0.58)} strokeWidth={2.1} /></PastilleIos>;
+  }
   if (style.icones === 'trait') {
     const Trait = TRAITS[nom];
     const cote = Math.max(18, Math.min(30, Math.round(taille * 0.78)));

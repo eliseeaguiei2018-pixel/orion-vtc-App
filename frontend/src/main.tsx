@@ -10,6 +10,7 @@ import { ThemeProvider } from './theme';
 import './polices.css';
 import './index.css';
 import './premium.css';
+import './apple.css';
 import { demarrerDiagnosticFluidite } from './fps';
 import { definirStyle } from './components/Vehicules';
 
@@ -18,7 +19,8 @@ import { definirStyle } from './components/Vehicules';
 // aliments) — palette « vif » : les objets et les couleurs de la palette « urbain », en plus
 // saturé. Autres jeux livrés : `accueil: 'urbain'`, `'nb'` (noir, gris et blanc) et `'couleur'`
 // (vert, blanc et violet).
-definirStyle({ icones: 'trait', accueil: 'vif' });
+// Version 2.7 (design Apple) : les icônes des listes passent en pastilles de couleur iOS.
+definirStyle({ icones: 'ios', accueil: 'vif' });
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
