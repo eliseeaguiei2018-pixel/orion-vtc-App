@@ -19,6 +19,8 @@ Documentation fonctionnelle et technique de la plateforme de mobilité verte ORI
 | 13 | [Volume](./13-volume-millions-de-donnees.md) | Un million de courses et 1,7 million d'écritures : index, cumuls financiers exacts, grand livre par pages, exports par tranches, compression, mesures et limites |
 | 14 | [Intégration véhicules](./14-integration-vehicules.md) | App Chauffeur sur l'écran du véhicule (appairage par code), HarmonyOS/ArkWeb, kit constructeurs (OpenAPI), 120 Hz et plus |
 | 15 | [Graphisme premium](./15-graphisme-premium.md) | Palier de finition des 4 interfaces : polices variables, chiffres alignés, fluidité 120/144 Hz, respect des préférences de mouvement, diagnostic ?fps=1 |
+| 16 | [Rapport d'audit](./16-rapport-audit.md) | Audit des 4 interfaces : mise en page, accessibilité, sécurité, constats corrigés |
+| 17 | [Reprise par un développeur](./17-reprise-developpeur.md) | Par où commencer : lancer et vérifier le projet, livrer (serveur, mises à jour à chaud, APK), secrets, accès à ouvrir |
 
 > Les diagrammes sont en **Mermaid** et se rendent automatiquement sur GitHub.
 

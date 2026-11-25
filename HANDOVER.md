@@ -1,5 +1,7 @@
 # 📘 ORION — Cahier de reprise (Handover)
 
+> **Version à jour (2.6) : [`docs/17-reprise-developpeur.md`](docs/17-reprise-developpeur.md)** — lancer, vérifier et livrer le projet, secrets et accès à ouvrir. Ce cahier-ci date de la version 1.
+
 Ce document sert à **transmettre le projet** à une équipe (développeurs, designer, DevOps)
 pour **matérialiser** ORION : mise en production, publication sur les stores, intégrations
 réelles (paiement, cartes). Il décrit **ce qui est fait**, **où se trouve quoi**, **ce qui
