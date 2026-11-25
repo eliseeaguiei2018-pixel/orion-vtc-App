@@ -1,0 +1,268 @@
+/* ==========================================================================================
+   ORION 2.7 — COULEURS ET TONS (les deux styles)
+   ==========================================================================================
+   Les tons de la version 2.7 : blanc pur en clair, noir pur en sombre, couleurs système
+   Apple saturées pour les huit palettes, objets en volume plus saturés. Cette feuille vaut
+   pour le design 2.7 ET pour le « Style Orion » (style 2.6.0) : seuls les tons changent, pas
+   le dessin des composants ni le style des icônes, qui sont dans apple.css (design 2.7 seul).
+   « Mêler les couleurs » (plus bas) remet la couleur choisie dans les fonds, comme en 2.6.
+   ========================================================================================== */
+
+/* ---------------------------------------------------------------- Couleurs système Apple */
+:root {
+  --ios-rouge: #ff3b30; --ios-orange: #ff9500; --ios-jaune: #ffcc00; --ios-vert: #34c759; --ios-menthe: #00c7be;
+  --ios-sarcelle: #30b0c7; --ios-cyan: #32ade6; --ios-bleu: #007aff; --ios-indigo: #5856d6; --ios-violet: #af52de;
+  --ios-rose: #ff2d55; --ios-brun: #a2845e; --ios-gris: #8e8e93;
+}
+:root:not([data-theme='light']) {
+  --ios-rouge: #ff453a; --ios-orange: #ff9f0a; --ios-jaune: #ffd60a; --ios-vert: #30d158; --ios-menthe: #63e6e2;
+  --ios-sarcelle: #40c8e0; --ios-cyan: #64d2ff; --ios-bleu: #0a84ff; --ios-indigo: #5e5ce6; --ios-violet: #bf5af2;
+  --ios-rose: #ff375f; --ios-brun: #ac8e68; --ios-gris: #8e8e93;
+}
+[data-teinte='rouge'] { --t: var(--ios-rouge); }
+[data-teinte='orange'] { --t: var(--ios-orange); }
+[data-teinte='jaune'] { --t: var(--ios-jaune); }
+[data-teinte='vert'] { --t: var(--ios-vert); }
+[data-teinte='menthe'] { --t: var(--ios-menthe); }
+[data-teinte='sarcelle'] { --t: var(--ios-sarcelle); }
+[data-teinte='cyan'] { --t: var(--ios-cyan); }
+[data-teinte='bleu'] { --t: var(--ios-bleu); }
+[data-teinte='indigo'] { --t: var(--ios-indigo); }
+[data-teinte='violet'] { --t: var(--ios-violet); }
+[data-teinte='rose'] { --t: var(--ios-rose); }
+[data-teinte='brun'] { --t: var(--ios-brun); }
+[data-teinte='gris'] { --t: var(--ios-gris); }
+
+
+/* ---------------------------------------------------------------- Clair : blanc pur */
+:root[data-theme='light'] {
+  --rappel: #ffffff;
+  --bg: #ffffff; --bg-0: #ffffff; --bg-1: #ffffff; --bg-2: #f2f2f7; --plein: #ffffff;
+  --surface: #f2f2f7; --surface-2: #e5e5ea;
+  --stroke: rgba(60, 60, 67, 0.13); --stroke-strong: rgba(60, 60, 67, 0.22);
+  --text: #000000; --text-dim: #6e6e73; --text-faint: #8e8e93; --muted: #8e8e93;
+
+  --shell-grad: #ffffff; --phone-grad: #ffffff; --sheet-grad: #ffffff; --toast-bg: #ffffff;
+  --onb-grad: #ffffff; --splash-grad: #ffffff; --photo-grad: #f2f2f7; --map-fade: none;
+  --splash-word-grad: linear-gradient(#000, #000);
+  --phone-ring: 0 0 0 10px #f2f2f7, 0 0 0 11px #e5e5ea;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --elev-2: 0 12px 30px rgba(0, 0, 0, 0.10);
+  --glow: none;
+
+  --danger: #ff3b30; --danger-deep: #d70015; --danger-ink: #d70015; --danger-soft: #ffeceb;
+  --gold: #ff9500; --warn-ink: #c93400; --warn-soft: #fff3e0; --violet: #af52de;
+
+  /* Remplissages iOS (gris translucides) et surbrillance d'une ligne touchée. */
+  --remplissage: rgba(118, 118, 128, 0.12);
+  --remplissage-2: rgba(118, 118, 128, 0.2);
+  --surbrillance: rgba(118, 118, 128, 0.16);
+  --chevron: #c4c4c7;
+
+  /* Verre : fond blanc translucide, flou et saturation de ce qui passe dessous. */
+  --verre: rgba(255, 255, 255, 0.72);
+  --verre-dense: rgba(255, 255, 255, 0.9);
+  --verre-bord: rgba(0, 0, 0, 0.07);
+  --verre-reflet: inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 -0.5px 0 rgba(0, 0, 0, 0.04);
+  --verre-ombre: 0 12px 32px -10px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.06);
+  --bulle-fond: rgba(255, 255, 255, 0.72); --bulle-bord: rgba(0, 0, 0, 0.07);
+}
+
+/* ---------------------------------------------------------------- Sombre : noir pur */
+:root:not([data-theme='light']) {
+  --rappel: #000000;
+  --bg: #000000; --bg-0: #000000; --bg-1: #000000; --bg-2: #1c1c1e; --plein: #1c1c1e;
+  --surface: #1c1c1e; --surface-2: #2c2c2e;
+  --stroke: rgba(84, 84, 88, 0.5); --stroke-strong: rgba(84, 84, 88, 0.75);
+  --text: #ffffff; --text-dim: #aeaeb2; --text-faint: #8e8e93; --muted: #8e8e93;
+
+  --shell-grad: #000000; --phone-grad: #000000; --sheet-grad: #1c1c1e; --toast-bg: #2c2c2e;
+  --onb-grad: #000000; --splash-grad: #000000; --photo-grad: #1c1c1e; --map-fade: none;
+  --splash-word-grad: linear-gradient(#fff, #fff);
+  --phone-ring: 0 0 0 10px #1c1c1e, 0 0 0 11px #2c2c2e;
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --elev-2: 0 12px 30px rgba(0, 0, 0, 0.6);
+  --glow: none;
+
+  --danger: #ff453a; --danger-deep: #ff453a; --danger-ink: #ff6961; --danger-soft: #2c1615;
+  --gold: #ff9f0a; --warn-ink: #ffb340; --warn-soft: #2b2010; --violet: #bf5af2;
+
+  --remplissage: rgba(118, 118, 128, 0.24);
+  --remplissage-2: rgba(118, 118, 128, 0.32);
+  --surbrillance: rgba(255, 255, 255, 0.1);
+  --chevron: #5a5a5f;
+
+  --verre: rgba(30, 30, 32, 0.68);
+  --verre-dense: rgba(28, 28, 30, 0.9);
+  --verre-bord: rgba(255, 255, 255, 0.1);
+  --verre-reflet: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -0.5px 0 rgba(0, 0, 0, 0.4);
+  --verre-ombre: 0 14px 34px -10px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --bulle-fond: rgba(30, 30, 32, 0.66); --bulle-bord: rgba(255, 255, 255, 0.1);
+}
+
+/* ---------------------------------------------------------------- Accents : couleurs Apple
+   --accent-fill : l'aplat (boutons, sélection) ; --green : la couleur employée comme encre sur
+   le fond (assez foncée pour se lire) ; --btn-on : le texte posé sur l'aplat. */
+:root[data-theme='light'], :root[data-theme='light'][data-accent='vert'] {
+  --green: #248a3d; --green-bright: #34c759; --green-deep: #1d7a35; --accent-ink: #248a3d;
+  --accent-fill: #34c759; --accent-soft: #e8f8ec; --accent-shade: #e8f8ec;
+  --accent-rgb: 52, 199, 89; --accent-bright-rgb: 52, 199, 89;
+  --accent-dark: #248a3d; --accent-darker: #145226; --btn-on: #ffffff;
+}
+:root[data-theme='light'][data-accent='orange'] {
+  --green: #c93400; --green-bright: #ff9500; --green-deep: #a62c00; --accent-ink: #c93400;
+  --accent-fill: #ff9500; --accent-soft: #fff3e0; --accent-shade: #fff3e0;
+  --accent-rgb: 255, 149, 0; --accent-bright-rgb: 255, 149, 0;
+  --accent-dark: #c93400; --accent-darker: #6b1c00; --btn-on: #ffffff;
+}
+:root[data-theme='light'][data-accent='bleu'] {
+  --green: #0062cc; --green-bright: #007aff; --green-deep: #0051a8; --accent-ink: #0062cc;
+  --accent-fill: #007aff; --accent-soft: #e6f1ff; --accent-shade: #e6f1ff;
+  --accent-rgb: 0, 122, 255; --accent-bright-rgb: 0, 122, 255;
+  --accent-dark: #0051a8; --accent-darker: #002f63; --btn-on: #ffffff;
+}
+:root[data-theme='light'][data-accent='blanc'] {
+  --green: #000000; --green-bright: #000000; --green-deep: #000000; --accent-ink: #000000;
+  --accent-fill: #000000; --accent-soft: #f2f2f7; --accent-shade: #f2f2f7;
+  --accent-rgb: 0, 0, 0; --accent-bright-rgb: 0, 0, 0;
+  --accent-dark: #000000; --accent-darker: #000000; --btn-on: #ffffff;
+}
+:root[data-theme='light'][data-accent='jaune'] {
+  --green: #a05a00; --green-bright: #ffcc00; --green-deep: #7a4500; --accent-ink: #a05a00;
+  --accent-fill: #ffcc00; --accent-soft: #fff9db; --accent-shade: #fff9db;
+  --accent-rgb: 255, 204, 0; --accent-bright-rgb: 255, 204, 0;
+  --accent-dark: #a05a00; --accent-darker: #4d2b00; --btn-on: #000000;
+}
+:root[data-theme='light'][data-accent='marron'] {
+  --green: #7f6545; --green-bright: #a2845e; --green-deep: #634e35; --accent-ink: #7f6545;
+  --accent-fill: #a2845e; --accent-soft: #f5f0ea; --accent-shade: #f5f0ea;
+  --accent-rgb: 162, 132, 94; --accent-bright-rgb: 162, 132, 94;
+  --accent-dark: #7f6545; --accent-darker: #3d3021; --btn-on: #ffffff;
+}
+:root[data-theme='light'][data-accent='violet'] {
+  --green: #8944ab; --green-bright: #af52de; --green-deep: #6e3589; --accent-ink: #8944ab;
+  --accent-fill: #af52de; --accent-soft: #f6ecfc; --accent-shade: #f6ecfc;
+  --accent-rgb: 175, 82, 222; --accent-bright-rgb: 175, 82, 222;
+  --accent-dark: #8944ab; --accent-darker: #45225a; --btn-on: #ffffff;
+}
+:root[data-theme='light'][data-accent='rose'] {
+  --green: #d30f45; --green-bright: #ff2d55; --green-deep: #a80c37; --accent-ink: #d30f45;
+  --accent-fill: #ff2d55; --accent-soft: #ffe9ee; --accent-shade: #ffe9ee;
+  --accent-rgb: 255, 45, 85; --accent-bright-rgb: 255, 45, 85;
+  --accent-dark: #d30f45; --accent-darker: #5e0a22; --btn-on: #ffffff;
+}
+
+:root:not([data-theme='light']), :root:not([data-theme='light'])[data-accent='vert'] {
+  --green: #30d158; --green-bright: #30d158; --green-deep: #28b84c; --accent-ink: #30d158;
+  --accent-fill: #30d158; --accent-soft: #10291a; --accent-shade: #10291a;
+  --accent-rgb: 48, 209, 88; --accent-bright-rgb: 48, 209, 88;
+  --accent-dark: #28b84c; --accent-darker: #0c3a1a; --btn-on: #000000;
+}
+:root:not([data-theme='light'])[data-accent='orange'] {
+  --green: #ff9f0a; --green-bright: #ff9f0a; --green-deep: #e68a00; --accent-ink: #ff9f0a;
+  --accent-fill: #ff9f0a; --accent-soft: #2e2006; --accent-shade: #2e2006;
+  --accent-rgb: 255, 159, 10; --accent-bright-rgb: 255, 159, 10;
+  --accent-dark: #e68a00; --accent-darker: #5c3800; --btn-on: #000000;
+}
+:root:not([data-theme='light'])[data-accent='bleu'] {
+  --green: #409cff; --green-bright: #0a84ff; --green-deep: #0a6fd6; --accent-ink: #409cff;
+  --accent-fill: #0a84ff; --accent-soft: #0b2240; --accent-shade: #0b2240;
+  --accent-rgb: 10, 132, 255; --accent-bright-rgb: 10, 132, 255;
+  --accent-dark: #0a6fd6; --accent-darker: #062e5c; --btn-on: #ffffff;
+}
+:root:not([data-theme='light'])[data-accent='blanc'] {
+  --green: #ffffff; --green-bright: #ffffff; --green-deep: #e5e5ea; --accent-ink: #ffffff;
+  --accent-fill: #ffffff; --accent-soft: #2c2c2e; --accent-shade: #2c2c2e;
+  --accent-rgb: 255, 255, 255; --accent-bright-rgb: 255, 255, 255;
+  --accent-dark: #d1d1d6; --accent-darker: #8e8e93; --btn-on: #000000;
+}
+:root:not([data-theme='light'])[data-accent='jaune'] {
+  --green: #ffd60a; --green-bright: #ffd60a; --green-deep: #e6c000; --accent-ink: #ffd60a;
+  --accent-fill: #ffd60a; --accent-soft: #2e2905; --accent-shade: #2e2905;
+  --accent-rgb: 255, 214, 10; --accent-bright-rgb: 255, 214, 10;
+  --accent-dark: #e6c000; --accent-darker: #5c4d00; --btn-on: #000000;
+}
+:root:not([data-theme='light'])[data-accent='marron'] {
+  --green: #c4a682; --green-bright: #ac8e68; --green-deep: #97795a; --accent-ink: #c4a682;
+  --accent-fill: #ac8e68; --accent-soft: #2a231b; --accent-shade: #2a231b;
+  --accent-rgb: 172, 142, 104; --accent-bright-rgb: 172, 142, 104;
+  --accent-dark: #97795a; --accent-darker: #4a3b2a; --btn-on: #ffffff;
+}
+:root:not([data-theme='light'])[data-accent='violet'] {
+  --green: #d08cf5; --green-bright: #bf5af2; --green-deep: #a640dc; --accent-ink: #d08cf5;
+  --accent-fill: #bf5af2; --accent-soft: #2a1636; --accent-shade: #2a1636;
+  --accent-rgb: 191, 90, 242; --accent-bright-rgb: 191, 90, 242;
+  --accent-dark: #a640dc; --accent-darker: #4d1c66; --btn-on: #ffffff;
+}
+:root:not([data-theme='light'])[data-accent='rose'] {
+  --green: #ff6482; --green-bright: #ff375f; --green-deep: #e6264d; --accent-ink: #ff6482;
+  --accent-fill: #ff375f; --accent-soft: #33101a; --accent-shade: #33101a;
+  --accent-rgb: 255, 55, 95; --accent-bright-rgb: 255, 55, 95;
+  --accent-dark: #e6264d; --accent-darker: #5e0d1f; --btn-on: #ffffff;
+}
+/* Pastilles du choix de couleur : les couleurs Apple, telles qu'elles seront. */
+.accent-vert { background: #34c759; }
+.accent-orange { background: #ff9500; }
+.accent-bleu { background: #007aff; }
+.accent-jaune { background: #ffcc00; }
+.accent-marron { background: #a2845e; }
+.accent-violet { background: #af52de; }
+.accent-rose { background: #ff2d55; }
+
+/* Point « Localisation actuelle » de l'accueil : la couleur choisie (en 2.6 il prenait la
+   teinte des fonds, désormais blanche). Le design 2.7 le passe au vert système. */
+:root .hub-point { background: var(--accent-fill); box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.22); }
+
+/* Objets en volume (accueil, Services, choix du véhicule, colis) : couleurs plus saturées,
+   contraste un peu plus franc. Leur dessin ne change pas. */
+.tuile-fond img, .veh-illus img, .svc-card img, .lv-formule-img img { filter: saturate(1.4) contrast(1.05); }
+.compte-carte-objet .objet { filter: saturate(1.4) contrast(1.05) drop-shadow(0 6px 8px rgba(0, 0, 0, 0.14)); }
+
+/* ---------------------------------------------------------------- Envoyer un colis : bleu Apple */
+.lv { --lv-bleu: #007aff; --lv-encre: #0062cc; --lv-voile: rgba(0, 122, 255, 0.08); --lv-voile-fort: rgba(0, 122, 255, 0.14);
+  --lv-bord: rgba(0, 122, 255, 0.45); --lv-ombre: 0 10px 24px -16px rgba(0, 0, 0, 0.4); }
+:root[data-theme='light'] .lv { --bg-0: #ffffff; --bg-1: #ffffff; --plein: #ffffff; --stroke: rgba(60, 60, 67, 0.13); --stroke-strong: rgba(60, 60, 67, 0.22); }
+:root:not([data-theme='light']) .lv { --lv-bleu: #0a84ff; --lv-encre: #409cff; --bg-0: #000000; --bg-1: #000000; --plein: #1c1c1e; }
+
+/* ---------------------------------------------------------------- « Mêler les couleurs »
+   Réglage de l'app cliente (Paramètres, sous les pastilles de couleur). Activé, la couleur
+   choisie se mêle de nouveau aux fonds, exactement comme en version 2.6 : quelques pour cent
+   dans le blanc du mode clair et le graphite du mode sombre, une lueur en haut de l'accueil.
+   Désactivé (par défaut), l'app reste en blanc pur et noir pur. « Blanc » ne teinte jamais. */
+:root[data-theme='light'][data-meler='1'] {
+  --rappel: rgb(var(--accent-bright-rgb));
+  --bg: color-mix(in srgb, var(--rappel) 3%, #ffffff);
+  --bg-0: color-mix(in srgb, var(--rappel) 3%, #ffffff);
+  --bg-1: color-mix(in srgb, var(--rappel) 3%, #ffffff);
+  --bg-2: color-mix(in srgb, var(--rappel) 10%, #ffffff);
+  --plein: color-mix(in srgb, var(--rappel) 2.5%, #ffffff);
+  --surface: color-mix(in srgb, var(--rappel) 11%, #ffffff);
+  --surface-2: color-mix(in srgb, var(--rappel) 17%, #ffffff);
+  --stroke: color-mix(in srgb, var(--rappel) 26%, #e8e8ec);
+  --stroke-strong: color-mix(in srgb, var(--rappel) 16%, #d2d2d7);
+  --remplissage: color-mix(in srgb, var(--rappel) 10%, #efeff2);
+  --sheet-grad: var(--plein); --toast-bg: var(--plein); --photo-grad: var(--surface);
+  --phone-grad: var(--bg-0); --shell-grad: var(--bg-0);
+}
+:root:not([data-theme='light'])[data-meler='1'] {
+  --rappel: rgb(var(--accent-bright-rgb));
+  --bg: color-mix(in srgb, var(--rappel) 4%, #0c0d0f);
+  --bg-0: color-mix(in srgb, var(--rappel) 4%, #0c0d0f);
+  --bg-1: color-mix(in srgb, var(--rappel) 5%, #131417);
+  --bg-2: color-mix(in srgb, var(--rappel) 6%, #1a1b1f);
+  --plein: color-mix(in srgb, var(--rappel) 5%, #16171a);
+  --surface: color-mix(in srgb, var(--rappel) 11%, #1c1d21);
+  --surface-2: color-mix(in srgb, var(--rappel) 14%, #25272c);
+  --stroke: color-mix(in srgb, var(--rappel) 13%, #2b2d33);
+  --stroke-strong: color-mix(in srgb, var(--rappel) 13%, #3b3e46);
+  --remplissage: color-mix(in srgb, var(--rappel) 10%, #26272b);
+  --sheet-grad: var(--plein); --toast-bg: var(--surface); --photo-grad: var(--surface);
+  --phone-grad: var(--bg-0); --shell-grad: var(--bg-0);
+}
+:root[data-theme='light'][data-meler='1'][data-accent='blanc'] { --rappel: #ffffff; }
+:root:not([data-theme='light'])[data-meler='1'][data-accent='blanc'] { --rappel: #0c0d0f; }
+/* Accueil : la lueur de la couleur choisie derrière le titre et la recherche. */
+:root[data-meler='1'] .hub { background: linear-gradient(180deg, color-mix(in srgb, var(--rappel) 22%, var(--bg-0)) 0%, var(--bg-0) 196px); }
+:root[data-meler='1'] .hub .hub-hero, :root[data-meler='1'] .hub .page-body { background: none; }

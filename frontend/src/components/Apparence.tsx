@@ -47,17 +47,16 @@ function Interrupteur({ titre, detail, actif, onChange }: { titre: string; detai
 }
 
 /**
- * « Mêler les couleurs » : sous les pastilles. Activé, la couleur choisie teinte légèrement
- * les fonds, les surfaces et le haut de l'accueil (comme en version 2.6) ; désactivé, l'app
- * reste en blanc pur (ou noir pur en sombre). Sans objet en « Style Orion », qui teinte déjà.
+ * « Mêler les couleurs » : sous les pastilles, dans les deux styles. Activé, la couleur choisie
+ * teinte légèrement les fonds, les surfaces et le haut de l'accueil (comme en version 2.6) ;
+ * désactivé, l'app reste en blanc pur (ou noir pur en sombre).
  */
 export function MelerCouleurs({ titre, detail }: { titre: string; detail: string }) {
-  const { meler, setMeler, styleOrion } = useTheme();
-  if (styleOrion) return null;
+  const { meler, setMeler } = useTheme();
   return <Interrupteur titre={titre} detail={detail} actif={meler} onChange={setMeler} />;
 }
 
-/** « Style Orion » : le style de la version 2.6.0, au choix, à la place du design 2.7. */
+/** « Style Orion » : le dessin de la version 2.6.0 (icônes au trait, tuiles…), avec les tons de la 2.7. */
 export function StyleOrion({ titre, detail }: { titre: string; detail: string }) {
   const { styleOrion, setStyleOrion } = useTheme();
   return <Interrupteur titre={titre} detail={detail} actif={styleOrion} onChange={setStyleOrion} />;

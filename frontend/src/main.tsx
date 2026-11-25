@@ -10,6 +10,7 @@ import { ThemeProvider } from './theme';
 import './polices.css';
 import './index.css';
 import './premium.css';
+import './couleurs.css';
 import { demarrerDiagnosticFluidite } from './fps';
 import { definirStyle } from './components/Vehicules';
 

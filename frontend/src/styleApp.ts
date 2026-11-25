@@ -1,10 +1,11 @@
 /**
  * STYLE DE L'APPLICATION — « Style Orion » ou design 2.7 (Apple).
  *
- * Le design 2.7 (apple.css) est une couche posée par-dessus le style ORION 2.6 : il ne
- * restructure rien. On le charge donc comme une feuille à part, qu'on allume ou qu'on éteint
- * à chaud. « Style Orion » activé = la feuille est éteinte, l'app retrouve exactement le rendu
- * de la version 2.6.0 (fonds teintés de la couleur choisie, icônes au trait, tuiles de verre).
+ * Le dessin du design 2.7 (apple.css : pastilles d'icônes, verre, capsules, mouvement) est
+ * une couche posée par-dessus le style ORION 2.6 : il ne restructure rien. On le charge donc
+ * comme une feuille à part, qu'on allume ou qu'on éteint à chaud. « Style Orion » activé = la
+ * feuille est éteinte : l'app retrouve le dessin de la version 2.6.0 (icônes au trait, tuiles)
+ * avec les tons de la 2.7 (couleurs.css, toujours actif : blanc pur, couleurs saturées).
  *
  * Le choix est mémorisé sur le téléphone (clé `orion.style`) et appliqué dès le démarrage,
  * avant le premier affichage. Par défaut : le design 2.7.
