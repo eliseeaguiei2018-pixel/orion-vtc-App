@@ -1,0 +1,56 @@
+# Une course réelle, puis le bouton « Appeler » : Android doit ouvrir SON clavier
+# téléphonique avec le numéro du chauffeur déjà composé (lien tel:, aucune permission
+# d'appel demandée). La capture 10 montre l'application Téléphone du système.
+appId: ci.orion.app
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: "Où allez-vous.*"
+    timeout: 30000
+- tapOn:
+    text: "Course"
+    index: 0
+# Recherche d'adresse réelle (répertoire des quartiers d'Abidjan).
+- extendedWaitUntil:
+    visible: "Adresse, quartier, lieu…"
+    timeout: 20000
+- inputText: "PISAM"
+- extendedWaitUntil:
+    visible: ".*PISAM.*"
+    timeout: 20000
+- takeScreenshot: 08b-recherche-destination
+- tapOn: ".*PISAM.*"
+- extendedWaitUntil:
+    visible: "Choisir.*"
+    timeout: 30000
+- tapOn: "Choisir.*"
+# Le point de départ vient du GPS ; s'il est inconnu, le client le confirme d'abord.
+- runFlow:
+    when:
+      visible: "Confirmer le point de départ"
+    commands:
+      - tapOn: "Confirmer le point de départ"
+      - tapOn: "Ma position actuelle"
+- extendedWaitUntil:
+    visible: "Confirmer la course"
+    timeout: 30000
+- takeScreenshot: 08c-depart-gps
+- tapOn: "Confirmer la course"
+# Le numéro arrive du serveur aux seuls participants de la course.
+- extendedWaitUntil:
+    visible: ".*Ouvre le clavier de votre téléphone.*"
+    timeout: 60000
+- extendedWaitUntil:
+    visible: "\\+225 07 .*"
+    timeout: 30000
+- waitForAnimationToEnd
+- takeScreenshot: 09-suivi-bouton-appeler
+- tapOn: "Appeler"
+# Application Téléphone d'Android, numéro du chauffeur composé.
+- extendedWaitUntil:
+    visible: ".*01.?02.?03.?04.*"
+    timeout: 20000
+- waitForAnimationToEnd
+- takeScreenshot: 10-clavier-telephone-android
+- back

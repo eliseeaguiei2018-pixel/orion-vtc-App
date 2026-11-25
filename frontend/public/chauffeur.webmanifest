@@ -1,0 +1,44 @@
+{
+  "name": "ORION Pro",
+  "short_name": "ORION Pro",
+  "description": "ORION Pro, l’application des chauffeurs VTC et des livreurs moto ORION : courses, livraisons, navigation, gains.",
+  "lang": "fr",
+  "dir": "ltr",
+  "id": "./driver.html",
+  "start_url": "./driver.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "background_color": "#05100c",
+  "theme_color": "#05100c",
+  "categories": [
+    "business",
+    "productivity"
+  ],
+  "icons": [
+    {
+      "src": "icones/chauffeur-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icones/chauffeur-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icones/chauffeur-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "prefer_related_applications": false
+}

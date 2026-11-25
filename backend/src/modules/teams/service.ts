@@ -1,0 +1,94 @@
+import { randomUUID } from 'node:crypto';
+import type { Repository } from '../../core/db/repository.js';
+
+/**
+ * Équipes ORION : chaque équipe est dirigée par un MANAGER (chef d'équipe) et
+ * se voit affilier une FLOTTE de chauffeurs. Le manager ne supervise que son
+ * équipe : la portée est imposée côté serveur (liste filtrée par son compte,
+ * actions chauffeurs refusées hors de sa flotte).
+ */
+export interface Team {
+  id: string;
+  name: string;
+  /** Identifiant de connexion du manager (compte console, rôle 'manager'). */
+  managerUsername: string;
+  managerName?: string;
+  /**
+   * Mission de l'équipe : ce dont elle répond. Une équipe sans mission écrite est
+   * une liste de noms — personne ne sait à qui adresser quoi.
+   */
+  mission?: string;
+  /** Flotte affiliée (ids chauffeurs). */
+  driverIds: string[];
+  createdAt: string;
+}
+
+export class TeamService {
+  private readonly teams = new Map<string, Team>();
+  /** Écouteurs : (équipe après, chauffeurs avant) — null quand l'équipe est supprimée. */
+  private readonly ecouteurs: Array<(apres: Team | null, avant: string[], id: string) => void> = [];
+
+  onChange(fn: (apres: Team | null, avant: string[], id: string) => void): void { this.ecouteurs.push(fn); }
+
+  private signaler(apres: Team | null, avant: string[], id: string): void {
+    for (const fn of this.ecouteurs) {
+      try { fn(apres, avant, id); } catch { /* la synchronisation ne bloque jamais l'équipe */ }
+    }
+  }
+
+  constructor(private readonly repo?: Repository<Team>) {
+    for (const t of repo?.all() ?? []) this.teams.set(t.id, t);
+  }
+
+  upsert(input: { id?: string; name: string; managerUsername: string; managerName?: string; mission?: string; driverIds?: string[] }): Team {
+    const existing = input.id ? this.teams.get(input.id) : undefined;
+    const team: Team = {
+      id: existing?.id ?? input.id ?? randomUUID().slice(0, 8),
+      name: input.name,
+      managerUsername: input.managerUsername,
+      managerName: input.managerName ?? existing?.managerName,
+      mission: input.mission ?? existing?.mission,
+      driverIds: input.driverIds ?? existing?.driverIds ?? [],
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+    };
+    this.teams.set(team.id, team);
+    this.repo?.put(team);
+    this.signaler(team, existing?.driverIds ?? [], team.id);
+    return team;
+  }
+
+  setDrivers(id: string, driverIds: string[]): Team | null {
+    const t = this.teams.get(id);
+    if (!t) return null;
+    const avant = [...t.driverIds];
+    t.driverIds = [...new Set(driverIds)];
+    this.repo?.put(t);
+    this.signaler(t, avant, id);
+    return t;
+  }
+
+  remove(id: string): void {
+    const avant = this.teams.get(id)?.driverIds ?? [];
+    this.teams.delete(id);
+    this.repo?.delete(id);
+    this.signaler(null, avant, id);
+  }
+
+  get(id: string): Team | undefined {
+    return this.teams.get(id);
+  }
+
+  list(): Team[] {
+    return [...this.teams.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /** Équipes dirigées par ce manager (portée chef d'équipe). */
+  listByManager(username: string): Team[] {
+    return this.list().filter((t) => t.managerUsername === username);
+  }
+
+  /** Vrai si ce chauffeur appartient à la flotte de ce manager. */
+  managerOwnsDriver(username: string, driverId: string): boolean {
+    return this.listByManager(username).some((t) => t.driverIds.includes(driverId));
+  }
+}

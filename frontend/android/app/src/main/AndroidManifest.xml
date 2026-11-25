@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:screenOrientation="portrait"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
+        </provider>
+        <!-- Registre de test partagé avec l'app chauffeur (voir BusTestProvider). -->
+        <provider
+            android:name=".BusTestProvider"
+            android:authorities="ci.orion.app.bustest"
+            android:exported="true"
+            android:permission="ci.orion.permission.BUS_TEST" />
+    </application>
+
+    <!--
+      Permissions : uniquement ce que l'app utilise AUJOURD'HUI. Google Play examine
+      chaque permission sensible ; en déclarer d'avance (localisation en arrière-plan,
+      micro…) retarde la validation sans rien apporter. Voir NATIVE.md pour les
+      ajouter le jour où la fonction correspondante est branchée.
+    -->
+    <!--
+      REGISTRE DE TEST PARTAGÉ (APK de test, en attendant le serveur ORION en ligne) : l'app
+      client et l'app chauffeur installées sur le même téléphone s'échangent les courses.
+      Permission de niveau « signature », déclarée dans les deux apps : seules les apps
+      signées avec la même clé qu'ORION y ont accès, quel que soit l'ordre d'installation.
+    -->
+    <permission android:name="ci.orion.permission.BUS_TEST" android:protectionLevel="signature" />
+    <uses-permission android:name="ci.orion.permission.BUS_TEST" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Notifications : course trouvée, chauffeur arrivé, course terminée, quand l'app n'est pas à l'écran. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!--
+      Point de prise en charge : la position du téléphone, UNIQUEMENT app ouverte (pas de
+      localisation en arrière-plan). La WebView la demande au moment où le client commande ;
+      s'il refuse, il choisit son point de départ sur la carte.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" tools:replace="android:required" />
+
+    <!--
+      Bouton « Appeler » : un lien tel: ouvre le CLAVIER du téléphone avec le numéro déjà
+      composé ; la personne n'a plus qu'à appuyer sur la touche d'appel. Aucune permission
+      CALL_PHONE : l'app ne passe jamais un appel à la place de l'utilisateur (Google Play
+      la réserve aux applications de téléphonie). Les déclarations ci-dessous rendent le
+      clavier et les SMS visibles depuis l'app (Android 11 et plus).
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="sms" />
+        </intent>
+    </queries>
+    <!--
+      Empreinte digitale ou visage : l'app demande au TÉLÉPHONE de reconnaître son propriétaire
+      (fenêtre système BiometricPrompt). Elle ne lit jamais l'empreinte ni le visage : elle
+      reçoit seulement « reconnu » ou non. Permission dite « normale » : accordée à
+      l'installation, sans fenêtre de demande ; l'accord de la personne se donne dans l'app
+      (Paramètres › Sécurité) puis sur le capteur. USE_FINGERPRINT : Android 9 et antérieurs.
+    -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" android:maxSdkVersion="28" />
+    <uses-feature android:name="android.hardware.fingerprint" android:required="false" />
+    <uses-feature android:name="android.hardware.biometrics.face" android:required="false" />
+
+    <!-- Photo de profil : prise de vue avec la caméra frontale. -->
+    <!-- Appels ORION par internet (chauffeur ↔ client, sans unités) : micro et réglage du son. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- L'app s'installe aussi sur un appareil sans caméra (la galerie reste possible). -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+</manifest>

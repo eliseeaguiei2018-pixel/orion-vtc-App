@@ -1,0 +1,112 @@
+name: Applications de bureau
+
+# Applications de bureau ORION (console et tableau de bord), Windows et macOS, via Electron.
+# - À chaque modification de bureau/ : vérifications (tests des règles + compilation
+#   « dépliée » sur Linux, sans installateur) — rapide et gratuit.
+# - Installateurs signables Windows (.exe) et macOS (.dmg) : sur demande (onglet Actions)
+#   ou « [bureau] » dans le message de commit. macOS tourne sur un runner macOS, dont les
+#   minutes comptent dix fois sur un dépôt privé, d'où le déclenchement sur demande.
+# Installateurs : onglet Actions → l'exécution → rubrique Artifacts.
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'bureau/**'
+      - '.github/workflows/bureau.yml'
+  workflow_dispatch:
+    inputs:
+      installateurs:
+        description: 'Construire les installateurs Windows et macOS'
+        type: boolean
+        default: true
+
+concurrency:
+  group: bureau-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verifier:
+    name: Règles et compilation (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: bureau/package-lock.json
+      - name: Dépendances
+        working-directory: bureau
+        run: npm ci
+      - name: Tests des règles (navigation, permissions, adresses)
+        working-directory: bureau
+        run: npm test
+      - name: Compilation dépliée (console + tableau, sans installateur)
+        working-directory: bureau
+        run: |
+          node scripts/construire.cjs console --dossier
+          node scripts/construire.cjs tableau --dossier
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orion-bureau-linux-deplie
+          path: |
+            bureau/dist/console/linux-unpacked/orion-console
+            bureau/dist/tableau/linux-unpacked/orion-tableau
+          retention-days: 7
+          if-no-files-found: ignore
+
+  installateurs:
+    name: Installateurs ${{ matrix.nom }}
+    needs: verifier
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[bureau]')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            nom: Windows
+          - os: macos-latest
+            nom: macOS
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: bureau/package-lock.json
+      - name: Dépendances
+        working-directory: bureau
+        run: npm ci
+      # Signature et notarisation : fournies par les secrets du dépôt quand ils existent
+      # (sinon les applications se construisent non signées, pour les essais internes).
+      - name: Console
+        working-directory: bureau
+        run: node scripts/construire.cjs console
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Tableau de bord
+        working-directory: bureau
+        run: node scripts/construire.cjs tableau
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orion-bureau-${{ matrix.nom }}
+          path: |
+            bureau/dist/console/*.exe
+            bureau/dist/console/*.dmg
+            bureau/dist/tableau/*.exe
+            bureau/dist/tableau/*.dmg
+          retention-days: 14
+          if-no-files-found: warn

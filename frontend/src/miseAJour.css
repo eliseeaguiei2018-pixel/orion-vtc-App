@@ -1,0 +1,35 @@
+/* « Mise à jour disponible » (src/AvisMiseAJour.tsx) : reprend les couleurs de l'app qui l'affiche
+   (client et ORION Pro : --bg-0, --text… ; console : --a-*), avec des valeurs de repli. */
+.maj-fond {
+  position: fixed; inset: 0; z-index: 2147483000; display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(0, 0, 0, 0.5); animation: maj-apparition 0.2s ease both;
+  padding: 16px max(16px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+.maj-carte {
+  width: 100%; max-width: 420px; box-sizing: border-box; text-align: center;
+  background: var(--bg-0, var(--a-panel, #ffffff)); color: var(--text, var(--a-text, #121315));
+  border: 1px solid var(--stroke, var(--a-stroke, rgba(0, 0, 0, 0.1))); border-radius: 24px;
+  padding: 24px 20px 16px; box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.45);
+  font-family: var(--font-body, inherit); animation: maj-montee 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.maj-icone { width: 72px; height: 72px; border-radius: 18px; object-fit: cover; display: block; margin: 0 auto 14px; box-shadow: 0 8px 20px -10px rgba(0, 0, 0, 0.45); }
+.maj-titre { font-family: var(--font-display, inherit); font-size: 21px; font-weight: 600; line-height: 1.25; margin: 0 0 4px; text-wrap: balance; }
+.maj-version { margin: 0 0 12px; font-size: 13px; color: var(--text-faint, var(--a-muted, #6b6f76)); font-variant-numeric: tabular-nums; }
+.maj-texte { margin: 0 0 12px; font-size: 15px; line-height: 1.5; color: var(--text-dim, var(--a-muted, #4b4f56)); }
+.maj-notes {
+  margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; text-align: start; font-size: 14px; line-height: 1.45;
+  background: var(--surface-2, var(--a-panel2, rgba(0, 0, 0, 0.04))); color: var(--text, var(--a-text, #121315));
+}
+.maj-obligatoire { margin: 0 0 12px; font-size: 13px; font-weight: 500; color: var(--text, var(--a-text, #121315)); }
+.maj-barre { height: 6px; border-radius: 3px; overflow: hidden; margin: 4px 0 14px; background: var(--surface-2, var(--a-panel2, rgba(0, 0, 0, 0.08))); }
+.maj-barre span { display: block; height: 100%; border-radius: 3px; background: var(--green, var(--a-green, #00a865)); transition: width 0.3s ease; }
+.maj-principal, .maj-second {
+  display: block; width: 100%; min-height: 52px; border-radius: 16px; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer;
+}
+.maj-principal { border: 0; background: var(--accent-fill, var(--green, var(--a-green, #00a865))); color: var(--btn-on, var(--a-sur-vert, #ffffff)); }
+.maj-principal:disabled { opacity: 0.75; cursor: default; }
+.maj-second { margin-top: 6px; border: 0; background: none; color: var(--text-dim, var(--a-muted, #4b4f56)); font-weight: 500; }
+.maj-principal:focus-visible, .maj-second:focus-visible { outline: 2px solid var(--green, var(--a-green, #00a865)); outline-offset: 2px; }
+@keyframes maj-apparition { from { opacity: 0; } to { opacity: 1; } }
+@keyframes maj-montee { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .maj-fond, .maj-carte { animation: none; } }

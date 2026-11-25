@@ -1,0 +1,38 @@
+/* MINI CONSOLE DE TEST : carte Google en haut, feuille de commande en bas (téléphone). */
+html, body, #console-test-root { height: 100%; margin: 0; }
+body { background: var(--bg-0); color: var(--text); font-family: var(--font-body); }
+.ct { position: relative; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+.ct-carte-hote { position: relative; flex: 0 0 46%; min-height: 240px; }
+.ct-carte-google { position: absolute; inset: 0; }
+.ct-carte-echec { position: absolute; inset: auto 12px 12px; margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--plein); border: 1px solid var(--stroke); font-size: 13px; }
+.ct-recadrer { position: absolute; top: calc(10px + env(safe-area-inset-top)); right: 10px; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--stroke);
+  background: var(--plein); color: var(--text); font: 600 12px/1 var(--font-body); box-shadow: var(--elev-1); }
+.ct-feuille { flex: 1; overflow-y: auto; margin-top: -18px; position: relative; z-index: 2; padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
+  background: var(--bg-0); border-radius: 22px 22px 0 0; box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.08); display: flex; flex-direction: column; gap: 12px; }
+.ct-tete { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ct-tete div { display: flex; flex-direction: column; }
+.ct-tete strong { font: 600 18px/1.2 var(--font-display); }
+.ct-tete span { font-size: 12.5px; color: var(--text-dim); }
+.ct-carte { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 18px; background: var(--surface); border: 1px solid var(--stroke); }
+.ct-ligne { display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; }
+.ct-ligne span { color: var(--text-dim); flex: none; }
+.ct-ligne strong { font-weight: 600; text-align: end; min-width: 0; }
+.ct-curseur { display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.ct-curseur input { width: 100%; accent-color: var(--green); }
+.ct-km { display: flex; flex-wrap: wrap; gap: 6px; }
+.ct .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+.ct-approche { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--text-dim); }
+.ct-approche strong { color: var(--text); }
+.ct-compte { margin: 0; text-align: center; font-size: 13px; color: var(--text-dim); }
+.ct-boutons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ct-code { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-dim); }
+.ct-code input { font: 600 26px/1 var(--font-display); letter-spacing: 0.4em; text-align: center; padding: 12px; border-radius: 14px;
+  border: 1px solid var(--stroke-strong); background: var(--plein); color: var(--text); }
+.ct-erreur { margin: 0; color: var(--danger); font-size: 13px; }
+.ct-journal { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--text-dim); }
+.ct-journal strong { color: var(--text); font-size: 14px; }
+.ct-journal time { font-variant-numeric: tabular-nums; color: var(--text-faint); margin-right: 4px; }
+.ct-vide { color: var(--text-faint); }
+.ct-repere-client span { display: block; width: 18px; height: 18px; border-radius: 50%; background: #2563eb; border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.25); }
+.ct-repere-voiture img { display: block; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35)); }
+.ct-repere-arrivee span { display: block; width: 14px; height: 14px; border-radius: 3px; background: #111; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4); }

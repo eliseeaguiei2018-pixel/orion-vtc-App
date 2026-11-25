@@ -1,0 +1,131 @@
+# Blueprint Render.com — déploiement du backend ORION en un clic.
+# Sur https://render.com : New → Blueprint → connecter ce dépôt.
+services:
+  - type: web
+    name: orion-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health/ready
+    autoDeploy: true
+    # Francfort : la région Render la plus proche d'Abidjan. Standard (1 processeur, 2 Go) :
+    # tient le banc « 5000 utilisateurs simultanés » (docs/12-test-de-charge.md).
+    region: frankfurt
+    plan: standard
+    # Disque persistant : comptes, courses, réglages et primes survivent aux redémarrages et
+    # aux mises à jour du serveur (base SQLite, voir PERSISTENCE et DB_PATH plus bas).
+    disk:
+      name: orion-donnees
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: GEO_BACKEND
+        value: memory
+      # Données durables sur le disque persistant (sinon tout repart de zéro à chaque redémarrage).
+      - key: PERSISTENCE
+        value: sqlite
+      - key: DB_PATH
+        value: /var/data/orion.db
+      # Identifiant du compte super-administrateur de démarrage (le PDG).
+      - key: ADMIN_USERNAME
+        value: pdg
+      # Vrais chauffeurs seulement (app chauffeur) : jamais de chauffeurs simulés en ligne.
+      - key: SIMULATE_RIDES
+        value: "false"
+      # Render place un relais devant le serveur : le limiteur doit voir l'adresse du téléphone.
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      # Journaux sobres à forte affluence (les erreurs et alertes restent écrites).
+      - key: LOG_LEVEL
+        value: warn
+      # Les trois applications (client, chauffeur, console) parlent au serveur depuis
+      # https://localhost (Android) et capacitor://localhost (iPhone). Ajouter ici l'adresse
+      # d'une version web le jour où elle existe (séparée par une virgule).
+      - key: CORS_ORIGIN
+        value: "https://localhost,capacitor://localhost"
+      # Jeton du dashboard Admin / supervision SAMU — définir un vrai secret dans Render.
+      - key: ADMIN_TOKEN
+        generateValue: true
+      # Mot de passe du compte « admin » de démarrage (12 caractères au moins) : à saisir
+      # dans Render, puis créer les comptes nominatifs dans « Personnel & accès ».
+      - key: ADMIN_PASSWORD
+        sync: false
+      # Boîtiers télématiques des véhicules de location : jeton qu'ils présentent pour
+      # remonter leur position (sinon les remontées sont refusées en production).
+      - key: TELEMATIQUE_TOKEN
+        generateValue: true
+      # App chauffeur : secret de signature des jetons chauffeur (fort, généré par Render).
+      # Secrets de signature des sessions : générés par Render. Le serveur REFUSE de
+      # démarrer en production avec les valeurs de développement écrites dans le dépôt.
+      - key: ADMIN_JWT_SECRET
+        generateValue: true
+      - key: DRIVER_JWT_SECRET
+        generateValue: true
+      # App cliente : secret de signature des sessions client (distinct, généré par Render).
+      - key: CLIENT_JWT_SECRET
+        generateValue: true
+      # Code de synchronisation ORION : EMPREINTE produite par `npm run code-synchro`
+      # (jamais le code lui-même). Sans elle, l'enrôlement des appareils est indisponible.
+      - key: ORION_CODE_SYNCHRO_EMPREINTE
+        sync: false
+      # true : console et tableau de bord réservés aux appareils enrôlés (recommandé).
+      - key: APPAREILS_EXIGES
+        value: "false"
+      # ORION Assurance : clé de chiffrement des dossiers de premiers secours (AES-256).
+      # 32 octets en base64, générés UNE fois : openssl rand -base64 32
+      # Ne jamais la changer ni la perdre : les dossiers chiffrés deviendraient illisibles.
+      # Absente en production = inscription à ORION Assurance indisponible (503).
+      - key: MEDICAL_DATA_KEY
+        sync: false
+      # Itinéraires routiers réels (OSRM). Par défaut le serveur public, à remplacer par
+      # un serveur OSRM d'ORION (carte de Côte d'Ivoire) pour la production.
+      - key: OSRM_URL
+        value: https://router.project-osrm.org
+      # Contrôle de sécurité automatique : « votre course se passe-t-elle bien ? »
+      # envoyé au client après ce nombre de secondes de trajet (0 = désactivé).
+      - key: SAFETY_CHECKIN_SECONDS
+        value: "180"
+      # Opérateur SMS des codes de connexion : « orange » (Orange Côte d'Ivoire) ou
+      # « twilio ». Vide = aucun SMS : en production, les connexions par code sont refusées.
+      # Voir DEPLOIEMENT.md, « Opérateur SMS ».
+      - key: SMS_PROVIDER
+        sync: false
+      - key: ORANGE_SMS_CLIENT_ID
+        sync: false
+      - key: ORANGE_SMS_CLIENT_SECRET
+        sync: false
+      - key: SMS_SENDER_NAME
+        value: ORION
+      # Twilio : SMS de secours (SMS_PROVIDER=twilio) et codes par WhatsApp. Le bouton
+      # « Recevoir le code via WhatsApp » n'apparaît dans l'app que si TWILIO_WHATSAPP_FROM
+      # est défini (bac à sable : +14155238886). Voir DEPLOIEMENT.md, « Codes par WhatsApp ».
+      # Codes par WhatsApp, API officielle de Meta (prioritaire sur Twilio). Voir DEPLOIEMENT.md.
+      - key: META_WHATSAPP_PHONE_ID
+        sync: false
+      - key: META_WHATSAPP_TOKEN
+        sync: false
+      - key: META_WHATSAPP_TEMPLATE
+        value: orion_code
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM
+        sync: false
+      - key: TWILIO_WHATSAPP_FROM
+        sync: false
+      - key: TWILIO_WHATSAPP_CONTENT_SID
+        sync: false
+      # Revue Apple / Google : numéro de démonstration et son code fixe (6 chiffres).
+      # À définir dans le tableau de bord Render, voir store/README.md §4.
+      - key: CLIENT_REVIEW_PHONE
+        sync: false
+      - key: CLIENT_REVIEW_CODE
+        sync: false
+      # Clé Google Maps (optionnelle) — à définir dans le tableau de bord Render (secret).
+      # - key: GOOGLE_MAPS_API_KEY
+      #   sync: false

@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.env
+.env*.local
+*.log
+.DS_Store
+
+*.tsbuildinfo
+dist-chauffeur/
+dist-console/
+# APK de test temps réel (scripts/construire-apk-test.sh)
+dist-test-client/
+dist-test-console/
+fumee-captures/
+dist-fumee/
+# Fichier local écarté le temps d'une construction d'APK (scripts de construction) : jamais versionné.
+.env.local.ecarte

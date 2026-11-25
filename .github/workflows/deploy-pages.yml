@@ -1,0 +1,54 @@
+# Déploie l'app cliente ORION (mode démo) sur GitHub Pages → lien public partageable.
+# Une seule action requise de ta part : Repo → Settings → Pages → Source : « GitHub Actions ».
+# Le lien sera ensuite : https://<ton-utilisateur>.github.io/orion-vtc-App/
+name: Deploy demo to GitHub Pages
+
+# Le déploiement ne se déclenche que sur `main` : l'environnement « github-pages »
+# n'autorise que la branche par défaut à déployer (règle de protection GitHub),
+# donc les branches de feature échoueraient au gate d'environnement. Le déploiement
+# a donc lieu automatiquement à la fusion dans main. `workflow_dispatch` reste
+# disponible pour un déclenchement manuel depuis main.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install & build (demo mode)
+        working-directory: frontend
+        env:
+          VITE_BASE: /orion-vtc-App/
+        run: |
+          npm ci
+          npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

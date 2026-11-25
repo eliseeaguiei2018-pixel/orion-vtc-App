@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#04100b" />
+    <link rel="icon" type="image/svg+xml" href="/orion-icon.svg" />
+    <title>Supprimer mon compte — ORION</title>
+    <link rel="stylesheet" href="/src/pages-publiques.css" />
+  </head>
+  <body>
+    <!--
+      Google Play exige qu'un client puisse demander la suppression de son compte SANS
+      l'app (téléphone perdu, app désinstallée). Cette page le fait réellement : même
+      vérification par code SMS que l'app, puis suppression immédiate.
+    -->
+    <main class="page">
+      <header><img src="/orion-icon.svg" alt="" width="56" height="56" /><div><h1>Supprimer mon compte ORION</h1><p>Sans l’application : votre numéro suffit.</p></div></header>
+      <p>Seront effacés : votre nom, votre numéro, votre e-mail et votre photo. Vos courses passées restent conservées sans votre nom, pour la comptabilité et les éventuels litiges. Dans l’app, la même suppression se trouve dans <em>Paramètres → Mon compte</em>.</p>
+
+      <form id="etape-numero" class="carte">
+        <label for="tel">Numéro de téléphone du compte</label>
+        <input id="tel" inputmode="tel" autocomplete="tel" placeholder="07 12 34 56 78" required />
+        <button type="submit">Recevoir le code</button>
+      </form>
+
+      <form id="etape-code" class="carte" hidden>
+        <label for="code">Code reçu par SMS</label>
+        <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 chiffres" required />
+        <p id="code-dev" class="note" hidden></p>
+        <label class="case"><input id="confirme" type="checkbox" required /> Je confirme la suppression définitive de mon compte.</label>
+        <button type="submit" class="danger">Supprimer mon compte</button>
+      </form>
+
+      <p id="message" role="status"></p>
+    </main>
+    <script type="module" src="/src/suppression-compte.ts"></script>
+  </body>
+</html>

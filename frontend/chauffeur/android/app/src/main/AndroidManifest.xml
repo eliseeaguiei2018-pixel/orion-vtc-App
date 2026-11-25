@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+
+    <!--
+      ORION CHAUFFEUR — permissions : uniquement ce que l'app utilise AUJOURD'HUI (même
+      règle que l'app cliente, Google Play examine chaque permission sensible).
+    -->
+    <!--
+      REGISTRE DE TEST PARTAGÉ (APK de test, en attendant le serveur ORION en ligne) : l'app
+      client et l'app chauffeur installées sur le même téléphone s'échangent les courses.
+      Permission de niveau « signature », déclarée dans les deux apps : seules les apps
+      signées avec la même clé qu'ORION y ont accès, quel que soit l'ordre d'installation.
+    -->
+    <permission android:name="ci.orion.permission.BUS_TEST" android:protectionLevel="signature" />
+    <uses-permission android:name="ci.orion.permission.BUS_TEST" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!--
+      NOTIFICATIONS ET AFFICHAGE PAR-DESSUS : une course qui arrive fait sonner le téléphone
+      (notification prioritaire, en haut de l'écran) et, si le chauffeur l'autorise, ramène
+      l'app au premier plan par-dessus Waze, un appel ou la musique (PremierPlanPlugin).
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!--
+      Position du chauffeur EN SERVICE (en ligne ou en course) : offres de course autour de lui,
+      position vue par les clients avant la commande, navigation, tracé de la course, SOS.
+      Elle continue écran éteint ou application quittée grâce à un SERVICE DE PREMIER PLAN de
+      type « location » (notification permanente « ORION Chauffeur · en service »), ajouté par
+      le module @capacitor-community/background-geolocation avec FOREGROUND_SERVICE,
+      FOREGROUND_SERVICE_LOCATION et POST_NOTIFICATIONS. Un service de premier plan démarré app
+      ouverte n'exige pas ACCESS_BACKGROUND_LOCATION : l'app ne la demande pas.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" tools:replace="android:required" />
+
+    <!--
+      Bouton « Appeler » (passager, chef d'équipe, secours) : un lien tel: ouvre le CLAVIER
+      du téléphone avec le numéro déjà composé. Aucune permission CALL_PHONE : l'app ne
+      passe jamais un appel à la place du chauffeur. Navigation : Google Maps et Waze.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="sms" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <package android:name="com.google.android.apps.maps" />
+        <package android:name="com.waze" />
+        <!-- Registre de test tenu par l'app client ORION, sur le même téléphone. -->
+        <provider android:authorities="ci.orion.app.bustest" />
+    </queries>
+    <!-- Photo du chauffeur (reconnaissance à la prise en charge) : caméra frontale. -->
+    <!-- Appels ORION par internet (chauffeur ↔ client, sans unités) : micro et réglage du son. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Empreinte digitale / visage : verrouillage de l'app (Profil › Préférences).
+      USE_FINGERPRINT : Android 9 et antérieurs. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" android:maxSdkVersion="28" />
+    <!-- L'app s'installe aussi sur un appareil sans caméra (la galerie reste possible). -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+</manifest>

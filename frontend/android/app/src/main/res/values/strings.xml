@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ORION</string>
+    <string name="title_activity_main">ORION</string>
+    <string name="package_name">ci.orion.app</string>
+    <string name="custom_url_scheme">ci.orion.app</string>
+    <!-- Notification permanente du service d'arrière-plan (GPS en service / en course). -->
+    <string name="capacitor_background_geolocation_notification_icon">drawable/ic_stat_orion</string>
+    <string name="capacitor_background_geolocation_notification_color">#00B85C</string>
+</resources>

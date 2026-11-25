@@ -1,0 +1,22 @@
+/* Pages publiques (confidentialité, suppression de compte) : lisibles partout, sans dépendance. */
+:root { color-scheme: light dark; --vert: #00b46e; --texte: #10231a; --doux: #4d6358; --fond: #f4faf7; --carte: #ffffff; --bord: #d3e6dc; }
+@media (prefers-color-scheme: dark) { :root { --texte: #f4f4f6; --doux: #b6b9c1; --fond: #0c0d0f; --carte: #16171a; --bord: #2b2d33; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--fond); color: var(--texte); font: 16px/1.6 Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+.page { max-width: 720px; margin: 0 auto; padding: 28px 16px 48px; }
+header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+header h1 { margin: 0; font-size: 24px; line-height: 1.2; }
+header p { margin: 2px 0 0; color: var(--doux); font-size: 14px; }
+h2 { margin: 26px 0 6px; font-size: 17px; color: var(--vert); }
+a { color: var(--vert); }
+ul { padding-inline-start: 20px; }
+.maj { margin-top: 30px; color: var(--doux); font-size: 13px; }
+.carte { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; padding: 16px; border: 1px solid var(--bord); border-radius: 14px; background: var(--carte); }
+.carte input:not([type='checkbox']) { height: 48px; padding: 0 12px; font-size: 17px; border: 1px solid var(--bord); border-radius: 10px; background: transparent; color: inherit; }
+.carte button { height: 48px; border: 0; border-radius: 10px; background: var(--vert); color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; }
+.carte button.danger { background: #dc2626; }
+.carte button:disabled { opacity: 0.6; }
+.case { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.note { margin: 0; font-size: 13px; color: var(--doux); }
+#message { margin-top: 14px; font-weight: 600; }
+#message.erreur { color: #dc2626; }

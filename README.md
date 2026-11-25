@@ -1,2 +1,96 @@
-# orion-vtc-App
-Initialise une application VTC mobilité verte avec trois interfaces — client, chauffeur, admin — selon ces spécifications…
+# ORION VTC 🚗🌱
+
+**Plateforme de mobilité verte (VTC) pour la Côte d'Ivoire (Abidjan)**, organisée autour
+de trois interfaces — **Client**, **Chauffeur** et **Administrateur** — conçue pour être
+simple, rapide, sûre, transparente et **facilement extensible** à d'autres services Orion.
+
+Ce dépôt contient :
+- une **documentation fonctionnelle et technique** complète (`docs/`) ;
+- un **backend** runnable, stateless et scalable (`backend/`) ;
+- une **application client** premium mobile-first (`frontend/`) ;
+- une **application chauffeur** synchronisée en temps réel avec la console (`frontend/driver.html`) ;
+- une **console d'administration** (`frontend/admin.html`).
+
+> 📱 **Périmètre actuel** : les trois interfaces — Client, Chauffeur et Admin — sont livrées
+> dans le même projet `frontend/` et partagent le même backend.
+> App Chauffeur : voir [docs/10](docs/10-app-chauffeur.md).
+
+## 🎯 Principes différenciants
+Interface simple et moderne · rapidité de réservation · sécurité passagers & chauffeurs ·
+transparence des prix (FCFA) · qualité de service · extensibilité multi-services.
+
+## 🇨🇮 Pensé pour la Côte d'Ivoire
+- **Plan directeur** : communes du Grand Abidjan + grandes villes du pays (zones, surge).
+- **FCFA (XOF)** et **mobile money** en tête : Orange Money, Wave, MTN MoMo, Moov Money.
+- **Sécurité** : bouton SOS + **détection automatique d'accident** → alerte **SAMU (185)**.
+- **Suivi temps réel** (WebSocket) et **partenariat Google Maps** prêt (itinéraires/places).
+
+## ✨ Expérience client
+- **4 niveaux de course** : **Bronze · Argent · Or · Diamant** (du plus accessible au plus
+  haut de gamme), chacun avec sa flotte 100% électrique (Geely, Deepal, AVATR, Xiaomi YU7,
+  XPENG, Huawei Stelato, NIO, Zeekr…).
+- **Abonnements mensuels** : Pack Bronze (2 courses/j), Argent (3/j), Gold (4/j) + avantages.
+- **Location mariage** : réservez une voiture selon le niveau, prix variable + options
+  (décoration, cortège, durée).
+- **8 langues** : Français, English, Español, Italiano, العربية (RTL), 中文, Deutsch, Русский.
+- **Pays** : ORION opère en Côte d'Ivoire ; aucun autre pays n'est affiché ni annoncé.
+- **Ouverture animée** premium + design vert épuré, fluide et soigné.
+
+## 🧭 Les trois interfaces
+- **Client** : compte, géoloc, départ/destination, estimation avant validation, choix de
+  véhicule, suivi temps réel, paiement, historique, notation, SOS.
+- **Chauffeur** *(à venir, séparé)* : inscription + KYC, disponibilité, courses, navigation,
+  revenus, wallet.
+- **Console admin** : le poste de travail de chaque employé, du PDG au chauffeur — un
+  identifiant par personne, des sessions par métier (Mon poste, Équipes, Équipages,
+  Caisses, Finances, Location, Suivi véhicules, SAMU…), toutes interconnectées.
+
+## 📚 Documentation
+| Document | Sujet |
+|----------|-------|
+| [Vue d'ensemble](docs/01-vue-densemble.md) | Architecture macro, cycle de vie d'une course |
+| [Parcours utilisateurs](docs/02-user-flows.md) | User flows client / chauffeur / admin |
+| [Critères réglementaires](docs/03-criteres-validation-reglementaires.md) | Documents KYC + workflow de validation |
+| [Extension des services](docs/04-strategie-extension-services.md) | Architecture multi-services (livraison, micro-mobilité…) |
+| [Architecture & scalabilité](docs/05-architecture-scalabilite.md) | « Ne pas buguer quel que soit le nombre d'utilisateurs » |
+| [Modèle de données](docs/06-modele-de-donnees.md) | Entités et choix structurants |
+| [Côte d'Ivoire, sécurité & temps réel](docs/07-cote-divoire-securite-temps-reel.md) | Plan directeur CI, mobile money, accident/SAMU, WebSocket, Google Maps |
+| [Console : les sessions](docs/11-console-sessions.md) | Le poste de travail de chaque employé : accès, sessions, interconnexion, rôles |
+
+## ⚙️ Backend (démarrage rapide)
+```bash
+cd backend && cp .env.example .env && npm install
+npm run dev      # http://localhost:3000
+npm test         # 30 tests
+```
+Aucune infrastructure externe requise pour démarrer (index géo & temps réel en mémoire ;
+Redis/PostgreSQL en production). Détails : [`backend/README.md`](backend/README.md).
+
+## 📱 Application client (démarrage rapide)
+```bash
+cd frontend && npm install
+npm run dev      # http://localhost:5173
+```
+Tourne en **mode démo** sans backend, ou se connecte à l'API via `VITE_API_URL`.
+Détails : [`frontend/README.md`](frontend/README.md).
+
+## 🏗️ Pourquoi ça tient la charge
+Services **stateless** + scalabilité **horizontale**, **idempotence**, **prix verrouillé**,
+**machine à états**, **rate limiting** (back-pressure), **health checks** + **graceful
+shutdown**, **logs structurés**, matching géo via **index spatial à TTL**, temps réel
+adossable à **Redis Pub/Sub**. Voir [docs/05](docs/05-architecture-scalabilite.md).
+
+## 🗺️ Suite logique (roadmap)
+- [x] **Tracking temps réel** : app client branchée sur le WebSocket serveur (position live).
+- [x] **Wallet chauffeur + commissions** (crédit au paiement, payout mobile money).
+- [x] **Google Maps** : couche prête (activer via clé API).
+- [x] **Persistance** : Repository mémoire / **SQLite durable** (PostgreSQL-ready), données conservées au redémarrage.
+- [x] **Application chauffeur** : connexion SMS, dossier KYC, offres avec délai console, course, gains, mobilité verte, synchro temps réel.
+1. Brancher PostgreSQL (impl `Repository` Postgres) + Redis pour la prod.
+2. Activer une vraie clé Google Maps (itinéraires/carte réels) côté front & back.
+3. **Opérateur SMS** : branché (Orange Côte d'Ivoire, Twilio en secours), à activer avec les identifiants Orange ; puis `DRIVER_AUTH_STRICT=true` et `SIMULATE_RIDES=false`.
+4. Dashboard admin / supervision des urgences (consommer `/ws/emergency`).
+5. Extension : livraison de colis, puis micro-mobilité (cf. docs/04).
+
+## 📄 Licence
+À définir par le porteur du projet.

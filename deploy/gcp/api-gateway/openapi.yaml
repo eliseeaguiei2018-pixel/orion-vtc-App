@@ -1,0 +1,211 @@
+# API GATEWAY — l'API ORION des applications mobiles (cliente et chauffeur).
+#
+# Ce que fait la passerelle, et pour quel besoin :
+#   - exige la clé de l'application (en-tête x-api-key) : ce qui ne vient pas d'une application
+#     ORION est écarté avant d'atteindre le serveur ;
+#   - applique un quota d'appels par clé : une application détournée ne peut pas saturer le serveur ;
+#   - s'identifie auprès du serveur avec le compte de service orion-passerelle : le serveur
+#     (GCP_GATEWAY_REQUIRED=true) refuse les appels d'API qui ne passent pas par elle.
+# Le jeton de session ORION de l'utilisateur (Authorization) est relayé au serveur, qui reste
+# seul juge des droits de chaque compte.
+#
+# __ADRESSE__ est remplacé par l'adresse publique du serveur (deploy/gcp/securite.sh passerelle).
+# Les chemins ci-dessous couvrent toutes les routes du serveur, sauf celles servies directement
+# par l'équilibreur (GCP_GATEWAY_EXEMPT : santé, temps réel, console, enrôlement des appareils,
+# liens de partage). Le test backend/tests/passerelle-couverture.test.ts échoue si une route
+# du serveur manque ici.
+# Non déployé depuis l'atelier de développement : `gcloud api-gateway api-configs create` valide
+# ce fichier ; corriger ici ce qu'il signale (en particulier les chemins à segments multiples).
+swagger: "2.0"
+info:
+  title: ORION — API des applications
+  description: Passerelle des applications ORION (Côte d'Ivoire).
+  version: "1.0.0"
+schemes: [https]
+produces: [application/json]
+
+# Toutes les routes vont au serveur ORION, chemin conservé.
+x-google-backend:
+  address: __ADRESSE__
+  jwt_audience: __ADRESSE__
+  path_translation: APPEND_PATH_TO_ADDRESS
+  deadline: 30.0
+
+securityDefinitions:
+  cle_application:
+    type: apiKey
+    name: x-api-key
+    in: header
+security:
+  - cle_application: []
+
+x-google-management:
+  metrics:
+    - name: appels
+      displayName: Appels de l'API ORION
+      valueType: INT64
+      metricKind: DELTA
+  quota:
+    limits:
+      - name: appels-par-minute
+        metric: appels
+        unit: "1/min/{project}"
+        values:
+          STANDARD: 60000
+
+# Un compteur d'appels sur chaque opération : le quota porte sur l'ensemble.
+x-compteur: &compteur
+  x-google-quota:
+    metricCosts:
+      appels: 1
+x-reponses: &reponses
+  responses:
+    "200": { description: Réponse du serveur ORION }
+    default: { description: Erreur relayée telle quelle }
+
+paths:
+  # Santé : sans clé, pour les sondes.
+  /health/live:
+    get: { operationId: sante, security: [], <<: *reponses }
+
+  # Annonces.
+  /announcements:
+    get: { operationId: announcements_get, <<: [*compteur, *reponses] }
+
+  # ORION Assurance.
+  /assurance/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    get: { operationId: assurance_sous_get, <<: [*compteur, *reponses] }
+
+  # Comptes clients : connexion, profil, historique.
+  /clients/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    delete: { operationId: clients_sous_delete, <<: [*compteur, *reponses] }
+    get: { operationId: clients_sous_get, <<: [*compteur, *reponses] }
+    post: { operationId: clients_sous_post, <<: [*compteur, *reponses] }
+    put: { operationId: clients_sous_put, <<: [*compteur, *reponses] }
+
+  # Conformité.
+  /compliance/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    get: { operationId: compliance_sous_get, <<: [*compteur, *reponses] }
+    post: { operationId: compliance_sous_post, <<: [*compteur, *reponses] }
+
+  # Configuration des applications.
+  /config:
+    get: { operationId: config_get, <<: [*compteur, *reponses] }
+
+  # Pays.
+  /countries:
+    get: { operationId: countries_get, <<: [*compteur, *reponses] }
+
+  # Application chauffeur.
+  /drivers:
+    post: { operationId: drivers_post, <<: [*compteur, *reponses] }
+  /drivers/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    delete: { operationId: drivers_sous_delete, <<: [*compteur, *reponses] }
+    get: { operationId: drivers_sous_get, <<: [*compteur, *reponses] }
+    post: { operationId: drivers_sous_post, <<: [*compteur, *reponses] }
+    put: { operationId: drivers_sous_put, <<: [*compteur, *reponses] }
+
+  # Écran du véhicule.
+  /ecran-vehicule/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    post: { operationId: ecran_vehicule_sous_post, <<: [*compteur, *reponses] }
+
+  # Gammes de véhicules.
+  /fleet:
+    get: { operationId: fleet_get, <<: [*compteur, *reponses] }
+
+  # Zones de service.
+  /geo/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    get: { operationId: geo_sous_get, <<: [*compteur, *reponses] }
+    post: { operationId: geo_sous_post, <<: [*compteur, *reponses] }
+
+  # Assurance course.
+  /insurance/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    get: { operationId: insurance_sous_get, <<: [*compteur, *reponses] }
+
+  # Cartes, lieux et itinéraires.
+  /maps/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    get: { operationId: maps_sous_get, <<: [*compteur, *reponses] }
+    post: { operationId: maps_sous_post, <<: [*compteur, *reponses] }
+
+  # Paiements.
+  /payments/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    get: { operationId: payments_sous_get, <<: [*compteur, *reponses] }
+
+  # Devis.
+  /pricing/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    post: { operationId: pricing_sous_post, <<: [*compteur, *reponses] }
+
+  # Location Signature.
+  /rental/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    get: { operationId: rental_sous_get, <<: [*compteur, *reponses] }
+    post: { operationId: rental_sous_post, <<: [*compteur, *reponses] }
+
+  # Réservations.
+  /reservations:
+    post: { operationId: reservations_post, <<: [*compteur, *reponses] }
+
+  # Courses.
+  /rides:
+    post: { operationId: rides_post, <<: [*compteur, *reponses] }
+  /rides/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    get: { operationId: rides_sous_get, <<: [*compteur, *reponses] }
+    post: { operationId: rides_sous_post, <<: [*compteur, *reponses] }
+
+  # Sécurité : SOS et suivi.
+  /safety/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    get: { operationId: safety_sous_get, <<: [*compteur, *reponses] }
+    post: { operationId: safety_sous_post, <<: [*compteur, *reponses] }
+
+  # Services ouverts.
+  /services:
+    get: { operationId: services_get, <<: [*compteur, *reponses] }
+
+  # Abonnements.
+  /subscriptions:
+    post: { operationId: subscriptions_post, <<: [*compteur, *reponses] }
+  /subscriptions/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    get: { operationId: subscriptions_sous_get, <<: [*compteur, *reponses] }
+    post: { operationId: subscriptions_sous_post, <<: [*compteur, *reponses] }
+
+  # Support.
+  /support/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    post: { operationId: support_sous_post, <<: [*compteur, *reponses] }
+
+  # Formation chauffeur.
+  /training/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    get: { operationId: training_sous_get, <<: [*compteur, *reponses] }
+
+  # Véhicules libres autour du client et temps d'approche (avant la commande).
+  /vehicules/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    get: { operationId: vehicules_sous_get, <<: [*compteur, *reponses] }
+  # Mises à jour des apps : manifestes signés, paquets, nouvelles APK.
+  /apps/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    get: { operationId: apps_sous_get, <<: [*compteur, *reponses] }
+  # Lien court vers la dernière APK d'une app (première installation).
+  /telecharger/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    get: { operationId: telecharger_sous_get, <<: [*compteur, *reponses] }
+
+  # Mariage.
+  /wedding/{chemin=**}:
+    parameters: [{ name: chemin, in: path, required: true, type: string }]
+    get: { operationId: wedding_sous_get, <<: [*compteur, *reponses] }
+    post: { operationId: wedding_sous_post, <<: [*compteur, *reponses] }

@@ -1,0 +1,926 @@
+/* Console ORION — même direction que l'app cliente (version 1.2) : blanc plein en clair,
+   graphite neutre en sombre, aucune teinte verte dans les fonds, aucun voile ni halo.
+   La couleur est gardée pour l'action et les états ; le violet de la marque remplace
+   l'ancien bleu-vert comme seconde couleur de données. */
+:root {
+  --a-bg: #0c0d0f; --a-panel: #16171a; --a-panel2: #1c1d21; --a-stroke: #2b2d33;
+  --a-text: #f4f4f6; --a-muted: #a0a4ad; --a-green: #1fcf73; --a-green2: #2fd67b;
+  --a-green-txt: #2fd67b; --a-amber-txt: var(--a-amber); --a-teal-txt: var(--a-teal);
+  --a-danger: #ff5c6a; --a-amber: #e8b84a; --a-teal: #a98bff;
+  /* Aplats pleins : sélection, états. En sombre ils restent neutres. */
+  --a-soft: #24262b; --a-warn-soft: #24262b; --a-danger-soft: #24262b; --a-violet-soft: #24262b;
+  --a-survol: #1c1d21; --a-filet: #24262b; --a-sur-vert: #04160c; --a-voile: rgba(0, 0, 0, 0.62);
+  --a-ombre: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--a-bg); color: var(--a-text); font-family: 'Inter', system-ui, sans-serif; }
+.adm-loading { min-height: 100vh; display: grid; place-items: center; color: var(--a-muted); }
+
+/* Écran de connexion */
+.adm-login { min-height: 100vh; display: grid; place-items: center; padding: 24px;
+  background: var(--a-bg); }
+.adm-login-card { width: 100%; max-width: 380px; background: var(--a-panel); border: 1px solid var(--a-stroke);
+  border-radius: 20px; padding: 30px 28px; display: flex; flex-direction: column; gap: 10px; text-align: center;
+  box-shadow: var(--a-ombre); }
+.adm-logo.big { width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 6px; }
+/* Logo en volume : l'icône de l'application, la même dans les quatre interfaces. */
+.adm-logo-volume { display: block; flex: none; border-radius: 23%; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16); }
+.adm-login-card .adm-logo-volume { margin: 0 auto 6px; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18); }
+.adm-login-card h1 { font-family: 'Sora', sans-serif; font-size: 22px; margin: 0; }
+.adm-login-sub { color: var(--a-muted); font-size: 13px; margin: 0 0 8px; }
+.adm-login-label { text-align: left; font-size: 12px; color: var(--a-muted); letter-spacing: 0; }
+.adm-login-input { background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 10px;
+  padding: 12px 14px; color: var(--a-text); font-size: 15px; outline: none; }
+.adm-login-input:focus { border-color: var(--a-green2); }
+.adm-login-err { color: var(--a-danger); font-size: 12px; text-align: left; }
+.adm-btn.big { padding: 12px; font-size: 15px; border-radius: 10px; margin-top: 4px; }
+.adm-login-demo { color: var(--a-muted); font-size: 11px; margin: 6px 0 0; }
+
+.adm { max-width: 1280px; margin: 0 auto; padding: 20px 22px 40px; }
+
+/* ---- Console : shell + barre latérale ---- */
+.adm-shell { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+/* La barre latérale défile : avec 36 sessions, sur un portable de 900 px de haut,
+   les dernières (Caisses, Personnel & accès, Journal…) étaient tout simplement
+   hors de l'écran, sans aucun moyen de les atteindre. Une session invisible est
+   une session qui n'existe pas. */
+.adm-side { position: sticky; top: 0; height: 100vh; overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: var(--a-stroke) transparent;
+  display: flex; flex-direction: column; gap: 8px;
+  background: var(--a-panel2); border-right: 1px solid var(--a-stroke); padding: 18px 14px; }
+.adm-side .adm-brand { margin-bottom: 10px; }
+.adm-nav { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.adm-navi { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+  padding: 11px 12px; border-radius: 11px; border: 1px solid transparent; background: transparent; color: var(--a-muted); font-size: 14px; font-weight: 600; }
+.adm-navi:hover { background: var(--a-survol); color: var(--a-text); }
+.adm-navi.on { background: var(--a-soft); border-color: transparent; color: var(--a-text); }
+.adm-navi-ico { display: inline-grid; place-items: center; width: 18px; height: 18px; flex: none; color: var(--a-muted); }
+.adm-navi.on .adm-navi-ico, .adm-navi:hover .adm-navi-ico { color: inherit; }
+.adm-navi-badge { margin-left: auto; background: var(--a-danger); color: #fff; font-size: 11px; font-weight: 600; border-radius: 999px; padding: 1px 7px; }
+.adm-side-foot { margin-top: auto; border-top: 1px solid var(--a-stroke); padding-top: 12px; }
+.adm-role { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--a-green-txt); font-weight: 600; }
+.adm-role-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--a-green); }
+.adm-me { font-size: 13px; color: var(--a-text); margin-top: 3px; }
+
+.adm-main { padding: 20px 24px 40px; overflow-y: auto; }
+.adm-mhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.adm-mhead h2 { font-family: 'Sora', sans-serif; font-size: 20px; margin: 0; }
+
+.adm-grid2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+
+/* Éditeur de prix */
+.price-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.price-grid.adm-objectifs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+/* Champ étiqueté. `.field` est le nom général ; `.price-field` est l'ancien nom,
+   conservé pour les écrans qui l'emploient déjà. Une seule règle pour les deux :
+   deux copies finiraient par diverger. */
+.price-field, .field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--a-muted); }
+.price-field.cap span { text-transform: capitalize; }
+.price-field input, .field input, .field textarea,
+.adm-input { background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 10px;
+  padding: 10px 12px; color: var(--a-text); font-size: 15px; font-weight: 600; outline: none;
+  font-family: inherit; width: 100%; box-sizing: border-box; }
+.field textarea { font-weight: 500; font-size: 14px; resize: vertical; min-height: 60px; }
+.price-field input:focus, .field input:focus, .field textarea:focus,
+.adm-input:focus { border-color: var(--a-green2); }
+.price-field input:disabled, .field input:disabled, .adm-input:disabled { opacity: 0.6; }
+.field select { width: 100%; }
+
+/* Lien sobre dans un tableau ou une fiche. */
+.adm-link { color: var(--a-green-txt); text-decoration: underline; text-underline-offset: 2px; }
+.adm-link-btn { background: none; border: 0; padding: 0; font: inherit; color: var(--a-green-txt); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.adm-link-btn:focus-visible { outline: 2px solid var(--a-green); outline-offset: 2px; border-radius: 3px; }
+.adm-link:hover { color: var(--a-green2); }
+
+.adm-role-card { border: 1px solid var(--a-stroke); border-radius: 12px; padding: 12px 14px; background: var(--a-panel2); }
+.adm-role-card.on { border-color: var(--a-green2); background: var(--a-soft); }
+
+/* Sélecteur + interrupteur */
+.adm-select { background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 10px; padding: 10px 12px; color: var(--a-text); font-size: 14px; }
+.adm-toggle { width: 46px; height: 26px; border-radius: 999px; border: 1px solid var(--a-stroke); background: var(--a-panel2); position: relative; cursor: pointer; transition: background .15s; }
+.adm-toggle span { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: var(--a-muted); transition: transform .15s, background .15s; }
+.adm-toggle.on { background: var(--a-soft); border-color: var(--a-green2); }
+.adm-toggle.on span { transform: translateX(20px); background: var(--a-green); }
+.adm-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Support / chat */
+.adm-conv { width: 100%; text-align: left; cursor: pointer; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--a-stroke); background: var(--a-panel2); color: var(--a-text); }
+.adm-conv.on { border-color: var(--a-green2); background: var(--a-soft); }
+.adm-chat { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 12px 2px; min-height: 340px; }
+.adm-bubble { max-width: 78%; padding: 9px 12px; border-radius: 14px; }
+.adm-bubble.client { align-self: flex-start; background: var(--a-panel2); border: 1px solid var(--a-stroke); border-bottom-left-radius: 4px; }
+.adm-bubble.agent { align-self: flex-end; background: var(--a-green); color: var(--a-sur-vert); border-bottom-right-radius: 4px; }
+.adm-bubble-txt { font-size: 14px; }
+.adm-bubble-meta { font-size: 10px; opacity: 0.7; margin-top: 3px; }
+.adm-chat-input { display: flex; gap: 8px; border-top: 1px solid var(--a-stroke); padding-top: 10px; }
+.adm-chat-input input { flex: 1; background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 10px; padding: 10px 12px; color: var(--a-text); outline: none; }
+.adm-chat-input input:focus { border-color: var(--a-green2); }
+textarea.adm-select { resize: vertical; font-family: inherit; width: 100%; }
+.fin-bar { height: 10px; border-radius: 999px; background: var(--a-panel2); overflow: hidden; border: 1px solid var(--a-stroke); }
+.fin-bar span { display: block; height: 100%; background: var(--a-green); }
+
+/* Bouton du menu et voile : visibles seulement sur téléphone et tablette en portrait. */
+.adm-menu-btn { display: none; }
+.adm-voile { display: none; }
+
+/*
+ * TÉLÉPHONE ET TABLETTE EN PORTRAIT : le contenu d'abord.
+ * Le menu (plus de trente sessions) occupait tout l'écran avant le premier chiffre. Il
+ * devient un tiroir, ouvert par le bouton ☰ de l'en-tête et refermé au choix d'une session.
+ */
+@media (max-width: 900px) {
+  .adm-shell { grid-template-columns: 1fr; }
+  .adm-side { position: fixed; inset: 0 auto 0 0; z-index: 60; width: min(84vw, 320px); height: 100dvh;
+    /* Fermé : réellement masqué (hors du parcours clavier et des lecteurs d'écran), après
+       la fin de l'animation de sortie. */
+    transform: translateX(-104%); visibility: hidden;
+    transition: transform .22s cubic-bezier(.2,.8,.2,1), visibility 0s linear .22s; will-change: transform;
+    box-shadow: 0 0 0 transparent; padding-top: calc(18px + env(safe-area-inset-top)); padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+  .adm-shell.menu-ouvert .adm-side { transform: none; visibility: visible; transition: transform .22s cubic-bezier(.2,.8,.2,1), visibility 0s; box-shadow: 18px 0 50px rgba(0, 0, 0, 0.28); }
+  .adm-voile { display: block; position: fixed; inset: 0; z-index: 55; background: var(--a-voile); border: 0; padding: 0;
+    opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .adm-shell.menu-ouvert .adm-voile { opacity: 1; pointer-events: auto; }
+  .adm-menu-btn { display: inline-grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: 12px; cursor: pointer;
+    background: var(--a-panel2); border: 1px solid var(--a-stroke); color: var(--a-text); font-size: 20px; line-height: 1; }
+  .adm-main { padding: calc(12px + env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) calc(28px + env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); min-width: 0; }
+  .adm-mhead { flex-wrap: wrap; gap: 10px; position: sticky; top: 0; z-index: 30; margin: 0 -14px 14px; padding: 8px 14px;
+    background: var(--a-bg, var(--a-panel)); border-bottom: 1px solid var(--a-stroke); }
+  .adm-mhead h2 { font-size: 17px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .adm-mhead .adm-search { order: 5; flex: 1 1 100%; max-width: none; }
+  .adm-top-right { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .adm-grid2, .price-grid, .price-grid.adm-objectifs { grid-template-columns: 1fr; }
+  /* Un tableau large défile dans sa carte, jamais toute la page. */
+  .adm-card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .adm-table { min-width: 560px; }
+}
+.adm-ico-seul { display: none; }
+@media (max-width: 560px) {
+  .adm-kpis { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .adm-top-right .adm-clock, .adm-top-right .adm-live { display: none; }
+  /* En-tête sur une ligne : le titre, puis les boutons réduits à leur pictogramme. */
+  .adm-top-right { flex-wrap: nowrap; gap: 6px; }
+  .adm-top-right .adm-lbl { display: none; }
+  .adm-top-right .adm-ico-seul { display: inline; font-size: 17px; }
+  .adm-top-right .adm-btn { min-width: 42px; padding-inline: 10px; }
+  .adm-login-card { padding: 22px 18px; }
+}
+/* Doigt plutôt que souris : des cibles d'au moins 44 px (recommandation Apple et Google). */
+@media (pointer: coarse) {
+  .adm-navi { min-height: 46px; }
+  .adm-btn { min-height: 40px; }
+  .adm-btn.xs { min-height: 36px; padding-inline: 12px; }
+  .adm-input, .adm-select, .adm-login-input { font-size: 16px; } /* 16 px : iOS ne zoome pas à la saisie */
+}
+
+.adm-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; }
+.adm-brand { display: flex; align-items: center; gap: 12px; }
+.adm-logo { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
+  background: var(--a-green); }
+.adm-brand strong { font-family: 'Sora', sans-serif; font-size: 18px; display: block; letter-spacing: 0.02em; }
+.adm-sub { font-size: 12px; color: var(--a-muted); }
+.adm-top-right { display: flex; align-items: center; gap: 14px; }
+.adm-live { font-size: 12px; font-weight: 500; letter-spacing: 0; }
+.adm-live.on { color: var(--a-green-txt); }
+.adm-live.demo { color: var(--a-amber-txt); }
+.adm-clock { font-variant-numeric: tabular-nums; color: var(--a-muted); font-size: 13px; }
+
+.adm-btn { border: 1px solid var(--a-stroke); background: var(--a-panel); color: var(--a-text);
+  border-radius: 10px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.adm-btn.ghost:hover { border-color: var(--a-green2); }
+.adm-btn.xs { padding: 5px 10px; font-size: 12px; border-radius: 8px; }
+.adm-btn.solid, .adm-btn.xs.solid { background: var(--a-green); color: var(--a-sur-vert); border: none; }
+
+/* KPIs */
+.adm-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
+.adm-kpi { background: var(--a-panel); border: 1px solid var(--a-stroke); border-radius: 16px; padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 4px; position: relative; overflow: hidden; }
+.adm-kpi::before { content: none; }
+.adm-kpi.green::before { background: var(--a-green); } .adm-kpi.teal::before { background: var(--a-teal); }
+.adm-kpi.mint::before { background: var(--a-green2); } .adm-kpi.danger::before { background: var(--a-danger); }
+.adm-kpi.muted::before { background: var(--a-stroke); }
+.adm-kpi-label { font-size: 12px; color: var(--a-muted); letter-spacing: 0; }
+.adm-kpi-value { font-family: 'Sora', sans-serif; font-size: 28px; font-weight: 600; }
+.adm-kpi.danger .adm-kpi-value { color: var(--a-danger); }
+.adm-kpi-sub { font-size: 12px; color: var(--a-muted); }
+
+/* Grille principale */
+.adm-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+.adm-card { background: var(--a-panel); border: 1px solid var(--a-stroke); border-radius: 16px; padding: 16px; }
+.adm-mapcard { grid-column: 1; }
+.adm-alerts { grid-column: 2; grid-row: 1 / span 1; }
+.adm-card-h { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+.adm-card-h h3 { margin: 0; font-family: 'Sora', sans-serif; font-size: 15px; }
+.adm-muted { color: var(--a-muted); font-size: 12px; }
+
+/* Carte supervision */
+.adm-map { border-radius: 12px; overflow: hidden; border: 1px solid var(--a-stroke); aspect-ratio: 720 / 420; }
+.adm-map svg { width: 100%; height: 100%; display: block; }
+/* Vraie carte d'Abidjan (MapLibre) : même emprise que le plan, interactive. */
+.adm-map-reelle { position: relative; aspect-ratio: auto; height: clamp(320px, 46vh, 560px); background: var(--a-panel2); }
+.adm-map-ml { position: absolute; inset: 0; }
+.adm-map-chargement { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; color: var(--a-muted); pointer-events: none; }
+.adm-map { position: relative; }
+.adm-map-repli { position: absolute; left: 10px; bottom: 8px; font-size: 11px; color: var(--a-muted); background: var(--a-panel); border: 1px solid var(--a-stroke); padding: 3px 8px; border-radius: 6px; }
+.adm-map-reelle .maplibregl-ctrl-group { background: var(--a-panel); border: 1px solid var(--a-stroke); box-shadow: none; }
+:root[data-adm-theme='dark'] .adm-map-reelle .maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: invert(1) hue-rotate(180deg); }
+.adm-map-reelle .maplibregl-ctrl-attrib { font-size: 10px; }
+/* Alerte SOS sur la carte : point rouge pulsant, cliquable (ouvre le dossier). */
+.adm-ml-alerte { width: 16px; height: 16px; padding: 0; border-radius: 50%; border: 2px solid #fff; background: #ff5468; cursor: pointer;
+  box-shadow: 0 0 0 0 rgba(255,84,104,.55); animation: adm-ml-pulse 1.6s ease-out infinite; }
+.adm-ml-alerte:focus-visible { outline: 3px solid #ffd2d8; outline-offset: 2px; }
+@keyframes adm-ml-pulse { 0% { box-shadow: 0 0 0 0 rgba(255,84,104,.6); } 70% { box-shadow: 0 0 0 16px rgba(255,84,104,0); } 100% { box-shadow: 0 0 0 0 rgba(255,84,104,0); } }
+@media (prefers-reduced-motion: reduce) { .adm-ml-alerte { animation: none; box-shadow: 0 0 0 4px rgba(255,84,104,.35); } }
+/* Flotte en location : un marqueur étiqueté par véhicule, couleur = état. */
+.adm-map-location { height: clamp(300px, 42vh, 520px); }
+.adm-ml-loc { display: flex; align-items: center; gap: 6px; padding: 0; background: none; border: 0; cursor: pointer; font: 600 12px/1 'Inter', system-ui, sans-serif; }
+.adm-ml-loc-pin { width: 16px; height: 16px; border-radius: 50%; border: 2.5px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45); flex: none; }
+.adm-ml-loc-nom { padding: 4px 8px; border-radius: 7px; background: var(--a-panel); color: var(--a-text); border: 1px solid var(--a-stroke); white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,.18); }
+.adm-ml-loc.normal .adm-ml-loc-pin { background: var(--a-green); }
+.adm-ml-loc.silencieux .adm-ml-loc-pin { background: var(--a-muted); }
+.adm-ml-loc.immobilise .adm-ml-loc-pin { background: #f59f1b; }
+.adm-ml-loc.vol .adm-ml-loc-pin { background: #ff5468; animation: adm-ml-pulse 1.6s ease-out infinite; }
+.adm-ml-loc:focus-visible .adm-ml-loc-pin { outline: 3px solid #ffd2d8; outline-offset: 2px; }
+.adm-loc-legende { position: absolute; left: 10px; top: 10px; display: flex; flex-wrap: wrap; gap: 10px; max-width: calc(100% - 70px); font-size: 11px; color: var(--a-text);
+  background: var(--a-panel); border: 1px solid var(--a-stroke); padding: 6px 10px; border-radius: 8px; pointer-events: none; }
+.adm-loc-legende i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 1.5px solid #fff; }
+.adm-loc-legende i.normal { background: var(--a-green); } .adm-loc-legende i.silencieux { background: var(--a-muted); }
+.adm-loc-legende i.immobilise { background: #f59f1b; } .adm-loc-legende i.vol { background: #ff5468; }
+
+/* Dossier SOS : itinéraire sur la vraie carte. */
+.adm-sos-carte { position: relative; height: 240px; border-radius: 10px; overflow: hidden; border: 1px solid var(--a-stroke); margin-bottom: 6px; }
+.adm-sos-legende { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--a-text);
+  background: var(--a-panel); border: 1px solid var(--a-stroke); padding: 6px 9px; border-radius: 8px; pointer-events: none; }
+.adm-sos-legende i { display: inline-block; width: 16px; height: 3px; margin-right: 6px; vertical-align: middle; border-radius: 2px; }
+.adm-l-reel { background: #ff5468; } .adm-l-theo { background: repeating-linear-gradient(90deg, var(--a-muted) 0 4px, transparent 4px 7px); }
+.adm-l-sos { width: 9px !important; height: 9px !important; border-radius: 50% !important; background: #ff5468; border: 1.5px solid #fff; }
+.adm-legend { display: flex; gap: 18px; margin-top: 12px; font-size: 12px; color: var(--a-muted); }
+.adm-legend i.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.dot.green { background: var(--a-green); } .dot.amber { background: var(--a-amber); } .dot.red { background: var(--a-danger); }
+.dot.pulse { box-shadow: 0 0 0 3px rgba(255,84,104,0.25); }
+
+/* File SAMU */
+.adm-alert-list { display: flex; flex-direction: column; gap: 10px; max-height: 360px; overflow: auto; }
+.adm-empty { color: var(--a-muted); font-size: 13px; }
+.adm-alert { border: 1px solid var(--a-stroke); border-radius: 12px; padding: 12px; background: var(--a-panel2); }
+.adm-alert.dispatched, .adm-alert.raised { border-color: rgba(255,84,104,0.5); box-shadow: 0 0 0 1px rgba(255,84,104,0.15) inset; }
+.adm-alert.resolved { opacity: 0.55; }
+.adm-alert-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.adm-tag { font-size: 12px; font-weight: 600; }
+.adm-tag.crash { color: var(--a-danger); } .adm-tag.sos { color: var(--a-amber-txt); }
+.adm-alert-zone { font-size: 12px; color: var(--a-text); }
+.adm-status { margin-left: auto; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--a-panel); border: 1px solid var(--a-stroke); color: var(--a-muted); }
+.adm-status.resolved { color: var(--a-green-txt); border-color: var(--a-green2); }
+.adm-alert-meta { font-size: 11px; color: var(--a-muted); margin: 6px 0 8px; }
+.adm-alert-actions { display: flex; gap: 8px; }
+
+/* Tables */
+.adm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.adm-table th { text-align: left; color: var(--a-muted); font-weight: 500; font-size: 12px; 
+  letter-spacing: 0.06em; padding: 6px 8px; border-bottom: 1px solid var(--a-stroke); }
+.adm-table td { padding: 8px; border-bottom: 1px solid var(--a-filet); }
+.adm-table .r { text-align: right; } .adm-table .mono { font-family: ui-monospace, monospace; color: var(--a-muted); }
+.adm-table .cap { text-transform: capitalize; }
+.adm-pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--a-stroke); }
+/* Habilitations au tableau de bord */
+.adm-pill.hab-green { color: var(--a-green-txt); background: var(--a-soft); border-color: transparent; }
+.adm-pill.hab-amber { color: var(--a-amber-txt); background: var(--a-warn-soft); border-color: transparent; }
+.adm-pill.hab-red { color: var(--a-danger); background: var(--a-danger-soft); border-color: transparent; }
+.adm-pill.hab-green, .adm-pill.hab-amber, .adm-pill.hab-red { display: inline-block; white-space: nowrap; }
+a.adm-btn { text-decoration: none; }
+.hab-etapes { display: flex; gap: 8px; flex-wrap: wrap; }
+.hab-etapes span { font-size: 12px; color: var(--a-text); padding: 6px 10px; border-radius: 10px; background: var(--a-panel2); border: 1px solid var(--a-stroke); }
+.adm-pill.av-online, .adm-pill.kyc-active, .adm-pill.kyc-approved { color: var(--a-green-txt); background: var(--a-soft); border-color: transparent; }
+.adm-pill.av-on_trip { color: var(--a-amber-txt); background: var(--a-warn-soft); border-color: transparent; }
+.adm-pill.kyc-manual_review { color: var(--a-amber-txt); background: var(--a-warn-soft); border-color: transparent; }
+.adm-pill.s-in_progress, .adm-pill.s-driver_en_route { color: var(--a-teal-txt); background: var(--a-violet-soft); border-color: transparent; }
+.adm-pill.s-completed, .adm-pill.s-paid, .adm-pill.s-rated { color: var(--a-green-txt); background: var(--a-soft); border-color: transparent; }
+.adm-pill.s-searching { color: var(--a-amber-txt); background: var(--a-warn-soft); border-color: transparent; }
+
+.adm-foot { margin-top: 22px; color: var(--a-muted); font-size: 12px; text-align: center; }
+
+@media (max-width: 900px) {
+  .adm-kpis { grid-template-columns: repeat(2, 1fr); }
+  .adm-grid { grid-template-columns: 1fr; }
+  .adm-mapcard, .adm-alerts { grid-column: 1; }
+}
+
+/* --- Fiches détaillées (drawer) --- */
+.adm-row-click { cursor: pointer; transition: background .12s; }
+.adm-row-click:hover { background: var(--a-survol); }
+/* Boîte de dialogue centrée (changement de mot de passe, confirmation). Le tiroir
+   latéral existant est fait pour une fiche que l'on consulte, pas pour une action
+   qui doit bloquer l'écran. */
+/* Voiles SANS flou d'arrière-plan : le flou de tout l'écran se recalcule à chaque image
+   quand quelque chose bouge dessous (alarme, alertes qui pulsent, chronos). Mesuré au test
+   de charge : dossier SOS ouvert, la console et le tableau de bord tombaient de 55 à
+   13 images par seconde sur un poste sans carte graphique. Un voile plus dense suffit. */
+.adm-modal-wrap { position: fixed; inset: 0; background: var(--a-voile);
+  display: flex; align-items: center; justify-content: center; z-index: 70; padding: 20px; animation: adm-fade .15s ease; }
+.adm-modal { width: min(440px, 100%); background: var(--a-panel); border: 1px solid var(--a-stroke);
+  border-radius: 16px; padding: 20px; box-shadow: var(--a-ombre); }
+
+.adm-drawer-wrap { position: fixed; inset: 0; background: var(--a-voile); display: flex; justify-content: flex-end; z-index: 60; animation: adm-fade .15s ease; }
+.adm-drawer { width: min(460px, 100%); height: 100%; background: var(--a-panel); border-left: 1px solid var(--a-stroke); box-shadow: var(--a-ombre); display: flex; flex-direction: column; animation: adm-slide .2s ease; }
+@keyframes adm-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes adm-slide { from { transform: translateX(30px); opacity: .6; } to { transform: translateX(0); opacity: 1; } }
+.adm-drawer-h { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--a-stroke); }
+.adm-drawer-h h3 { margin: 0; font-size: 18px; }
+.adm-drawer-body { padding: 18px 20px; overflow-y: auto; }
+.adm-drawer-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.adm-drawer-sec { margin: 18px 0 8px; font-size: 12px; letter-spacing: 0; color: var(--a-muted); }
+.adm-mini-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.adm-mini-kpi { background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.adm-mini-kpi span { font-size: 11px; color: var(--a-muted); }
+.adm-mini-kpi strong { font-size: 16px; }
+.adm-table.sm { font-size: 12px; }
+.adm-table .pos { color: var(--a-green-txt); } .adm-table .neg { color: var(--a-amber-txt); }
+.adm-conv-list { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.adm-conv-list li { display: flex; justify-content: space-between; gap: 8px; background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+
+/* --- Tendances (graphe) --- */
+.dot.teal { background: var(--a-teal); }
+.adm-seg { display: inline-flex; gap: 2px; background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 8px; padding: 2px; }
+.adm-seg-b { border: none; background: transparent; color: var(--a-muted); padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+.adm-seg-b.on { background: var(--a-green); color: var(--a-sur-vert); font-weight: 600; }
+.adm-trend-kpis { display: flex; gap: 24px; margin: 4px 0 14px; }
+.adm-trend-kpis > div { display: flex; flex-direction: column; gap: 2px; }
+.adm-trend-kpis strong { font-size: 20px; }
+.adm-trend-kpis span { font-size: 11px; }
+.adm-chart { display: grid; grid-template-columns: repeat(var(--cols), 1fr); gap: 6px; align-items: end; height: 180px; padding-top: 8px; }
+.adm-chart-col { display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+.adm-chart-bars { display: flex; align-items: flex-end; gap: 3px; height: 100%; width: 100%; justify-content: center; }
+.adm-bar { width: 42%; max-width: 16px; border-radius: 3px 3px 0 0; min-height: 2px; transition: height .3s; }
+.adm-bar.rides { background: var(--a-green); }
+.adm-bar.rev { background: var(--a-teal); }
+.adm-chart-x { font-size: 9px; color: var(--a-muted); white-space: nowrap; }
+
+/* --- Recherche globale --- */
+.adm-search { position: relative; flex: 1; max-width: 420px; margin: 0 16px; }
+.adm-search-input { width: 100%; background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 10px; color: var(--a-text); padding: 8px 12px; font-size: 13px; outline: none; }
+.adm-search-input:focus { border-color: var(--a-green2); }
+.adm-search-pop { position: absolute; top: calc(100% + 6px); left: 0; right: 0; background: var(--a-panel); border: 1px solid var(--a-stroke); border-radius: 12px; box-shadow: var(--a-ombre); z-index: 70; max-height: 420px; overflow-y: auto; padding: 6px; }
+.adm-search-group { display: flex; flex-direction: column; gap: 2px; padding: 4px 0; }
+.adm-search-cat { font-size: 10px; letter-spacing: 0; color: var(--a-muted); padding: 4px 8px; }
+.adm-search-item { display: flex; justify-content: space-between; gap: 10px; width: 100%; text-align: left; background: transparent; border: none; color: var(--a-text); padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.adm-search-item:hover { background: var(--a-survol); }
+
+/* --- Trésorerie --- */
+.adm-pill.tr-pending { color: var(--a-amber-txt); background: var(--a-warn-soft); border-color: transparent; }
+.adm-pill.tr-approved { color: var(--a-green-txt); background: var(--a-soft); border-color: transparent; }
+.adm-pill.tr-rejected { color: var(--a-danger); background: var(--a-danger-soft); border-color: transparent; }
+
+/* --- Cloche sirène SAMU --- */
+.adm-mute { font-size: 15px; padding: 6px 10px; }
+.adm-mute.off { opacity: .55; }
+
+/* --- Pagination serveur --- */
+.adm-pager { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; margin-top: 4px; border-top: 1px solid var(--a-filet); font-size: 12px; }
+.adm-pager .adm-btn[disabled] { opacity: .4; cursor: default; }
+
+/* ==================== MODE JOUR (thème clair) ==================== */
+/* Activé via <html data-adm-theme="light"> — commutateur ☀️/🌙 dans l'en-tête. */
+html[data-adm-theme='light'] {
+  --a-bg: #ffffff; --a-panel: #ffffff; --a-panel2: #f4f4f5; --a-stroke: #e4e4e7;
+  --a-text: #121315; --a-muted: #5d616a; --a-green: #00b85c; --a-green2: #00843d;
+  --a-danger: #d92d3a; --a-amber: #b7791f; --a-teal: #6a35f0;
+  /* Texte : teintes foncées (contraste ≥ 4,5:1, WCAG 1.4.3) ; aplats et jauges inchangés. */
+  --a-green-txt: #00843d; --a-amber-txt: #8a5a00; --a-teal-txt: #6a35f0;
+  --a-soft: #e3f7ec; --a-warn-soft: #fff4d6; --a-danger-soft: #fdebed; --a-violet-soft: #efe9ff;
+  --a-survol: #f4f4f5; --a-filet: #ececee; --a-sur-vert: #04160c; --a-voile: rgba(18, 19, 21, 0.5);
+  --a-ombre: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+/* Mode clair : les verts et oranges vifs du thème sombre n'atteignent pas le contraste
+   4.5:1 des textes (WCAG 1.4.3) sur fond blanc ; teintes foncées pour le TEXTE seulement. */
+html[data-adm-theme='light'] .adm-pill.lvl-rouge { color: #a8102a; }
+html[data-adm-theme='light'] .adm-pill.lvl-orange { color: #9a4700; }
+html[data-adm-theme='light'] .adm-pill.lvl-jaune { color: #6f5a00; }
+html[data-adm-theme='light'] .adm-navi-badge { color: #ffffff; }
+html[data-adm-theme='light'] .adm-alert { background: #ffffff; }
+html[data-adm-theme='light'] .adm-kpi { background: var(--a-panel); }
+html[data-adm-theme='light'] .adm-navi.on, html[data-adm-theme='light'] .adm-navi:hover { color: var(--a-text); }
+
+/* --- Litiges & fiche d'instruction --- */
+.adm-dispute { background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 12px; padding: 12px 14px; }
+.adm-inline-input { background: var(--a-panel); border: 1px solid var(--a-stroke); border-radius: 8px; color: var(--a-text); padding: 6px 10px; font-size: 12px; flex: 1; min-width: 160px; }
+.adm-inline-input:focus { outline: none; border-color: var(--a-green2); }
+.adm-trace { width: 100%; height: auto; }
+.adm-trace-bg { fill: var(--a-panel2); stroke: var(--a-stroke); }
+.adm-trace-path { fill: none; stroke: var(--a-green); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.adm-trace-a { fill: var(--a-green); }
+.adm-trace-b { fill: #ff5468; }
+
+/* --- Jauges batterie (flotte verte) --- */
+.adm-batt { position: relative; height: 20px; background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 999px; overflow: hidden; }
+.adm-batt-fill { height: 100%; background: var(--a-green); border-radius: 999px; transition: width .3s; }
+.adm-batt-fill.low { background: var(--a-danger); }
+.adm-batt-label { position: absolute; inset: 0; display: grid; place-items: center; font-size: 11px; font-weight: 600; }
+
+/* --- Cahier des charges : sessions enrichies (SAMU, sécurité, anomalies) --- */
+
+/* Navigation : sessions verrouillées (non autorisées) */
+.adm-navi.locked { opacity: .5; }
+.adm-navi.locked:hover { opacity: .75; }
+.adm-navi-lock { margin-left: auto; font-size: 11px; }
+
+/* Modale « accès refusé » */
+.adm-denied-wrap { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: var(--a-voile); padding: 20px; }
+.adm-denied { max-width: 460px; background: var(--a-panel); border: 1px solid var(--a-danger); border-radius: 16px; padding: 24px; text-align: center; box-shadow: var(--a-ombre); }
+.adm-denied h3 { margin: 0 0 10px; color: var(--a-danger); font-size: 19px; }
+.adm-denied p { margin: 0 0 18px; color: var(--a-text); font-size: 14px; line-height: 1.5; }
+
+/* Bandeau d'erreur serveur : l'opération a été refusée et n'a PAS été enregistrée. */
+.adm-notice { position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 70;
+  display: flex; align-items: center; gap: 12px; max-width: min(640px, calc(100vw - 32px));
+  padding: 12px 14px; border-radius: 12px; background: var(--a-panel);
+  border: 1px solid var(--a-danger); color: var(--a-text); font-size: 13.5px; line-height: 1.45;
+  box-shadow: var(--a-ombre); }
+.adm-notice-x { background: transparent; border: none; color: var(--a-text); opacity: 0.7;
+  cursor: pointer; font-size: 13px; padding: 0 2px; flex: none; }
+.adm-notice-x:hover { opacity: 1; }
+
+/* Session SAMU — « dark room » à fort contraste */
+.samu-room .samu-head { border-color: rgba(255,84,104,0.35); }
+html[data-adm-theme='dark'] .samu-room .adm-card { background: var(--a-panel); }
+.samu-sla { color: var(--a-amber-txt); font-weight: 600; font-size: 12px; }
+.adm-pill.lvl-rouge { background: rgba(217,32,56,0.22); color: #ff6b7d; border: 1px solid rgba(217,32,56,0.5); font-weight: 600; }
+.adm-pill.lvl-orange { background: rgba(230,126,34,0.20); color: #f0913f; border: 1px solid rgba(230,126,34,0.45); font-weight: 600; }
+.adm-pill.lvl-jaune { background: rgba(214,178,7,0.18); color: #d9c23a; border: 1px solid rgba(214,178,7,0.42); font-weight: 600; }
+.adm-alert.lvl-rouge { border-left: 4px solid var(--a-danger); }
+.adm-alert.lvl-orange { border-left: 4px solid #e67e22; }
+.adm-alert.lvl-jaune { border-left: 4px solid #d6b207; }
+
+/* Plaque d'immatriculation (dictée police) */
+.samu-plate { text-align: center; padding: 10px; background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 12px; }
+.samu-plate-no { font-size: 26px; font-weight: 600; letter-spacing: 2px; color: var(--a-text); }
+
+/* Itinéraire théorique (gris) vs réel (rouge) */
+.samu-theoretical { stroke: #7d8b83; stroke-width: 2; stroke-dasharray: 6 5; }
+.samu-real { fill: none; stroke: #ff5468; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Courses : ligne en anomalie (surbrillance) */
+.adm-row-click.anomaly { background: rgba(217,32,56,0.10); }
+.adm-row-click.anomaly:hover { background: rgba(217,32,56,0.16); }
+
+/* Jauge SoC : palier orange (20–50 %) */
+.adm-batt-fill.mid { background: #d97706; }
+
+/* --- Sessions 8-11 : petits ajustements --- */
+.adm-x { background: none; border: none; color: inherit; cursor: pointer; margin-left: 6px; opacity: .6; font-size: 11px; padding: 0; }
+.adm-x:hover { opacity: 1; color: var(--a-danger); }
+
+/* --- Sessions 12-15 : Kanban KYC + pastilles passerelles --- */
+.kanban { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+.kanban-col { flex: 0 0 200px; background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.kanban-h { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; color: var(--a-muted); }
+.kanban-card { text-align: left; background: var(--a-panel); border: 1px solid var(--a-stroke); border-radius: 10px; padding: 8px 10px; cursor: pointer; color: var(--a-text); display: block; }
+.kanban-card:hover { border-color: var(--a-green2); }
+.kanban-card strong { font-size: 13px; }
+.adm-dot { width: 9px; height: 9px; border-radius: 999px; display: inline-block; }
+.adm-dot.green { background: var(--a-green); }
+.adm-dot.red { background: var(--a-danger); }
+
+/* Saisie numérique en ligne dans un tableau (barème de location, grilles tarifaires). */
+.adm-input-num {
+  width: 120px; text-align: right;
+  background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 8px;
+  color: var(--a-text); font-family: var(--a-mono, monospace); font-size: 13px; padding: 6px 8px;
+}
+.adm-input-num:focus { border-color: var(--a-green2); outline: none; }
+.adm-input-num:disabled { opacity: 0.55; }
+
+/* Poste de contact du superviseur SOS : joindre un service en un geste. */
+.adm-contact-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; margin-top: 6px; }
+.adm-contact {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--a-panel2); border: 1px solid var(--a-stroke); border-radius: 10px; padding: 8px 10px;
+}
+.adm-contact.urgent { border-color: #ff4d5e66; background: #ff4d5e0d; }
+.adm-contact.joint { border-color: var(--a-green2); }
+.adm-contact-id { display: flex; flex-direction: column; gap: 1px; min-width: 0; font-size: 12.5px; }
+.adm-contact-id strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Courbe de trésorerie (Direction Générale) : tracé continu, pas des barres. */
+.adm-courbe { width: 100%; padding: 6px 0 2px; }
+.adm-courbe svg { display: block; overflow: visible; }
+
+/* Constat de vigilance : constat → conséquence → action, lisible d'un coup d'œil. */
+.adm-constat {
+  background: var(--a-panel2); border: 1px solid var(--a-stroke);
+  border-left-width: 3px; border-radius: 12px; padding: 12px 14px;
+}
+.adm-constat.critique { border-left-color: #ff4d5e; }
+.adm-constat.eleve { border-left-color: #ff9f43; }
+.adm-constat.moyen { border-left-color: #f5c451; }
+.adm-constat.info { border-left-color: var(--a-stroke); }
+.adm-constat-corps { display: grid; grid-template-columns: 110px 1fr; gap: 4px 12px; margin: 10px 0 8px; font-size: 13px; }
+.adm-constat-corps dt { color: var(--a-muted); font-size: 11.5px; letter-spacing: 0; padding-top: 2px; }
+.adm-constat-corps dd { margin: 0; color: var(--a-text); line-height: 1.5; }
+@media (max-width: 720px) { .adm-constat-corps { grid-template-columns: 1fr; gap: 2px; } }
+
+/* ------------------------------------------------------------------
+ * UTILITAIRES DE MISE EN PAGE
+ *
+ * Défaut relevé lors de l'audit : la console utilisait « row » 104 fois,
+ * « between » 16 fois, « stack » 11 fois et « col » 3 fois — aucune de ces
+ * classes n'était définie dans sa feuille de style. Elles venaient de
+ * l'application cliente, que la console ne charge pas. Résultat : partout où
+ * le parent n'était pas déjà en flex, les éléments s'empilaient verticalement
+ * au lieu de s'aligner, et les espacements disparaissaient.
+ * ------------------------------------------------------------------ */
+.row { display: flex; align-items: center; gap: 12px; }
+.row.between, .between { justify-content: space-between; }
+.col { display: flex; flex-direction: column; }
+.grow { flex: 1; min-width: 0; }
+.gap-sm { gap: 8px; }
+.stack { display: flex; flex-direction: column; gap: 12px; }
+/* Hors tableau, ces utilitaires n'existaient pas non plus. */
+.mono { font-family: ui-monospace, monospace; }
+.pos { color: var(--a-green-txt); }
+.neg { color: var(--a-amber-txt); }
+
+/* ---- Alarme SOS temps réel (flux d'urgence) ---- */
+.adm-alarme { position: sticky; top: 0; z-index: 60; display: flex; align-items: center; gap: 12px;
+  margin: -4px 0 14px; padding: 12px 16px; border-radius: 12px; color: #fff;
+  background: #b91c1c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  animation: admAlarme 1.2s ease-in-out infinite alternate; }
+.adm-alarme strong { letter-spacing: 0.04em; }
+.adm-alarme-nb { font-weight: 600; padding: 2px 9px; border-radius: 999px; background: rgba(255, 255, 255, 0.18); font-variant-numeric: tabular-nums; }
+.adm-alarme .grow { flex: 1; }
+.adm-alarme .adm-btn.solid { background: #fff; color: #b91c1c; border-color: #fff; }
+.adm-alarme .adm-btn.ghost { color: #fff; border-color: rgba(255,255,255,0.5); }
+.adm-alarme-dot { width: 10px; height: 10px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 0 rgba(255,255,255,0.7);
+  animation: admAlarmeDot 1s ease-out infinite; }
+@keyframes admAlarme { from { filter: brightness(1); } to { filter: brightness(1.18); } }
+@keyframes admAlarmeDot { to { box-shadow: 0 0 0 10px rgba(255,255,255,0); } }
+.adm-alarme.lvl-orange { background: #c2410c; animation: none; }
+.adm-alarme.lvl-jaune { background: #a16207; animation: none; }
+.adm-alarme.lvl-orange .adm-btn.solid { color: #c2410c; } .adm-alarme.lvl-jaune .adm-btn.solid { color: #a16207; }
+/* Mode clair : la règle générale des boutons pleins (texte blanc) l'emportait, et les
+   boutons du bandeau devenaient blancs sur blanc. Le bandeau garde ses couleurs. */
+html[data-adm-theme='light'] .adm-alarme .adm-btn.solid { background: #fff; color: #b91c1c; border-color: #fff; }
+html[data-adm-theme='light'] .adm-alarme.lvl-orange .adm-btn.solid { color: #c2410c; }
+html[data-adm-theme='light'] .adm-alarme.lvl-jaune .adm-btn.solid { color: #a16207; }
+html[data-adm-theme='light'] .adm-alarme .adm-btn.ghost { background: transparent; color: #fff; border-color: rgba(255, 255, 255, 0.55); }
+
+/* ---- Fiche client : photo de profil ; dossier SOS : photo du passager ---- */
+.adm-client-tete { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.adm-client-photo { width: 72px; height: 72px; flex: none; border-radius: 50%; object-fit: cover; border: 2px solid var(--a-green); }
+.adm-client-photo.vide { display: grid; place-items: center; background: var(--a-stroke); color: var(--a-text); font-weight: 600; font-size: 22px; }
+.adm-passager { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 10px; border-radius: 12px; background: var(--a-soft); }
+.adm-passager img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 2px solid var(--a-green); }
+
+/* ===== Messages clients : la console écrit dans l'app ===== */
+.msg-modeles { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 14px; }
+.msg-modele { border: 1px solid var(--a-stroke); background: var(--a-panel2); color: var(--a-text); border-radius: 999px;
+  padding: 6px 12px; font: inherit; font-size: 12.5px; cursor: pointer; transition: border-color .15s, background .15s; }
+.msg-modele:hover { border-color: var(--a-green2); }
+.msg-modele.on { border-color: var(--a-green); background: color-mix(in srgb, var(--a-green) 12%, transparent); }
+.msg-retour { font-size: 13px; font-weight: 600; }
+.msg-retour.ok { color: var(--a-green-txt); } .msg-retour.ko { color: var(--a-danger); }
+.msg-fil { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.msg-fil li { border: 1px solid var(--a-stroke); border-radius: 12px; padding: 10px 12px; background: var(--a-panel2); }
+.msg-fil li.alerte { border-color: var(--a-danger); background: color-mix(in srgb, var(--a-danger) 10%, var(--a-panel2)); }
+.msg-titre { font-size: 13px; margin-top: 2px; }
+.msg-etat { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; font-size: 12.5px; }
+.msg-rep { color: var(--a-green-txt); font-weight: 600; } .msg-rep.danger { color: var(--a-danger); }
+.adm-btn.msg-btn-alerte { background: var(--a-danger); color: #fff; border: none; }
+
+/* ===== ORION Assurance : dossier de premiers secours (tiroir SAMU) ===== */
+.adm-medical { margin-top: 12px; padding: 12px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--a-danger) 45%, var(--a-stroke));
+  background: color-mix(in srgb, var(--a-danger) 6%, var(--a-panel2)); }
+.adm-medical-h { display: flex; gap: 10px; align-items: flex-start; }
+.adm-medical-h strong { display: block; font-size: 13.5px; }
+.adm-medical-h .adm-muted { font-size: 11.5px; }
+.adm-medical-ico { flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-weight: 600;
+  background: var(--a-danger); color: #fff; font-size: 17px; }
+.adm-medical-btn { margin-top: 10px; width: 100%; }
+.adm-medical-err { margin: 8px 0 0; font-size: 12.5px; color: var(--a-danger); font-weight: 600; }
+.adm-medical-corps { display: grid; grid-template-columns: auto 1fr; gap: 10px 12px; margin-top: 12px; }
+.adm-medical-corps > .adm-mini-kpis, .adm-medical-vig, .adm-medical-contact, .adm-medical-corps > .adm-btn { grid-column: 1 / -1; }
+.adm-medical-groupe { width: 76px; border-radius: 12px; background: var(--a-danger); color: #fff; display: grid; place-items: center; padding: 8px 4px; text-align: center; }
+.adm-medical-groupe span { font-size: 10px; letter-spacing: 0; opacity: .9; }
+.adm-medical-groupe strong { font-size: 26px; line-height: 1.1; }
+.adm-medical-id { display: grid; gap: 2px; align-content: center; font-size: 13px; }
+.adm-medical-id strong { font-size: 15px; }
+.adm-medical-vig > span, .adm-medical-contact > span:first-child { font-size: 11px; letter-spacing: 0; color: var(--a-muted); }
+.adm-medical-vig ul { margin: 4px 0 0; padding-left: 18px; font-size: 13px; font-weight: 600; color: var(--a-danger); }
+.adm-medical-vig p { margin: 4px 0 0; font-size: 12.5px; }
+.adm-medical-contact { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 13px; }
+.adm-medical-contact > span:first-child { flex-basis: 100%; }
+
+/* Écrans tactiles : cibles d'au moins 44 px pour les boutons compacts de la console. */
+@media (pointer: coarse) {
+  .adm-btn, .adm-btn.xs, .adm-link-btn, .adm-navi, .adm-tab { min-height: 44px; }
+}
+
+/* Dossier SOS — ce que l'agent ORION automatique demande au centre. */
+.samu-resume { margin: 0 0 8px; padding: 10px 12px; border-radius: 10px; background: var(--a-panel2); border: 1px solid var(--a-stroke); font-size: 13px; font-weight: 600; color: var(--a-text); }
+.samu-demandes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.samu-demandes li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--a-stroke); background: var(--a-panel); }
+.samu-demandes li.a-faire { border-color: #dc2626; }
+.samu-demandes li .grow { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.samu-demandes li .grow strong { font-size: 13.5px; }
+.samu-demandes li .grow .adm-muted { font-size: 12px; }
+
+
+/* ==========================================================================================
+   OBJETS EN VOLUME — le même jeu d'objets que l'app cliente (rendus 3D vert, blanc, violet).
+   Ils marquent les sessions (menu, en-tête), les tuiles de chiffres et quelques lignes
+   (secours, packs). L'interface autour reste neutre : c'est l'objet qui porte la couleur.
+   ========================================================================================== */
+.vehicule { display: block; max-width: none; height: auto; object-fit: contain; user-select: none; -webkit-user-drag: none; flex: none; }
+.adm-navi-ico { width: 24px; height: 24px; }
+.adm-navi-ico .objet { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.14)); }
+.adm-navi.locked .adm-navi-ico .objet { filter: grayscale(1); opacity: 0.5; }
+.adm-mhead h2 { display: flex; align-items: center; gap: 10px; }
+.adm-titre-objet { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--a-panel2); flex: none; }
+.adm-kpi.avec-objet { padding-right: 76px; }
+.adm-kpi-objet { position: absolute; right: 14px; top: 50%; translate: 0 -50%; display: grid; place-items: center; width: 54px; height: 54px;
+  border-radius: 16px; background: var(--a-panel2); }
+.adm-kpi-objet .objet { filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.14)); }
+.adm-ligne-objet { display: inline-flex; align-items: center; gap: 10px; }
+@media (max-width: 560px) {
+  .adm-kpi.avec-objet { padding-right: 16px; }
+  .adm-kpi-objet { display: none; }
+  .adm-titre-objet { width: 32px; height: 32px; border-radius: 10px; }
+  .adm-titre-objet .objet { width: 26px; height: 26px; }
+}
+
+/* ---- Dialogues dans la page : messages brefs, saisies, choix d'un lieu ---- */
+.adm-dialogue { display: flex; flex-direction: column; gap: 12px; }
+.adm-dialogue h3 { margin: 0; font-family: 'Sora', sans-serif; font-size: 16px; line-height: 1.35; }
+.adm-dialogue p { margin: 0; }
+.adm-dialogue textarea.adm-input { resize: vertical; font-weight: 500; font-size: 14px; }
+.adm-dialogue-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.adm-lieux { display: flex; flex-direction: column; gap: 4px; max-height: min(46vh, 380px); overflow-y: auto; }
+.adm-lieu { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px 10px; border-radius: 10px; border: 1px solid transparent;
+  background: transparent; color: var(--a-text); cursor: pointer; font: inherit; }
+.adm-lieu:hover, .adm-lieu:focus-visible { background: var(--a-survol); border-color: var(--a-stroke); outline: none; }
+.adm-lieu span { display: flex; flex-direction: column; min-width: 0; }
+.adm-lieu strong { font-size: 14px; font-weight: 600; }
+.adm-lieu small { font-size: 12px; color: var(--a-muted); }
+.adm-avis-pile { position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 90;
+  display: flex; flex-direction: column; gap: 8px; width: min(380px, calc(100vw - 32px)); pointer-events: none; }
+.adm-avis { pointer-events: auto; display: flex; align-items: flex-start; gap: 10px; padding: 12px 12px 12px 14px; border-radius: 12px;
+  background: var(--a-panel); border: 1px solid var(--a-stroke); box-shadow: var(--a-ombre); font-size: 13.5px; line-height: 1.4; animation: adm-fade .15s ease; }
+.adm-avis span { flex: 1; min-width: 0; }
+.adm-avis button { flex: none; width: 28px; height: 28px; border-radius: 8px; border: 0; background: var(--a-panel2); color: var(--a-muted); font-size: 16px; cursor: pointer; }
+
+/* ==========================================================================================
+   ICÔNES AU TRAIT — le même style que les paramètres de l'app cliente
+   ==========================================================================================
+   Menu, titre de session et tuiles de chiffres : une icône au trait fin, de la couleur du
+   texte, posée sur une bulle ronde neutre et translucide. Les objets en volume restent là où
+   ils montrent une chose (secours, packs), comme dans l'app cliente. */
+.adm-navi-ico { width: 30px; height: 30px; border-radius: 50%; color: var(--a-text);
+  background: color-mix(in srgb, var(--a-text) 6%, transparent); }
+.adm-navi.on .adm-navi-ico { background: color-mix(in srgb, var(--a-text) 10%, transparent); }
+.adm-navi.locked .adm-navi-ico { opacity: 0.5; }
+.adm-titre-objet { width: 40px; height: 40px; border-radius: 50%; color: var(--a-text);
+  background: color-mix(in srgb, var(--a-text) 6%, transparent); }
+.adm-kpi.avec-objet { padding-right: 72px; }
+.adm-kpi-objet { width: 46px; height: 46px; border-radius: 50%; color: var(--a-text);
+  background: color-mix(in srgb, var(--a-text) 6%, transparent); }
+@media (max-width: 560px) { .adm-titre-objet { width: 32px; height: 32px; border-radius: 50%; } }
+
+/* ---- Validation d'un chauffeur salarié et attribution d'une course ---- */
+.adm-attribution { width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow-y: auto; }
+.adm-attribution-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin: 12px 0; }
+.adm-case { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; margin: 4px 0 10px; cursor: pointer; }
+.adm-case input { margin-top: 2px; width: 16px; height: 16px; accent-color: var(--a-green2); }
+.adm-erreur { color: var(--a-danger); font-size: 13px; margin: 6px 0; }
+.adm-attribution-liste { display: grid; gap: 6px; margin: 12px 0; max-height: 46vh; overflow-y: auto; }
+.adm-attribution-ligne { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--a-stroke);
+  background: var(--a-panel2); color: var(--a-text); font: inherit; cursor: pointer; }
+.adm-attribution-ligne:hover:not(:disabled) { border-color: var(--a-green2); }
+.adm-attribution-ligne:disabled { opacity: 0.6; cursor: default; }
+/* Accès testeurs (Personnel & accès) : un numéro, son code à transmettre. */
+.adm-testeurs { margin-bottom: 16px; }
+.adm-testeurs-form { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto auto; gap: 8px; }
+.adm-testeurs-liste { display: grid; gap: 8px; margin-top: 12px; }
+.adm-testeur { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--a-stroke); background: var(--a-panel2); }
+.adm-testeur.expire { opacity: 0.55; }
+.adm-testeur-code { font-size: 20px; letter-spacing: 0.12em; font-weight: 600; padding: 6px 12px; border-radius: 10px;
+  border: 1px solid var(--a-stroke); background: var(--a-panel); color: var(--a-text); cursor: pointer; font-variant-numeric: tabular-nums; }
+.adm-testeur-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 560px) {
+  .adm-testeurs-form { grid-template-columns: 1fr 1fr; }
+  .adm-testeur { flex-wrap: wrap; }
+  .adm-testeur-actions { width: 100%; justify-content: flex-start; }
+}
+
+/* ---- Application console sur téléphone : serveur ORION réglable à la connexion ---- */
+.adm-serveur { margin-top: 14px; display: grid; gap: 8px; justify-items: center; }
+.adm-serveur-lien { display: inline-flex; align-items: center; gap: 8px; border: none; background: none; color: var(--a-muted);
+  font: 500 12.5px var(--font-body, inherit); padding: 6px 10px; border-radius: 10px; cursor: pointer; }
+.adm-serveur-lien:hover { color: var(--a-text); }
+.adm-serveur-point { width: 8px; height: 8px; border-radius: 50%; background: var(--a-danger); }
+.adm-serveur-point.on { background: var(--a-green2); }
+.adm-serveur-form { width: 100%; display: grid; gap: 8px; }
+
+/* Gammes servies par le chauffeur (fiche d'attribution) */
+.adm-gammes-servies { border: 1px solid var(--a-line, rgba(127, 127, 127, 0.2)); border-radius: 12px; padding: 10px 14px 4px; margin: 6px 0 12px; }
+.adm-gammes-servies legend { padding: 0 6px; font-size: 13px; font-weight: 600; }
+.adm-gammes-servies .adm-muted { font-size: 12px; margin: 0 0 8px; }
+.adm-gammes-cases { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.adm-gammes-cases .adm-case { margin: 2px 0 8px; }
+.adm-gammes-cases .adm-case.principale { opacity: 0.8; cursor: default; }
+
+/* ------------- Prix des courses : réglage de la direction (Mon poste du PDG) ------------- */
+.adm-prix-direction { margin-bottom: 16px; }
+.adm-prix-reglage { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 12px 18px; align-items: center; margin: 4px 0 16px; }
+.adm-prix-valeur { display: flex; flex-direction: column; gap: 2px; }
+.adm-prix-valeur strong { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.adm-prix-valeur strong.hausse { color: var(--a-danger); }
+.adm-prix-valeur strong.baisse { color: var(--a-green2); }
+.adm-prix-boutons { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.adm-prix-curseur { grid-column: 1 / -1; width: 100%; accent-color: var(--a-green2); }
+.adm-prix-saisie { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--a-muted); }
+.adm-prix-saisie .adm-input, .adm-prix-champ .adm-input { width: 84px; text-align: right; }
+.adm-prix-grille { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 24px; margin-bottom: 14px; }
+.adm-prix-grille h4 { margin: 0 0 2px; font-size: 13px; font-weight: 600; }
+.adm-prix-grille .adm-muted { font-size: 12px; margin: 0 0 8px; }
+.adm-prix-champ { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 13px; }
+.adm-prix-champ > span:first-child { width: 64px; }
+.adm-prix-exemples td strong { display: block; font-weight: 600; }
+.adm-prix-avant { display: block; font-size: 11.5px; color: var(--a-muted); text-decoration: line-through; }
+.adm-prix-trace { font-size: 12px; margin: 10px 0 0; }
+.adm-prix-confirmer { margin-top: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--a-stroke); background: var(--a-panel); }
+.adm-prix-confirmer p { margin: 0 0 10px; font-size: 13.5px; }
+.adm-ok { color: var(--a-green2); font-size: 13px; margin: 8px 0 0; }
+.adm-table-wrap { overflow-x: auto; }
+.adm-prix-direction .adm-dialogue-actions { margin-top: 12px; flex-wrap: wrap; }
+@media (max-width: 560px) { .adm-prix-reglage { grid-template-columns: 1fr; } .adm-prix-boutons { justify-content: flex-start; } }
+
+/* ---------------- Recherche d'un panneau (menu de la console) ---------------- */
+.adm-cherche-panneau { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; margin: 2px 0 8px;
+  padding: 8px 10px; border-radius: 10px; border: 1px solid var(--a-stroke); background: var(--a-panel); color: var(--a-muted); }
+.adm-cherche-panneau:focus-within { border-color: var(--a-green2); color: var(--a-text); }
+.adm-cherche-panneau input { flex: 1; min-width: 0; border: none; outline: none; background: none; color: var(--a-text); font: inherit; font-size: 13.5px; }
+.adm-cherche-panneau input::-webkit-search-cancel-button { cursor: pointer; }
+.adm-cherche-panneau kbd { font: 500 10.5px var(--a-mono, ui-monospace, monospace); padding: 2px 6px; border-radius: 6px; border: 1px solid var(--a-stroke); color: var(--a-muted); white-space: nowrap; }
+.adm-resultat { align-items: center; }
+.adm-resultat-titre { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-resultat-dans { display: block; font-size: 11.5px; color: var(--a-muted); }
+.adm-aucun-panneau { font-size: 13px; padding: 8px 10px; margin: 0; }
+/* Panneau atteint par la recherche : signalé un instant. */
+.adm-surligne { outline: 2px solid var(--a-green2); outline-offset: 3px; transition: outline-color 0.6s ease; }
+
+/* ---------------------------- Simulateur (PDG) ---------------------------- */
+.adm-sim { display: flex; flex-direction: column; gap: 16px; }
+.adm-sim-etat { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 14px 16px; border-radius: 14px;
+  border: 1px solid var(--a-stroke); background: var(--a-panel); }
+.adm-sim-etat.actif { border-color: color-mix(in srgb, var(--a-amber) 55%, var(--a-stroke)); background: color-mix(in srgb, var(--a-amber) 8%, var(--a-panel)); }
+.adm-sim-voyant { width: 10px; height: 10px; border-radius: 50%; background: var(--a-muted); flex: none; }
+.adm-sim-etat.actif .adm-sim-voyant { background: var(--a-amber); box-shadow: 0 0 0 4px color-mix(in srgb, var(--a-amber) 22%, transparent); }
+.adm-sim-etat-texte { display: flex; flex-direction: column; gap: 2px; flex: 1 1 320px; min-width: 0; }
+.adm-sim-etat-texte span { color: var(--a-muted); font-size: 13px; }
+.adm-sim-etat-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.adm-sim-duree { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--a-muted); }
+.adm-sim-duree .adm-input { padding: 7px 10px; width: auto; }
+.adm-btn.danger { border-color: color-mix(in srgb, var(--a-danger) 60%, var(--a-stroke)); color: var(--a-danger); }
+.adm-btn.danger:hover { background: color-mix(in srgb, var(--a-danger) 10%, var(--a-panel)); }
+.adm-sim-grille { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.adm-sim-grille.bas { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 1100px) { .adm-sim-grille, .adm-sim-grille.bas { grid-template-columns: minmax(0, 1fr); } }
+.adm-sim-colonne { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.adm-sim-carte { height: clamp(360px, 58vh, 640px); border-radius: 12px; overflow: hidden; }
+.adm-sim-modes { display: flex; flex-wrap: wrap; gap: 6px; }
+.adm-sim-aide { margin: 10px 0 0; font-size: 12px; }
+.adm-sim-lieu { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.adm-sim-lieu-nom { font-weight: 500; flex: 1 1 180px; min-width: 0; overflow-wrap: anywhere; }
+.adm-sim-gammes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; }
+.adm-sim-gamme { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 6px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--a-stroke); background: var(--a-panel2); color: var(--a-text); font-size: 13px; }
+.adm-sim-gamme.on { border-color: var(--a-text); background: var(--a-panel); }
+.adm-sim-gamme i, .adm-sim-groupes i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+.g-argent { --g: #9aa1ab; } .g-or { --g: #d4a234; } .g-diamant { --g: #5b8cf0; } .g-moto { --g: #22b86a; }
+.adm-sim-gamme i, .adm-sim-groupes i { background: var(--g); }
+.adm-sim-anneau { display: grid; grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+.adm-sim-anneau label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--a-muted); min-width: 0; }
+.adm-sim-anneau .adm-input { width: 100%; }
+.adm-sim-unite { display: flex; align-items: center; gap: 6px; color: var(--a-muted); }
+@media (max-width: 520px) { .adm-sim-anneau { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .adm-sim-anneau .adm-btn { grid-column: 1 / -1; } }
+.adm-sim-distances { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; }
+.adm-sim-groupes { list-style: none; margin: 12px 0 0; padding: 0; border-top: 1px solid var(--a-stroke); }
+.adm-sim-groupes li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--a-stroke); font-size: 13px; }
+.adm-sim-groupes li > span { flex: 1; min-width: 0; }
+.adm-sim-total { justify-content: space-between; }
+.adm-sim-demande { display: flex; align-items: center; gap: 14px; }
+.adm-sim-demande input { flex: 1; accent-color: var(--a-text); }
+.adm-sim-demande strong { font-size: 22px; font-weight: 500; min-width: 2ch; text-align: right; }
+.adm-sim-mesures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0 0 14px; }
+@media (max-width: 640px) { .adm-sim-mesures { grid-template-columns: minmax(0, 1fr); } }
+.adm-sim-mesures div { padding: 10px 12px; border-radius: 10px; background: var(--a-panel2); border: 1px solid var(--a-stroke); }
+.adm-sim-mesures dt { font-size: 12px; color: var(--a-muted); margin-bottom: 4px; }
+.adm-sim-mesures dd { margin: 0; font-size: 15px; font-variant-numeric: tabular-nums; }
+.adm-sim .hausse { color: var(--a-danger); } .adm-sim .baisse { color: var(--a-green2); }
+.adm-sim-approches, .adm-sim-prix { margin-top: 4px; }
+.adm-sim-prix { margin-top: 12px; }
+.adm-sim-note { font-size: 12px; margin: 0; }
+.adm-sim-legende i { border: 1.5px solid #fff; }
+.adm-sim-pin { width: 22px; height: 30px; cursor: default; }
+.adm-sim-pin::before { content: ''; position: absolute; left: 3px; top: 0; width: 16px; height: 16px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+  background: var(--a-text); border: 2px solid var(--a-bg); box-shadow: 0 2px 6px rgba(0,0,0,.3); }
+.adm-sim-pin.dest::before { background: var(--a-danger); }
+.adm-sim-pin::after { content: ''; position: absolute; left: 8px; top: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--a-bg); }
+
+/* ORION Pro : sièges et voix de bord */
+.adm-orionpro { display: grid; gap: 16px; }
+.adm-orionpro .adm-table .adm-input { width: 100%; min-width: 110px; }
+.adm-orionpro-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+.adm-voix-moments td { vertical-align: top; }
+.adm-voix-texte { width: 100%; resize: vertical; font: inherit; line-height: 1.45; }
+.adm-voix-champ { display: grid; gap: 6px; margin-top: 12px; font-size: 13px; font-weight: 600; }
+.adm-voix-exemples { display: grid; gap: 10px; margin-top: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.adm-voix-exemple { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--a-stroke); background: var(--a-panel2); }
+.adm-voix-exemple p { margin: 6px 0 0; font-size: 13px; line-height: 1.5; }
+
+/* Voix humaine (ORION Pro) */
+.adm-vh-choix { display: flex; flex-wrap: wrap; margin: 4px 0 14px; }
+.adm-vh-choix .adm-seg-b { padding: 7px 12px; font-size: 13px; }
+.adm-vh-reglage { display: grid; gap: 12px; }
+.adm-vh-voix { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+.adm-vh-voix .adm-btn { white-space: nowrap; }
+.adm-vh-modele { max-width: 360px; }
+.adm-vh-effacer { justify-self: start; margin-top: 4px; }
+.adm-vh-ok { color: var(--a-green-txt); margin: 10px 0 0; }
+.adm-vh-erreur { color: var(--a-danger); margin: 10px 0 0; overflow-wrap: anywhere; }
+@media (max-width: 560px) { .adm-vh-voix { grid-template-columns: 1fr; } }
+
+/* Services Google : carte du trajet, météo */
+.adm-carte-trajet { display: block; width: 100%; max-width: 640px; aspect-ratio: 2 / 1; object-fit: cover; border-radius: 12px; border: 1px solid var(--a-stroke); background: var(--a-panel2); }
+.adm-meteo-alerte { color: var(--a-amber-txt); font-weight: 600; }
+.adm-gservices { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: 10px; }
+.adm-gservice { border: 1px solid var(--a-stroke); border-radius: 12px; padding: 12px 14px; background: var(--a-panel2); display: grid; gap: 6px; font-size: 13px; }
+.adm-gservice-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 600; }
+
+.adm-vh-secours { margin-top: 14px; }
+.adm-vh-secours-liste { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.adm-vh-secours-liste .adm-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 4px 10px; font-variant-numeric: tabular-nums; }
+.adm-vh-retirer { border: 0; background: transparent; color: var(--a-muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 2px; }
+.adm-vh-retirer:hover { color: var(--a-danger); }
+.adm-vh-secours-ajout { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; }
+.adm-cle-masquee { -webkit-text-security: disc; font-family: ui-monospace, monospace; }
+@media (max-width: 560px) { .adm-vh-secours-ajout { grid-template-columns: 1fr; } }
+
+/* ---- Simulateur de flotte (Mon poste du PDG) ---- */
+.adm-flotte { margin-bottom: 16px; }
+.adm-flotte-pilote { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 4px 0 12px; }
+.adm-flotte-mesure { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--a-stroke); background: var(--a-panel2); min-width: 0; }
+.adm-flotte-mesure > span { font-size: 12px; }
+.adm-flotte-mesure strong { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.adm-flotte-mesure small { font-size: 11.5px; overflow-wrap: anywhere; }
+.adm-flotte-mesure.alerte { border-color: var(--a-amber); }
+.adm-flotte-mesure.alerte strong { color: var(--a-amber-txt); }
+.adm-flotte-recaler { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; font-size: 13px; }
+.adm-flotte-corps { display: grid; grid-template-columns: minmax(260px, 0.9fr) minmax(300px, 1.1fr); gap: 18px; align-items: start; }
+.adm-flotte-hypotheses fieldset { border: 1px solid var(--a-stroke); border-radius: 12px; padding: 10px 12px 4px; margin: 0 0 10px; min-width: 0; }
+.adm-flotte-hypotheses legend { padding: 0 6px; font-size: 12.5px; font-weight: 600; }
+.adm-flotte-champ { margin: 0 0 8px; }
+.adm-flotte-ligne { display: grid; grid-template-columns: minmax(0, 1fr) 96px minmax(64px, auto); align-items: center; gap: 8px; font-size: 13px; }
+.adm-flotte-ligne .adm-input { width: 96px; text-align: right; }
+.adm-flotte-lbl { min-width: 0; }
+.adm-flotte-unite { font-size: 12px; color: var(--a-muted); }
+.adm-flotte-aide { display: block; font-size: 11.5px; margin-top: 2px; }
+.adm-flotte-champ > .adm-prix-curseur { margin-top: 4px; }
+.adm-flotte-champ:has(.adm-flotte-segment) { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 13px; }
+.adm-flotte-segment { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--a-panel2); border: 1px solid var(--a-stroke); }
+.adm-flotte-segment button { min-width: 36px; height: 28px; border: none; border-radius: 8px; background: none; color: var(--a-muted); font-weight: 600; cursor: pointer; }
+.adm-flotte-segment button.actif { background: var(--a-panel); color: var(--a-text); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.adm-flotte-details { border: 1px solid var(--a-stroke); border-radius: 12px; padding: 8px 12px; }
+.adm-flotte-details summary { cursor: pointer; font-size: 12.5px; font-weight: 600; margin-bottom: 4px; }
+.adm-flotte-details[open] summary { margin-bottom: 10px; }
+.adm-flotte-resultats { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.adm-flotte-vedette { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border-radius: 14px; background: var(--a-panel2); border: 1px solid var(--a-stroke); }
+.adm-flotte-vedette strong { font-family: 'Sora', sans-serif; font-size: 40px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.adm-flotte-vedette > span { font-size: 12.5px; }
+.adm-flotte-tuiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.adm-flotte-tuile { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--a-stroke); min-width: 0; }
+.adm-flotte-tuile > span { font-size: 12px; }
+.adm-flotte-tuile strong { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.adm-flotte-tuile small { font-size: 11.5px; overflow-wrap: anywhere; }
+.adm-flotte-plan, .adm-flotte-paliers { padding: 12px 14px; border-radius: 14px; border: 1px solid var(--a-stroke); }
+.adm-flotte-plan h4, .adm-flotte-paliers h4 { margin: 0; font-size: 13.5px; font-weight: 600; }
+.adm-flotte-plan-tete { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.adm-flotte-objectif { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+.adm-flotte-objectif .adm-input { width: 96px; text-align: right; }
+.adm-flotte-plan p { margin: 8px 0 0; font-size: 13.5px; line-height: 1.5; }
+.adm-flotte-jauge { height: 8px; border-radius: 4px; background: var(--a-panel2); overflow: hidden; margin-top: 10px; }
+.adm-flotte-jauge span { display: block; height: 100%; border-radius: 4px; background: var(--a-green2); transition: width 0.3s; }
+.adm-flotte-note { font-size: 12px !important; margin-top: 6px !important; }
+.adm-flotte-paliers ol { list-style: none; margin: 10px 0 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.adm-flotte-paliers li { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--a-stroke); font-size: 11.5px; color: var(--a-muted); min-width: 0; }
+.adm-flotte-palier-n { font-size: 15px; font-weight: 600; color: var(--a-text); font-variant-numeric: tabular-nums; }
+.adm-flotte-paliers li.fait { background: var(--a-panel2); }
+.adm-flotte-paliers li.prochain { border-color: var(--a-green2); }
+.adm-flotte-signal { margin: 10px 0 0; font-size: 12.5px; color: var(--a-muted); }
+.adm-flotte-signal.go { color: var(--a-amber-txt); }
+.adm-flotte-actions { margin-top: 12px; flex-wrap: wrap; }
+@media (max-width: 900px) { .adm-flotte-corps { grid-template-columns: 1fr; } .adm-flotte-resultats { order: -1; } }
+@media (max-width: 560px) {
+  .adm-flotte-tuiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adm-flotte-paliers ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adm-flotte-ligne { grid-template-columns: minmax(0, 1fr) 88px; }
+  .adm-flotte-ligne .adm-flotte-unite { grid-column: 2; }
+}

@@ -1,0 +1,7 @@
+# Ferme le clavier en touchant la carte, hors de tout champ (même geste qu'un utilisateur).
+# On évite la touche Retour d'Android : sans clavier ouvert, elle ramènerait à l'écran précédent.
+appId: ci.orion.app
+---
+- tapOn:
+    point: "50%,12%"
+- waitForAnimationToEnd

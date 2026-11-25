@@ -1,0 +1,101 @@
+/*
+ * PREMIUM — palier graphique commun aux quatre interfaces (app cliente, app Chauffeur,
+ * console, tableau de bord). Purement additif : rien n'est restructuré, on affine le
+ * rendu des polices, la fluidité et le respect des préférences de mouvement.
+ */
+
+/* Rendu des polices : taille optique automatique (polices variables Sora/Inter),
+   lissage, lisibilité, ligatures et crénage. Texte net et « épuré » sur tout écran. */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-optical-sizing: auto;
+  font-kerning: normal;
+  font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+}
+
+/* Chiffres alignés (tabular) partout où l'on lit des montants, des compteurs, des heures
+   et des statistiques : les colonnes ne « dansent » plus quand les chiffres changent. */
+.adm-kpi, .adm-clock, .adm-table, .tb-kpi, .tb-stat, .tb-journal, .tb-heure,
+.dv-hero-kpis, .dv-stat, .stat-num, .kpi, .price, .veh-code-affiche,
+[data-num], .mono, .tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'kern' 1, 'tnum' 1;
+}
+
+/* Fluidité : défilement souple et inertie tactile dans les zones défilantes. */
+* { scrollbar-width: thin; }
+.adm-main, .dv-page, .tb-journal, .dv-app, .modal, .adm-card {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Rondeurs d'image nettes sur les écrans à forte densité. */
+img { image-rendering: auto; }
+
+/*
+ * MOUVEMENT. Les animations restent fluides sur 90/120/144 Hz car elles n'utilisent que
+ * des propriétés composées par le GPU (transform, opacity). Si la personne a demandé «
+ * moins d'animations » (accessibilité, mal des transports en voiture), on les coupe
+ * presque entièrement — y compris sur l'écran de véhicule.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * « Partager » (suivi de course) : noir profond, presque en volume. Dégradé de noirs (graphite
+ * en haut), arête claire très fine au sommet, ombre courte : un objet sobre, sans reflet.
+ * En mode sombre, un liseré clair le détache du fond.
+ */
+:root .btn.btn-partager {
+  background: linear-gradient(180deg, #3a3a3d 0%, #18181a 48%, #0a0a0b 100%);
+  color: #fff;
+  border: 1px solid #000;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .16),
+    inset 0 -2px 0 rgba(0, 0, 0, .5),
+    0 1px 1px rgba(0, 0, 0, .25),
+    0 8px 16px -10px rgba(0, 0, 0, .7);
+}
+:root .btn.btn-partager:active {
+  transform: translateY(1px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), inset 0 -1px 0 rgba(0, 0, 0, .45), 0 2px 6px -4px rgba(0, 0, 0, .6);
+}
+:root .btn.btn-partager:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+:root[data-theme="dark"] .btn.btn-partager { border-color: rgba(255, 255, 255, .14); }
+
+/* Course en arrière-plan : l'écran de la course reste monté, caché quand le client est ailleurs. */
+.suivi-course { display: contents; }
+.suivi-course[hidden] { display: none !important; }
+/* Bandeau « Course en cours » : une pilule au-dessus de la barre du bas, qui ramène à la course. */
+.course-retour {
+  position: absolute; left: 50%; transform: translateX(-50%); z-index: 31;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  width: min(calc(100% - 28px), 430px); min-height: 56px; padding: 8px 12px 8px 14px;
+  display: flex; align-items: center; gap: 12px; text-align: start; cursor: pointer;
+  border-radius: 18px; border: 1px solid var(--stroke-strong);
+  background: var(--plein); color: var(--text); font: inherit;
+  box-shadow: 0 14px 30px -18px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .06);
+}
+.course-retour.avec-nav { bottom: calc(92px + env(safe-area-inset-bottom)); }
+.course-retour:active { transform: translateX(-50%) translateY(1px); }
+.course-retour:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.course-retour-point { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--accent, #16a34a); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent, #16a34a) 20%, transparent); animation: course-retour-pouls 2s ease-in-out infinite; }
+@keyframes course-retour-pouls { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent, #16a34a) 6%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .course-retour-point { animation: none; } }
+.course-retour-texte { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; line-height: 1.2; }
+.course-retour-texte strong { font-size: 14.5px; font-weight: 600; }
+.course-retour-texte span { font-size: 12.5px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.course-retour-badge { flex: none; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: #e5484d; color: #fff; font-size: 11.5px; font-weight: 700; display: grid; place-items: center; }
+.set-verrou { margin: 0 0 8px; font-size: 12.5px; }
+/* Le bandeau ne cache jamais le bas d'une page : elle gagne sa hauteur en marge. */
+.phone.a-course .page-body { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+.phone.a-nav.a-course .page-body { padding-bottom: calc(172px + env(safe-area-inset-bottom)); }
+/* Action indisponible pour le moment (déconnexion pendant une course) : touchable, mais estompée. */
+.btn[aria-disabled="true"] { opacity: .5; }

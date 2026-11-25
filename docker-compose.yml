@@ -1,0 +1,47 @@
+# Stack de développement ORION VTC.
+# Le backend tourne tel quel avec GEO_BACKEND=memory (sans dépendance).
+# Décommenter postgres/redis pour s'approcher de la prod.
+services:
+  api:
+    build: ./backend
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      GEO_BACKEND: memory
+      # Secrets OBLIGATOIRES en production (le serveur refuse les valeurs publiques du dépôt).
+      # À fournir dans un fichier .env à côté de ce fichier (jamais commité) :
+      #   openssl rand -base64 48   → pour chaque *_JWT_SECRET et TELEMATIQUE_TOKEN
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET requis (openssl rand -base64 48)}
+      DRIVER_JWT_SECRET: ${DRIVER_JWT_SECRET:?DRIVER_JWT_SECRET requis}
+      CLIENT_JWT_SECRET: ${CLIENT_JWT_SECRET:?CLIENT_JWT_SECRET requis}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?ADMIN_TOKEN requis (24 caractères au moins)}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD requis (12 caractères au moins)}
+      TELEMATIQUE_TOKEN: ${TELEMATIQUE_TOKEN:-}
+      # GEO_BACKEND: redis
+      # REDIS_URL: redis://redis:6379
+      # DATABASE_URL: postgres://orion:orion@postgres:5432/orion
+    restart: unless-stopped
+    # depends_on:
+    #   - redis
+    #   - postgres
+
+  # redis:
+  #   image: redis:7-alpine
+  #   ports: ["6379:6379"]
+  #   restart: unless-stopped
+
+  # postgres:
+  #   image: postgis/postgis:16-3.4
+  #   environment:
+  #     POSTGRES_USER: orion
+  #     POSTGRES_PASSWORD: orion
+  #     POSTGRES_DB: orion
+  #   ports: ["5432:5432"]
+  #   restart: unless-stopped
+  #   volumes:
+  #     - orion_pg:/var/lib/postgresql/data
+
+# volumes:
+#   orion_pg:

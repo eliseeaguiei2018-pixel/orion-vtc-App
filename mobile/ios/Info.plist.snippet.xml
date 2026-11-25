@@ -1,0 +1,39 @@
+<!--
+  ORION iOS — clés de permissions (Usage Descriptions) à fusionner dans Info.plist.
+  Apple REJETTE l'app si une permission est demandée sans description claire.
+  Reformuler en anglais si soumission App Store en anglais.
+-->
+<dict>
+  <!-- Localisation : trouver les chauffeurs, suivre le trajet, sécurité. -->
+  <key>NSLocationWhenInUseUsageDescription</key>
+  <string>ORION utilise votre position pour trouver les chauffeurs proches et suivre votre course.</string>
+  <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+  <string>ORION suit votre course en arrière-plan et affiche l'itinéraire sur l'écran de verrouillage.</string>
+
+  <!-- Caméra : photo de profil, documents. -->
+  <key>NSCameraUsageDescription</key>
+  <string>ORION utilise la caméra pour votre photo de profil et la vérification des documents.</string>
+
+  <!-- Microphone : appels, assistance vocale, sécurité. -->
+  <key>NSMicrophoneUsageDescription</key>
+  <string>ORION utilise le micro pour les appels au chauffeur et l'assistance vocale.</string>
+
+  <!-- Photothèque : reçus, justificatifs. -->
+  <key>NSPhotoLibraryAddUsageDescription</key>
+  <string>ORION enregistre vos reçus de course dans votre photothèque.</string>
+
+  <!-- Notifications critiques (SOS / accident) — nécessite un entitlement Apple dédié. -->
+  <key>UIBackgroundModes</key>
+  <array>
+    <string>location</string>
+    <string>remote-notification</string>
+    <string>processing</string>
+    <string>fetch</string>
+  </array>
+
+  <!-- Live Activities + Dynamic Island : suivi de course sur l'écran de verrouillage. -->
+  <key>NSSupportsLiveActivities</key>
+  <true/>
+  <key>NSSupportsLiveActivitiesFrequentUpdates</key>
+  <true/>
+</dict>
