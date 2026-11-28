@@ -130,6 +130,11 @@ test('Mon poste du PDG : hausse ou baisse générale des prix, écarts de gamme 
   assert.ok(Math.abs(apres - avant * 1.1) <= 50, `devis du serveur +10 % (${avant} → ${apres})`);
   const cfg = (await app.inject({ method: 'GET', url: '/config' })).json();
   assert.equal(cfg.prix.ajustementPct, 10, 'les apps reçoivent la grille');
+  assert.deepEqual(cfg.prix.multipliers, { argent: 0.9, or: 0.9, diamant: 0.9 }, 'les apps reçoivent le coefficient des gammes');
+  const coef = await app.inject({ method: 'PUT', url: '/admin/pricing', headers: H, payload: { multipliers: { argent: 0.95, or: 0.95, diamant: 0.95 } } });
+  assert.equal(coef.statusCode, 200, coef.body);
+  const cfg2 = (await app.inject({ method: 'GET', url: '/config' })).json();
+  assert.equal(cfg2.prix.multipliers.argent, 0.95, 'nouveau coefficient transmis aux apps');
 
   const baisse = await app.inject({ method: 'POST', url: '/admin/direction/prix', headers: H, payload: { ajustementPct: -5, majorationsPct: { or: 8, diamant: 20 } } });
   assert.equal(baisse.json().majorationsPct.or, 8);

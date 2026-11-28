@@ -8,7 +8,7 @@ import {
   RENTAL_MOIS_MAX, RENTAL_OPTION_KEYS, RENTAL_TARIFF, dureesPermises, remiseMensuelle,
 } from './data';
 import { repondreLocal, reserverLocationLocale } from './serveurLocal';
-import { appliquerGrillePrix, BAREME, BAREME_LIVRAISON, prixCourse, prixLivraison, prixMiseADisposition, traficServeur, type GrillePrixServeur } from './tarifServeur';
+import { appliquerGrillePrix, BAREME, coefGamme, BAREME_LIVRAISON, prixCourse, prixLivraison, prixMiseADisposition, traficServeur, type GrillePrixServeur } from './tarifServeur';
 import { baseTempsReel, confirmerCodeGoogle, enTeteRecaptcha, enTetesPasserelle, envoyerCodeGoogle, identiteGoogleActive } from './securiteGoogle';
 
 /**
@@ -218,7 +218,7 @@ function localEstimate(origin: LatLng, destination: LatLng, tier: TierOption, op
   } : undefined;
   const prix = prixCourse({
     origin, destination, stops, distanceMeters,
-    multiplier: tier.multiplier, gamme: tier.id, bodyType: opts.bodyType, insurance: opts.insurance, reel,
+    multiplier: coefGamme(tier.id, tier.multiplier), gamme: tier.id, bodyType: opts.bodyType, insurance: opts.insurance, reel,
     itineraire: opts.itineraire?.choix, peages: opts.itineraire?.peages, mesureTrafic: mesureTraficDe(opts),
   });
   return {

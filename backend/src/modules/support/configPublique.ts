@@ -18,6 +18,9 @@ export function configPublique(container: Pick<Container, 'settings' | 'whatsapp
       ajustementPct: p.ajustementPct ?? 0,
       majorationsPct: { or: p.majorationsPct['or'] ?? 0, diamant: p.majorationsPct['diamant'] ?? 0 },
       majorationsPctHorsAbidjan: { or: p.majorationsPctHorsAbidjan?.['or'] ?? 0, diamant: p.majorationsPctHorsAbidjan?.['diamant'] ?? 0 },
+      // Coefficient de chaque gamme (Tarification en console) : l'aperçu des apps le reprend,
+      // pour que le prix affiché tout de suite soit déjà celui que le serveur confirmera.
+      multipliers: { argent: p.multipliers['argent'] ?? 1, or: p.multipliers['or'] ?? 1, diamant: p.multipliers['diamant'] ?? 1 },
       // Barème en vigueur (Tarification en console) : les aperçus de prix des apps le suivent.
       bareme: { baseFare: p.baseFare, perKm: p.perKm, perMinute: p.perMinute, minFare: p.minFare },
       livraison: { baseFare: DELIVERY_TARIFF.baseFare, perKm: DELIVERY_TARIFF.perKm, perMinute: DELIVERY_TARIFF.perMinute, minFare: DELIVERY_TARIFF.minFare },

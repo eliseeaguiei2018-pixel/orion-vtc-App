@@ -72,6 +72,8 @@ export interface GrillePrixServeur {
   ajustementPct: number;
   majorationsPct: { or: number; diamant: number };
   majorationsPctHorsAbidjan: { or: number; diamant: number };
+  /** Coefficient de chaque gamme réglé en console (Tarification). */
+  multipliers: Record<Gamme, number>;
   /** Barème hors taxes en vigueur (courses, puis livraisons à moto). */
   bareme: BaremeHT;
   livraison: BaremeHT;
@@ -103,11 +105,22 @@ function reprendreBareme(cible: BaremeHT, recu: Partial<BaremeHT> | undefined): 
   }
 }
 let ajustementDirection = 1;
+/** Coefficients des gammes reçus du serveur ; sans eux, l'aperçu garde ceux livrés avec l'app. */
+const COEF_GAMMES: Partial<Record<Gamme, number>> = {};
+export function coefGamme(gamme: string, parDefaut: number): number {
+  return COEF_GAMMES[gamme as Gamme] ?? parDefaut;
+}
 export function appliquerGrillePrix(g: Partial<GrillePrixServeur> | undefined | null): void {
   if (!g) return;
   if (typeof g.ajustementPct === 'number' && Number.isFinite(g.ajustementPct)) ajustementDirection = 1 + Math.min(100, Math.max(-50, g.ajustementPct)) / 100;
   if (g.majorationsPct) Object.assign(BAREME.majorationsPct, { or: g.majorationsPct.or, diamant: g.majorationsPct.diamant });
   if (g.majorationsPctHorsAbidjan) Object.assign(BAREME.majorationsPctHorsAbidjan, { or: g.majorationsPctHorsAbidjan.or, diamant: g.majorationsPctHorsAbidjan.diamant });
+  if (g.multipliers) {
+    for (const k of ORDRE_GAMMES) {
+      const v = g.multipliers[k];
+      if (typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= 10) COEF_GAMMES[k] = v;
+    }
+  }
   reprendreBareme(BAREME, g.bareme);
   reprendreBareme(BAREME_LIVRAISON, g.livraison);
   const a = g.approche;
